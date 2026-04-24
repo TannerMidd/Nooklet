@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import { auditEvents, users, type UserRole } from "@/lib/database/schema";
@@ -15,6 +15,17 @@ export async function countAdminUsers() {
     .select({ count: count() })
     .from(users)
     .where(eq(users.role, "admin"))
+    .get();
+
+  return result?.count ?? 0;
+}
+
+export async function countActiveAdminUsers() {
+  const database = ensureDatabaseReady();
+  const result = database
+    .select({ count: count() })
+    .from(users)
+    .where(and(eq(users.role, "admin"), eq(users.isDisabled, false)))
     .get();
 
   return result?.count ?? 0;
@@ -72,6 +83,36 @@ export async function updateUserPassword(userId: string, passwordHash: string) {
     .update(users)
     .set({
       passwordHash,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
+    .run();
+
+  return findUserById(userId);
+}
+
+export async function updateUserRole(userId: string, role: UserRole) {
+  const database = ensureDatabaseReady();
+
+  database
+    .update(users)
+    .set({
+      role,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
+    .run();
+
+  return findUserById(userId);
+}
+
+export async function updateUserDisabledState(userId: string, isDisabled: boolean) {
+  const database = ensureDatabaseReady();
+
+  database
+    .update(users)
+    .set({
+      isDisabled,
       updatedAt: new Date(),
     })
     .where(eq(users.id, userId))

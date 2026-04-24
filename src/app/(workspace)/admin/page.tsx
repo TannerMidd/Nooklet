@@ -2,6 +2,9 @@ import { Panel } from "@/components/ui/panel";
 import { requireAdminSession } from "@/modules/identity-access/workflows/require-admin-session";
 import { listUsersOverview } from "@/modules/admin/queries/list-users-overview";
 
+import { CreateUserForm } from "./create-user-form";
+import { UserManagementRow } from "./user-management-row";
+
 function formatDate(value: Date | null) {
   if (!value) {
     return "Not available";
@@ -40,7 +43,7 @@ export default async function AdminPage() {
         </div>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 xl:grid-cols-[0.72fr,1.28fr]">
         <Panel eyebrow="Active admin" title={session.user.name ?? session.user.email ?? "Admin"}>
           <div className="space-y-3 text-sm leading-6 text-foreground">
             <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
@@ -56,12 +59,20 @@ export default async function AdminPage() {
         </Panel>
 
         <Panel
-          eyebrow="Current scope"
-          title="Operational foundation"
-          description="This slice establishes the protected surface and a typed user listing. Role mutation, resets, and audit browsing can layer on next without reshaping the route."
-          className="lg:col-span-2"
+          eyebrow="Create account"
+          title="Add a user"
+          description="Admin-managed accounts now support explicit creation with a starting role and temporary password."
         >
-          <ul className="grid gap-3 text-sm leading-6 text-foreground md:grid-cols-3">
+          <CreateUserForm />
+        </Panel>
+      </div>
+
+      <Panel
+        eyebrow="Current scope"
+        title="Operational foundation"
+        description="This route now owns user creation, role changes, disable or enable state, and password resets while preserving separate self-service account settings."
+      >
+        <ul className="grid gap-3 text-sm leading-6 text-foreground md:grid-cols-4">
             <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
               Admin-only access is enforced on the server.
             </li>
@@ -69,18 +80,20 @@ export default async function AdminPage() {
               User inventory is read from the normalized users table.
             </li>
             <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              Sensitive account changes already emit audit events.
+              Role and account-status changes are policy-checked before they write.
+            </li>
+            <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              Sensitive account changes emit audit events.
             </li>
           </ul>
-        </Panel>
-      </div>
+      </Panel>
 
       <Panel
         eyebrow="User inventory"
         title="Accounts"
-        description="This view stays admin-owned. Self-service profile and password changes remain on the account route."
+        description="This view stays admin-owned. Self-service profile and password changes remain on the account route, and protected policies prevent removing the last active admin."
       >
-        <div className="overflow-hidden rounded-[24px] border border-line/70">
+        <div className="overflow-x-auto rounded-[24px] border border-line/70">
           <table className="min-w-full border-collapse text-left text-sm text-foreground">
             <thead className="bg-panel-strong/80 text-xs uppercase tracking-[0.2em] text-muted">
               <tr>
@@ -89,6 +102,7 @@ export default async function AdminPage() {
                 <th className="px-4 py-3 font-semibold">Status</th>
                 <th className="px-4 py-3 font-semibold">Created</th>
                 <th className="px-4 py-3 font-semibold">Updated</th>
+                <th className="px-4 py-3 font-semibold">Manage</th>
               </tr>
             </thead>
             <tbody>
@@ -107,6 +121,9 @@ export default async function AdminPage() {
                   </td>
                   <td className="px-4 py-4 align-top text-muted">
                     {formatDate(user.updatedAt)}
+                  </td>
+                  <td className="px-4 py-4 align-top">
+                    <UserManagementRow currentAdminUserId={session.user.id} user={user} />
                   </td>
                 </tr>
               ))}
