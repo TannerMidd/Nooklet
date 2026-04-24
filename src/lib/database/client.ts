@@ -13,7 +13,7 @@ type AppDatabase = BetterSQLite3Database<typeof schema>;
 type DatabaseGlobals = {
   sqlite?: Database.Database;
   db?: AppDatabase;
-  migrated?: boolean;
+  migrationSignature?: string | null;
 };
 
 const databaseGlobals = globalThis as typeof globalThis & {
@@ -39,6 +39,29 @@ function createSqliteConnection() {
   return sqlite;
 }
 
+function resolveMigrationJournalPath() {
+  return path.join(process.cwd(), "drizzle", "meta", "_journal.json");
+}
+
+function readMigrationSignature() {
+  const journalPath = resolveMigrationJournalPath();
+
+  try {
+    return fs.readFileSync(journalPath, "utf8");
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "ENOENT"
+    ) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
 const sharedDatabaseState = databaseGlobals.__recommendarrDatabase ?? {};
 
 const sqlite = sharedDatabaseState.sqlite ?? createSqliteConnection();
@@ -49,12 +72,14 @@ sharedDatabaseState.db = db;
 databaseGlobals.__recommendarrDatabase = sharedDatabaseState;
 
 export function ensureDatabaseReady() {
-  if (!sharedDatabaseState.migrated) {
+  const migrationSignature = readMigrationSignature();
+
+  if (sharedDatabaseState.migrationSignature !== migrationSignature) {
     migrate(db, {
       migrationsFolder: path.join(process.cwd(), "drizzle"),
     });
 
-    sharedDatabaseState.migrated = true;
+    sharedDatabaseState.migrationSignature = migrationSignature;
   }
 
   return db;
