@@ -360,7 +360,7 @@ function buildAddPayload(
           )
         : [],
       addOptions: {
-        searchForMissingEpisodes: false,
+        searchForMissingEpisodes: true,
       },
     } satisfies Record<string, unknown>;
   }
@@ -372,7 +372,7 @@ function buildAddPayload(
     monitored: true,
     tags: input.tagIds,
     addOptions: {
-      searchForMovie: false,
+      searchForMovie: true,
     },
   } satisfies Record<string, unknown>;
 }
