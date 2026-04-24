@@ -1,6 +1,19 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: rgb(var(--background));
+  --color-foreground: rgb(var(--foreground));
+  --color-panel: rgb(var(--panel));
+  --color-panel-strong: rgb(var(--panel-strong));
+  --color-muted: rgb(var(--muted));
+  --color-line: rgb(var(--line));
+  --color-accent: rgb(var(--accent));
+  --color-accent-foreground: rgb(var(--accent-foreground));
+  --color-highlight: rgb(var(--highlight));
+  --font-heading: var(--app-font-heading), sans-serif;
+  --font-body: var(--app-font-body), sans-serif;
+  --shadow-soft: 0 18px 60px rgba(64, 55, 46, 0.10);
+}
 
 :root {
   --background: 248 244 235;
@@ -30,7 +43,7 @@ body {
     radial-gradient(circle at top right, rgba(184, 95, 67, 0.14), transparent 28%),
     rgb(var(--background));
   color: rgb(var(--foreground));
-  font-family: var(--font-body), sans-serif;
+  font-family: var(--app-font-body), sans-serif;
 }
 
 a {
@@ -44,7 +57,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-heading), sans-serif;
+  font-family: var(--app-font-heading), sans-serif;
   letter-spacing: -0.04em;
   margin: 0;
 }

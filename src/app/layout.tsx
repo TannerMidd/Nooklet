@@ -8,12 +8,12 @@ import "./globals.css";
 
 const headingFont = Space_Grotesk({
   subsets: ["latin"],
-  variable: "--font-heading",
+  variable: "--app-font-heading",
 });
 
 const bodyFont = IBM_Plex_Sans({
   subsets: ["latin"],
-  variable: "--font-body",
+  variable: "--app-font-body",
   weight: ["400", "500", "600", "700"],
 });
 
