@@ -61,6 +61,11 @@ export const navigationGroups = [
         label: "Preferences",
         description: "Filters, defaults, and watch-history source preferences.",
       },
+      {
+        href: "/settings/history",
+        label: "History sources",
+        description: "Sync and inspect watch-history sources used by recommendation workflows.",
+      },
     ],
   },
   {

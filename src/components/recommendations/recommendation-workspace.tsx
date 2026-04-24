@@ -8,6 +8,7 @@ import { type RecommendationMediaType } from "@/lib/database/schema";
 import { getPreferencesByUserId } from "@/modules/preferences/repositories/preferences-repository";
 import { listRecentRecommendationRuns } from "@/modules/recommendations/queries/list-recent-recommendation-runs";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
+import { getWatchHistoryOverview } from "@/modules/watch-history/queries/get-watch-history-overview";
 
 type RecommendationWorkspaceProps = {
   mediaType: RecommendationMediaType;
@@ -39,16 +40,19 @@ export async function RecommendationWorkspace({
     return null;
   }
 
-  const [preferences, connectionSummaries, recentRuns] = await Promise.all([
+  const [preferences, connectionSummaries, recentRuns, watchHistoryOverview] = await Promise.all([
     getPreferencesByUserId(session.user.id),
     listConnectionSummaries(session.user.id),
     listRecentRecommendationRuns(session.user.id, mediaType),
+    getWatchHistoryOverview(session.user.id),
   ]);
 
   const aiProvider = connectionSummaries.find((summary) => summary.serviceType === "ai-provider");
   const relevantLibraryManager = connectionSummaries.find((summary) =>
     mediaType === "tv" ? summary.serviceType === "sonarr" : summary.serviceType === "radarr",
   );
+  const manualWatchHistorySource =
+    watchHistoryOverview.sources.find((source) => source.sourceType === "manual") ?? null;
   const canRequest = aiProvider?.status === "verified";
 
   return (
@@ -100,10 +104,14 @@ export async function RecommendationWorkspace({
                 </p>
               </div>
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                <span className="font-medium">Watch-history only preference:</span>{" "}
-                {preferences.watchHistoryOnly ? "Enabled" : "Disabled"}
+                <span className="font-medium">Watch history:</span>{" "}
+                {manualWatchHistorySource?.status ?? "not-synced"}
                 <p className="mt-1 text-muted">
-                  The setting is persisted now. Watch-history source enrichment will layer on top of this when the sync subsystem lands.
+                  {preferences.watchHistoryOnly
+                    ? watchHistoryOverview.totalCount > 0
+                      ? `Watch-history-only mode is enabled and ${watchHistoryOverview.totalCount} imported titles are available for recommendation context.`
+                      : "Watch-history-only mode is enabled, but no synced watch history exists yet. Import titles on the history settings route or disable the preference."
+                    : manualWatchHistorySource?.statusMessage ?? "Syncing watch history is optional unless watch-history-only mode is enabled."}
                 </p>
               </div>
             </div>
@@ -113,6 +121,12 @@ export async function RecommendationWorkspace({
                 className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
               >
                 Manage connections
+              </Link>
+              <Link
+                href="/settings/history"
+                className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+              >
+                Manage watch history
               </Link>
               <Link
                 href="/history"

@@ -21,8 +21,9 @@ deployment model.
 - Auth.js for local session management
 
 The current app already includes local auth, first-admin bootstrap, encrypted
-service connections, persisted recommendation runs, feedback and history, and
-admin-owned user management.
+service connections, persisted recommendation runs, feedback and history,
+manual watch-history sync for MVP recommendation context, and admin-owned user
+management.
 
 ## Running locally
 
@@ -77,10 +78,11 @@ Manual happy-path checks in the browser:
 1. Bootstrap the first admin on a fresh database.
 2. Sign in at `/login`.
 3. Configure and verify the AI provider and Sonarr or Radarr on `/settings/connections`.
-4. Request recommendations on `/tv` or `/movies`.
-5. Confirm saved results appear on the recommendation route and under `/history`.
-6. Like, dislike, and hide or unhide history items.
-7. If signed in as admin, create a second user and exercise role, disable, and reset-password flows on `/admin`.
+4. Import watched titles on `/settings/history` if you want to use watch-history-only mode.
+5. Request recommendations on `/tv` or `/movies`.
+6. Confirm saved results appear on the recommendation route and under `/history`.
+7. Like, dislike, hide or unhide items, and use add-to-library when Sonarr or Radarr is configured.
+8. If signed in as admin, create a second user and exercise role, disable, and reset-password flows on `/admin`.
 
 ## Project shape
 
@@ -93,7 +95,6 @@ Manual happy-path checks in the browser:
 
 ## Next implementation slice
 
-1. Add Sonarr and Radarr add-to-library workflows from recommendation items.
-2. Implement watch-history sync and source-backed watch-history-only mode.
-3. Add pagination and metadata enrichment to recommendation history.
-4. Add audit browsing and broader admin operational visibility.
+1. Add provider-backed watch-history adapters on top of the new source and sync-run model.
+2. Add pagination and metadata enrichment to recommendation history.
+3. Add audit browsing and broader admin operational visibility.

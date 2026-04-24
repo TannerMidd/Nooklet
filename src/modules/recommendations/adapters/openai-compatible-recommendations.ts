@@ -23,6 +23,10 @@ type GenerateRecommendationsInput = {
   requestPrompt: string;
   requestedCount: number;
   watchHistoryOnly: boolean;
+  watchHistoryContext: Array<{
+    title: string;
+    year: number | null;
+  }>;
 };
 
 type GeneratedRecommendation = {
@@ -51,6 +55,13 @@ function extractJsonObject(content: string) {
 export async function generateOpenAiCompatibleRecommendations(
   input: GenerateRecommendationsInput,
 ): Promise<GeneratedRecommendation[]> {
+  const watchHistoryContextBlock =
+    input.watchHistoryContext.length > 0
+      ? input.watchHistoryContext
+          .map((item) => `- ${item.title}${item.year ? ` (${item.year})` : ""}`)
+          .join("\n")
+      : "None provided.";
+
   const response = await fetch(`${trimTrailingSlash(input.baseUrl)}/chat/completions`, {
     method: "POST",
     headers: {
@@ -75,6 +86,8 @@ export async function generateOpenAiCompatibleRecommendations(
           content:
             `Request context: ${input.requestPrompt}\n` +
             `Watch-history-only mode: ${input.watchHistoryOnly ? "enabled" : "disabled"}.\n` +
+            `${input.watchHistoryOnly ? "Use the watched-title list below as the primary source context for these recommendations.\n" : "Use the watched-title list below as optional taste context when it is present.\n"}` +
+            `Recent watched titles:\n${watchHistoryContextBlock}\n` +
             `Prefer a diverse set of results with specific rationales.`,
         },
       ],

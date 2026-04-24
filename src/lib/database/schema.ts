@@ -113,7 +113,79 @@ export const serviceSecrets = sqliteTable("service_secrets", {
     .default(sql`(unixepoch() * 1000)`),
 });
 
-export const recommendationMediaTypes = ["tv", "movie"] as const;
+  export const recommendationMediaTypes = ["tv", "movie"] as const;
+
+export const watchHistorySourceTypes = ["manual"] as const;
+export const watchHistorySyncStatuses = ["pending", "succeeded", "failed"] as const;
+
+export const watchHistorySources = sqliteTable(
+  "watch_history_sources",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    sourceType: text("source_type", { enum: watchHistorySourceTypes })
+      .notNull()
+      .default("manual"),
+    displayName: text("display_name").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [uniqueIndex("watch_history_sources_user_type_unique").on(table.userId, table.sourceType)],
+);
+
+export const watchHistorySyncRuns = sqliteTable("watch_history_sync_runs", {
+  id: text("id").primaryKey(),
+  sourceId: text("source_id")
+    .notNull()
+    .references(() => watchHistorySources.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  mediaType: text("media_type", { enum: recommendationMediaTypes }).notNull(),
+  status: text("status", { enum: watchHistorySyncStatuses })
+    .notNull()
+    .default("pending"),
+  itemCount: integer("item_count").notNull().default(0),
+  errorMessage: text("error_message"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+  completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+});
+
+export const watchHistoryItems = sqliteTable(
+  "watch_history_items",
+  {
+    id: text("id").primaryKey(),
+    sourceId: text("source_id")
+      .notNull()
+      .references(() => watchHistorySources.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mediaType: text("media_type", { enum: recommendationMediaTypes }).notNull(),
+    title: text("title").notNull(),
+    year: integer("year"),
+    normalizedKey: text("normalized_key").notNull(),
+    watchedAt: integer("watched_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    uniqueIndex("watch_history_items_user_media_key_unique").on(
+      table.userId,
+      table.mediaType,
+      table.normalizedKey,
+    ),
+  ],
+);
 export const recommendationRunStatuses = ["pending", "succeeded", "failed"] as const;
 export const recommendationFeedbackValues = ["like", "dislike"] as const;
 
@@ -212,6 +284,8 @@ export type UserRole = (typeof userRoles)[number];
 export type PreferenceMediaMode = (typeof preferenceMediaModes)[number];
 export type ServiceConnectionType = (typeof serviceConnectionTypes)[number];
 export type ServiceConnectionStatus = (typeof serviceConnectionStatuses)[number];
+export type WatchHistorySourceType = (typeof watchHistorySourceTypes)[number];
+export type WatchHistorySyncStatus = (typeof watchHistorySyncStatuses)[number];
 export type RecommendationMediaType = (typeof recommendationMediaTypes)[number];
 export type RecommendationRunStatus = (typeof recommendationRunStatuses)[number];
 export type RecommendationFeedbackValue = (typeof recommendationFeedbackValues)[number];

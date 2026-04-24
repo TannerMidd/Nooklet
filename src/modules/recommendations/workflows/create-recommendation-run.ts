@@ -10,6 +10,7 @@ import {
 import { type RecommendationRequestInput } from "@/modules/recommendations/schemas/recommendation-request";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
 
 type CreateRecommendationRunResult =
   | { ok: true; runId: string }
@@ -68,6 +69,16 @@ export async function createRecommendationRunWorkflow(
     typeof aiProvider.metadata?.model === "string" && aiProvider.metadata.model.trim().length > 0
       ? (aiProvider.metadata.model as string)
       : "gpt-4.1-mini";
+  const watchHistoryContext = preferences.watchHistoryOnly
+    ? await listWatchHistoryContext(userId, input.mediaType, 12)
+    : [];
+
+  if (preferences.watchHistoryOnly && watchHistoryContext.length === 0) {
+    return {
+      ok: false,
+      message: `Watch-history only mode is enabled, but no synced ${input.mediaType === "tv" ? "TV" : "movie"} history exists yet. Import titles on /settings/history or disable the preference.`,
+    };
+  }
 
   const run = await createRecommendationRun({
     userId,
@@ -93,6 +104,7 @@ export async function createRecommendationRunWorkflow(
     payloadJson: JSON.stringify({
       mediaType: input.mediaType,
       requestedCount: input.requestedCount,
+      watchHistoryItemCount: watchHistoryContext.length,
     }),
   });
 
@@ -105,6 +117,7 @@ export async function createRecommendationRunWorkflow(
       requestPrompt: input.requestPrompt,
       requestedCount: input.requestedCount,
       watchHistoryOnly: preferences.watchHistoryOnly,
+      watchHistoryContext,
     });
 
     const normalizedItems = dedupeGeneratedItems(generatedItems, input.mediaType);
@@ -122,6 +135,7 @@ export async function createRecommendationRunWorkflow(
       payloadJson: JSON.stringify({
         mediaType: input.mediaType,
         itemCount: normalizedItems.length,
+        watchHistoryItemCount: watchHistoryContext.length,
       }),
     });
 
@@ -141,6 +155,7 @@ export async function createRecommendationRunWorkflow(
       payloadJson: JSON.stringify({
         mediaType: input.mediaType,
         error: message,
+        watchHistoryItemCount: watchHistoryContext.length,
       }),
     });
 

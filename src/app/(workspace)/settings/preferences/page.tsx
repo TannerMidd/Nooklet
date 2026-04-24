@@ -27,8 +27,8 @@ export default async function PreferencesSettingsPage() {
           </h1>
           <p className="text-base leading-7 text-muted">
             Recommendation defaults, history filters, and watch-history-only mode
-            are now stored explicitly per user instead of being left to route-local
-            state.
+            are now stored explicitly per user and can drive recommendation runs
+            from synced watch-history records instead of route-local state.
           </p>
         </div>
       </header>
@@ -72,7 +72,7 @@ export default async function PreferencesSettingsPage() {
                 Persisted history filter toggles.
               </li>
               <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Watch-history source behavior flags that future recommendation workflows can consume.
+                Watch-history-only behavior that recommendation workflows can now consume from the dedicated history source route.
               </li>
             </ul>
           </Panel>
