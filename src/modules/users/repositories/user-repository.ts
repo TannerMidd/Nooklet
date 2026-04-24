@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { count, eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import { auditEvents, users, type UserRole } from "@/lib/database/schema";
@@ -32,6 +32,12 @@ export async function findUserById(userId: string) {
   const database = ensureDatabaseReady();
 
   return database.select().from(users).where(eq(users.id, userId)).get() ?? null;
+}
+
+export async function listUsers() {
+  const database = ensureDatabaseReady();
+
+  return database.select().from(users).orderBy(desc(users.createdAt)).all();
 }
 
 type CreateUserInput = {
