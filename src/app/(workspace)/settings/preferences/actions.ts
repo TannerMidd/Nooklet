@@ -1,5 +1,8 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+
 import { type UpdatePreferencesActionState } from "@/app/(workspace)/settings/preferences/action-state";
 import { auth } from "@/auth";
 import { updatePreferencesInputSchema } from "@/modules/preferences/schemas/preferences";
@@ -46,9 +49,9 @@ export async function submitUpdatePreferencesAction(
   }
 
   await updatePreferences(session.user.id, parsedInput.data);
-
-  return {
-    status: "success",
-    message: "Preferences updated.",
-  };
+  revalidatePath("/settings/preferences");
+  revalidatePath("/tv");
+  revalidatePath("/movies");
+  revalidatePath("/history");
+  redirect("/settings/preferences?updated=1");
 }

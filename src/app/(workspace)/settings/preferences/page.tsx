@@ -6,14 +6,31 @@ import { PreferencesForm } from "./preferences-form";
 
 export const dynamic = "force-dynamic";
 
-export default async function PreferencesSettingsPage() {
-  const session = await auth();
+type PreferencesSettingsPageProps = {
+  searchParams?: Promise<{
+    updated?: string;
+  }>;
+};
+
+function formatDate(value: Date) {
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(value);
+}
+
+export default async function PreferencesSettingsPage({
+  searchParams,
+}: PreferencesSettingsPageProps) {
+  const [session, resolvedSearchParams] = await Promise.all([auth(), searchParams]);
 
   if (!session?.user?.id) {
     return null;
   }
 
   const preferences = await getPreferencesByUserId(session.user.id);
+  const wasUpdated = resolvedSearchParams?.updated === "1";
+  const hasPersistedUpdate = preferences.updatedAt.getTime() > 0;
 
   return (
     <div className="space-y-6">
@@ -32,6 +49,12 @@ export default async function PreferencesSettingsPage() {
           </p>
         </div>
       </header>
+
+      {wasUpdated ? (
+        <p className="rounded-[24px] border border-accent/20 bg-accent/10 px-5 py-4 text-sm leading-6 text-foreground">
+          Preferences saved. Current values and recommendation defaults have been refreshed.
+        </p>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[1.12fr,0.88fr]">
         <Panel
@@ -56,6 +79,10 @@ export default async function PreferencesSettingsPage() {
               </div>
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
                 <span className="font-medium">Watch-history only:</span> {preferences.watchHistoryOnly ? "Enabled" : "Disabled"}
+              </div>
+              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                <span className="font-medium">Last updated:</span>{" "}
+                {hasPersistedUpdate ? formatDate(preferences.updatedAt) : "Never"}
               </div>
             </div>
           </Panel>

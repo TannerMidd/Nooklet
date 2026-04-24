@@ -15,15 +15,15 @@ type AppShellProps = {
 
 export function AppShell({ children, user }: AppShellProps) {
   return (
-    <div className="min-h-screen px-6 py-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row lg:items-start">
+    <div className="min-h-screen overflow-x-clip px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:gap-6 lg:flex-row lg:items-start">
         <aside className="lg:sticky lg:top-8 lg:w-80 lg:flex-none">
-          <div className="rounded-[32px] border border-line/80 bg-panel/95 p-6 shadow-soft backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-accent">
+          <div className="rounded-[32px] border border-line/80 bg-panel/95 p-5 shadow-soft backdrop-blur sm:p-6">
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.26em] text-accent sm:text-xs sm:tracking-[0.32em]">
               Phase 1 scaffold
             </p>
             <div className="mt-4 space-y-3">
-              <Link href="/" className="block font-heading text-3xl leading-none text-foreground">
+              <Link href="/" className="block font-heading text-2xl leading-none text-foreground sm:text-3xl">
                 Recommendarr Next
               </Link>
               <p className="text-sm leading-6 text-muted">
@@ -45,10 +45,10 @@ export function AppShell({ children, user }: AppShellProps) {
               </div>
             </div>
 
-            <div className="mt-8 space-y-6">
+            <div className="mt-8 space-y-5 sm:space-y-6">
               {navigationGroups.map((group) => (
                 <section key={group.title} className="space-y-3">
-                  <h2 className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">
+                  <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-muted sm:text-xs sm:tracking-[0.28em]">
                     {group.title}
                   </h2>
                   <div className="space-y-2">

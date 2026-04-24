@@ -60,9 +60,19 @@ export function PreferencesForm({ preferences }: PreferencesFormProps) {
     submitUpdatePreferencesAction,
     initialUpdatePreferencesActionState,
   );
+  const formResetKey = [
+    preferences.updatedAt.getTime(),
+    preferences.defaultMediaMode,
+    preferences.defaultResultCount,
+    Number(preferences.watchHistoryOnly),
+    Number(preferences.historyHideExisting),
+    Number(preferences.historyHideLiked),
+    Number(preferences.historyHideDisliked),
+    Number(preferences.historyHideHidden),
+  ].join(":");
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form key={formResetKey} action={formAction} className="space-y-6">
       <div className="grid gap-5 md:grid-cols-2">
         <label className="space-y-2">
           <span className="text-sm font-medium text-foreground">Default media mode</span>
@@ -130,14 +140,8 @@ export function PreferencesForm({ preferences }: PreferencesFormProps) {
         />
       </div>
 
-      {state.message ? (
-        <p
-          className={
-            state.status === "success"
-              ? "rounded-2xl border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-foreground"
-              : "rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight"
-          }
-        >
+      {state.status === "error" && state.message ? (
+        <p className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
           {state.message}
         </p>
       ) : null}

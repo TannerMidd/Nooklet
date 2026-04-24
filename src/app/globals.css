@@ -12,19 +12,19 @@
   --color-highlight: rgb(var(--highlight));
   --font-heading: var(--app-font-heading), sans-serif;
   --font-body: var(--app-font-body), sans-serif;
-  --shadow-soft: 0 18px 60px rgba(64, 55, 46, 0.10);
+  --shadow-soft: 0 20px 70px rgba(3, 8, 16, 0.42);
 }
 
 :root {
-  --background: 248 244 235;
-  --foreground: 34 30 24;
-  --panel: 255 250 242;
-  --panel-strong: 242 234 223;
-  --muted: 106 97 86;
-  --line: 210 199 184;
-  --accent: 22 104 101;
-  --accent-foreground: 248 244 235;
-  --highlight: 184 95 67;
+  --background: 18 22 29;
+  --foreground: 236 233 226;
+  --panel: 26 31 40;
+  --panel-strong: 34 40 50;
+  --muted: 159 166 176;
+  --line: 78 88 102;
+  --accent: 90 181 173;
+  --accent-foreground: 12 17 22;
+  --highlight: 216 137 105;
 }
 
 * {
@@ -33,14 +33,16 @@
 
 html {
   min-height: 100%;
+  color-scheme: dark;
 }
 
 body {
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(circle at top left, rgba(22, 104, 101, 0.18), transparent 30%),
-    radial-gradient(circle at top right, rgba(184, 95, 67, 0.14), transparent 28%),
+    radial-gradient(circle at top left, rgba(90, 181, 173, 0.16), transparent 30%),
+    radial-gradient(circle at top right, rgba(216, 137, 105, 0.14), transparent 28%),
+    radial-gradient(circle at bottom center, rgba(92, 112, 166, 0.12), transparent 34%),
     rgb(var(--background));
   color: rgb(var(--foreground));
   font-family: var(--app-font-body), sans-serif;
@@ -69,5 +71,5 @@ ol {
 }
 
 ::selection {
-  background: rgba(22, 104, 101, 0.22);
+  background: rgba(90, 181, 173, 0.28);
 }
