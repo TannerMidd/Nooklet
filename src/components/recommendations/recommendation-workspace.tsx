@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { auth } from "@/auth";
 import { RecommendationRequestForm } from "@/components/recommendations/recommendation-request-form";
+import { RecommendationRetryForm } from "@/components/recommendations/recommendation-retry-form";
 import { Panel } from "@/components/ui/panel";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { getPreferencesByUserId } from "@/modules/preferences/repositories/preferences-repository";
@@ -169,6 +170,14 @@ export async function RecommendationWorkspace({
                     {run.errorMessage}
                   </p>
                 ) : null}
+
+                <RecommendationRetryForm
+                  mediaType={run.mediaType}
+                  requestPrompt={run.requestPrompt}
+                  requestedCount={run.requestedCount}
+                  redirectPath={routePath}
+                  runStatus={run.status}
+                />
 
                 {run.items.length > 0 ? (
                   <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">

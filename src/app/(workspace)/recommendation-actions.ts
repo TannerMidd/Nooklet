@@ -5,7 +5,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { auth } from "@/auth";
-import { type RecommendationActionState } from "@/app/(workspace)/recommendation-action-state";
+import {
+  type RecommendationActionState,
+  type RecommendationRunActionState,
+} from "@/app/(workspace)/recommendation-action-state";
 import { recommendationRequestSchema } from "@/modules/recommendations/schemas/recommendation-request";
 import { createRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
 import { updateRecommendationFeedback } from "@/modules/recommendations/workflows/update-recommendation-feedback";
@@ -57,6 +60,47 @@ export async function submitRecommendationRequestAction(
         requestPrompt: flattenedErrors.requestPrompt?.[0],
         requestedCount: flattenedErrors.requestedCount?.[0],
       },
+    };
+  }
+
+  const result = await createRecommendationRunWorkflow(session.user.id, parsedInput.data);
+
+  if (!result.ok) {
+    return {
+      status: "error",
+      message: result.message,
+    };
+  }
+
+  revalidatePath(redirectPath);
+  revalidatePath("/history");
+  redirect(redirectPath);
+}
+
+export async function submitRecommendationRetryAction(
+  _previousState: RecommendationRunActionState,
+  formData: FormData,
+): Promise<RecommendationRunActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return {
+      status: "error",
+      message: "You need to sign in again.",
+    };
+  }
+
+  const redirectPath = safeReturnTo(formData.get("redirectPath")?.toString() ?? "/tv");
+  const parsedInput = recommendationRequestSchema.safeParse({
+    mediaType: formData.get("mediaType"),
+    requestPrompt: formData.get("requestPrompt"),
+    requestedCount: formData.get("requestedCount"),
+  });
+
+  if (!parsedInput.success) {
+    return {
+      status: "error",
+      message: "This saved request is no longer valid. Start a new recommendation run instead.",
     };
   }
 

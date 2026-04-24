@@ -7,3 +7,12 @@ export type RecommendationActionState = {
 export const initialRecommendationActionState: RecommendationActionState = {
   status: "idle",
 };
+
+export type RecommendationRunActionState = {
+  status: "idle" | "error";
+  message?: string;
+};
+
+export const initialRecommendationRunActionState: RecommendationRunActionState = {
+  status: "idle",
+};
