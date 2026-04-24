@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { type ConnectionActionState } from "@/app/(workspace)/settings/connections/action-state";
 import { auth } from "@/auth";
 import {
   aiProviderConnectionSchema,
@@ -12,16 +13,6 @@ import {
 import { disconnectServiceConnection } from "@/modules/service-connections/workflows/disconnect-service-connection";
 import { saveConfiguredServiceConnection } from "@/modules/service-connections/workflows/save-service-connection";
 import { verifyConfiguredServiceConnection } from "@/modules/service-connections/workflows/verify-configured-service-connection";
-
-export type ConnectionActionState = {
-  status: "idle" | "error" | "success";
-  message?: string;
-  fieldErrors?: Partial<Record<"baseUrl" | "apiKey" | "model", string>>;
-};
-
-export const initialConnectionActionState: ConnectionActionState = {
-  status: "idle",
-};
 
 export async function submitConnectionAction(
   _previousState: ConnectionActionState,

@@ -3,12 +3,12 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
+import { initialUpdatePreferencesActionState } from "@/app/(workspace)/settings/preferences/action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type PreferenceRecord } from "@/modules/preferences/repositories/preferences-repository";
 
 import {
-  initialUpdatePreferencesActionState,
   submitUpdatePreferencesAction,
 } from "./actions";
 

@@ -1,18 +1,9 @@
 "use server";
 
+import { type UpdatePreferencesActionState } from "@/app/(workspace)/settings/preferences/action-state";
 import { auth } from "@/auth";
 import { updatePreferencesInputSchema } from "@/modules/preferences/schemas/preferences";
 import { updatePreferences } from "@/modules/preferences/workflows/update-preferences";
-
-export type UpdatePreferencesActionState = {
-  status: "idle" | "error" | "success";
-  message?: string;
-  fieldErrors?: Partial<Record<"defaultMediaMode" | "defaultResultCount", string>>;
-};
-
-export const initialUpdatePreferencesActionState: UpdatePreferencesActionState = {
-  status: "idle",
-};
 
 function checkboxValue(formData: FormData, key: string) {
   return formData.get(key) === "on";

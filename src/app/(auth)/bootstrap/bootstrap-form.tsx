@@ -3,11 +3,11 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
+import { initialBootstrapActionState } from "@/app/(auth)/bootstrap/action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 import {
-  initialBootstrapActionState,
   submitBootstrapAction,
 } from "./actions";
 

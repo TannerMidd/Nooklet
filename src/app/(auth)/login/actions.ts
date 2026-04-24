@@ -2,18 +2,9 @@
 
 import { AuthError } from "next-auth";
 
+import { type LoginActionState } from "@/app/(auth)/login/action-state";
 import { signIn } from "@/auth";
 import { loginInputSchema } from "@/modules/identity-access/schemas/login";
-
-export type LoginActionState = {
-  status: "idle" | "error";
-  message?: string;
-  fieldErrors?: Partial<Record<"email" | "password", string>>;
-};
-
-export const initialLoginActionState: LoginActionState = {
-  status: "idle",
-};
 
 export async function submitLoginAction(
   _previousState: LoginActionState,

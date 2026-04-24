@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 
+import { initialConnectionActionState } from "@/app/(workspace)/settings/connections/action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,7 +12,6 @@ import {
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 import {
-  initialConnectionActionState,
   submitConnectionAction,
 } from "./actions";
 

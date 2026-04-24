@@ -1,20 +1,9 @@
 "use server";
 
+import { type ChangePasswordActionState } from "@/app/(workspace)/settings/account/action-state";
 import { auth } from "@/auth";
 import { changePasswordInputSchema } from "@/modules/users/schemas/change-password";
 import { changePassword } from "@/modules/users/workflows/change-password";
-
-export type ChangePasswordActionState = {
-  status: "idle" | "error" | "success";
-  message?: string;
-  fieldErrors?: Partial<
-    Record<"currentPassword" | "newPassword" | "confirmPassword", string>
-  >;
-};
-
-export const initialChangePasswordActionState: ChangePasswordActionState = {
-  status: "idle",
-};
 
 export async function submitChangePasswordAction(
   _previousState: ChangePasswordActionState,

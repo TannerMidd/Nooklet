@@ -3,11 +3,11 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
+import { initialChangePasswordActionState } from "@/app/(workspace)/settings/account/action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 import {
-  initialChangePasswordActionState,
   submitChangePasswordAction,
 } from "./actions";
 

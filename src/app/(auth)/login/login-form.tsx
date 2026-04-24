@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
+import { initialLoginActionState } from "@/app/(auth)/login/action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-import { initialLoginActionState, submitLoginAction } from "./actions";
+import { submitLoginAction } from "./actions";
 
 function SubmitButton() {
   const { pending } = useFormStatus();

@@ -2,18 +2,9 @@
 
 import { redirect } from "next/navigation";
 
+import { type BootstrapActionState } from "@/app/(auth)/bootstrap/action-state";
 import { bootstrapInputSchema } from "@/modules/identity-access/schemas/bootstrap";
 import { createFirstAdmin } from "@/modules/identity-access/workflows/create-first-admin";
-
-export type BootstrapActionState = {
-  status: "idle" | "error";
-  message?: string;
-  fieldErrors?: Partial<Record<"displayName" | "email" | "password" | "confirmPassword", string>>;
-};
-
-export const initialBootstrapActionState: BootstrapActionState = {
-  status: "idle",
-};
 
 export async function submitBootstrapAction(
   _previousState: BootstrapActionState,
