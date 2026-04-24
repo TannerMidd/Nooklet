@@ -20,15 +20,14 @@ export function AppShell({ children, user }: AppShellProps) {
         <aside className="lg:sticky lg:top-8 lg:w-80 lg:flex-none">
           <div className="rounded-[32px] border border-line/80 bg-panel/95 p-5 shadow-soft backdrop-blur sm:p-6">
             <p className="text-[0.7rem] font-semibold uppercase tracking-[0.26em] text-accent sm:text-xs sm:tracking-[0.32em]">
-              Phase 1 scaffold
+              Personal workspace
             </p>
             <div className="mt-4 space-y-3">
               <Link href="/" className="block font-heading text-2xl leading-none text-foreground sm:text-3xl">
                 Recommendarr Next
               </Link>
               <p className="text-sm leading-6 text-muted">
-                Domain-first route surface anchored to the rewrite ADR and
-                behavior matrix.
+                Recommendations, watch history, and library actions in one place.
               </p>
             </div>
 

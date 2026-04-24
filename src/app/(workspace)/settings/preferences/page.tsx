@@ -43,9 +43,8 @@ export default async function PreferencesSettingsPage({
             Preferences
           </h1>
           <p className="text-base leading-7 text-muted">
-            Recommendation defaults, history filters, and watch-history-only mode
-            are now stored explicitly per user and can drive recommendation runs
-            from synced watch-history records instead of route-local state.
+            Set your default media mode, result count, history filters, and
+            watch-history behavior for future recommendation runs.
           </p>
         </div>
       </header>
@@ -60,7 +59,7 @@ export default async function PreferencesSettingsPage({
         <Panel
           eyebrow="Saved defaults"
           title="Preference controls"
-          description="These values are the first normalized preference record in the new schema and can be consumed later by history and recommendation workflows."
+          description="These settings control the defaults used for new recommendation requests and history browsing."
         >
           <PreferencesForm preferences={preferences} />
         </Panel>
@@ -88,18 +87,18 @@ export default async function PreferencesSettingsPage({
           </Panel>
 
           <Panel
-            eyebrow="Boundary"
-            title="What this route owns"
+            eyebrow="Included here"
+            title="What these settings control"
           >
             <ul className="space-y-3 text-sm leading-6 text-foreground">
               <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Explicit user defaults for recommendation requests.
+                Default request values for TV and movie recommendations.
               </li>
               <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Persisted history filter toggles.
+                Default history filters for existing, liked, disliked, hidden, and imported items.
               </li>
               <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Watch-history-only behavior that recommendation workflows can now consume from the dedicated history source route.
+                Watch-history-only behavior when you want prompts built from imported history.
               </li>
             </ul>
           </Panel>

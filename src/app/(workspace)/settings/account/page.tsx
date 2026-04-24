@@ -26,9 +26,7 @@ export default async function AccountSettingsPage() {
             Account
           </h1>
           <p className="text-base leading-7 text-muted">
-            Self-service account changes stay separate from admin-owned user
-            management. This route now supports a scoped password change flow
-            with current-password verification.
+            Manage the signed-in account without mixing in admin-only user management.
           </p>
         </div>
       </header>
@@ -37,7 +35,7 @@ export default async function AccountSettingsPage() {
         <Panel
           eyebrow="Password change"
           title="Update your password"
-          description="Validation and hashing stay inside the users and identity-access modules rather than inside the route component."
+          description="Use your current password to set a new one for this account."
         >
           <ChangePasswordForm />
         </Panel>
@@ -46,7 +44,7 @@ export default async function AccountSettingsPage() {
           <Panel
             eyebrow="Signed-in account"
             title={user?.displayName ?? session.user.name ?? "Account"}
-            description="This view is intentionally narrow. Admin role changes, account disabling, and user listing stay on the admin surface."
+            description="This page shows the current account identity and access state."
           >
             <div className="space-y-3 text-sm leading-6 text-foreground">
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
@@ -62,12 +60,12 @@ export default async function AccountSettingsPage() {
           </Panel>
 
           <Panel
-            eyebrow="Boundary"
-            title="What stays out of this route"
+            eyebrow="Managed elsewhere"
+            title="Not on this page"
           >
             <ul className="space-y-3 text-sm leading-6 text-foreground">
               <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Admin-owned role changes and user lifecycle controls.
+                Admin-only role changes and user lifecycle controls.
               </li>
               <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
                 Service setup and provider credentials.

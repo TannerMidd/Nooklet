@@ -15,7 +15,7 @@ type PlaceholderPageProps = {
   description: string;
   moduleKey: DomainModuleKey;
   acceptanceCriteria: readonly string[];
-  firstBuildSlice: readonly string[];
+  firstBuildMilestone: readonly string[];
   relatedLinks?: readonly RelatedLink[];
 };
 
@@ -25,7 +25,7 @@ export function PlaceholderPage({
   description,
   moduleKey,
   acceptanceCriteria,
-  firstBuildSlice,
+  firstBuildMilestone,
   relatedLinks,
 }: PlaceholderPageProps) {
   const owningModule = getDomainModule(moduleKey);
@@ -46,9 +46,9 @@ export function PlaceholderPage({
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr,0.95fr]">
         <Panel
-          eyebrow="Acceptance anchor"
-          title="Behavior this route has to preserve"
-          description="The rewrite keeps product behavior while replacing the old component and API shape."
+          eyebrow="Key behaviors"
+          title="What this route needs to support"
+          description="Use this checklist to keep unfinished screens aligned with the product behavior already defined elsewhere in the app."
         >
           <ul className="space-y-3 text-sm leading-6 text-foreground">
             {acceptanceCriteria.map((item) => (
@@ -75,7 +75,7 @@ export function PlaceholderPage({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Panel eyebrow="Explicit workflows" title="Workflow phases to model next">
+        <Panel eyebrow="Core workflows" title="What this area still needs">
           <ul className="space-y-3 text-sm leading-6 text-foreground">
             {owningModule.workflows.map((item) => (
               <li key={item} className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
@@ -86,12 +86,12 @@ export function PlaceholderPage({
         </Panel>
 
         <Panel
-          eyebrow="Implementation slice"
-          title="What belongs in the first pass"
-          description="This page exists so each route can grow from a clean, explicit workflow boundary."
+          eyebrow="Next milestone"
+          title="What to build next"
+          description="This screen is not finished yet. These are the first product capabilities that belong here when development resumes."
         >
           <ul className="space-y-3 text-sm leading-6 text-foreground">
-            {firstBuildSlice.map((item) => (
+            {firstBuildMilestone.map((item) => (
               <li key={item} className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
                 {item}
               </li>
@@ -101,7 +101,7 @@ export function PlaceholderPage({
       </div>
 
       {relatedLinks && relatedLinks.length > 0 ? (
-        <Panel eyebrow="Related routes" title="Adjacent flows already scaffolded">
+        <Panel eyebrow="Related routes" title="Other areas to reference">
           <div className="grid gap-4 md:grid-cols-2">
             {relatedLinks.map((item) => (
               <Link

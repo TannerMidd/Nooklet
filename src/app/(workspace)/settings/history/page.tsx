@@ -33,14 +33,14 @@ export default async function WatchHistorySettingsPage() {
     <div className="space-y-6">
       <header className="rounded-[32px] border border-line/80 bg-panel/90 px-6 py-8 shadow-soft backdrop-blur md:px-8">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">
-          Watch-history subsystem
+          Watch history
         </p>
         <div className="mt-4 max-w-3xl space-y-3">
           <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
             History sources
           </h1>
           <p className="text-base leading-7 text-muted">
-            Watch-history now has explicit source, sync-run, and item records. This MVP route seeds that subsystem with a manual sync path so recommendation runs can use real history context when watch-history-only mode is enabled.
+            Import watched titles and use them as recommendation context. Manual sync is available now, and additional provider-backed sources can build on the same history list later.
           </p>
         </div>
       </header>
@@ -49,7 +49,7 @@ export default async function WatchHistorySettingsPage() {
         <Panel
           eyebrow="Manual source"
           title="Sync watched titles"
-          description="This source is provider-neutral for the MVP. It preserves the explicit sync boundary and lets the recommendation workflow consume real watch-history records now."
+          description="Paste watched titles here to seed recommendation context immediately."
         >
           <ManualWatchHistoryForm />
         </Panel>
@@ -82,18 +82,18 @@ export default async function WatchHistorySettingsPage() {
           </Panel>
 
           <Panel
-            eyebrow="Recommendation path"
-            title="What this unlocks"
+            eyebrow="Recommendation context"
+            title="What this powers"
           >
             <ul className="space-y-3 text-sm leading-6 text-foreground">
               <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Watch-history-only mode can now reject empty source context cleanly instead of silently doing nothing.
+                Watch-history-only mode can refuse empty history with a clear message.
               </li>
               <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Recommendation prompts can use recent watched titles as explicit source context.
+                Recommendation prompts can use recent watched titles as direct taste context.
               </li>
               <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Provider-backed sync adapters can layer onto the same source and sync-run model later.
+                Future provider-backed imports can share the same sync history and downstream queries.
               </li>
             </ul>
             <div className="mt-4 flex flex-wrap gap-3">

@@ -13,11 +13,32 @@ export const dynamic = "force-dynamic";
 type HistoryPageProps = {
   searchParams?: Promise<{
     view?: string;
+    page?: string;
   }>;
 };
 
-function buildReturnTo(view: "all" | "tv" | "movie") {
-  return view === "all" ? "/history" : `/history?view=${view}`;
+const HISTORY_PAGE_SIZE = 12;
+
+function buildHistoryHref(view: "all" | "tv" | "movie", page = 1) {
+  const searchParams = new URLSearchParams();
+
+  if (view !== "all") {
+    searchParams.set("view", view);
+  }
+
+  if (page > 1) {
+    searchParams.set("page", String(page));
+  }
+
+  const query = searchParams.toString();
+
+  return query.length > 0 ? `/history?${query}` : "/history";
+}
+
+function parsePage(value: string | undefined) {
+  const parsed = Number.parseInt(value ?? "", 10);
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
 export default async function HistoryPage({ searchParams }: HistoryPageProps) {
@@ -36,14 +57,17 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
     resolvedSearchParams?.view === "tv" || resolvedSearchParams?.view === "movie"
       ? resolvedSearchParams.view
       : "all";
+  const requestedPage = parsePage(resolvedSearchParams?.page);
   const history = await listRecommendationHistory(session.user.id, {
     mediaType: currentView,
     hideExisting: preferences.historyHideExisting,
     hideLiked: preferences.historyHideLiked,
     hideDisliked: preferences.historyHideDisliked,
     hideHidden: preferences.historyHideHidden,
+    page: requestedPage,
+    pageSize: HISTORY_PAGE_SIZE,
   });
-  const returnTo = buildReturnTo(currentView);
+  const returnTo = buildHistoryHref(currentView, history.currentPage);
   const sonarrSummary = connectionSummaries.find((summary) => summary.serviceType === "sonarr") ?? null;
   const radarrSummary = connectionSummaries.find((summary) => summary.serviceType === "radarr") ?? null;
 
@@ -58,8 +82,8 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
             History
           </h1>
           <p className="text-base leading-7 text-muted">
-            History is now backed by persisted recommendation runs, normalized items,
-            per-item feedback, and separate hidden state instead of route-local data.
+            Browse saved TV and movie recommendations, filter out what you have
+            already handled, and send titles to your library when they are ready.
           </p>
         </div>
       </header>
@@ -72,10 +96,10 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
         >
           <div className="flex flex-wrap gap-3">
             {[
-              { href: "/history", label: "All", active: currentView === "all" },
-              { href: "/history?view=tv", label: "TV", active: currentView === "tv" },
+              { href: buildHistoryHref("all"), label: "All", active: currentView === "all" },
+              { href: buildHistoryHref("tv"), label: "TV", active: currentView === "tv" },
               {
-                href: "/history?view=movie",
+                href: buildHistoryHref("movie"),
                 label: "Movies",
                 active: currentView === "movie",
               },
@@ -119,8 +143,12 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
 
       <Panel
         eyebrow="Recommendation items"
-        title={`Showing ${history.filteredCount} of ${history.totalCount}`}
-        description="Feedback and hidden state are stored separately from the recommendation item record so history queries stay explicit and composable."
+        title={
+          history.filteredCount > 0
+            ? `Showing ${history.pageStart}-${history.pageEnd} of ${history.filteredCount}`
+            : `Showing 0 of ${history.totalCount}`
+        }
+        description="Saved filters apply automatically, and large histories are now split into pages so browsing stays manageable as more runs accumulate."
       >
         {history.items.length === 0 ? (
           <div className="space-y-3 text-sm leading-6 text-muted">
@@ -198,6 +226,46 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
             ))}
           </div>
         )}
+
+        {history.filteredCount > 0 ? (
+          <div className="mt-6 flex flex-col gap-3 border-t border-line/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm leading-6 text-muted">
+              Page {history.currentPage} of {history.totalPages}.
+              {history.totalCount !== history.filteredCount
+                ? ` ${history.totalCount} total items are available before filters.`
+                : null}
+            </p>
+            {history.totalPages > 1 ? (
+              <div className="flex flex-wrap gap-3">
+                {history.currentPage > 1 ? (
+                  <Link
+                    href={buildHistoryHref(currentView, history.currentPage - 1)}
+                    className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                  >
+                    Previous page
+                  </Link>
+                ) : (
+                  <span className="inline-flex rounded-2xl border border-line/50 bg-panel/60 px-4 py-3 text-sm font-medium text-muted">
+                    Previous page
+                  </span>
+                )}
+
+                {history.currentPage < history.totalPages ? (
+                  <Link
+                    href={buildHistoryHref(currentView, history.currentPage + 1)}
+                    className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                  >
+                    Next page
+                  </Link>
+                ) : (
+                  <span className="inline-flex rounded-2xl border border-line/50 bg-panel/60 px-4 py-3 text-sm font-medium text-muted">
+                    Next page
+                  </span>
+                )}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </Panel>
     </div>
   );

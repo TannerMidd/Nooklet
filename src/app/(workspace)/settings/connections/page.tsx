@@ -26,17 +26,16 @@ export default async function ConnectionsSettingsPage() {
             Connections
           </h1>
           <p className="text-base leading-7 text-muted">
-            Connections are now explicit workflows with typed status, encrypted
-            secret storage, and server-side verification adapters for the first
-            core services.
+            Connect the AI provider, Sonarr, and Radarr, then verify each
+            service before using it in recommendations or library actions.
           </p>
         </div>
       </header>
 
       <Panel
-        eyebrow="Current slice"
+        eyebrow="Connected services"
         title="Configured services"
-        description="This foundation covers the first services needed for recommendation generation and add-to-library flows: the AI provider, Sonarr, and Radarr."
+        description="These services power recommendation generation, model discovery, duplicate checks, poster enrichment, and add-to-library actions."
       >
         <div className="grid gap-4 text-sm leading-6 text-foreground md:grid-cols-3">
           <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">

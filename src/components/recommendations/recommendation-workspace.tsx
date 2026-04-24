@@ -74,8 +74,8 @@ export async function RecommendationWorkspace({
       <div className="grid gap-6 xl:grid-cols-[1.08fr,0.92fr]">
         <Panel
           eyebrow="Request run"
-          title="Generate a persisted recommendation run"
-          description="Recommendation requests create a persisted run, call the configured AI provider, normalize the returned items, and store the results for history and feedback."
+          title="Start a recommendation run"
+          description="Generate a saved batch of recommendations that you can review here, refine later, and revisit from history."
         >
           <RecommendationRequestForm
             mediaType={mediaType}
@@ -89,7 +89,7 @@ export async function RecommendationWorkspace({
           <Panel
             eyebrow="Prerequisites"
             title="Current service readiness"
-            description="The run workflow requires a verified AI provider. Library-manager status is shown here because it becomes relevant for duplicate suppression and add-to-library flows."
+            description="A verified AI provider is required before you can request results. Sonarr or Radarr becomes important when you want to add a recommendation straight to your library."
           >
             <div className="space-y-3 text-sm leading-6 text-foreground">
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
@@ -102,7 +102,7 @@ export async function RecommendationWorkspace({
                 </span>{" "}
                 {relevantLibraryManager?.status ?? "disconnected"}
                 <p className="mt-1 text-muted">
-                  {relevantLibraryManager?.statusMessage ?? "Optional for this slice, but required for downstream add-to-library flows."}
+                  {relevantLibraryManager?.statusMessage ?? "Optional for requesting results, but required to add titles directly from recommendation cards."}
                 </p>
               </div>
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
@@ -154,8 +154,8 @@ export async function RecommendationWorkspace({
 
       <Panel
         eyebrow="Recent runs"
-        title="Latest persisted requests"
-        description="Successful and failed runs are both stored so retry and audit behavior has a clean baseline."
+        title="Recent requests"
+        description="Successful and failed recommendation runs are saved so you can retry, compare, and act on them later."
       >
         {recentRuns.length === 0 ? (
           <p className="text-sm leading-6 text-muted">
