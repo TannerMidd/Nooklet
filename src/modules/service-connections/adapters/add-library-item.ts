@@ -31,6 +31,29 @@ type LibraryLookupMatchResult =
   | { ok: true; candidate: LibraryLookupCandidate; posterUrl: string | null }
   | { ok: false; message: string };
 
+export type SampledLibraryTasteItem = {
+  title: string;
+  year: number | null;
+  genres: string[];
+};
+
+type ListSampledLibraryItemsInput = Pick<
+  AddLibraryItemInput,
+  "serviceType" | "baseUrl" | "apiKey"
+> & {
+  sampleSize?: number;
+};
+
+type ListSampledLibraryItemsResult =
+  | { ok: true; totalCount: number; sampledItems: SampledLibraryTasteItem[] }
+  | { ok: false; message: string };
+
+type LibraryCollectionCandidate = Record<string, unknown> & {
+  title?: string;
+  year?: number;
+  genres?: unknown;
+};
+
 function trimTrailingSlash(baseUrl: string) {
   return baseUrl.replace(/\/+$/, "");
 }
@@ -55,6 +78,115 @@ function normalizeTitle(value: string) {
 
 function isLookupCandidate(value: unknown): value is LibraryLookupCandidate {
   return typeof value === "object" && value !== null;
+}
+
+function isLibraryCollectionCandidate(value: unknown): value is LibraryCollectionCandidate {
+  return typeof value === "object" && value !== null;
+}
+
+function normalizeGenres(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as string[];
+  }
+
+  const seenGenres = new Set<string>();
+  const normalizedGenres: string[] = [];
+
+  for (const genre of value) {
+    if (typeof genre !== "string") {
+      continue;
+    }
+
+    const trimmedGenre = genre.trim();
+
+    if (!trimmedGenre) {
+      continue;
+    }
+
+    const normalizedGenreKey = trimmedGenre.toLowerCase();
+
+    if (seenGenres.has(normalizedGenreKey)) {
+      continue;
+    }
+
+    seenGenres.add(normalizedGenreKey);
+    normalizedGenres.push(trimmedGenre);
+  }
+
+  return normalizedGenres;
+}
+
+function toSampledLibraryTasteItem(
+  candidate: LibraryCollectionCandidate,
+): SampledLibraryTasteItem | null {
+  const title = typeof candidate.title === "string" ? candidate.title.trim() : "";
+
+  if (!title) {
+    return null;
+  }
+
+  return {
+    title,
+    year: typeof candidate.year === "number" && Number.isInteger(candidate.year) ? candidate.year : null,
+    genres: normalizeGenres(candidate.genres),
+  };
+}
+
+function buildLibraryTasteItemKey(item: Pick<SampledLibraryTasteItem, "title" | "year">) {
+  return `${normalizeTitle(item.title)}::${item.year ?? "unknown"}`;
+}
+
+function compareSampledLibraryTasteItems(
+  left: SampledLibraryTasteItem,
+  right: SampledLibraryTasteItem,
+) {
+  return (
+    left.title.localeCompare(right.title, undefined, { sensitivity: "base" }) ||
+    (left.year ?? 0) - (right.year ?? 0)
+  );
+}
+
+function stableHash(value: string) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function dedupeSampledLibraryTasteItems(items: SampledLibraryTasteItem[]) {
+  const dedupedItems = new Map<string, SampledLibraryTasteItem>();
+
+  for (const item of items) {
+    const itemKey = buildLibraryTasteItemKey(item);
+
+    if (!dedupedItems.has(itemKey)) {
+      dedupedItems.set(itemKey, item);
+    }
+  }
+
+  return Array.from(dedupedItems.values());
+}
+
+function sampleLibraryTasteItems(items: SampledLibraryTasteItem[], sampleSize: number) {
+  const boundedSampleSize = Math.max(1, Math.min(sampleSize, 60));
+
+  if (items.length <= boundedSampleSize) {
+    return [...items].sort(compareSampledLibraryTasteItems);
+  }
+
+  return [...items]
+    .sort((left, right) => {
+      const leftHash = stableHash(buildLibraryTasteItemKey(left));
+      const rightHash = stableHash(buildLibraryTasteItemKey(right));
+
+      return leftHash - rightHash || compareSampledLibraryTasteItems(left, right);
+    })
+    .slice(0, boundedSampleSize)
+    .sort(compareSampledLibraryTasteItems);
 }
 
 function resolveImageUrl(baseUrl: string, value: unknown) {
@@ -197,6 +329,10 @@ function buildAddEndpoint(serviceType: LibraryManagerServiceType) {
   return serviceType === "sonarr" ? "series" : "movie";
 }
 
+function buildCollectionEndpoint(serviceType: LibraryManagerServiceType) {
+  return serviceType === "sonarr" ? "series" : "movie";
+}
+
 function buildAddPayload(
   serviceType: LibraryManagerServiceType,
   candidate: LibraryLookupCandidate,
@@ -295,6 +431,57 @@ export async function lookupLibraryItemMatch(
       ok: false,
       message:
         error instanceof Error ? error.message : "Library manager lookup failed unexpectedly.",
+    };
+  }
+}
+
+export async function listSampledLibraryItems(
+  input: ListSampledLibraryItemsInput,
+): Promise<ListSampledLibraryItemsResult> {
+  try {
+    const response = await fetchWithTimeout(
+      `${trimTrailingSlash(input.baseUrl)}/api/v3/${buildCollectionEndpoint(input.serviceType)}`,
+      {
+        headers: {
+          "X-Api-Key": input.apiKey,
+        },
+        cache: "no-store",
+      },
+    );
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: await extractErrorMessage(response),
+      };
+    }
+
+    const payload = (await response.json()) as unknown;
+
+    if (!Array.isArray(payload)) {
+      return {
+        ok: false,
+        message: "The library manager did not return a usable library listing.",
+      };
+    }
+
+    const dedupedItems = dedupeSampledLibraryTasteItems(
+      payload
+        .filter(isLibraryCollectionCandidate)
+        .map((entry) => toSampledLibraryTasteItem(entry))
+        .filter((entry): entry is SampledLibraryTasteItem => entry !== null),
+    );
+
+    return {
+      ok: true,
+      totalCount: dedupedItems.length,
+      sampledItems: sampleLibraryTasteItems(dedupedItems, input.sampleSize ?? 36),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error ? error.message : "Library manager sampling failed unexpectedly.",
     };
   }
 }

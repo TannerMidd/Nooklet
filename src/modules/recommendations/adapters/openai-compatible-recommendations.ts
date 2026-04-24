@@ -18,6 +18,12 @@ type GenerateRecommendationsInput = {
     title: string;
     year: number | null;
   }>;
+  libraryTasteContext: Array<{
+    title: string;
+    year: number | null;
+    genres: string[];
+  }>;
+  libraryTasteTotalCount: number;
 };
 
 type GeneratedRecommendation = {
@@ -96,6 +102,15 @@ function normalizeRecommendationItem(value: unknown) {
 export async function generateOpenAiCompatibleRecommendations(
   input: GenerateRecommendationsInput,
 ): Promise<GeneratedRecommendation[]> {
+  const libraryTasteContextBlock =
+    input.libraryTasteContext.length > 0
+      ? input.libraryTasteContext
+          .map(
+            (item) =>
+              `- ${item.title}${item.year ? ` (${item.year})` : ""}${item.genres.length > 0 ? ` [${item.genres.join(", ")}]` : ""}`,
+          )
+          .join("\n")
+      : "None provided.";
   const watchHistoryContextBlock =
     input.watchHistoryContext.length > 0
       ? input.watchHistoryContext
@@ -126,6 +141,9 @@ export async function generateOpenAiCompatibleRecommendations(
           role: "user",
           content:
             `Request context: ${input.requestPrompt}\n` +
+            `Owned library sample: ${input.libraryTasteContext.length} of ${input.libraryTasteTotalCount} known ${input.mediaType === "tv" ? "series" : "movies"}.\n` +
+            `${input.libraryTasteContext.length > 0 ? "Treat the owned-library sample below as an important taste signal and avoid recommending titles that already appear in it when possible.\n" : "No owned-library sample was provided.\n"}` +
+            `Owned library sample titles:\n${libraryTasteContextBlock}\n` +
             `Watch-history-only mode: ${input.watchHistoryOnly ? "enabled" : "disabled"}.\n` +
             `${input.watchHistoryOnly ? "Use the watched-title list below as the primary source context for these recommendations.\n" : "Use the watched-title list below as optional taste context when it is present.\n"}` +
             `Recent watched titles:\n${watchHistoryContextBlock}\n` +

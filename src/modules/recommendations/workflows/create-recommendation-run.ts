@@ -8,7 +8,10 @@ import {
   markRecommendationRunFailed,
 } from "@/modules/recommendations/repositories/recommendation-repository";
 import { type RecommendationRequestInput } from "@/modules/recommendations/schemas/recommendation-request";
-import { lookupLibraryItemMatch } from "@/modules/service-connections/adapters/add-library-item";
+import {
+  listSampledLibraryItems,
+  lookupLibraryItemMatch,
+} from "@/modules/service-connections/adapters/add-library-item";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
@@ -16,6 +19,8 @@ import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-wa
 type CreateRecommendationRunResult =
   | { ok: true; runId: string }
   | { ok: false; message: string };
+
+const libraryTasteSampleSize = 36;
 
 function dedupeGeneratedItems(
   items: Awaited<ReturnType<typeof generateOpenAiCompatibleRecommendations>>,
@@ -95,6 +100,41 @@ async function enrichGeneratedItemsWithPosterUrls(
   );
 }
 
+async function loadSampledLibraryTasteContext(
+  userId: string,
+  mediaType: RecommendationMediaType,
+) {
+  const serviceType = mediaType === "tv" ? "sonarr" : "radarr";
+  const connection = await findServiceConnectionByType(userId, serviceType);
+
+  if (
+    !connection?.secret ||
+    connection.connection.status !== "verified" ||
+    !connection.connection.baseUrl
+  ) {
+    return {
+      totalCount: 0,
+      sampledItems: [],
+    };
+  }
+
+  const result = await listSampledLibraryItems({
+    serviceType,
+    baseUrl: connection.connection.baseUrl,
+    apiKey: decryptSecret(connection.secret.encryptedValue),
+    sampleSize: libraryTasteSampleSize,
+  });
+
+  if (!result.ok) {
+    return {
+      totalCount: 0,
+      sampledItems: [],
+    };
+  }
+
+  return result;
+}
+
 export async function createRecommendationRunWorkflow(
   userId: string,
   input: RecommendationRequestInput,
@@ -120,14 +160,10 @@ export async function createRecommendationRunWorkflow(
     typeof aiProvider.metadata?.model === "string" && aiProvider.metadata.model.trim().length > 0
       ? (aiProvider.metadata.model as string)
       : "gpt-4.1-mini";
-  const watchHistoryContext = preferences.watchHistoryOnly
-    ? await listWatchHistoryContext(
-        userId,
-        input.mediaType,
-        12,
-        preferences.watchHistorySourceTypes,
-      )
-    : [];
+  const [watchHistoryContext, libraryTasteContext] = await Promise.all([
+    listWatchHistoryContext(userId, input.mediaType, 12, preferences.watchHistorySourceTypes),
+    loadSampledLibraryTasteContext(userId, input.mediaType),
+  ]);
 
   if (preferences.watchHistoryOnly && watchHistoryContext.length === 0) {
     return {
@@ -162,6 +198,8 @@ export async function createRecommendationRunWorkflow(
       requestedCount: input.requestedCount,
       watchHistoryItemCount: watchHistoryContext.length,
       watchHistorySourceTypes: preferences.watchHistorySourceTypes,
+      libraryTasteTotalCount: libraryTasteContext.totalCount,
+      libraryTasteSampleCount: libraryTasteContext.sampledItems.length,
     }),
   });
 
@@ -175,6 +213,8 @@ export async function createRecommendationRunWorkflow(
       requestedCount: input.requestedCount,
       watchHistoryOnly: preferences.watchHistoryOnly,
       watchHistoryContext,
+      libraryTasteContext: libraryTasteContext.sampledItems,
+      libraryTasteTotalCount: libraryTasteContext.totalCount,
     });
 
     const dedupedItems = dedupeGeneratedItems(generatedItems);
@@ -200,6 +240,8 @@ export async function createRecommendationRunWorkflow(
         itemCount: normalizedItems.length,
         watchHistoryItemCount: watchHistoryContext.length,
         watchHistorySourceTypes: preferences.watchHistorySourceTypes,
+        libraryTasteTotalCount: libraryTasteContext.totalCount,
+        libraryTasteSampleCount: libraryTasteContext.sampledItems.length,
       }),
     });
 
@@ -221,6 +263,8 @@ export async function createRecommendationRunWorkflow(
         error: message,
         watchHistoryItemCount: watchHistoryContext.length,
         watchHistorySourceTypes: preferences.watchHistorySourceTypes,
+        libraryTasteTotalCount: libraryTasteContext.totalCount,
+        libraryTasteSampleCount: libraryTasteContext.sampledItems.length,
       }),
     });
 
