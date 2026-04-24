@@ -22,6 +22,14 @@ type CreateRecommendationRunResult =
   | { ok: false; message: string };
 
 const libraryTasteSampleSize = 36;
+const recommendationGenerationAttemptLimit = 3;
+const recommendationGenerationOverfetchBuffer = 6;
+const recommendationGenerationHardCap = 30;
+const recommendationPromptExclusionLimit = 60;
+
+type GeneratedRecommendationItem = Awaited<
+  ReturnType<typeof generateOpenAiCompatibleRecommendations>
+>[number];
 
 function extractLibraryTitleKey(normalizedKey: string) {
   const separatorIndex = normalizedKey.lastIndexOf("::");
@@ -29,14 +37,46 @@ function extractLibraryTitleKey(normalizedKey: string) {
   return separatorIndex === -1 ? normalizedKey : normalizedKey.slice(0, separatorIndex);
 }
 
+function buildGeneratedRecommendationItemKey(
+  item: Pick<GeneratedRecommendationItem, "title" | "year">,
+) {
+  return buildLibraryTasteItemKey(item);
+}
+
+function formatRecommendationTitle(item: Pick<GeneratedRecommendationItem, "title" | "year">) {
+  return `${item.title}${item.year ? ` (${item.year})` : ""}`;
+}
+
+function buildBackfillRequestPrompt(
+  basePrompt: string,
+  mediaType: RecommendationMediaType,
+  remainingCount: number,
+  excludedItems: Array<Pick<GeneratedRecommendationItem, "title" | "year">>,
+) {
+  if (excludedItems.length === 0) {
+    return basePrompt;
+  }
+
+  const exclusionBlock = excludedItems
+    .slice(0, recommendationPromptExclusionLimit)
+    .map((item) => `- ${formatRecommendationTitle(item)}`)
+    .join("\n");
+
+  return (
+    `${basePrompt}\n\n` +
+    `Backfill requirement: return ${remainingCount} additional ${mediaType === "tv" ? "TV series" : "movies"} that are genuinely new for this user.\n` +
+    `Do not return any title from this exclusion list:\n${exclusionBlock}`
+  );
+}
+
 function dedupeGeneratedItems(
-  items: Awaited<ReturnType<typeof generateOpenAiCompatibleRecommendations>>,
+  items: GeneratedRecommendationItem[],
 ) {
   const seenKeys = new Set<string>();
 
   return items
     .filter((item) => {
-      const key = `${item.title.trim().toLowerCase()}::${item.year ?? "unknown"}`;
+      const key = buildGeneratedRecommendationItemKey(item);
 
       if (seenKeys.has(key)) {
         return false;
@@ -48,7 +88,7 @@ function dedupeGeneratedItems(
 }
 
 function filterGeneratedItemsAgainstLibrary(
-  items: Awaited<ReturnType<typeof generateOpenAiCompatibleRecommendations>>,
+  items: GeneratedRecommendationItem[],
   libraryNormalizedKeys: string[],
 ) {
   if (libraryNormalizedKeys.length === 0) {
@@ -79,9 +119,98 @@ function filterGeneratedItemsAgainstLibrary(
   };
 }
 
+async function generateBackfilledRecommendationItems(input: {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  mediaType: RecommendationMediaType;
+  requestPrompt: string;
+  requestedCount: number;
+  watchHistoryOnly: boolean;
+  watchHistoryContext: Array<{
+    title: string;
+    year: number | null;
+  }>;
+  libraryTasteContext: Array<{
+    title: string;
+    year: number | null;
+    genres: string[];
+  }>;
+  libraryTasteTotalCount: number;
+  libraryNormalizedKeys: string[];
+}) {
+  const acceptedItems: GeneratedRecommendationItem[] = [];
+  const seenGeneratedKeys = new Set<string>();
+  const excludedPromptItems: Array<Pick<GeneratedRecommendationItem, "title" | "year">> = [];
+  let excludedLibraryItemCount = 0;
+  let attemptCount = 0;
+
+  for (
+    let attemptIndex = 0;
+    attemptIndex < recommendationGenerationAttemptLimit && acceptedItems.length < input.requestedCount;
+    attemptIndex += 1
+  ) {
+    attemptCount += 1;
+
+    const remainingCount = input.requestedCount - acceptedItems.length;
+    const requestedCandidateCount = Math.min(
+      Math.max(remainingCount * 2, remainingCount + recommendationGenerationOverfetchBuffer),
+      recommendationGenerationHardCap,
+    );
+    const generatedItems = await generateOpenAiCompatibleRecommendations({
+      baseUrl: input.baseUrl,
+      apiKey: input.apiKey,
+      model: input.model,
+      mediaType: input.mediaType,
+      requestPrompt: buildBackfillRequestPrompt(
+        input.requestPrompt,
+        input.mediaType,
+        remainingCount,
+        excludedPromptItems,
+      ),
+      requestedCount: requestedCandidateCount,
+      watchHistoryOnly: input.watchHistoryOnly,
+      watchHistoryContext: input.watchHistoryContext,
+      libraryTasteContext: input.libraryTasteContext,
+      libraryTasteTotalCount: input.libraryTasteTotalCount,
+    });
+    const distinctGeneratedItems = dedupeGeneratedItems(generatedItems).filter((item) => {
+      const normalizedKey = buildGeneratedRecommendationItemKey(item);
+
+      if (seenGeneratedKeys.has(normalizedKey)) {
+        return false;
+      }
+
+      seenGeneratedKeys.add(normalizedKey);
+      return true;
+    });
+
+    excludedPromptItems.push(
+      ...distinctGeneratedItems.map((item) => ({
+        title: item.title,
+        year: item.year,
+      })),
+    );
+
+    const filteredItems = filterGeneratedItemsAgainstLibrary(
+      distinctGeneratedItems,
+      input.libraryNormalizedKeys,
+    );
+
+    excludedLibraryItemCount += filteredItems.excludedCount;
+    acceptedItems.push(...filteredItems.items);
+  }
+
+  return {
+    items: acceptedItems.slice(0, input.requestedCount),
+    excludedLibraryItemCount,
+    attemptCount,
+  };
+}
+
 function buildStoredRecommendationItems(
   mediaType: RecommendationMediaType,
-  items: Awaited<ReturnType<typeof generateOpenAiCompatibleRecommendations>>,
+  items: GeneratedRecommendationItem[],
 ) {
   return items.map((item, index) => ({
     mediaType,
@@ -97,7 +226,7 @@ function buildStoredRecommendationItems(
 async function enrichGeneratedItemsWithPosterUrls(
   userId: string,
   mediaType: RecommendationMediaType,
-  items: Awaited<ReturnType<typeof generateOpenAiCompatibleRecommendations>>,
+  items: GeneratedRecommendationItem[],
 ) {
   const serviceType = mediaType === "tv" ? "sonarr" : "radarr";
   const connection = await findServiceConnectionByType(userId, serviceType);
@@ -245,9 +374,10 @@ export async function createRecommendationRunWorkflow(
   });
 
   let excludedLibraryItemCount = 0;
+  let generationAttemptCount = 0;
 
   try {
-    const generatedItems = await generateOpenAiCompatibleRecommendations({
+    const generatedItems = await generateBackfilledRecommendationItems({
       baseUrl: aiProvider.connection.baseUrl ?? "",
       apiKey: decryptSecret(aiProvider.secret.encryptedValue),
       model: aiModel,
@@ -258,26 +388,28 @@ export async function createRecommendationRunWorkflow(
       watchHistoryContext,
       libraryTasteContext: libraryTasteContext.sampledItems,
       libraryTasteTotalCount: libraryTasteContext.totalCount,
+      libraryNormalizedKeys: libraryTasteContext.normalizedKeys,
     });
-
-    const dedupedItems = dedupeGeneratedItems(generatedItems);
-    const filteredItems = filterGeneratedItemsAgainstLibrary(
-      dedupedItems,
-      libraryTasteContext.normalizedKeys,
-    );
-    excludedLibraryItemCount = filteredItems.excludedCount;
+    excludedLibraryItemCount = generatedItems.excludedLibraryItemCount;
+    generationAttemptCount = generatedItems.attemptCount;
     const enrichedItems = await enrichGeneratedItemsWithPosterUrls(
       userId,
       input.mediaType,
-      filteredItems.items,
+      generatedItems.items,
     );
     const normalizedItems = buildStoredRecommendationItems(input.mediaType, enrichedItems);
 
     if (normalizedItems.length === 0) {
       throw new Error(
-        filteredItems.excludedCount > 0
+        excludedLibraryItemCount > 0
           ? "The AI only returned titles that already exist in your library. Try a more specific prompt for something new."
           : "The AI provider returned no usable recommendations.",
+      );
+    }
+
+    if (normalizedItems.length < input.requestedCount) {
+      throw new Error(
+        `The AI could not produce ${input.requestedCount} new ${input.mediaType === "tv" ? "TV series" : "movies"} after filtering your existing library. Try a more specific prompt.`,
       );
     }
 
@@ -295,6 +427,7 @@ export async function createRecommendationRunWorkflow(
         libraryTasteTotalCount: libraryTasteContext.totalCount,
         libraryTasteSampleCount: libraryTasteContext.sampledItems.length,
         excludedLibraryItemCount,
+        generationAttemptCount,
       }),
     });
 
@@ -319,6 +452,7 @@ export async function createRecommendationRunWorkflow(
         libraryTasteTotalCount: libraryTasteContext.totalCount,
         libraryTasteSampleCount: libraryTasteContext.sampledItems.length,
         excludedLibraryItemCount,
+        generationAttemptCount,
       }),
     });
 
