@@ -26,8 +26,9 @@ export default async function ConnectionsSettingsPage() {
             Connections
           </h1>
           <p className="text-base leading-7 text-muted">
-            Connect the AI provider, Sonarr, and Radarr, then verify each
-            service before using it in recommendations or library actions.
+            Connect the AI provider, library managers, and watch-history providers,
+            then verify each service before using it in recommendations, library
+            actions, or remote-user history sync.
           </p>
         </div>
       </header>
@@ -35,7 +36,7 @@ export default async function ConnectionsSettingsPage() {
       <Panel
         eyebrow="Connected services"
         title="Configured services"
-        description="These services power recommendation generation, model discovery, duplicate checks, poster enrichment, and add-to-library actions."
+        description="These services power recommendation generation, model discovery, duplicate checks, poster enrichment, add-to-library actions, and provider-backed watch-history sync."
       >
         <div className="grid gap-4 text-sm leading-6 text-foreground md:grid-cols-3">
           <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">

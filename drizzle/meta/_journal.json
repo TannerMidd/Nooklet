@@ -36,6 +36,13 @@
       "when": 1777062929358,
       "tag": "0004_ordinary_hedge_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1777067634465,
+      "tag": "0005_rare_jamie_braddock",
+      "breakpoints": true
     }
   ]
 }

@@ -64,7 +64,7 @@ export const preferences = sqliteTable("preferences", {
     .default(sql`(unixepoch() * 1000)`),
 });
 
-export const serviceConnectionTypes = ["ai-provider", "sonarr", "radarr"] as const;
+export const serviceConnectionTypes = ["ai-provider", "sonarr", "radarr", "tautulli"] as const;
 export const serviceConnectionScopes = ["user", "shared"] as const;
 export const serviceConnectionStatuses = ["configured", "verified", "error"] as const;
 
@@ -115,7 +115,7 @@ export const serviceSecrets = sqliteTable("service_secrets", {
 
   export const recommendationMediaTypes = ["tv", "movie"] as const;
 
-export const watchHistorySourceTypes = ["manual"] as const;
+export const watchHistorySourceTypes = ["manual", "tautulli"] as const;
 export const watchHistorySyncStatuses = ["pending", "succeeded", "failed"] as const;
 
 export const watchHistorySources = sqliteTable(
@@ -129,6 +129,7 @@ export const watchHistorySources = sqliteTable(
       .notNull()
       .default("manual"),
     displayName: text("display_name").notNull(),
+    metadataJson: text("metadata_json"),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
@@ -179,8 +180,8 @@ export const watchHistoryItems = sqliteTable(
       .default(sql`(unixepoch() * 1000)`),
   },
   (table) => [
-    uniqueIndex("watch_history_items_user_media_key_unique").on(
-      table.userId,
+    uniqueIndex("watch_history_items_source_media_key_unique").on(
+      table.sourceId,
       table.mediaType,
       table.normalizedKey,
     ),

@@ -33,6 +33,7 @@ export async function syncManualWatchHistory(
     userId,
     sourceType: "manual",
     displayName: manualSourceDisplayName,
+    metadata: null,
   });
 
   if (!source) {

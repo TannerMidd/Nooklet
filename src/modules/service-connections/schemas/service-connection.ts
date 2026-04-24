@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const serviceConnectionTypeSchema = z.enum(["ai-provider", "sonarr", "radarr"]);
+export const serviceConnectionTypeSchema = z.enum(["ai-provider", "sonarr", "radarr", "tautulli"]);
 export const serviceConnectionIntentSchema = z.enum(["save", "verify", "disconnect"]);
 
 const apiKeySchema = z.string().trim().max(1024).optional().transform((value) => value ?? "");
@@ -12,8 +12,8 @@ export const aiProviderConnectionSchema = z.object({
   model: z.string().trim().min(1, "Enter a model identifier.").max(200),
 });
 
-export const mediaConnectionSchema = z.object({
-  serviceType: z.enum(["sonarr", "radarr"]),
+export const apiKeyServiceConnectionSchema = z.object({
+  serviceType: z.enum(["sonarr", "radarr", "tautulli"]),
   baseUrl: z.string().trim().url("Enter a valid base URL."),
   apiKey: apiKeySchema,
 });
@@ -21,4 +21,4 @@ export const mediaConnectionSchema = z.object({
 export type ServiceConnectionIntent = z.infer<typeof serviceConnectionIntentSchema>;
 export type ServiceConnectionTypeInput = z.infer<typeof serviceConnectionTypeSchema>;
 export type AiProviderConnectionInput = z.infer<typeof aiProviderConnectionSchema>;
-export type MediaConnectionInput = z.infer<typeof mediaConnectionSchema>;
+export type ApiKeyServiceConnectionInput = z.infer<typeof apiKeyServiceConnectionSchema>;

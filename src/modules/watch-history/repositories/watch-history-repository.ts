@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
@@ -19,6 +19,7 @@ type UpsertWatchHistorySourceInput = {
   userId: string;
   sourceType: WatchHistorySourceType;
   displayName: string;
+  metadata?: Record<string, unknown> | null;
 };
 
 type ReplaceWatchHistoryItemsInput = {
@@ -38,6 +39,27 @@ type CreateWatchHistorySyncRunInput = {
   userId: string;
   mediaType: RecommendationMediaType;
 };
+
+function serializeMetadata(metadata: Record<string, unknown> | null | undefined) {
+  if (!metadata) {
+    return null;
+  }
+
+  return JSON.stringify(metadata);
+}
+
+function dedupeWatchHistoryItems(items: StoredWatchHistoryItem[]) {
+  const seenKeys = new Set<string>();
+
+  return items.filter((item) => {
+    if (seenKeys.has(item.normalizedKey)) {
+      return false;
+    }
+
+    seenKeys.add(item.normalizedKey);
+    return true;
+  });
+}
 
 export async function findWatchHistorySourceByType(
   userId: string,
@@ -64,10 +86,14 @@ export async function upsertWatchHistorySource(input: UpsertWatchHistorySourceIn
   const existingSource = await findWatchHistorySourceByType(input.userId, input.sourceType);
 
   if (existingSource) {
+    const nextMetadataJson =
+      input.metadata === undefined ? existingSource.metadataJson : serializeMetadata(input.metadata);
+
     database
       .update(watchHistorySources)
       .set({
         displayName: input.displayName,
+        metadataJson: nextMetadataJson,
         updatedAt: new Date(),
       })
       .where(eq(watchHistorySources.id, existingSource.id))
@@ -85,6 +111,7 @@ export async function upsertWatchHistorySource(input: UpsertWatchHistorySourceIn
       userId: input.userId,
       sourceType: input.sourceType,
       displayName: input.displayName,
+      metadataJson: serializeMetadata(input.metadata),
     })
     .run();
 
@@ -203,8 +230,7 @@ export async function listRecentWatchHistoryItems(
   limit = 12,
 ) {
   const database = ensureDatabaseReady();
-
-  return database
+  const items = database
     .select()
     .from(watchHistoryItems)
     .where(
@@ -213,28 +239,29 @@ export async function listRecentWatchHistoryItems(
         : eq(watchHistoryItems.userId, userId),
     )
     .orderBy(desc(watchHistoryItems.watchedAt))
-    .limit(limit)
     .all();
+
+  return dedupeWatchHistoryItems(items).slice(0, limit);
 }
 
 export async function getWatchHistoryItemCounts(userId: string) {
   const database = ensureDatabaseReady();
 
-  const [tvCount, movieCount] = await Promise.all([
+  const [tvItems, movieItems] = await Promise.all([
     database
-      .select({ count: count() })
+      .select({ normalizedKey: watchHistoryItems.normalizedKey })
       .from(watchHistoryItems)
       .where(and(eq(watchHistoryItems.userId, userId), eq(watchHistoryItems.mediaType, "tv")))
-      .get(),
+      .all(),
     database
-      .select({ count: count() })
+      .select({ normalizedKey: watchHistoryItems.normalizedKey })
       .from(watchHistoryItems)
       .where(and(eq(watchHistoryItems.userId, userId), eq(watchHistoryItems.mediaType, "movie")))
-      .get(),
+      .all(),
   ]);
 
-  const resolvedTvCount = tvCount?.count ?? 0;
-  const resolvedMovieCount = movieCount?.count ?? 0;
+  const resolvedTvCount = new Set(tvItems.map((item) => item.normalizedKey)).size;
+  const resolvedMovieCount = new Set(movieItems.map((item) => item.normalizedKey)).size;
 
   return {
     tvCount: resolvedTvCount,

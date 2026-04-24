@@ -2,10 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 
-import { type ManualWatchHistoryActionState } from "@/app/(workspace)/settings/history/action-state";
+import {
+  type ManualWatchHistoryActionState,
+  type TautulliWatchHistoryActionState,
+} from "@/app/(workspace)/settings/history/action-state";
 import { auth } from "@/auth";
 import { manualWatchHistorySyncInputSchema } from "@/modules/watch-history/schemas/manual-watch-history-sync";
+import { tautulliWatchHistorySyncInputSchema } from "@/modules/watch-history/schemas/tautulli-watch-history-sync";
 import { syncManualWatchHistory } from "@/modules/watch-history/workflows/sync-manual-watch-history";
+import { syncTautulliWatchHistory } from "@/modules/watch-history/workflows/sync-tautulli-watch-history";
 
 export async function submitManualWatchHistorySyncAction(
   _previousState: ManualWatchHistoryActionState,
@@ -39,6 +44,58 @@ export async function submitManualWatchHistorySyncAction(
   }
 
   const result = await syncManualWatchHistory(session.user.id, parsedInput.data);
+
+  revalidatePath("/settings/history");
+  revalidatePath("/settings/preferences");
+  revalidatePath("/tv");
+  revalidatePath("/movies");
+
+  return {
+    status: result.ok ? "success" : "error",
+    message: result.message,
+    fieldErrors:
+      !result.ok && result.field
+        ? {
+            [result.field]: result.message,
+          }
+        : undefined,
+  };
+}
+
+export async function submitTautulliWatchHistorySyncAction(
+  _previousState: TautulliWatchHistoryActionState,
+  formData: FormData,
+): Promise<TautulliWatchHistoryActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return {
+      status: "error",
+      message: "You need to sign in again.",
+    };
+  }
+
+  const parsedInput = tautulliWatchHistorySyncInputSchema.safeParse({
+    mediaType: formData.get("mediaType"),
+    tautulliUserId: formData.get("tautulliUserId"),
+    importLimit: formData.get("importLimit"),
+  });
+
+  if (!parsedInput.success) {
+    const flattenedErrors = parsedInput.error.flatten().fieldErrors;
+
+    return {
+      status: "error",
+      message: "Review the Tautulli sync fields and try again.",
+      fieldErrors: {
+        mediaType: flattenedErrors.mediaType?.[0],
+        tautulliUserId: flattenedErrors.tautulliUserId?.[0],
+        importLimit: flattenedErrors.importLimit?.[0],
+      },
+    };
+  }
+
+  const result = await syncTautulliWatchHistory(session.user.id, parsedInput.data);
 
   revalidatePath("/settings/history");
   revalidatePath("/settings/preferences");

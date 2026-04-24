@@ -4,7 +4,7 @@ import {
 } from "@/modules/users/repositories/user-repository";
 import {
   type AiProviderConnectionInput,
-  type MediaConnectionInput,
+  type ApiKeyServiceConnectionInput,
 } from "@/modules/service-connections/schemas/service-connection";
 import { getServiceConnectionDefinition } from "@/modules/service-connections/service-definitions";
 import {
@@ -12,7 +12,7 @@ import {
   saveServiceConnection,
 } from "@/modules/service-connections/repositories/service-connection-repository";
 
-type SaveServiceConnectionInput = AiProviderConnectionInput | MediaConnectionInput;
+type SaveServiceConnectionInput = AiProviderConnectionInput | ApiKeyServiceConnectionInput;
 
 export type SaveServiceConnectionResult =
   | { ok: true; message: string }
@@ -34,15 +34,7 @@ export async function saveConfiguredServiceConnection(
   }
 
   const definition = getServiceConnectionDefinition(input.serviceType);
-  const aiProviderMetadata =
-    input.serviceType === "ai-provider"
-      ? {
-          model: input.model,
-          ...(shouldKeepAiProviderModels(existingRecord, input, secretValue)
-            ? pickAvailableModels(existingRecord?.metadata)
-            : {}),
-        }
-      : null;
+  const metadata = buildServiceConnectionMetadata(existingRecord, input, secretValue);
 
   await saveServiceConnection({
     userId,
@@ -51,7 +43,7 @@ export async function saveConfiguredServiceConnection(
     baseUrl: input.baseUrl,
     status: "configured",
     statusMessage: "Configuration saved. Run verify to confirm connectivity.",
-    metadata: aiProviderMetadata,
+    metadata,
     secretUpdate: secretValue
       ? {
           encryptedValue: encryptSecret(secretValue),
@@ -77,22 +69,32 @@ export async function saveConfiguredServiceConnection(
   };
 }
 
-function pickAvailableModels(metadata: Record<string, unknown> | null | undefined) {
-  const availableModels = Array.isArray(metadata?.availableModels)
-    ? metadata.availableModels.filter((entry): entry is string => typeof entry === "string")
-    : [];
-
-  return availableModels.length > 0 ? { availableModels } : {};
-}
-
-function shouldKeepAiProviderModels(
+function shouldPreserveConnectionMetadata(
   existingRecord: Awaited<ReturnType<typeof findServiceConnectionByType>>,
   input: SaveServiceConnectionInput,
   secretValue: string,
 ) {
   return (
-    input.serviceType === "ai-provider" &&
     existingRecord?.connection.baseUrl === input.baseUrl &&
     !secretValue
   );
+}
+
+function buildServiceConnectionMetadata(
+  existingRecord: Awaited<ReturnType<typeof findServiceConnectionByType>>,
+  input: SaveServiceConnectionInput,
+  secretValue: string,
+) {
+  const preservedMetadata = shouldPreserveConnectionMetadata(existingRecord, input, secretValue)
+    ? existingRecord?.metadata ?? null
+    : null;
+
+  if (input.serviceType === "ai-provider") {
+    return {
+      ...(preservedMetadata ?? {}),
+      model: input.model,
+    };
+  }
+
+  return preservedMetadata;
 }

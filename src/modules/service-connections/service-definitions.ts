@@ -35,6 +35,14 @@ export const serviceConnectionDefinitions = [
     secretLabel: "API key",
     defaultBaseUrl: "http://localhost:7878",
   },
+  {
+    serviceType: "tautulli",
+    displayName: "Tautulli",
+    description:
+      "Watch-history provider used for remote-user discovery and recent play imports.",
+    secretLabel: "API key",
+    defaultBaseUrl: "http://localhost:8181",
+  },
 ] as const satisfies readonly ServiceConnectionDefinition[];
 
 export function getServiceConnectionDefinition(

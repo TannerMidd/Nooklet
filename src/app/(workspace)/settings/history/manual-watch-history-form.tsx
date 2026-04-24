@@ -76,7 +76,7 @@ export function ManualWatchHistoryForm() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <SubmitButton />
         <p className="text-sm leading-6 text-muted">
-          This MVP sync path seeds the watch-history subsystem with explicit source records and persisted sync runs before provider adapters land.
+          Manual sync stays useful when you want explicit title control or do not have a provider-backed history source configured.
         </p>
       </div>
     </form>

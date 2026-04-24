@@ -1,6 +1,7 @@
 import { type ServiceConnectionType } from "@/lib/database/schema";
 import { parseLibraryManagerMetadata } from "@/modules/service-connections/library-manager-metadata";
 import { serviceConnectionDefinitions } from "@/modules/service-connections/service-definitions";
+import { parseTautulliMetadata, type TautulliRemoteUser } from "@/modules/service-connections/tautulli-metadata";
 import { listServiceConnections } from "@/modules/service-connections/repositories/service-connection-repository";
 
 export type ServiceConnectionSummary = {
@@ -13,6 +14,8 @@ export type ServiceConnectionSummary = {
   maskedSecret: string | null;
   model: string | null;
   availableModels: string[];
+  serverName: string | null;
+  availableUsers: TautulliRemoteUser[];
   rootFolders: Array<{ path: string; label: string }>;
   qualityProfiles: Array<{ id: number; name: string }>;
   tags: Array<{ id: number; label: string }>;
@@ -47,6 +50,8 @@ export async function listConnectionSummaries(userId: string) {
         maskedSecret: null,
         model: null,
         availableModels: [],
+        serverName: null,
+        availableUsers: [],
         rootFolders: [],
         qualityProfiles: [],
         tags: [],
@@ -55,6 +60,7 @@ export async function listConnectionSummaries(userId: string) {
     }
 
     const libraryMetadata = parseLibraryManagerMetadata(record.metadata);
+    const tautulliMetadata = parseTautulliMetadata(record.metadata);
 
     return {
       serviceType: definition.serviceType,
@@ -67,6 +73,8 @@ export async function listConnectionSummaries(userId: string) {
       model:
         typeof record.metadata?.model === "string" ? (record.metadata.model as string) : null,
       availableModels: parseAvailableModels(record.metadata),
+      serverName: tautulliMetadata?.serverName ?? null,
+      availableUsers: tautulliMetadata?.availableUsers ?? [],
       rootFolders: libraryMetadata?.rootFolders ?? [],
       qualityProfiles: libraryMetadata?.qualityProfiles ?? [],
       tags: libraryMetadata?.tags ?? [],

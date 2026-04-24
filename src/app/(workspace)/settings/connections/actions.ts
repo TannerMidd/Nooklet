@@ -5,8 +5,8 @@ import { revalidatePath } from "next/cache";
 import { type ConnectionActionState } from "@/app/(workspace)/settings/connections/action-state";
 import { auth } from "@/auth";
 import {
+  apiKeyServiceConnectionSchema,
   aiProviderConnectionSchema,
-  mediaConnectionSchema,
   serviceConnectionIntentSchema,
   serviceConnectionTypeSchema,
 } from "@/modules/service-connections/schemas/service-connection";
@@ -87,7 +87,7 @@ export async function submitConnectionAction(
     };
   }
 
-  const parsedInput = mediaConnectionSchema.safeParse({
+  const parsedInput = apiKeyServiceConnectionSchema.safeParse({
     serviceType,
     baseUrl: formData.get("baseUrl"),
     apiKey: formData.get("apiKey")?.toString(),
