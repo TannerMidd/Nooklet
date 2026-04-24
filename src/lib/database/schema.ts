@@ -34,4 +34,35 @@ export const auditEvents = sqliteTable("audit_events", {
     .default(sql`(unixepoch() * 1000)`),
 });
 
+export const preferenceMediaModes = ["tv", "movies", "both"] as const;
+
+export const preferences = sqliteTable("preferences", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  defaultMediaMode: text("default_media_mode", { enum: preferenceMediaModes })
+    .notNull()
+    .default("tv"),
+  defaultResultCount: integer("default_result_count").notNull().default(10),
+  watchHistoryOnly: integer("watch_history_only", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  historyHideExisting: integer("history_hide_existing", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  historyHideLiked: integer("history_hide_liked", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  historyHideDisliked: integer("history_hide_disliked", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  historyHideHidden: integer("history_hide_hidden", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
 export type UserRole = (typeof userRoles)[number];
+export type PreferenceMediaMode = (typeof preferenceMediaModes)[number];
