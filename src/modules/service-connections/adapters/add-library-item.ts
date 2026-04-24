@@ -45,7 +45,12 @@ type ListSampledLibraryItemsInput = Pick<
 };
 
 type ListSampledLibraryItemsResult =
-  | { ok: true; totalCount: number; sampledItems: SampledLibraryTasteItem[] }
+  | {
+      ok: true;
+      totalCount: number;
+      sampledItems: SampledLibraryTasteItem[];
+      normalizedKeys: string[];
+    }
   | { ok: false; message: string };
 
 type LibraryCollectionCandidate = Record<string, unknown> & {
@@ -132,7 +137,9 @@ function toSampledLibraryTasteItem(
   };
 }
 
-function buildLibraryTasteItemKey(item: Pick<SampledLibraryTasteItem, "title" | "year">) {
+export function buildLibraryTasteItemKey(
+  item: Pick<SampledLibraryTasteItem, "title" | "year">,
+) {
   return `${normalizeTitle(item.title)}::${item.year ?? "unknown"}`;
 }
 
@@ -476,6 +483,7 @@ export async function listSampledLibraryItems(
       ok: true,
       totalCount: dedupedItems.length,
       sampledItems: sampleLibraryTasteItems(dedupedItems, input.sampleSize ?? 36),
+      normalizedKeys: dedupedItems.map((item) => buildLibraryTasteItemKey(item)),
     };
   } catch (error) {
     return {

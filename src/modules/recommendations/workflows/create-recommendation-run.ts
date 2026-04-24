@@ -9,6 +9,7 @@ import {
 } from "@/modules/recommendations/repositories/recommendation-repository";
 import { type RecommendationRequestInput } from "@/modules/recommendations/schemas/recommendation-request";
 import {
+  buildLibraryTasteItemKey,
   listSampledLibraryItems,
   lookupLibraryItemMatch,
 } from "@/modules/service-connections/adapters/add-library-item";
@@ -21,6 +22,12 @@ type CreateRecommendationRunResult =
   | { ok: false; message: string };
 
 const libraryTasteSampleSize = 36;
+
+function extractLibraryTitleKey(normalizedKey: string) {
+  const separatorIndex = normalizedKey.lastIndexOf("::");
+
+  return separatorIndex === -1 ? normalizedKey : normalizedKey.slice(0, separatorIndex);
+}
 
 function dedupeGeneratedItems(
   items: Awaited<ReturnType<typeof generateOpenAiCompatibleRecommendations>>,
@@ -38,6 +45,38 @@ function dedupeGeneratedItems(
       seenKeys.add(key);
       return true;
     });
+}
+
+function filterGeneratedItemsAgainstLibrary(
+  items: Awaited<ReturnType<typeof generateOpenAiCompatibleRecommendations>>,
+  libraryNormalizedKeys: string[],
+) {
+  if (libraryNormalizedKeys.length === 0) {
+    return {
+      items,
+      excludedCount: 0,
+    };
+  }
+
+  const libraryKeySet = new Set(libraryNormalizedKeys);
+  const libraryTitleSet = new Set(libraryNormalizedKeys.map((key) => extractLibraryTitleKey(key)));
+  const filteredItems = items.filter((item) => {
+    const normalizedKey = buildLibraryTasteItemKey({
+      title: item.title,
+      year: item.year,
+    });
+
+    if (libraryKeySet.has(normalizedKey)) {
+      return false;
+    }
+
+    return item.year !== null || !libraryTitleSet.has(extractLibraryTitleKey(normalizedKey));
+  });
+
+  return {
+    items: filteredItems,
+    excludedCount: items.length - filteredItems.length,
+  };
 }
 
 function buildStoredRecommendationItems(
@@ -115,6 +154,7 @@ async function loadSampledLibraryTasteContext(
     return {
       totalCount: 0,
       sampledItems: [],
+      normalizedKeys: [],
     };
   }
 
@@ -129,6 +169,7 @@ async function loadSampledLibraryTasteContext(
     return {
       totalCount: 0,
       sampledItems: [],
+      normalizedKeys: [],
     };
   }
 
@@ -203,6 +244,8 @@ export async function createRecommendationRunWorkflow(
     }),
   });
 
+  let excludedLibraryItemCount = 0;
+
   try {
     const generatedItems = await generateOpenAiCompatibleRecommendations({
       baseUrl: aiProvider.connection.baseUrl ?? "",
@@ -218,15 +261,24 @@ export async function createRecommendationRunWorkflow(
     });
 
     const dedupedItems = dedupeGeneratedItems(generatedItems);
+    const filteredItems = filterGeneratedItemsAgainstLibrary(
+      dedupedItems,
+      libraryTasteContext.normalizedKeys,
+    );
+    excludedLibraryItemCount = filteredItems.excludedCount;
     const enrichedItems = await enrichGeneratedItemsWithPosterUrls(
       userId,
       input.mediaType,
-      dedupedItems,
+      filteredItems.items,
     );
     const normalizedItems = buildStoredRecommendationItems(input.mediaType, enrichedItems);
 
     if (normalizedItems.length === 0) {
-      throw new Error("The AI provider returned no usable recommendations.");
+      throw new Error(
+        filteredItems.excludedCount > 0
+          ? "The AI only returned titles that already exist in your library. Try a more specific prompt for something new."
+          : "The AI provider returned no usable recommendations.",
+      );
     }
 
     await completeRecommendationRun(run.id, normalizedItems);
@@ -242,6 +294,7 @@ export async function createRecommendationRunWorkflow(
         watchHistorySourceTypes: preferences.watchHistorySourceTypes,
         libraryTasteTotalCount: libraryTasteContext.totalCount,
         libraryTasteSampleCount: libraryTasteContext.sampledItems.length,
+        excludedLibraryItemCount,
       }),
     });
 
@@ -265,6 +318,7 @@ export async function createRecommendationRunWorkflow(
         watchHistorySourceTypes: preferences.watchHistorySourceTypes,
         libraryTasteTotalCount: libraryTasteContext.totalCount,
         libraryTasteSampleCount: libraryTasteContext.sampledItems.length,
+        excludedLibraryItemCount,
       }),
     });
 
