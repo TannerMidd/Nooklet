@@ -11,6 +11,7 @@ import {
   type RecommendationRunActionState,
 } from "@/app/(workspace)/recommendation-action-state";
 import { addRecommendationToLibrarySchema } from "@/modules/recommendations/schemas/add-to-library";
+import { updateDefaultResultCount } from "@/modules/preferences/repositories/preferences-repository";
 import { recommendationRequestSchema } from "@/modules/recommendations/schemas/recommendation-request";
 import { addRecommendationToLibrary } from "@/modules/recommendations/workflows/add-recommendation-to-library";
 import { createRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
@@ -86,6 +87,8 @@ export async function submitRecommendationRequestAction(
     };
   }
 
+  await updateDefaultResultCount(session.user.id, parsedInput.data.requestedCount);
+
   const result = await createRecommendationRunWorkflow(session.user.id, parsedInput.data);
 
   if (!result.ok) {
@@ -97,6 +100,7 @@ export async function submitRecommendationRequestAction(
 
   revalidatePath(redirectPath);
   revalidatePath("/history");
+  revalidatePath("/settings/preferences");
   redirect(buildRecommendationRedirectPath(redirectPath, result.runId));
 }
 

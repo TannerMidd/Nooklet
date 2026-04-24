@@ -128,3 +128,23 @@ export async function upsertPreferences(input: UpsertPreferencesInput) {
 
   return getPreferencesByUserId(input.userId);
 }
+
+export async function updateDefaultResultCount(userId: string, defaultResultCount: number) {
+  const database = ensureDatabaseReady();
+
+  database
+    .insert(preferences)
+    .values({
+      userId,
+      defaultResultCount,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: preferences.userId,
+      set: {
+        defaultResultCount,
+        updatedAt: new Date(),
+      },
+    })
+    .run();
+}

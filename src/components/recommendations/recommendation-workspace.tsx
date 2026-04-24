@@ -99,6 +99,83 @@ export async function RecommendationWorkspace({
         </div>
       </header>
 
+      <div className="grid gap-6 xl:grid-cols-[1.08fr,0.92fr]">
+        <Panel
+          eyebrow="Request run"
+          title="Start a recommendation run"
+          description="Generate a saved batch of recommendations that you can review here, refine later, and revisit from history."
+        >
+          <RecommendationRequestForm
+            mediaType={mediaType}
+            redirectPath={routePath}
+            defaultResultCount={preferences.defaultResultCount}
+            defaultModel={defaultModel}
+            defaultTemperature={0.9}
+            availableModels={availableModels}
+            canSubmit={Boolean(canRequest)}
+          />
+        </Panel>
+
+        <Panel
+          eyebrow="Prerequisites"
+          title="Current service readiness"
+          description="A verified AI provider is required before you can request results. Sonarr or Radarr becomes important when you want to add a recommendation straight to your library."
+        >
+          <div className="space-y-3 text-sm leading-6 text-foreground">
+            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <span className="font-medium">AI provider:</span> {aiProvider?.status ?? "disconnected"}
+              <p className="mt-1 text-muted">{aiProvider?.statusMessage ?? "Configure and verify the AI provider connection."}</p>
+            </div>
+            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <span className="font-medium">
+                {mediaType === "tv" ? "Sonarr" : "Radarr"}:
+              </span>{" "}
+              {relevantLibraryManager?.status ?? "disconnected"}
+              <p className="mt-1 text-muted">
+                {relevantLibraryManager?.statusMessage ?? "Optional for requesting results, but required to add titles directly from recommendation cards."}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <span className="font-medium">Watch history:</span>{" "}
+              {preferences.watchHistoryOnly
+                ? selectedWatchHistoryContext.length > 0
+                  ? "ready"
+                  : "empty"
+                : watchHistoryOverview.sources.length > 0
+                  ? "available"
+                  : "not-synced"}
+              <p className="mt-1 text-muted">
+                {preferences.watchHistoryOnly
+                  ? selectedWatchHistoryContext.length > 0
+                    ? `Watch-history-only mode is enabled. ${selectedWatchHistoryContext.length} recent ${mediaType === "tv" ? "TV" : "movie"} titles are available from ${selectedWatchHistorySourceNames}.`
+                    : `Watch-history-only mode is enabled, but no synced ${mediaType === "tv" ? "TV" : "movie"} history is available from ${selectedWatchHistorySourceNames}. Import titles on the history settings route or adjust selected sources in preferences.`
+                  : `Selected sources: ${selectedWatchHistorySourceNames}. Syncing watch history is optional unless watch-history-only mode is enabled.`}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              href="/settings/connections"
+              className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+            >
+              Manage connections
+            </Link>
+            <Link
+              href="/settings/history"
+              className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+            >
+              Manage watch history
+            </Link>
+            <Link
+              href="/history"
+              className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+            >
+              Open history
+            </Link>
+          </div>
+        </Panel>
+      </div>
+
       {featuredRun ? (
         <section
           className={`rounded-[32px] border border-line/80 bg-panel/90 px-6 py-6 shadow-soft backdrop-blur md:px-8 ${
@@ -183,96 +260,6 @@ export async function RecommendationWorkspace({
           </div>
         </section>
       ) : null}
-
-      <div className="grid gap-6 xl:grid-cols-[1.08fr,0.92fr]">
-        <Panel
-          eyebrow="Request run"
-          title="Start a recommendation run"
-          description="Generate a saved batch of recommendations that you can review here, refine later, and revisit from history."
-        >
-          <RecommendationRequestForm
-            mediaType={mediaType}
-            redirectPath={routePath}
-            defaultResultCount={preferences.defaultResultCount}
-            defaultModel={defaultModel}
-            defaultTemperature={0.9}
-            availableModels={availableModels}
-            canSubmit={Boolean(canRequest)}
-          />
-        </Panel>
-
-        <div className="space-y-6">
-          <Panel
-            eyebrow="Prerequisites"
-            title="Current service readiness"
-            description="A verified AI provider is required before you can request results. Sonarr or Radarr becomes important when you want to add a recommendation straight to your library."
-          >
-            <div className="space-y-3 text-sm leading-6 text-foreground">
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                <span className="font-medium">AI provider:</span> {aiProvider?.status ?? "disconnected"}
-                <p className="mt-1 text-muted">{aiProvider?.statusMessage ?? "Configure and verify the AI provider connection."}</p>
-              </div>
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                <span className="font-medium">
-                  {mediaType === "tv" ? "Sonarr" : "Radarr"}:
-                </span>{" "}
-                {relevantLibraryManager?.status ?? "disconnected"}
-                <p className="mt-1 text-muted">
-                  {relevantLibraryManager?.statusMessage ?? "Optional for requesting results, but required to add titles directly from recommendation cards."}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                <span className="font-medium">Watch history:</span>{" "}
-                {preferences.watchHistoryOnly
-                  ? selectedWatchHistoryContext.length > 0
-                    ? "ready"
-                    : "empty"
-                  : watchHistoryOverview.sources.length > 0
-                    ? "available"
-                    : "not-synced"}
-                <p className="mt-1 text-muted">
-                  {preferences.watchHistoryOnly
-                    ? selectedWatchHistoryContext.length > 0
-                      ? `Watch-history-only mode is enabled. ${selectedWatchHistoryContext.length} recent ${mediaType === "tv" ? "TV" : "movie"} titles are available from ${selectedWatchHistorySourceNames}.`
-                      : `Watch-history-only mode is enabled, but no synced ${mediaType === "tv" ? "TV" : "movie"} history is available from ${selectedWatchHistorySourceNames}. Import titles on the history settings route or adjust selected sources in preferences.`
-                    : `Selected sources: ${selectedWatchHistorySourceNames}. Syncing watch history is optional unless watch-history-only mode is enabled.`}
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Link
-                href="/settings/connections"
-                className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
-              >
-                Manage connections
-              </Link>
-              <Link
-                href="/settings/history"
-                className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
-              >
-                Manage watch history
-              </Link>
-              <Link
-                href="/history"
-                className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
-              >
-                Open history
-              </Link>
-            </div>
-          </Panel>
-
-          <Panel eyebrow="Saved defaults" title="Current request defaults">
-            <div className="space-y-3 text-sm leading-6 text-foreground">
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                <span className="font-medium">Default media mode:</span> {preferences.defaultMediaMode}
-              </div>
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                <span className="font-medium">Default result count:</span> {preferences.defaultResultCount}
-              </div>
-            </div>
-          </Panel>
-        </div>
-      </div>
 
       <Panel
         eyebrow="Recent runs"
