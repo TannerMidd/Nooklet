@@ -28,6 +28,12 @@ export async function findUserByEmail(email: string) {
   );
 }
 
+export async function findUserById(userId: string) {
+  const database = ensureDatabaseReady();
+
+  return database.select().from(users).where(eq(users.id, userId)).get() ?? null;
+}
+
 type CreateUserInput = {
   email: string;
   displayName: string;
@@ -51,6 +57,21 @@ export async function createUser(input: CreateUserInput) {
     .run();
 
   return database.select().from(users).where(eq(users.id, id)).get() ?? null;
+}
+
+export async function updateUserPassword(userId: string, passwordHash: string) {
+  const database = ensureDatabaseReady();
+
+  database
+    .update(users)
+    .set({
+      passwordHash,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
+    .run();
+
+  return findUserById(userId);
 }
 
 type CreateAuditEventInput = {
