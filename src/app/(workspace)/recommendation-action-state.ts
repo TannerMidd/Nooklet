@@ -16,3 +16,13 @@ export type RecommendationRunActionState = {
 export const initialRecommendationRunActionState: RecommendationRunActionState = {
   status: "idle",
 };
+
+export type RecommendationLibraryActionState = {
+  status: "idle" | "error" | "success";
+  message?: string;
+  fieldErrors?: Partial<Record<"rootFolderPath" | "qualityProfileId" | "tagIds", string>>;
+};
+
+export const initialRecommendationLibraryActionState: RecommendationLibraryActionState = {
+  status: "idle",
+};

@@ -32,6 +32,7 @@ export async function verifyConfiguredServiceConnection(
     record.connection.id,
     verificationResult.ok ? "verified" : "error",
     verificationResult.message,
+    verificationResult.metadata,
   );
 
   await createAuditEvent({

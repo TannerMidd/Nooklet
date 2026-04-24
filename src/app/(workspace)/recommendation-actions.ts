@@ -7,9 +7,12 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import {
   type RecommendationActionState,
+  type RecommendationLibraryActionState,
   type RecommendationRunActionState,
 } from "@/app/(workspace)/recommendation-action-state";
+import { addRecommendationToLibrarySchema } from "@/modules/recommendations/schemas/add-to-library";
 import { recommendationRequestSchema } from "@/modules/recommendations/schemas/recommendation-request";
+import { addRecommendationToLibrary } from "@/modules/recommendations/workflows/add-recommendation-to-library";
 import { createRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
 import { updateRecommendationFeedback } from "@/modules/recommendations/workflows/update-recommendation-feedback";
 import { updateRecommendationHiddenState } from "@/modules/recommendations/workflows/update-recommendation-hidden-state";
@@ -28,6 +31,13 @@ const hiddenStateActionSchema = z.object({
 
 function safeReturnTo(value: string) {
   return value.startsWith("/") ? value : "/history";
+}
+
+function safeRevalidatePath(value: string) {
+  const normalizedPath = safeReturnTo(value);
+  const queryIndex = normalizedPath.indexOf("?");
+
+  return queryIndex === -1 ? normalizedPath : normalizedPath.slice(0, queryIndex);
 }
 
 export async function submitRecommendationRequestAction(
@@ -162,4 +172,56 @@ export async function submitRecommendationHiddenStateAction(formData: FormData) 
 
   revalidatePath("/history");
   redirect(safeReturnTo(parsedInput.returnTo));
+}
+
+export async function submitRecommendationLibraryAction(
+  _previousState: RecommendationLibraryActionState,
+  formData: FormData,
+): Promise<RecommendationLibraryActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return {
+      status: "error",
+      message: "You need to sign in again.",
+    };
+  }
+
+  const parsedInput = addRecommendationToLibrarySchema.safeParse({
+    itemId: formData.get("itemId"),
+    rootFolderPath: formData.get("rootFolderPath"),
+    qualityProfileId: formData.get("qualityProfileId"),
+    tagIds: formData.getAll("tagIds"),
+    returnTo: formData.get("returnTo"),
+  });
+
+  if (!parsedInput.success) {
+    const flattenedErrors = parsedInput.error.flatten().fieldErrors;
+
+    return {
+      status: "error",
+      message: "Review the add-to-library fields and try again.",
+      fieldErrors: {
+        rootFolderPath: flattenedErrors.rootFolderPath?.[0],
+        qualityProfileId: flattenedErrors.qualityProfileId?.[0],
+        tagIds: flattenedErrors.tagIds?.[0],
+      },
+    };
+  }
+
+  const result = await addRecommendationToLibrary(session.user.id, parsedInput.data);
+
+  revalidatePath("/history");
+  revalidatePath(safeRevalidatePath(parsedInput.data.returnTo));
+
+  return {
+    status: result.ok ? "success" : "error",
+    message: result.message,
+    fieldErrors:
+      !result.ok && result.field
+        ? {
+            [result.field]: result.message,
+          }
+        : undefined,
+  };
 }

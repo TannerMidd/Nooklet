@@ -1,4 +1,5 @@
 import { type ServiceConnectionType } from "@/lib/database/schema";
+import { type LibraryManagerMetadata } from "@/modules/service-connections/library-manager-metadata";
 
 type VerifyServiceConnectionInput = {
   serviceType: ServiceConnectionType;
@@ -10,7 +11,23 @@ type VerifyServiceConnectionInput = {
 type VerifyServiceConnectionResult = {
   ok: boolean;
   message: string;
+  metadata?: Record<string, unknown> | null;
 };
+
+type LibraryManagerRootFolderResponse = Array<{
+  path?: string;
+  name?: string;
+}>;
+
+type LibraryManagerQualityProfileResponse = Array<{
+  id?: number;
+  name?: string;
+}>;
+
+type LibraryManagerTagResponse = Array<{
+  id?: number;
+  label?: string;
+}>;
 
 async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
   const controller = new AbortController();
@@ -28,6 +45,16 @@ async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
 
 function trimTrailingSlash(baseUrl: string) {
   return baseUrl.replace(/\/+$/, "");
+}
+
+async function fetchJsonWithTimeout<T>(input: RequestInfo | URL, init?: RequestInit) {
+  const response = await fetchWithTimeout(input, init);
+
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}.`);
+  }
+
+  return (await response.json()) as T;
 }
 
 async function verifyAiProvider(
@@ -73,27 +100,125 @@ async function verifyAiProvider(
 async function verifyLibraryManager(
   input: VerifyServiceConnectionInput,
 ): Promise<VerifyServiceConnectionResult> {
-  const response = await fetchWithTimeout(
-    `${trimTrailingSlash(input.baseUrl)}/api/v3/system/status`,
-    {
-      headers: {
-        "X-Api-Key": input.secret,
-      },
-      cache: "no-store",
-    },
-  );
+  const headers = {
+    "X-Api-Key": input.secret,
+  };
 
-  if (!response.ok) {
+  try {
+    await fetchJsonWithTimeout<Record<string, unknown>>(
+      `${trimTrailingSlash(input.baseUrl)}/api/v3/system/status`,
+      {
+        headers,
+        cache: "no-store",
+      },
+    );
+
+    const [rootFolders, qualityProfiles, tags] = await Promise.all([
+      fetchJsonWithTimeout<LibraryManagerRootFolderResponse>(
+        `${trimTrailingSlash(input.baseUrl)}/api/v3/rootfolder`,
+        {
+          headers,
+          cache: "no-store",
+        },
+      ),
+      fetchJsonWithTimeout<LibraryManagerQualityProfileResponse>(
+        `${trimTrailingSlash(input.baseUrl)}/api/v3/qualityprofile`,
+        {
+          headers,
+          cache: "no-store",
+        },
+      ),
+      fetchJsonWithTimeout<LibraryManagerTagResponse>(
+        `${trimTrailingSlash(input.baseUrl)}/api/v3/tag`,
+        {
+          headers,
+          cache: "no-store",
+        },
+      ),
+    ]);
+
+    const metadata: LibraryManagerMetadata = {
+      rootFolders: rootFolders
+        .map((entry) => {
+          const path = typeof entry.path === "string" ? entry.path.trim() : "";
+          const label = typeof entry.name === "string" ? entry.name.trim() : path;
+
+          if (!path || !label) {
+            return null;
+          }
+
+          return {
+            path,
+            label,
+          };
+        })
+        .filter((entry): entry is LibraryManagerMetadata["rootFolders"][number] => entry !== null),
+      qualityProfiles: qualityProfiles
+        .map((entry) => {
+          if (typeof entry.id !== "number" || typeof entry.name !== "string") {
+            return null;
+          }
+
+          const name = entry.name.trim();
+
+          if (!name) {
+            return null;
+          }
+
+          return {
+            id: entry.id,
+            name,
+          };
+        })
+        .filter(
+          (entry): entry is LibraryManagerMetadata["qualityProfiles"][number] => entry !== null,
+        ),
+      tags: tags
+        .map((entry) => {
+          if (typeof entry.id !== "number") {
+            return null;
+          }
+
+          const label = typeof entry.label === "string" ? entry.label.trim() : "";
+
+          if (!label) {
+            return null;
+          }
+
+          return {
+            id: entry.id,
+            label,
+          };
+        })
+        .filter((entry): entry is LibraryManagerMetadata["tags"][number] => entry !== null),
+    };
+
+    if (metadata.rootFolders.length === 0) {
+      return {
+        ok: false,
+        message: "Connected, but no root folders were returned by the library manager.",
+      };
+    }
+
+    if (metadata.qualityProfiles.length === 0) {
+      return {
+        ok: false,
+        message: "Connected, but no quality profiles were returned by the library manager.",
+      };
+    }
+
+    return {
+      ok: true,
+      message: `Connected. Loaded ${metadata.rootFolders.length} root folders, ${metadata.qualityProfiles.length} quality profiles, and ${metadata.tags.length} tags.`,
+      metadata,
+    };
+  } catch (error) {
     return {
       ok: false,
-      message: `Verification failed with status ${response.status}.`,
+      message:
+        error instanceof Error ? error.message : "Connection verification failed unexpectedly.",
     };
   }
-
-  return {
-    ok: true,
-    message: "Connected.",
-  };
 }
 
 export async function verifyServiceConnection(

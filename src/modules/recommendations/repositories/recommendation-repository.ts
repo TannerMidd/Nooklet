@@ -215,12 +215,31 @@ export async function findRecommendationItemForUser(userId: string, itemId: stri
       .select({
         itemId: recommendationItems.id,
         runId: recommendationRuns.id,
+        mediaType: recommendationItems.mediaType,
+        title: recommendationItems.title,
+        year: recommendationItems.year,
+        existingInLibrary: recommendationItems.existingInLibrary,
       })
       .from(recommendationItems)
       .innerJoin(recommendationRuns, eq(recommendationRuns.id, recommendationItems.runId))
       .where(and(eq(recommendationItems.id, itemId), eq(recommendationRuns.userId, userId)))
       .get() ?? null
   );
+}
+
+export async function markRecommendationItemExistingInLibrary(
+  itemId: string,
+  existingInLibrary: boolean,
+) {
+  const database = ensureDatabaseReady();
+
+  database
+    .update(recommendationItems)
+    .set({
+      existingInLibrary,
+    })
+    .where(eq(recommendationItems.id, itemId))
+    .run();
 }
 
 export async function upsertRecommendationFeedback(

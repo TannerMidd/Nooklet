@@ -176,6 +176,7 @@ export async function updateServiceConnectionVerification(
   connectionId: string,
   status: ServiceConnectionStatus,
   statusMessage: string,
+  metadata?: Record<string, unknown> | null,
 ) {
   const database = ensureDatabaseReady();
 
@@ -184,6 +185,11 @@ export async function updateServiceConnectionVerification(
     .set({
       status,
       statusMessage,
+      ...(metadata === undefined
+        ? {}
+        : {
+            metadataJson: metadata ? JSON.stringify(metadata) : null,
+          }),
       lastVerifiedAt: new Date(),
       updatedAt: new Date(),
     })

@@ -5,6 +5,7 @@ import { RecommendationHistoryItemActions } from "@/components/recommendations/r
 import { Panel } from "@/components/ui/panel";
 import { getPreferencesByUserId } from "@/modules/preferences/repositories/preferences-repository";
 import { listRecommendationHistory } from "@/modules/recommendations/queries/list-recommendation-history";
+import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,10 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
     return null;
   }
 
-  const preferences = await getPreferencesByUserId(session.user.id);
+  const [preferences, connectionSummaries] = await Promise.all([
+    getPreferencesByUserId(session.user.id),
+    listConnectionSummaries(session.user.id),
+  ]);
   const resolvedSearchParams = await searchParams;
   const currentView =
     resolvedSearchParams?.view === "tv" || resolvedSearchParams?.view === "movie"
@@ -39,6 +43,8 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
     hideHidden: preferences.historyHideHidden,
   });
   const returnTo = buildReturnTo(currentView);
+  const sonarrSummary = connectionSummaries.find((summary) => summary.serviceType === "sonarr") ?? null;
+  const radarrSummary = connectionSummaries.find((summary) => summary.serviceType === "radarr") ?? null;
 
   return (
     <div className="space-y-6">
@@ -172,9 +178,12 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
 
                 <RecommendationHistoryItemActions
                   itemId={item.itemId}
+                  mediaType={item.mediaType}
                   feedback={item.feedback}
+                  existingInLibrary={item.existingInLibrary}
                   isHidden={item.isHidden}
                   returnTo={returnTo}
+                  libraryConnection={item.mediaType === "tv" ? sonarrSummary : radarrSummary}
                 />
               </article>
             ))}
