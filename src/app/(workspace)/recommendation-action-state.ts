@@ -1,7 +1,9 @@
 export type RecommendationActionState = {
   status: "idle" | "error";
   message?: string;
-  fieldErrors?: Partial<Record<"requestPrompt" | "requestedCount", string>>;
+  fieldErrors?: Partial<
+    Record<"requestPrompt" | "requestedCount" | "aiModel" | "temperature", string>
+  >;
 };
 
 export const initialRecommendationActionState: RecommendationActionState = {

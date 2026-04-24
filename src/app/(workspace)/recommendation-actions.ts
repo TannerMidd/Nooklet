@@ -40,6 +40,15 @@ function safeRevalidatePath(value: string) {
   return queryIndex === -1 ? normalizedPath : normalizedPath.slice(0, queryIndex);
 }
 
+function buildRecommendationRedirectPath(basePath: string, runId: string) {
+  const searchParams = new URLSearchParams({
+    run: runId,
+    generated: "1",
+  });
+
+  return `${basePath}?${searchParams.toString()}`;
+}
+
 export async function submitRecommendationRequestAction(
   _previousState: RecommendationActionState,
   formData: FormData,
@@ -58,6 +67,8 @@ export async function submitRecommendationRequestAction(
     mediaType: formData.get("mediaType"),
     requestPrompt: formData.get("requestPrompt"),
     requestedCount: formData.get("requestedCount"),
+    aiModel: formData.get("aiModel"),
+    temperature: formData.get("temperature"),
   });
 
   if (!parsedInput.success) {
@@ -69,6 +80,8 @@ export async function submitRecommendationRequestAction(
       fieldErrors: {
         requestPrompt: flattenedErrors.requestPrompt?.[0],
         requestedCount: flattenedErrors.requestedCount?.[0],
+        aiModel: flattenedErrors.aiModel?.[0],
+        temperature: flattenedErrors.temperature?.[0],
       },
     };
   }
@@ -84,7 +97,7 @@ export async function submitRecommendationRequestAction(
 
   revalidatePath(redirectPath);
   revalidatePath("/history");
-  redirect(redirectPath);
+  redirect(buildRecommendationRedirectPath(redirectPath, result.runId));
 }
 
 export async function submitRecommendationRetryAction(
@@ -105,6 +118,8 @@ export async function submitRecommendationRetryAction(
     mediaType: formData.get("mediaType"),
     requestPrompt: formData.get("requestPrompt"),
     requestedCount: formData.get("requestedCount"),
+    aiModel: formData.get("aiModel"),
+    temperature: formData.get("temperature"),
   });
 
   if (!parsedInput.success) {
@@ -125,7 +140,7 @@ export async function submitRecommendationRetryAction(
 
   revalidatePath(redirectPath);
   revalidatePath("/history");
-  redirect(redirectPath);
+  redirect(buildRecommendationRedirectPath(redirectPath, result.runId));
 }
 
 export async function submitRecommendationFeedbackAction(formData: FormData) {

@@ -62,11 +62,14 @@ function buildBackfillRequestPrompt(
     .map((item) => `- ${formatRecommendationTitle(item)}`)
     .join("\n");
 
-  return (
-    `${basePrompt}\n\n` +
-    `Backfill requirement: return ${remainingCount} additional ${mediaType === "tv" ? "TV series" : "movies"} that are genuinely new for this user.\n` +
-    `Do not return any title from this exclusion list:\n${exclusionBlock}`
+  const promptSections = [basePrompt.trim()].filter((section) => section.length > 0);
+
+  promptSections.push(
+    `Backfill requirement: return ${remainingCount} additional ${mediaType === "tv" ? "TV series" : "movies"} that are genuinely new for this user.`,
+    `Do not return any title from this exclusion list:\n${exclusionBlock}`,
   );
+
+  return promptSections.join("\n\n");
 }
 
 function dedupeGeneratedItems(
@@ -123,6 +126,7 @@ async function generateBackfilledRecommendationItems(input: {
   baseUrl: string;
   apiKey: string;
   model: string;
+  temperature: number;
   mediaType: RecommendationMediaType;
   requestPrompt: string;
   requestedCount: number;
@@ -161,6 +165,7 @@ async function generateBackfilledRecommendationItems(input: {
       baseUrl: input.baseUrl,
       apiKey: input.apiKey,
       model: input.model,
+      temperature: input.temperature,
       mediaType: input.mediaType,
       requestPrompt: buildBackfillRequestPrompt(
         input.requestPrompt,
@@ -326,14 +331,24 @@ export async function createRecommendationRunWorkflow(
     };
   }
 
-  const aiModel =
-    typeof aiProvider.metadata?.model === "string" && aiProvider.metadata.model.trim().length > 0
-      ? (aiProvider.metadata.model as string)
-      : "gpt-4.1-mini";
+  const trimmedRequestPrompt = input.requestPrompt.trim();
+  const aiModel = input.aiModel.trim();
   const [watchHistoryContext, libraryTasteContext] = await Promise.all([
     listWatchHistoryContext(userId, input.mediaType, 12, preferences.watchHistorySourceTypes),
     loadSampledLibraryTasteContext(userId, input.mediaType),
   ]);
+
+  if (
+    trimmedRequestPrompt.length === 0 &&
+    watchHistoryContext.length === 0 &&
+    libraryTasteContext.totalCount === 0
+  ) {
+    return {
+      ok: false,
+      message:
+        "Enter a prompt, sync watch history, or verify Sonarr/Radarr so the app has taste context to work from.",
+    };
+  }
 
   if (preferences.watchHistoryOnly && watchHistoryContext.length === 0) {
     return {
@@ -345,9 +360,10 @@ export async function createRecommendationRunWorkflow(
   const run = await createRecommendationRun({
     userId,
     mediaType: input.mediaType,
-    requestPrompt: input.requestPrompt,
+    requestPrompt: trimmedRequestPrompt,
     requestedCount: input.requestedCount,
     aiModel,
+    aiTemperature: input.temperature,
     watchHistoryOnly: preferences.watchHistoryOnly,
   });
 
@@ -381,8 +397,9 @@ export async function createRecommendationRunWorkflow(
       baseUrl: aiProvider.connection.baseUrl ?? "",
       apiKey: decryptSecret(aiProvider.secret.encryptedValue),
       model: aiModel,
+      temperature: input.temperature,
       mediaType: input.mediaType,
-      requestPrompt: input.requestPrompt,
+      requestPrompt: trimmedRequestPrompt,
       requestedCount: input.requestedCount,
       watchHistoryOnly: preferences.watchHistoryOnly,
       watchHistoryContext,

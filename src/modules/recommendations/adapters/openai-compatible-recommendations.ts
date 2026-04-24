@@ -10,6 +10,7 @@ type GenerateRecommendationsInput = {
   baseUrl: string;
   apiKey: string;
   model: string;
+  temperature: number;
   mediaType: RecommendationMediaType;
   requestPrompt: string;
   requestedCount: number;
@@ -102,6 +103,7 @@ function normalizeRecommendationItem(value: unknown) {
 export async function generateOpenAiCompatibleRecommendations(
   input: GenerateRecommendationsInput,
 ): Promise<GeneratedRecommendation[]> {
+  const trimmedRequestPrompt = input.requestPrompt.trim();
   const libraryTasteContextBlock =
     input.libraryTasteContext.length > 0
       ? input.libraryTasteContext
@@ -140,7 +142,7 @@ export async function generateOpenAiCompatibleRecommendations(
         {
           role: "user",
           content:
-            `Request context: ${input.requestPrompt}\n` +
+            `${trimmedRequestPrompt.length > 0 ? `Request context: ${trimmedRequestPrompt}\n` : "No explicit request context was provided. Infer the user's taste from the owned library sample and recent watched titles.\n"}` +
             `Owned library sample: ${input.libraryTasteContext.length} of ${input.libraryTasteTotalCount} known ${input.mediaType === "tv" ? "series" : "movies"}.\n` +
             `${input.libraryTasteContext.length > 0 ? "Treat the owned-library sample below as an important taste signal and avoid recommending titles that already appear in it when possible.\n" : "No owned-library sample was provided.\n"}` +
             `Owned library sample titles:\n${libraryTasteContextBlock}\n` +
@@ -150,7 +152,7 @@ export async function generateOpenAiCompatibleRecommendations(
             `Prefer a diverse set of results with specific rationales.`,
         },
       ],
-      temperature: 0.9,
+      temperature: input.temperature,
     }),
   });
 
@@ -201,6 +203,7 @@ export async function generateOpenAiCompatibleRecommendations(
     providerMetadata: {
       source: "ai-provider",
       model: input.model,
+      temperature: input.temperature,
     },
   }));
 }

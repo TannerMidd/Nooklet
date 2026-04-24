@@ -1,0 +1,1 @@
+ALTER TABLE `recommendation_runs` ADD `ai_temperature` real DEFAULT 0.9 NOT NULL;

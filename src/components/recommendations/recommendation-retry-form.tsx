@@ -14,6 +14,8 @@ type RecommendationRetryFormProps = {
   mediaType: RecommendationMediaType;
   requestPrompt: string;
   requestedCount: number;
+  aiModel: string;
+  aiTemperature: number;
   redirectPath: string;
   runStatus: RecommendationRunStatus;
 };
@@ -36,6 +38,8 @@ export function RecommendationRetryForm({
   mediaType,
   requestPrompt,
   requestedCount,
+  aiModel,
+  aiTemperature,
   redirectPath,
   runStatus,
 }: RecommendationRetryFormProps) {
@@ -49,6 +53,8 @@ export function RecommendationRetryForm({
       <input type="hidden" name="mediaType" value={mediaType} />
       <input type="hidden" name="requestPrompt" value={requestPrompt} />
       <input type="hidden" name="requestedCount" value={requestedCount} />
+      <input type="hidden" name="aiModel" value={aiModel} />
+      <input type="hidden" name="temperature" value={aiTemperature} />
       <input type="hidden" name="redirectPath" value={redirectPath} />
 
       <div className="flex flex-wrap gap-3">

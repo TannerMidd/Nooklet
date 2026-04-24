@@ -19,6 +19,8 @@ type RecommendationWorkspaceProps = {
   routePath: "/tv" | "/movies";
   title: string;
   description: string;
+  activeRunId?: string | null;
+  wasJustGenerated?: boolean;
 };
 
 function formatDate(value: Date | null) {
@@ -32,11 +34,21 @@ function formatDate(value: Date | null) {
   }).format(value);
 }
 
+function formatTemperature(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(1) : "0.9";
+}
+
+function formatPromptLabel(value: string) {
+  return value.trim().length > 0 ? value : "Taste-based automatic request";
+}
+
 export async function RecommendationWorkspace({
   mediaType,
   routePath,
   title,
   description,
+  activeRunId,
+  wasJustGenerated = false,
 }: RecommendationWorkspaceProps) {
   const session = await auth();
 
@@ -62,9 +74,16 @@ export async function RecommendationWorkspace({
     mediaType === "tv" ? summary.serviceType === "sonarr" : summary.serviceType === "radarr",
   );
   const canRequest = aiProvider?.status === "verified";
+  const defaultModel = aiProvider?.model ?? "gpt-4.1-mini";
+  const availableModels = aiProvider?.availableModels ?? [];
   const selectedWatchHistorySourceNames = preferences.watchHistorySourceTypes
     .map((sourceType) => getWatchHistorySourceDefinition(sourceType).displayName)
     .join(", ");
+  const featuredRun =
+    recentRuns.find((run) => run.id === activeRunId) ?? recentRuns[0] ?? null;
+  const previousRuns = featuredRun
+    ? recentRuns.filter((run) => run.id !== featuredRun.id)
+    : recentRuns;
 
   return (
     <div className="space-y-6">
@@ -80,6 +99,91 @@ export async function RecommendationWorkspace({
         </div>
       </header>
 
+      {featuredRun ? (
+        <section
+          className={`rounded-[32px] border border-line/80 bg-panel/90 px-6 py-6 shadow-soft backdrop-blur md:px-8 ${
+            wasJustGenerated && featuredRun.id === activeRunId ? "recommendation-featured-run recommendation-featured-run--fresh" : ""
+          }`}
+        >
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">
+                {wasJustGenerated && featuredRun.id === activeRunId ? "Fresh batch" : "Latest batch"}
+              </p>
+              <div className="space-y-2">
+                <h2 className="font-heading text-3xl leading-tight text-foreground md:text-4xl">
+                  {featuredRun.items.length} {mediaType === "tv" ? "TV picks" : "movie picks"} ready
+                </h2>
+                <p className="max-w-3xl text-base leading-7 text-muted">
+                  {formatPromptLabel(featuredRun.requestPrompt)}
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 text-sm leading-6 text-foreground sm:grid-cols-2 xl:min-w-[360px]">
+              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                <span className="font-medium">Model:</span> {featuredRun.aiModel ?? defaultModel}
+              </div>
+              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                <span className="font-medium">Temperature:</span> {formatTemperature(featuredRun.aiTemperature)}
+              </div>
+              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                <span className="font-medium">Requested:</span> {featuredRun.requestedCount}
+              </div>
+              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                <span className="font-medium">Completed:</span> {formatDate(featuredRun.completedAt ?? featuredRun.createdAt)}
+              </div>
+            </div>
+          </div>
+
+          <RecommendationRetryForm
+            mediaType={featuredRun.mediaType}
+            requestPrompt={featuredRun.requestPrompt}
+            requestedCount={featuredRun.requestedCount}
+            aiModel={featuredRun.aiModel ?? defaultModel}
+            aiTemperature={featuredRun.aiTemperature ?? 0.9}
+            redirectPath={routePath}
+            runStatus={featuredRun.status}
+          />
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-3">
+            {featuredRun.items.map((item, index) => (
+              <article
+                key={item.id}
+                className="recommendation-featured-card rounded-[28px] border border-line/70 bg-panel p-5"
+                style={{ animationDelay: `${index * 90}ms` }}
+              >
+                <div className="flex min-w-0 flex-col gap-4 sm:flex-row lg:flex-col xl:flex-row">
+                  <RecommendationPoster title={item.title} posterUrl={item.providerMetadata?.posterUrl} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {item.title}
+                          {item.year ? ` (${item.year})` : ""}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.22em] text-muted">
+                          {item.confidenceLabel ? <span>{item.confidenceLabel}</span> : null}
+                          {item.existingInLibrary ? <span>existing in library</span> : null}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-muted">{item.rationale}</p>
+                  </div>
+                </div>
+
+                <RecommendationAddForm
+                  itemId={item.id}
+                  mediaType={item.mediaType}
+                  existingInLibrary={item.existingInLibrary}
+                  returnTo={routePath}
+                  connectionSummary={relevantLibraryManager ?? null}
+                />
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <div className="grid gap-6 xl:grid-cols-[1.08fr,0.92fr]">
         <Panel
           eyebrow="Request run"
@@ -90,6 +194,9 @@ export async function RecommendationWorkspace({
             mediaType={mediaType}
             redirectPath={routePath}
             defaultResultCount={preferences.defaultResultCount}
+            defaultModel={defaultModel}
+            defaultTemperature={0.9}
+            availableModels={availableModels}
             canSubmit={Boolean(canRequest)}
           />
         </Panel>
@@ -169,25 +276,27 @@ export async function RecommendationWorkspace({
 
       <Panel
         eyebrow="Recent runs"
-        title="Recent requests"
+        title={featuredRun ? "Older requests" : "Recent requests"}
         description="Successful and failed recommendation runs are saved so you can retry, compare, and act on them later."
       >
-        {recentRuns.length === 0 ? (
+        {previousRuns.length === 0 ? (
           <p className="text-sm leading-6 text-muted">
-            No {mediaType === "tv" ? "TV" : "movie"} recommendation runs yet.
+            {featuredRun
+              ? `No older ${mediaType === "tv" ? "TV" : "movie"} recommendation runs yet.`
+              : `No ${mediaType === "tv" ? "TV" : "movie"} recommendation runs yet.`}
           </p>
         ) : (
           <div className="space-y-4">
-            {recentRuns.map((run) => (
+            {previousRuns.map((run) => (
               <article
                 key={run.id}
                 className="rounded-[24px] border border-line/70 bg-panel-strong/70 p-5"
               >
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <p className="text-sm font-medium text-foreground">{run.requestPrompt}</p>
+                    <p className="text-sm font-medium text-foreground">{formatPromptLabel(run.requestPrompt)}</p>
                     <p className="mt-1 text-sm text-muted">
-                      {run.itemCount} items, requested {run.requestedCount}, model {run.aiModel ?? "unknown"}
+                      {run.itemCount} items, requested {run.requestedCount}, model {run.aiModel ?? defaultModel}, temp {formatTemperature(run.aiTemperature)}
                     </p>
                   </div>
                   <div className="text-sm text-muted">
@@ -206,6 +315,8 @@ export async function RecommendationWorkspace({
                   mediaType={run.mediaType}
                   requestPrompt={run.requestPrompt}
                   requestedCount={run.requestedCount}
+                  aiModel={run.aiModel ?? defaultModel}
+                  aiTemperature={run.aiTemperature ?? 0.9}
                   redirectPath={routePath}
                   runStatus={run.status}
                 />

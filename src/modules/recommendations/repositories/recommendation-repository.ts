@@ -18,6 +18,7 @@ type CreateRecommendationRunInput = {
   requestPrompt: string;
   requestedCount: number;
   aiModel: string;
+  aiTemperature: number;
   watchHistoryOnly: boolean;
 };
 
@@ -44,6 +45,7 @@ export async function createRecommendationRun(input: CreateRecommendationRunInpu
       requestPrompt: input.requestPrompt,
       requestedCount: input.requestedCount,
       aiModel: input.aiModel,
+      aiTemperature: input.aiTemperature,
       watchHistoryOnly: input.watchHistoryOnly,
     })
     .run();
@@ -117,6 +119,7 @@ export async function listRecommendationRuns(
       requestPrompt: recommendationRuns.requestPrompt,
       requestedCount: recommendationRuns.requestedCount,
       aiModel: recommendationRuns.aiModel,
+      aiTemperature: recommendationRuns.aiTemperature,
       watchHistoryOnly: recommendationRuns.watchHistoryOnly,
       errorMessage: recommendationRuns.errorMessage,
       createdAt: recommendationRuns.createdAt,

@@ -57,6 +57,13 @@
       "when": 1777069281241,
       "tag": "0007_perfect_scream",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1777074543240,
+      "tag": "0008_awesome_kylun",
+      "breakpoints": true
     }
   ]
 }

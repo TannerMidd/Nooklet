@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const userRoles = ["admin", "user"] as const;
 
@@ -241,6 +241,7 @@ export const recommendationRuns = sqliteTable("recommendation_runs", {
   requestPrompt: text("request_prompt").notNull(),
   requestedCount: integer("requested_count").notNull(),
   aiModel: text("ai_model"),
+  aiTemperature: real("ai_temperature").notNull().default(0.9),
   watchHistoryOnly: integer("watch_history_only", { mode: "boolean" })
     .notNull()
     .default(false),

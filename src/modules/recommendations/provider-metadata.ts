@@ -1,6 +1,7 @@
 export type RecommendationProviderMetadata = {
   source?: string;
   model?: string;
+  temperature?: number;
   posterUrl?: string;
   posterLookupService?: "sonarr" | "radarr";
 };
@@ -28,6 +29,10 @@ export function parseRecommendationProviderMetadata(
     return {
       source: typeof metadata.source === "string" ? metadata.source : undefined,
       model: typeof metadata.model === "string" ? metadata.model : undefined,
+      temperature:
+        typeof metadata.temperature === "number" && Number.isFinite(metadata.temperature)
+          ? metadata.temperature
+          : undefined,
       posterUrl:
         typeof metadata.posterUrl === "string" && metadata.posterUrl.trim().length > 0
           ? metadata.posterUrl.trim()
