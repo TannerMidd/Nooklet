@@ -3,16 +3,7 @@ import { z } from "zod";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 
 const aiRecommendationResponseSchema = z.object({
-  items: z
-    .array(
-      z.object({
-        title: z.string().trim().min(1),
-        year: z.number().int().min(1900).max(2100).nullable().optional(),
-        rationale: z.string().trim().min(1),
-        confidence: z.string().trim().min(1).nullable().optional(),
-      }),
-    )
-    .min(1),
+  items: z.array(z.unknown()).min(1),
 });
 
 type GenerateRecommendationsInput = {
@@ -37,6 +28,8 @@ type GeneratedRecommendation = {
   providerMetadata: Record<string, unknown>;
 };
 
+const fallbackRationale = "Recommended by the AI provider, but no rationale was returned.";
+
 function trimTrailingSlash(baseUrl: string) {
   return baseUrl.replace(/\/+$/, "");
 }
@@ -50,6 +43,54 @@ function extractJsonObject(content: string) {
   }
 
   return content.slice(firstBrace, lastBrace + 1);
+}
+
+function normalizeYear(value: unknown) {
+  if (typeof value === "number" && Number.isInteger(value)) {
+    return value >= 1900 && value <= 2100 ? value : null;
+  }
+
+  if (typeof value === "string" && /^\d{4}$/.test(value.trim())) {
+    const parsedYear = Number.parseInt(value.trim(), 10);
+
+    return parsedYear >= 1900 && parsedYear <= 2100 ? parsedYear : null;
+  }
+
+  return null;
+}
+
+function normalizeRecommendationItem(value: unknown) {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const item = value as {
+    title?: unknown;
+    year?: unknown;
+    rationale?: unknown;
+    confidence?: unknown;
+  };
+  const title = typeof item.title === "string" ? item.title.trim() : "";
+
+  if (!title) {
+    return null;
+  }
+
+  const rationale =
+    typeof item.rationale === "string" && item.rationale.trim().length > 0
+      ? item.rationale.trim()
+      : fallbackRationale;
+  const confidenceLabel =
+    typeof item.confidence === "string" && item.confidence.trim().length > 0
+      ? item.confidence.trim()
+      : null;
+
+  return {
+    title,
+    year: normalizeYear(item.year),
+    rationale,
+    confidenceLabel,
+  } satisfies Omit<GeneratedRecommendation, "providerMetadata">;
 }
 
 export async function generateOpenAiCompatibleRecommendations(
@@ -116,15 +157,29 @@ export async function generateOpenAiCompatibleRecommendations(
     throw new Error("The AI provider returned an empty response.");
   }
 
-  const parsedResponse = aiRecommendationResponseSchema.parse(
-    JSON.parse(extractJsonObject(content)),
-  );
+  let parsedResponse: z.infer<typeof aiRecommendationResponseSchema>;
 
-  return parsedResponse.items.slice(0, input.requestedCount).map((item) => ({
+  try {
+    parsedResponse = aiRecommendationResponseSchema.parse(
+      JSON.parse(extractJsonObject(content)),
+    );
+  } catch {
+    throw new Error("The AI provider returned recommendations in an invalid format.");
+  }
+
+  const normalizedItems = parsedResponse.items
+    .map((item) => normalizeRecommendationItem(item))
+    .filter((item): item is Omit<GeneratedRecommendation, "providerMetadata"> => item !== null);
+
+  if (normalizedItems.length === 0) {
+    throw new Error("The AI provider returned no usable recommendations.");
+  }
+
+  return normalizedItems.slice(0, input.requestedCount).map((item) => ({
     title: item.title,
     year: item.year ?? null,
     rationale: item.rationale,
-    confidenceLabel: item.confidence ?? null,
+    confidenceLabel: item.confidenceLabel,
     providerMetadata: {
       source: "ai-provider",
       model: input.model,
