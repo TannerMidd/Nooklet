@@ -36,20 +36,45 @@ function statusTone(status: ServiceConnectionSummary["status"]) {
 function ModelField({
   definition,
   defaultValue,
+  availableModels,
   error,
 }: {
   definition: ServiceConnectionDefinition;
   defaultValue: string;
+  availableModels: string[];
   error?: string;
 }) {
   if (!definition.modelLabel) {
     return null;
   }
 
+  const datalistId = `${definition.serviceType}-model-options`;
+
   return (
     <label className="min-w-0 space-y-2">
       <span className="text-sm font-medium text-foreground">{definition.modelLabel}</span>
-      <Input name="model" defaultValue={defaultValue} aria-invalid={Boolean(error)} />
+      <Input
+        name="model"
+        defaultValue={defaultValue}
+        list={availableModels.length > 0 ? datalistId : undefined}
+        placeholder={availableModels.length > 0 ? "Search available models" : "Enter a model identifier"}
+        autoComplete="off"
+        aria-invalid={Boolean(error)}
+      />
+      {availableModels.length > 0 ? (
+        <>
+          <datalist id={datalistId}>
+            {availableModels.map((modelId) => (
+              <option key={modelId} value={modelId} />
+            ))}
+          </datalist>
+          <p className="text-sm text-muted">
+            {availableModels.length} models loaded from the configured provider. Start typing to filter.
+          </p>
+        </>
+      ) : (
+        <p className="text-sm text-muted">Run verify to load available models from the configured provider.</p>
+      )}
       {error ? <p className="text-sm text-highlight">{error}</p> : null}
     </label>
   );
@@ -58,6 +83,7 @@ function ModelField({
 export function ConnectionCard({ summary }: ConnectionCardProps) {
   const definition = getServiceConnectionDefinition(summary.serviceType);
   const showsModel = Boolean(definition.modelLabel);
+  const availableModels = summary.availableModels ?? [];
   const [state, formAction] = useActionState(
     submitConnectionAction,
     initialConnectionActionState,
@@ -102,6 +128,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
         <ModelField
           definition={definition}
           defaultValue={summary.model ?? "gpt-4.1-mini"}
+          availableModels={availableModels}
           error={state.fieldErrors?.model}
         />
 
@@ -134,6 +161,12 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
           <div className="min-w-0 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
             <span className="font-medium">{definition.modelLabel}:</span>{" "}
             <span className="break-all">{summary.model ?? "Not set"}</span>
+          </div>
+        ) : null}
+        {showsModel ? (
+          <div className="min-w-0 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+            <span className="font-medium">Available models:</span>{" "}
+            {availableModels.length > 0 ? availableModels.length : "Run verify"}
           </div>
         ) : null}
         <div className="min-w-0 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">

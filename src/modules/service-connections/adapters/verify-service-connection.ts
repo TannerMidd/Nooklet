@@ -14,6 +14,20 @@ type VerifyServiceConnectionResult = {
   metadata?: Record<string, unknown> | null;
 };
 
+function normalizeAiProviderModelIds(payload: { data?: Array<{ id?: string }> }) {
+  const modelIds = new Set<string>();
+
+  for (const entry of payload.data ?? []) {
+    const modelId = typeof entry.id === "string" ? entry.id.trim() : "";
+
+    if (modelId) {
+      modelIds.add(modelId);
+    }
+  }
+
+  return Array.from(modelIds).sort((left, right) => left.localeCompare(right));
+}
+
 type LibraryManagerRootFolderResponse = Array<{
   path?: string;
   name?: string;
@@ -75,16 +89,21 @@ async function verifyAiProvider(
   }
 
   const payload = (await response.json()) as { data?: Array<{ id?: string }> };
+  const availableModels = normalizeAiProviderModelIds(payload);
   const configuredModel =
     typeof input.metadata?.model === "string" ? (input.metadata.model as string) : null;
 
   if (configuredModel) {
-    const modelExists = payload.data?.some((entry) => entry.id === configuredModel) ?? false;
+    const modelExists = availableModels.includes(configuredModel);
 
     if (!modelExists) {
       return {
         ok: false,
         message: `Connected, but model \"${configuredModel}\" was not returned by the provider.`,
+        metadata: {
+          ...(input.metadata ?? {}),
+          availableModels,
+        },
       };
     }
   }
@@ -92,8 +111,12 @@ async function verifyAiProvider(
   return {
     ok: true,
     message: configuredModel
-      ? `Connected. Model \"${configuredModel}\" is available.`
-      : "Connected.",
+      ? `Connected. Loaded ${availableModels.length} models and confirmed \"${configuredModel}\" is available.`
+      : `Connected. Loaded ${availableModels.length} models.`,
+    metadata: {
+      ...(input.metadata ?? {}),
+      availableModels,
+    },
   };
 }
 

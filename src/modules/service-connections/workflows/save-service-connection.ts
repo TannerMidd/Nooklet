@@ -34,6 +34,15 @@ export async function saveConfiguredServiceConnection(
   }
 
   const definition = getServiceConnectionDefinition(input.serviceType);
+  const aiProviderMetadata =
+    input.serviceType === "ai-provider"
+      ? {
+          model: input.model,
+          ...(shouldKeepAiProviderModels(existingRecord, input, secretValue)
+            ? pickAvailableModels(existingRecord?.metadata)
+            : {}),
+        }
+      : null;
 
   await saveServiceConnection({
     userId,
@@ -42,7 +51,7 @@ export async function saveConfiguredServiceConnection(
     baseUrl: input.baseUrl,
     status: "configured",
     statusMessage: "Configuration saved. Run verify to confirm connectivity.",
-    metadata: input.serviceType === "ai-provider" ? { model: input.model } : null,
+    metadata: aiProviderMetadata,
     secretUpdate: secretValue
       ? {
           encryptedValue: encryptSecret(secretValue),
@@ -66,4 +75,24 @@ export async function saveConfiguredServiceConnection(
     ok: true,
     message: `${definition.displayName} configuration saved.`,
   };
+}
+
+function pickAvailableModels(metadata: Record<string, unknown> | null | undefined) {
+  const availableModels = Array.isArray(metadata?.availableModels)
+    ? metadata.availableModels.filter((entry): entry is string => typeof entry === "string")
+    : [];
+
+  return availableModels.length > 0 ? { availableModels } : {};
+}
+
+function shouldKeepAiProviderModels(
+  existingRecord: Awaited<ReturnType<typeof findServiceConnectionByType>>,
+  input: SaveServiceConnectionInput,
+  secretValue: string,
+) {
+  return (
+    input.serviceType === "ai-provider" &&
+    existingRecord?.connection.baseUrl === input.baseUrl &&
+    !secretValue
+  );
 }

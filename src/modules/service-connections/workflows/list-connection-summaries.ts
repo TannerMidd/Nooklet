@@ -12,11 +12,22 @@ export type ServiceConnectionSummary = {
   statusMessage: string;
   maskedSecret: string | null;
   model: string | null;
+  availableModels: string[];
   rootFolders: Array<{ path: string; label: string }>;
   qualityProfiles: Array<{ id: number; name: string }>;
   tags: Array<{ id: number; label: string }>;
   lastVerifiedAt: Date | null;
 };
+
+function parseAvailableModels(metadata: Record<string, unknown> | null) {
+  if (!Array.isArray(metadata?.availableModels)) {
+    return [];
+  }
+
+  return metadata.availableModels.filter(
+    (entry): entry is string => typeof entry === "string" && entry.trim().length > 0,
+  );
+}
 
 export async function listConnectionSummaries(userId: string) {
   const records = await listServiceConnections(userId);
@@ -35,6 +46,7 @@ export async function listConnectionSummaries(userId: string) {
         statusMessage: "No saved configuration.",
         maskedSecret: null,
         model: null,
+        availableModels: [],
         rootFolders: [],
         qualityProfiles: [],
         tags: [],
@@ -54,6 +66,7 @@ export async function listConnectionSummaries(userId: string) {
       maskedSecret: record.secret?.maskedValue ?? null,
       model:
         typeof record.metadata?.model === "string" ? (record.metadata.model as string) : null,
+      availableModels: parseAvailableModels(record.metadata),
       rootFolders: libraryMetadata?.rootFolders ?? [],
       qualityProfiles: libraryMetadata?.qualityProfiles ?? [],
       tags: libraryMetadata?.tags ?? [],

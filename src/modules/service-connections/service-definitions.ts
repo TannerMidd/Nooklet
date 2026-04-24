@@ -37,7 +37,9 @@ export const serviceConnectionDefinitions = [
   },
 ] as const satisfies readonly ServiceConnectionDefinition[];
 
-export function getServiceConnectionDefinition(serviceType: ServiceConnectionType) {
+export function getServiceConnectionDefinition(
+  serviceType: ServiceConnectionType,
+): ServiceConnectionDefinition {
   const definition = serviceConnectionDefinitions.find(
     (entry) => entry.serviceType === serviceType,
   );
