@@ -1,4 +1,4 @@
-type LibraryManagerServiceType = "sonarr" | "radarr";
+export type LibraryManagerServiceType = "sonarr" | "radarr";
 
 type AddLibraryItemInput = {
   serviceType: LibraryManagerServiceType;
@@ -19,7 +19,17 @@ type LibraryLookupCandidate = Record<string, unknown> & {
   title?: string;
   year?: number;
   seasons?: unknown[];
+  images?: unknown;
 };
+
+type LibraryLookupInput = Pick<
+  AddLibraryItemInput,
+  "serviceType" | "baseUrl" | "apiKey" | "title" | "year"
+>;
+
+type LibraryLookupMatchResult =
+  | { ok: true; candidate: LibraryLookupCandidate; posterUrl: string | null }
+  | { ok: false; message: string };
 
 function trimTrailingSlash(baseUrl: string) {
   return baseUrl.replace(/\/+$/, "");
@@ -45,6 +55,46 @@ function normalizeTitle(value: string) {
 
 function isLookupCandidate(value: unknown): value is LibraryLookupCandidate {
   return typeof value === "object" && value !== null;
+}
+
+function resolveImageUrl(baseUrl: string, value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return null;
+  }
+
+  try {
+    return new URL(trimmedValue).toString();
+  } catch {
+    try {
+      return new URL(trimmedValue, `${trimTrailingSlash(baseUrl)}/`).toString();
+    } catch {
+      return null;
+    }
+  }
+}
+
+function extractPosterUrl(baseUrl: string, candidate: LibraryLookupCandidate) {
+  const images = Array.isArray(candidate.images) ? candidate.images : [];
+  const normalizedImages = images
+    .filter((image): image is Record<string, unknown> => typeof image === "object" && image !== null)
+    .map((image) => ({
+      coverType: typeof image.coverType === "string" ? image.coverType.trim().toLowerCase() : "",
+      url: resolveImageUrl(baseUrl, image.remoteUrl) ?? resolveImageUrl(baseUrl, image.url),
+    }))
+    .filter((image): image is { coverType: string; url: string } => Boolean(image.url));
+
+  return (
+    normalizedImages.find((image) => image.coverType === "poster")?.url ??
+    normalizedImages.find((image) => image.coverType === "cover")?.url ??
+    normalizedImages[0]?.url ??
+    null
+  );
 }
 
 function scoreLookupCandidate(
@@ -184,62 +234,73 @@ function buildAddPayload(
   } satisfies Record<string, unknown>;
 }
 
-async function lookupLibraryItem(input: AddLibraryItemInput) {
-  const url = new URL(
-    `${trimTrailingSlash(input.baseUrl)}/api/v3/${buildLookupEndpoint(input.serviceType)}`,
-  );
-  url.searchParams.set(
-    "term",
-    input.year === null ? input.title : `${input.title} ${input.year}`,
-  );
+export async function lookupLibraryItemMatch(
+  input: LibraryLookupInput,
+): Promise<LibraryLookupMatchResult> {
+  try {
+    const url = new URL(
+      `${trimTrailingSlash(input.baseUrl)}/api/v3/${buildLookupEndpoint(input.serviceType)}`,
+    );
+    url.searchParams.set(
+      "term",
+      input.year === null ? input.title : `${input.title} ${input.year}`,
+    );
 
-  const response = await fetchWithTimeout(url, {
-    headers: {
-      "X-Api-Key": input.apiKey,
-    },
-    cache: "no-store",
-  });
+    const response = await fetchWithTimeout(url, {
+      headers: {
+        "X-Api-Key": input.apiKey,
+      },
+      cache: "no-store",
+    });
 
-  if (!response.ok) {
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: await extractErrorMessage(response),
+      };
+    }
+
+    const payload = (await response.json()) as unknown;
+
+    if (!Array.isArray(payload)) {
+      return {
+        ok: false,
+        message: "The library manager lookup did not return a usable result set.",
+      };
+    }
+
+    const bestCandidate = payload
+      .filter(isLookupCandidate)
+      .sort(
+        (left, right) =>
+          scoreLookupCandidate(right, input.title, input.year) -
+          scoreLookupCandidate(left, input.title, input.year),
+      )
+      .find((candidate) => scoreLookupCandidate(candidate, input.title, input.year) > 0);
+
+    if (!bestCandidate) {
+      return {
+        ok: false,
+        message: `No ${input.serviceType === "sonarr" ? "series" : "movie"} match was found for ${input.title}${input.year ? ` (${input.year})` : ""}.`,
+      };
+    }
+
+    return {
+      ok: true,
+      candidate: bestCandidate,
+      posterUrl: extractPosterUrl(input.baseUrl, bestCandidate),
+    };
+  } catch (error) {
     return {
       ok: false,
-      message: await extractErrorMessage(response),
-    } satisfies AddLibraryItemResult;
+      message:
+        error instanceof Error ? error.message : "Library manager lookup failed unexpectedly.",
+    };
   }
-
-  const payload = (await response.json()) as unknown;
-
-  if (!Array.isArray(payload)) {
-    return {
-      ok: false,
-      message: "The library manager lookup did not return a usable result set.",
-    } satisfies AddLibraryItemResult;
-  }
-
-  const bestCandidate = payload
-    .filter(isLookupCandidate)
-    .sort(
-      (left, right) =>
-        scoreLookupCandidate(right, input.title, input.year) -
-        scoreLookupCandidate(left, input.title, input.year),
-    )
-    .find((candidate) => scoreLookupCandidate(candidate, input.title, input.year) > 0);
-
-  if (!bestCandidate) {
-    return {
-      ok: false,
-      message: `No ${input.serviceType === "sonarr" ? "series" : "movie"} match was found for ${input.title}${input.year ? ` (${input.year})` : ""}.`,
-    } satisfies AddLibraryItemResult;
-  }
-
-  return {
-    ok: true,
-    candidate: bestCandidate,
-  } as const;
 }
 
 export async function addLibraryItem(input: AddLibraryItemInput): Promise<AddLibraryItemResult> {
-  const lookupResult = await lookupLibraryItem(input);
+  const lookupResult = await lookupLibraryItemMatch(input);
 
   if (!lookupResult.ok) {
     return lookupResult;

@@ -8,6 +8,7 @@ import {
   markRecommendationRunFailed,
 } from "@/modules/recommendations/repositories/recommendation-repository";
 import { type RecommendationRequestInput } from "@/modules/recommendations/schemas/recommendation-request";
+import { lookupLibraryItemMatch } from "@/modules/service-connections/adapters/add-library-item";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
@@ -18,7 +19,6 @@ type CreateRecommendationRunResult =
 
 function dedupeGeneratedItems(
   items: Awaited<ReturnType<typeof generateOpenAiCompatibleRecommendations>>,
-  mediaType: RecommendationMediaType,
 ) {
   const seenKeys = new Set<string>();
 
@@ -32,16 +32,67 @@ function dedupeGeneratedItems(
 
       seenKeys.add(key);
       return true;
-    })
-    .map((item, index) => ({
-      mediaType,
-      position: index + 1,
-      title: item.title,
-      year: item.year,
-      rationale: item.rationale,
-      confidenceLabel: item.confidenceLabel,
-      providerMetadataJson: JSON.stringify(item.providerMetadata),
-    }));
+    });
+}
+
+function buildStoredRecommendationItems(
+  mediaType: RecommendationMediaType,
+  items: Awaited<ReturnType<typeof generateOpenAiCompatibleRecommendations>>,
+) {
+  return items.map((item, index) => ({
+    mediaType,
+    position: index + 1,
+    title: item.title,
+    year: item.year,
+    rationale: item.rationale,
+    confidenceLabel: item.confidenceLabel,
+    providerMetadataJson: JSON.stringify(item.providerMetadata),
+  }));
+}
+
+async function enrichGeneratedItemsWithPosterUrls(
+  userId: string,
+  mediaType: RecommendationMediaType,
+  items: Awaited<ReturnType<typeof generateOpenAiCompatibleRecommendations>>,
+) {
+  const serviceType = mediaType === "tv" ? "sonarr" : "radarr";
+  const connection = await findServiceConnectionByType(userId, serviceType);
+
+  if (
+    !connection?.secret ||
+    connection.connection.status !== "verified" ||
+    !connection.connection.baseUrl
+  ) {
+    return items;
+  }
+
+  const apiKey = decryptSecret(connection.secret.encryptedValue);
+  const baseUrl = connection.connection.baseUrl;
+
+  return Promise.all(
+    items.map(async (item) => {
+      const lookupResult = await lookupLibraryItemMatch({
+        serviceType,
+        baseUrl,
+        apiKey,
+        title: item.title,
+        year: item.year,
+      });
+
+      if (!lookupResult.ok || !lookupResult.posterUrl) {
+        return item;
+      }
+
+      return {
+        ...item,
+        providerMetadata: {
+          ...item.providerMetadata,
+          posterLookupService: serviceType,
+          posterUrl: lookupResult.posterUrl,
+        },
+      };
+    }),
+  );
 }
 
 export async function createRecommendationRunWorkflow(
@@ -120,7 +171,13 @@ export async function createRecommendationRunWorkflow(
       watchHistoryContext,
     });
 
-    const normalizedItems = dedupeGeneratedItems(generatedItems, input.mediaType);
+    const dedupedItems = dedupeGeneratedItems(generatedItems);
+    const enrichedItems = await enrichGeneratedItemsWithPosterUrls(
+      userId,
+      input.mediaType,
+      dedupedItems,
+    );
+    const normalizedItems = buildStoredRecommendationItems(input.mediaType, enrichedItems);
 
     if (normalizedItems.length === 0) {
       throw new Error("The AI provider returned no usable recommendations.");

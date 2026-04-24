@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { auth } from "@/auth";
 import { RecommendationHistoryItemActions } from "@/components/recommendations/recommendation-history-item-actions";
+import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { Panel } from "@/components/ui/panel";
 import { getPreferencesByUserId } from "@/modules/preferences/repositories/preferences-repository";
 import { listRecommendationHistory } from "@/modules/recommendations/queries/list-recommendation-history";
@@ -146,45 +147,53 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 key={item.itemId}
                 className="rounded-[24px] border border-line/70 bg-panel-strong/70 p-5"
               >
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="font-medium text-foreground">
-                      {item.title}
-                      {item.year ? ` (${item.year})` : ""}
-                    </p>
-                    <p className="mt-1 text-sm text-muted">
-                      {item.mediaType === "tv" ? "TV" : "Movie"} recommendation from {item.requestPrompt}
-                    </p>
-                  </div>
-                  <div className="text-sm text-muted">
-                    <div>{item.runStatus}</div>
-                    <div>
-                      {new Intl.DateTimeFormat("en", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      }).format(item.runCreatedAt)}
+                <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start">
+                  <RecommendationPoster
+                    title={item.title}
+                    posterUrl={item.providerMetadata?.posterUrl}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {item.title}
+                          {item.year ? ` (${item.year})` : ""}
+                        </p>
+                        <p className="mt-1 text-sm text-muted">
+                          {item.mediaType === "tv" ? "TV" : "Movie"} recommendation from {item.requestPrompt}
+                        </p>
+                      </div>
+                      <div className="text-sm text-muted">
+                        <div>{item.runStatus}</div>
+                        <div>
+                          {new Intl.DateTimeFormat("en", {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          }).format(item.runCreatedAt)}
+                        </div>
+                      </div>
                     </div>
+
+                    <p className="mt-4 text-sm leading-6 text-foreground">{item.rationale}</p>
+
+                    <div className="mt-4 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+                      {item.confidenceLabel ? <span>{item.confidenceLabel}</span> : null}
+                      {item.feedback ? <span>feedback: {item.feedback}</span> : null}
+                      {item.isHidden ? <span>hidden</span> : null}
+                      {item.existingInLibrary ? <span>existing in library</span> : null}
+                    </div>
+
+                    <RecommendationHistoryItemActions
+                      itemId={item.itemId}
+                      mediaType={item.mediaType}
+                      feedback={item.feedback}
+                      existingInLibrary={item.existingInLibrary}
+                      isHidden={item.isHidden}
+                      returnTo={returnTo}
+                      libraryConnection={item.mediaType === "tv" ? sonarrSummary : radarrSummary}
+                    />
                   </div>
                 </div>
-
-                <p className="mt-4 text-sm leading-6 text-foreground">{item.rationale}</p>
-
-                <div className="mt-4 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-                  {item.confidenceLabel ? <span>{item.confidenceLabel}</span> : null}
-                  {item.feedback ? <span>feedback: {item.feedback}</span> : null}
-                  {item.isHidden ? <span>hidden</span> : null}
-                  {item.existingInLibrary ? <span>existing in library</span> : null}
-                </div>
-
-                <RecommendationHistoryItemActions
-                  itemId={item.itemId}
-                  mediaType={item.mediaType}
-                  feedback={item.feedback}
-                  existingInLibrary={item.existingInLibrary}
-                  isHidden={item.isHidden}
-                  returnTo={returnTo}
-                  libraryConnection={item.mediaType === "tv" ? sonarrSummary : radarrSummary}
-                />
               </article>
             ))}
           </div>

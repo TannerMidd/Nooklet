@@ -1,5 +1,6 @@
 import { listRecommendationItemsByRunIds, listRecommendationRuns } from "@/modules/recommendations/repositories/recommendation-repository";
 import { type RecommendationMediaType } from "@/lib/database/schema";
+import { parseRecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
 
 export async function listRecentRecommendationRuns(
   userId: string,
@@ -11,6 +12,11 @@ export async function listRecentRecommendationRuns(
 
   return runs.map((run) => ({
     ...run,
-    items: items.filter((item) => item.runId === run.id),
+    items: items
+      .filter((item) => item.runId === run.id)
+      .map((item) => ({
+        ...item,
+        providerMetadata: parseRecommendationProviderMetadata(item.providerMetadataJson),
+      })),
   }));
 }

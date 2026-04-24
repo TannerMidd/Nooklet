@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { auth } from "@/auth";
+import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
+import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationRequestForm } from "@/components/recommendations/recommendation-request-form";
 import { RecommendationRetryForm } from "@/components/recommendations/recommendation-retry-form";
 import { Panel } from "@/components/ui/panel";
@@ -194,22 +196,37 @@ export async function RecommendationWorkspace({
                 />
 
                 {run.items.length > 0 ? (
-                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="mt-4 grid gap-4 xl:grid-cols-2">
                     {run.items.map((item) => (
                       <div
                         key={item.id}
-                        className="rounded-2xl border border-line/70 bg-panel px-4 py-4"
+                        className="rounded-[24px] border border-line/70 bg-panel px-4 py-4"
                       >
-                        <p className="font-medium text-foreground">
-                          {item.title}
-                          {item.year ? ` (${item.year})` : ""}
-                        </p>
-                        <p className="mt-2 text-sm leading-6 text-muted">{item.rationale}</p>
-                        {item.confidenceLabel ? (
-                          <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-accent">
-                            {item.confidenceLabel}
-                          </p>
-                        ) : null}
+                        <div className="flex min-w-0 flex-col gap-4 sm:flex-row">
+                          <RecommendationPoster
+                            title={item.title}
+                            posterUrl={item.providerMetadata?.posterUrl}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-foreground">
+                              {item.title}
+                              {item.year ? ` (${item.year})` : ""}
+                            </p>
+                            <p className="mt-2 text-sm leading-6 text-muted">{item.rationale}</p>
+                            <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+                              {item.confidenceLabel ? <span>{item.confidenceLabel}</span> : null}
+                              {item.existingInLibrary ? <span>existing in library</span> : null}
+                            </div>
+                          </div>
+                        </div>
+
+                        <RecommendationAddForm
+                          itemId={item.id}
+                          mediaType={item.mediaType}
+                          existingInLibrary={item.existingInLibrary}
+                          returnTo={routePath}
+                          connectionSummary={relevantLibraryManager ?? null}
+                        />
                       </div>
                     ))}
                   </div>

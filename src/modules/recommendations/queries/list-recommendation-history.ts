@@ -1,5 +1,6 @@
 import { type RecommendationMediaType } from "@/lib/database/schema";
 
+import { parseRecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
 import { listRecommendationHistoryRows } from "@/modules/recommendations/repositories/recommendation-repository";
 
 type HistoryFilters = {
@@ -41,7 +42,7 @@ export async function listRecommendationHistory(userId: string, filters: History
     filteredCount: filteredItems.length,
     items: filteredItems.map((row) => ({
       ...row,
-      providerMetadata: row.providerMetadataJson ? JSON.parse(row.providerMetadataJson) : null,
+      providerMetadata: parseRecommendationProviderMetadata(row.providerMetadataJson),
     })),
   };
 }
