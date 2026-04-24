@@ -15,6 +15,13 @@
       "when": 1777057325966,
       "tag": "0001_fair_black_widow",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1777057634724,
+      "tag": "0002_curvy_proemial_gods",
+      "breakpoints": true
     }
   ]
 }

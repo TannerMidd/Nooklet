@@ -64,5 +64,56 @@ export const preferences = sqliteTable("preferences", {
     .default(sql`(unixepoch() * 1000)`),
 });
 
+export const serviceConnectionTypes = ["ai-provider", "sonarr", "radarr"] as const;
+export const serviceConnectionScopes = ["user", "shared"] as const;
+export const serviceConnectionStatuses = ["configured", "verified", "error"] as const;
+
+export const serviceConnections = sqliteTable(
+  "service_connections",
+  {
+    id: text("id").primaryKey(),
+    serviceType: text("service_type", { enum: serviceConnectionTypes }).notNull(),
+    ownershipScope: text("ownership_scope", { enum: serviceConnectionScopes })
+      .notNull()
+      .default("user"),
+    ownerUserId: text("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    displayName: text("display_name").notNull(),
+    baseUrl: text("base_url"),
+    status: text("status", { enum: serviceConnectionStatuses })
+      .notNull()
+      .default("configured"),
+    statusMessage: text("status_message"),
+    metadataJson: text("metadata_json"),
+    lastVerifiedAt: integer("last_verified_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    uniqueIndex("service_connections_owner_service_unique").on(
+      table.ownerUserId,
+      table.serviceType,
+    ),
+  ],
+);
+
+export const serviceSecrets = sqliteTable("service_secrets", {
+  connectionId: text("connection_id")
+    .primaryKey()
+    .references(() => serviceConnections.id, { onDelete: "cascade" }),
+  encryptedValue: text("encrypted_value").notNull(),
+  maskedValue: text("masked_value").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
 export type UserRole = (typeof userRoles)[number];
 export type PreferenceMediaMode = (typeof preferenceMediaModes)[number];
+export type ServiceConnectionType = (typeof serviceConnectionTypes)[number];
+export type ServiceConnectionStatus = (typeof serviceConnectionStatuses)[number];
