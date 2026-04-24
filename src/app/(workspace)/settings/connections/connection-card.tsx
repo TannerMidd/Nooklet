@@ -47,7 +47,7 @@ function ModelField({
   }
 
   return (
-    <label className="space-y-2">
+    <label className="min-w-0 space-y-2">
       <span className="text-sm font-medium text-foreground">{definition.modelLabel}</span>
       <Input name="model" defaultValue={defaultValue} aria-invalid={Boolean(error)} />
       {error ? <p className="text-sm text-highlight">{error}</p> : null}
@@ -57,6 +57,7 @@ function ModelField({
 
 export function ConnectionCard({ summary }: ConnectionCardProps) {
   const definition = getServiceConnectionDefinition(summary.serviceType);
+  const showsModel = Boolean(definition.modelLabel);
   const [state, formAction] = useActionState(
     submitConnectionAction,
     initialConnectionActionState,
@@ -85,7 +86,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
       </div>
 
       <div className="mt-5 grid gap-5 md:grid-cols-2">
-        <label className="space-y-2 md:col-span-2">
+        <label className="min-w-0 space-y-2 md:col-span-2">
           <span className="text-sm font-medium text-foreground">Base URL</span>
           <Input
             name="baseUrl"
@@ -104,12 +105,14 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
           error={state.fieldErrors?.model}
         />
 
-        <label className="space-y-2">
+        <label className="min-w-0 space-y-2">
           <span className="text-sm font-medium text-foreground">{definition.secretLabel}</span>
           <Input
             name="apiKey"
             type="password"
-            placeholder={summary.maskedSecret ? `Saved: ${summary.maskedSecret}` : "Enter secret"}
+            placeholder={
+              summary.maskedSecret ? "Leave blank to keep saved secret" : "Enter secret"
+            }
             aria-invalid={Boolean(state.fieldErrors?.apiKey)}
           />
           {state.fieldErrors?.apiKey ? (
@@ -118,15 +121,22 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
         </label>
       </div>
 
-      <div className="mt-5 grid gap-3 text-sm leading-6 text-foreground md:grid-cols-3">
-        <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+      <div
+        className={`mt-5 grid gap-3 text-sm leading-6 text-foreground ${
+          showsModel ? "md:grid-cols-3" : "md:grid-cols-2"
+        }`}
+      >
+        <div className="min-w-0 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
           <span className="font-medium">Secret:</span>{" "}
-          {summary.maskedSecret ?? "Not configured"}
+          <span className="break-all">{summary.maskedSecret ?? "Not configured"}</span>
         </div>
-        <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-          <span className="font-medium">Model:</span> {summary.model ?? "Not set"}
-        </div>
-        <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+        {showsModel ? (
+          <div className="min-w-0 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+            <span className="font-medium">{definition.modelLabel}:</span>{" "}
+            <span className="break-all">{summary.model ?? "Not set"}</span>
+          </div>
+        ) : null}
+        <div className="min-w-0 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
           <span className="font-medium">Last verified:</span>{" "}
           {summary.lastVerifiedAt
             ? new Intl.DateTimeFormat("en", {
