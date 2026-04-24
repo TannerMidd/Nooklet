@@ -1,14 +1,19 @@
 import Link from "next/link";
 import { type ReactNode } from "react";
 
+import { SignOutForm } from "@/components/layout/sign-out-form";
 import { navigationGroups } from "@/config/navigation";
 import { cn } from "@/lib/utils";
 
 type AppShellProps = {
   children: ReactNode;
+  user: {
+    name?: string | null;
+    email?: string | null;
+  };
 };
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children, user }: AppShellProps) {
   return (
     <div className="min-h-screen px-6 py-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 lg:flex-row lg:items-start">
@@ -25,6 +30,19 @@ export function AppShell({ children }: AppShellProps) {
                 Domain-first route surface anchored to the rewrite ADR and
                 behavior matrix.
               </p>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
+                Signed in as
+              </p>
+              <p className="mt-2 font-medium text-foreground">
+                {user.name || user.email || "Recommendarr user"}
+              </p>
+              {user.email ? <p className="mt-1 text-sm text-muted">{user.email}</p> : null}
+              <div className="mt-4">
+                <SignOutForm />
+              </div>
             </div>
 
             <div className="mt-8 space-y-6">
@@ -59,3 +77,4 @@ export function AppShell({ children }: AppShellProps) {
     </div>
   );
 }
+
