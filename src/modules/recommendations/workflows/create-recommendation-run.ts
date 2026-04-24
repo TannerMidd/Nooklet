@@ -121,7 +121,12 @@ export async function createRecommendationRunWorkflow(
       ? (aiProvider.metadata.model as string)
       : "gpt-4.1-mini";
   const watchHistoryContext = preferences.watchHistoryOnly
-    ? await listWatchHistoryContext(userId, input.mediaType, 12)
+    ? await listWatchHistoryContext(
+        userId,
+        input.mediaType,
+        12,
+        preferences.watchHistorySourceTypes,
+      )
     : [];
 
   if (preferences.watchHistoryOnly && watchHistoryContext.length === 0) {
@@ -156,6 +161,7 @@ export async function createRecommendationRunWorkflow(
       mediaType: input.mediaType,
       requestedCount: input.requestedCount,
       watchHistoryItemCount: watchHistoryContext.length,
+      watchHistorySourceTypes: preferences.watchHistorySourceTypes,
     }),
   });
 
@@ -193,6 +199,7 @@ export async function createRecommendationRunWorkflow(
         mediaType: input.mediaType,
         itemCount: normalizedItems.length,
         watchHistoryItemCount: watchHistoryContext.length,
+        watchHistorySourceTypes: preferences.watchHistorySourceTypes,
       }),
     });
 
@@ -213,6 +220,7 @@ export async function createRecommendationRunWorkflow(
         mediaType: input.mediaType,
         error: message,
         watchHistoryItemCount: watchHistoryContext.length,
+        watchHistorySourceTypes: preferences.watchHistorySourceTypes,
       }),
     });
 

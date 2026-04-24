@@ -29,6 +29,7 @@ export async function submitUpdatePreferencesAction(
     defaultMediaMode: formData.get("defaultMediaMode"),
     defaultResultCount: formData.get("defaultResultCount"),
     watchHistoryOnly: checkboxValue(formData, "watchHistoryOnly"),
+    watchHistorySourceTypes: formData.getAll("watchHistorySourceTypes"),
     historyHideExisting: checkboxValue(formData, "historyHideExisting"),
     historyHideLiked: checkboxValue(formData, "historyHideLiked"),
     historyHideDisliked: checkboxValue(formData, "historyHideDisliked"),
@@ -44,6 +45,7 @@ export async function submitUpdatePreferencesAction(
       fieldErrors: {
         defaultMediaMode: flattenedErrors.defaultMediaMode?.[0],
         defaultResultCount: flattenedErrors.defaultResultCount?.[0],
+        watchHistorySourceTypes: flattenedErrors.watchHistorySourceTypes?.[0],
       },
     };
   }

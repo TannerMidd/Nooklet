@@ -43,6 +43,14 @@ export const serviceConnectionDefinitions = [
     secretLabel: "API key",
     defaultBaseUrl: "http://localhost:8181",
   },
+  {
+    serviceType: "plex",
+    displayName: "Plex",
+    description:
+      "Direct Plex watch-history provider used for remote-user discovery and recent play imports when Tautulli is not configured.",
+    secretLabel: "X-Plex-Token",
+    defaultBaseUrl: "http://localhost:32400",
+  },
 ] as const satisfies readonly ServiceConnectionDefinition[];
 
 export function getServiceConnectionDefinition(

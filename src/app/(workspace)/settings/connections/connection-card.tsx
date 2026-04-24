@@ -83,7 +83,7 @@ function ModelField({
 export function ConnectionCard({ summary }: ConnectionCardProps) {
   const definition = getServiceConnectionDefinition(summary.serviceType);
   const showsModel = Boolean(definition.modelLabel);
-  const showsAvailableUsers = summary.serviceType === "tautulli";
+  const showsAvailableUsers = summary.serviceType === "tautulli" || summary.serviceType === "plex";
   const availableModels = summary.availableModels ?? [];
   const [state, formAction] = useActionState(
     submitConnectionAction,

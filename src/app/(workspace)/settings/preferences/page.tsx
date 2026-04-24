@@ -1,6 +1,12 @@
 import { auth } from "@/auth";
 import { Panel } from "@/components/ui/panel";
 import { getPreferencesByUserId } from "@/modules/preferences/repositories/preferences-repository";
+import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
+import {
+  getWatchHistorySourceDefinition,
+  watchHistorySourceDefinitions,
+} from "@/modules/watch-history/source-definitions";
+import { getWatchHistoryOverview } from "@/modules/watch-history/queries/get-watch-history-overview";
 
 import { PreferencesForm } from "./preferences-form";
 
@@ -28,9 +34,40 @@ export default async function PreferencesSettingsPage({
     return null;
   }
 
-  const preferences = await getPreferencesByUserId(session.user.id);
+  const [preferences, watchHistoryOverview, connectionSummaries] = await Promise.all([
+    getPreferencesByUserId(session.user.id),
+    getWatchHistoryOverview(session.user.id),
+    listConnectionSummaries(session.user.id),
+  ]);
   const wasUpdated = resolvedSearchParams?.updated === "1";
   const hasPersistedUpdate = preferences.updatedAt.getTime() > 0;
+  const selectedSourceNames = preferences.watchHistorySourceTypes
+    .map((sourceType) => getWatchHistorySourceDefinition(sourceType).displayName)
+    .join(", ");
+  const historySourceByType = new Map(
+    watchHistoryOverview.sources.map((source) => [source.sourceType, source]),
+  );
+  const connectionSummaryByType = new Map(
+    connectionSummaries.map((summary) => [summary.serviceType, summary]),
+  );
+  const availableWatchHistorySources = watchHistorySourceDefinitions.map((definition) => {
+    const syncedSource = historySourceByType.get(definition.sourceType) ?? null;
+    const connectionSummary =
+      definition.sourceType === "manual"
+        ? null
+        : connectionSummaryByType.get(definition.sourceType) ?? null;
+
+    return {
+      sourceType: definition.sourceType,
+      label: definition.displayName,
+      description: definition.description,
+      statusMessage:
+        syncedSource?.statusMessage ??
+        (definition.sourceType === "manual"
+          ? "Manual imports stay available even when no provider-backed history source is configured yet."
+          : connectionSummary?.statusMessage ?? "Not connected or synced yet."),
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -61,7 +98,10 @@ export default async function PreferencesSettingsPage({
           title="Preference controls"
           description="These settings control the defaults used for new recommendation requests and history browsing."
         >
-          <PreferencesForm preferences={preferences} />
+          <PreferencesForm
+            preferences={preferences}
+            availableWatchHistorySources={availableWatchHistorySources}
+          />
         </Panel>
 
         <div className="space-y-6">
@@ -78,6 +118,9 @@ export default async function PreferencesSettingsPage({
               </div>
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
                 <span className="font-medium">Watch-history only:</span> {preferences.watchHistoryOnly ? "Enabled" : "Disabled"}
+              </div>
+              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                <span className="font-medium">Selected history sources:</span> {selectedSourceNames}
               </div>
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
                 <span className="font-medium">Last updated:</span>{" "}
@@ -98,7 +141,7 @@ export default async function PreferencesSettingsPage({
                 Default history filters for existing, liked, disliked, hidden, and imported items.
               </li>
               <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Watch-history-only behavior when you want prompts built from imported history.
+                Watch-history-only behavior and which synced history sources are allowed to influence prompts.
               </li>
             </ul>
           </Panel>

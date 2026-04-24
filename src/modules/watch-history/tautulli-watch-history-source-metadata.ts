@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { parseWatchHistorySourceMetadataJson } from "@/modules/watch-history/source-metadata";
+
 const tautulliWatchHistorySourceMetadataSchema = z.object({
   selectedUserId: z.string().trim().min(1),
   selectedUserName: z.string().trim().min(1),
@@ -9,18 +11,6 @@ const tautulliWatchHistorySourceMetadataSchema = z.object({
 export type TautulliWatchHistorySourceMetadata = z.infer<
   typeof tautulliWatchHistorySourceMetadataSchema
 >;
-
-export function parseWatchHistorySourceMetadataJson(metadataJson: string | null | undefined) {
-  if (!metadataJson) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(metadataJson) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
 
 export function parseTautulliWatchHistorySourceMetadata(
   metadata: Record<string, unknown> | null | undefined,

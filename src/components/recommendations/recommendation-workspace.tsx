@@ -10,6 +10,8 @@ import { type RecommendationMediaType } from "@/lib/database/schema";
 import { getPreferencesByUserId } from "@/modules/preferences/repositories/preferences-repository";
 import { listRecentRecommendationRuns } from "@/modules/recommendations/queries/list-recent-recommendation-runs";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
+import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
+import { getWatchHistorySourceDefinition } from "@/modules/watch-history/source-definitions";
 import { getWatchHistoryOverview } from "@/modules/watch-history/queries/get-watch-history-overview";
 
 type RecommendationWorkspaceProps = {
@@ -42,20 +44,27 @@ export async function RecommendationWorkspace({
     return null;
   }
 
-  const [preferences, connectionSummaries, recentRuns, watchHistoryOverview] = await Promise.all([
-    getPreferencesByUserId(session.user.id),
+  const preferences = await getPreferencesByUserId(session.user.id);
+  const [connectionSummaries, recentRuns, watchHistoryOverview, selectedWatchHistoryContext] = await Promise.all([
     listConnectionSummaries(session.user.id),
     listRecentRecommendationRuns(session.user.id, mediaType),
     getWatchHistoryOverview(session.user.id),
+    listWatchHistoryContext(
+      session.user.id,
+      mediaType,
+      6,
+      preferences.watchHistorySourceTypes,
+    ),
   ]);
 
   const aiProvider = connectionSummaries.find((summary) => summary.serviceType === "ai-provider");
   const relevantLibraryManager = connectionSummaries.find((summary) =>
     mediaType === "tv" ? summary.serviceType === "sonarr" : summary.serviceType === "radarr",
   );
-  const manualWatchHistorySource =
-    watchHistoryOverview.sources.find((source) => source.sourceType === "manual") ?? null;
   const canRequest = aiProvider?.status === "verified";
+  const selectedWatchHistorySourceNames = preferences.watchHistorySourceTypes
+    .map((sourceType) => getWatchHistorySourceDefinition(sourceType).displayName)
+    .join(", ");
 
   return (
     <div className="space-y-6">
@@ -107,13 +116,19 @@ export async function RecommendationWorkspace({
               </div>
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
                 <span className="font-medium">Watch history:</span>{" "}
-                {manualWatchHistorySource?.status ?? "not-synced"}
+                {preferences.watchHistoryOnly
+                  ? selectedWatchHistoryContext.length > 0
+                    ? "ready"
+                    : "empty"
+                  : watchHistoryOverview.sources.length > 0
+                    ? "available"
+                    : "not-synced"}
                 <p className="mt-1 text-muted">
                   {preferences.watchHistoryOnly
-                    ? watchHistoryOverview.totalCount > 0
-                      ? `Watch-history-only mode is enabled and ${watchHistoryOverview.totalCount} imported titles are available for recommendation context.`
-                      : "Watch-history-only mode is enabled, but no synced watch history exists yet. Import titles on the history settings route or disable the preference."
-                    : manualWatchHistorySource?.statusMessage ?? "Syncing watch history is optional unless watch-history-only mode is enabled."}
+                    ? selectedWatchHistoryContext.length > 0
+                      ? `Watch-history-only mode is enabled. ${selectedWatchHistoryContext.length} recent ${mediaType === "tv" ? "TV" : "movie"} titles are available from ${selectedWatchHistorySourceNames}.`
+                      : `Watch-history-only mode is enabled, but no synced ${mediaType === "tv" ? "TV" : "movie"} history is available from ${selectedWatchHistorySourceNames}. Import titles on the history settings route or adjust selected sources in preferences.`
+                    : `Selected sources: ${selectedWatchHistorySourceNames}. Syncing watch history is optional unless watch-history-only mode is enabled.`}
                 </p>
               </div>
             </div>

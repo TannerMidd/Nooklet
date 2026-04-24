@@ -2,11 +2,14 @@ import Link from "next/link";
 
 import { auth } from "@/auth";
 import { Panel } from "@/components/ui/panel";
+import { listJobsForUser } from "@/modules/jobs/repositories/job-repository";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import { getWatchHistoryOverview } from "@/modules/watch-history/queries/get-watch-history-overview";
 
 import { ManualWatchHistoryForm } from "./manual-watch-history-form";
+import { PlexWatchHistoryForm } from "./plex-watch-history-form";
 import { TautulliWatchHistoryForm } from "./tautulli-watch-history-form";
+import { WatchHistoryScheduleForm } from "./watch-history-schedule-form";
 
 export const dynamic = "force-dynamic";
 
@@ -28,13 +31,23 @@ export default async function WatchHistorySettingsPage() {
     return null;
   }
 
-  const [overview, connectionSummaries] = await Promise.all([
+  const [overview, connectionSummaries, scheduledJobs] = await Promise.all([
     getWatchHistoryOverview(session.user.id),
     listConnectionSummaries(session.user.id),
+    listJobsForUser(session.user.id, "watch-history-sync"),
   ]);
+  const scheduledJobBySourceType = new Map(
+    scheduledJobs
+      .filter((job) => job.targetType === "watch-history-source")
+      .map((job) => [job.targetKey, job]),
+  );
+  const plexSource = overview.sources.find((source) => source.sourceType === "plex") ?? null;
+  const plexSummary = connectionSummaries.find((summary) => summary.serviceType === "plex") ?? null;
+  const plexSchedule = scheduledJobBySourceType.get("plex") ?? null;
   const tautulliSource = overview.sources.find((source) => source.sourceType === "tautulli") ?? null;
   const tautulliSummary =
     connectionSummaries.find((summary) => summary.serviceType === "tautulli") ?? null;
+  const tautulliSchedule = scheduledJobBySourceType.get("tautulli") ?? null;
   const lastSyncedAt = overview.sources.reduce<Date | null>((latest, source) => {
     if (!source.lastSyncedAt) {
       return latest;
@@ -66,6 +79,67 @@ export default async function WatchHistorySettingsPage() {
       <div className="grid gap-6 xl:grid-cols-[1.12fr,0.88fr]">
         <div className="space-y-6">
           <Panel
+            eyebrow="Plex source"
+            title="Sync recent history directly from Plex"
+            description="Import unique watched TV or movie titles from a verified Plex server using a saved X-Plex-Token and keep the selected user with the source."
+          >
+            {plexSummary?.status === "verified" ? (
+              <>
+                <div className="mb-5 grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
+                  <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                    <span className="font-medium">Server:</span>{" "}
+                    {plexSummary.serverName ?? "Loaded via verify"}
+                  </div>
+                  <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                    <span className="font-medium">Accessible users:</span>{" "}
+                    {plexSummary.availableUsers.length}
+                  </div>
+                </div>
+                {plexSummary.availableUsers.length > 0 ? (
+                  <div className="space-y-6">
+                    <PlexWatchHistoryForm
+                      availableUsers={plexSummary.availableUsers}
+                      defaultUserId={plexSource?.selectedUserId ?? ""}
+                      defaultImportLimit={plexSource?.importLimit ?? 100}
+                    />
+                    <WatchHistoryScheduleForm
+                      sourceType="plex"
+                      defaultEnabled={plexSchedule?.isEnabled ?? false}
+                      defaultIntervalHours={Math.max(
+                        Math.round((plexSchedule?.scheduleMinutes ?? 720) / 60),
+                        1,
+                      )}
+                      lastRunAt={plexSchedule?.lastCompletedAt ?? null}
+                      lastStatus={plexSchedule?.lastStatus ?? null}
+                      lastError={plexSchedule?.lastError ?? null}
+                      helperText="Auto-sync refreshes both TV and movie Plex history using the last saved Plex user and import limit. Run at least one manual sync first so the worker has a persisted source to refresh."
+                    />
+                  </div>
+                ) : (
+                  <p className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+                    Verify the Plex connection again after accessible users are available so a history scope can be selected for sync.
+                  </p>
+                )}
+              </>
+            ) : (
+              <div className="space-y-4">
+                <p className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+                  {plexSummary?.status === "disconnected"
+                    ? "Connect and verify Plex first. The verified connection loads accessible users and unlocks direct provider-backed history sync."
+                    : plexSummary?.statusMessage ??
+                      "Verify the saved Plex connection before syncing history."}
+                </p>
+                <Link
+                  href="/settings/connections"
+                  className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                >
+                  Open connections
+                </Link>
+              </div>
+            )}
+          </Panel>
+
+          <Panel
             eyebrow="Tautulli source"
             title="Sync recent Plex history"
             description="Import unique watched TV or movie titles from a verified Tautulli connection and keep the selected remote user with the source."
@@ -83,11 +157,25 @@ export default async function WatchHistorySettingsPage() {
                   </div>
                 </div>
                 {tautulliSummary.availableUsers.length > 0 ? (
-                  <TautulliWatchHistoryForm
-                    availableUsers={tautulliSummary.availableUsers}
-                    defaultUserId={tautulliSource?.selectedUserId ?? ""}
-                    defaultImportLimit={tautulliSource?.importLimit ?? 100}
-                  />
+                  <div className="space-y-6">
+                    <TautulliWatchHistoryForm
+                      availableUsers={tautulliSummary.availableUsers}
+                      defaultUserId={tautulliSource?.selectedUserId ?? ""}
+                      defaultImportLimit={tautulliSource?.importLimit ?? 100}
+                    />
+                    <WatchHistoryScheduleForm
+                      sourceType="tautulli"
+                      defaultEnabled={tautulliSchedule?.isEnabled ?? false}
+                      defaultIntervalHours={Math.max(
+                        Math.round((tautulliSchedule?.scheduleMinutes ?? 720) / 60),
+                        1,
+                      )}
+                      lastRunAt={tautulliSchedule?.lastCompletedAt ?? null}
+                      lastStatus={tautulliSchedule?.lastStatus ?? null}
+                      lastError={tautulliSchedule?.lastError ?? null}
+                      helperText="Auto-sync refreshes both TV and movie Tautulli history using the last saved remote user and import limit. Run at least one manual sync first so the worker has a persisted source to refresh."
+                    />
+                  </div>
                 ) : (
                   <p className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
                     Verify the Tautulli connection again after users are available so a remote Plex user can be selected for sync.
@@ -179,7 +267,7 @@ export default async function WatchHistorySettingsPage() {
                 Recommendation prompts can use recent watched titles as direct taste context.
               </li>
               <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Tautulli sync persists the selected remote user with the source so provider-backed history stays scoped between sync runs.
+                Direct Plex and Tautulli sync both persist the selected user with the source so provider-backed history stays scoped between sync runs.
               </li>
             </ul>
             <div className="mt-4 flex flex-wrap gap-3">

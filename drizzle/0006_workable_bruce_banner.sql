@@ -1,0 +1,1 @@
+ALTER TABLE `preferences` ADD `watch_history_source_types_json` text DEFAULT '["manual","tautulli","plex"]' NOT NULL;

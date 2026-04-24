@@ -14,6 +14,12 @@ import {
 
 type PreferencesFormProps = {
   preferences: PreferenceRecord;
+  availableWatchHistorySources: Array<{
+    sourceType: PreferenceRecord["watchHistorySourceTypes"][number];
+    label: string;
+    description: string;
+    statusMessage: string;
+  }>;
 };
 
 function SubmitButton() {
@@ -55,7 +61,10 @@ function CheckboxField({ name, label, description, defaultChecked }: CheckboxFie
   );
 }
 
-export function PreferencesForm({ preferences }: PreferencesFormProps) {
+export function PreferencesForm({
+  preferences,
+  availableWatchHistorySources,
+}: PreferencesFormProps) {
   const [state, formAction] = useActionState(
     submitUpdatePreferencesAction,
     initialUpdatePreferencesActionState,
@@ -65,6 +74,7 @@ export function PreferencesForm({ preferences }: PreferencesFormProps) {
     preferences.defaultMediaMode,
     preferences.defaultResultCount,
     Number(preferences.watchHistoryOnly),
+    preferences.watchHistorySourceTypes.join(","),
     Number(preferences.historyHideExisting),
     Number(preferences.historyHideLiked),
     Number(preferences.historyHideDisliked),
@@ -114,6 +124,38 @@ export function PreferencesForm({ preferences }: PreferencesFormProps) {
           description="Use configured watch-history sources as the recommendation context instead of mixing in other source inputs."
           defaultChecked={preferences.watchHistoryOnly}
         />
+        <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 md:col-span-2">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-foreground">Watch-history sources</p>
+            <p className="text-sm leading-6 text-muted">
+              Choose which synced history sources are allowed to contribute taste context when watch-history-only mode is enabled.
+            </p>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {availableWatchHistorySources.map((source) => (
+              <label
+                key={source.sourceType}
+                className="flex items-start gap-3 rounded-2xl border border-line/70 bg-panel px-4 py-4"
+              >
+                <input
+                  name="watchHistorySourceTypes"
+                  type="checkbox"
+                  value={source.sourceType}
+                  defaultChecked={preferences.watchHistorySourceTypes.includes(source.sourceType)}
+                  className="mt-1 h-4 w-4 rounded border-line text-accent focus:ring-accent/30"
+                />
+                <span className="space-y-1">
+                  <span className="block text-sm font-medium text-foreground">{source.label}</span>
+                  <span className="block text-sm leading-6 text-muted">{source.description}</span>
+                  <span className="block text-xs leading-5 text-muted">{source.statusMessage}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          {state.fieldErrors?.watchHistorySourceTypes ? (
+            <p className="mt-3 text-sm text-highlight">{state.fieldErrors.watchHistorySourceTypes}</p>
+          ) : null}
+        </div>
         <CheckboxField
           name="historyHideExisting"
           label="Hide existing titles"

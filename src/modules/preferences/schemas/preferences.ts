@@ -1,6 +1,9 @@
 import { z } from "zod";
 
+import { watchHistorySourceTypes } from "@/lib/database/schema";
+
 export const preferenceMediaModeSchema = z.enum(["tv", "movies", "both"]);
+export const watchHistorySourceTypeSchema = z.enum(watchHistorySourceTypes);
 
 export const updatePreferencesInputSchema = z.object({
   defaultMediaMode: preferenceMediaModeSchema,
@@ -10,6 +13,9 @@ export const updatePreferencesInputSchema = z.object({
     .min(1, "Choose at least 1 result.")
     .max(50, "Keep the default result count at 50 or below."),
   watchHistoryOnly: z.boolean(),
+  watchHistorySourceTypes: z
+    .array(watchHistorySourceTypeSchema)
+    .min(1, "Select at least one watch-history source."),
   historyHideExisting: z.boolean(),
   historyHideLiked: z.boolean(),
   historyHideDisliked: z.boolean(),

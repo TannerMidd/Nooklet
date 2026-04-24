@@ -1,7 +1,9 @@
 export type UpdatePreferencesActionState = {
   status: "idle" | "error" | "success";
   message?: string;
-  fieldErrors?: Partial<Record<"defaultMediaMode" | "defaultResultCount", string>>;
+  fieldErrors?: Partial<
+    Record<"defaultMediaMode" | "defaultResultCount" | "watchHistorySourceTypes", string>
+  >;
 };
 
 export const initialUpdatePreferencesActionState: UpdatePreferencesActionState = {

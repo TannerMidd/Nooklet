@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
@@ -228,15 +228,37 @@ export async function listRecentWatchHistoryItems(
   userId: string,
   mediaType?: RecommendationMediaType,
   limit = 12,
+  sourceTypes?: WatchHistorySourceType[],
 ) {
   const database = ensureDatabaseReady();
+  const resolvedSourceTypes = sourceTypes ? Array.from(new Set(sourceTypes)) : null;
+
+  if (resolvedSourceTypes && resolvedSourceTypes.length === 0) {
+    return [];
+  }
+
   const items = database
-    .select()
+    .select({
+      id: watchHistoryItems.id,
+      sourceId: watchHistoryItems.sourceId,
+      userId: watchHistoryItems.userId,
+      mediaType: watchHistoryItems.mediaType,
+      title: watchHistoryItems.title,
+      year: watchHistoryItems.year,
+      normalizedKey: watchHistoryItems.normalizedKey,
+      watchedAt: watchHistoryItems.watchedAt,
+      createdAt: watchHistoryItems.createdAt,
+    })
     .from(watchHistoryItems)
+    .innerJoin(watchHistorySources, eq(watchHistoryItems.sourceId, watchHistorySources.id))
     .where(
-      mediaType
-        ? and(eq(watchHistoryItems.userId, userId), eq(watchHistoryItems.mediaType, mediaType))
-        : eq(watchHistoryItems.userId, userId),
+      and(
+        eq(watchHistoryItems.userId, userId),
+        ...(mediaType ? [eq(watchHistoryItems.mediaType, mediaType)] : []),
+        ...(resolvedSourceTypes
+          ? [inArray(watchHistorySources.sourceType, resolvedSourceTypes)]
+          : []),
+      ),
     )
     .orderBy(desc(watchHistoryItems.watchedAt))
     .all();

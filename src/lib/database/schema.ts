@@ -47,6 +47,9 @@ export const preferences = sqliteTable("preferences", {
   watchHistoryOnly: integer("watch_history_only", { mode: "boolean" })
     .notNull()
     .default(false),
+  watchHistorySourceTypesJson: text("watch_history_source_types_json")
+    .notNull()
+    .default('["manual","tautulli","plex"]'),
   historyHideExisting: integer("history_hide_existing", { mode: "boolean" })
     .notNull()
     .default(false),
@@ -64,7 +67,7 @@ export const preferences = sqliteTable("preferences", {
     .default(sql`(unixepoch() * 1000)`),
 });
 
-export const serviceConnectionTypes = ["ai-provider", "sonarr", "radarr", "tautulli"] as const;
+export const serviceConnectionTypes = ["ai-provider", "sonarr", "radarr", "tautulli", "plex"] as const;
 export const serviceConnectionScopes = ["user", "shared"] as const;
 export const serviceConnectionStatuses = ["configured", "verified", "error"] as const;
 
@@ -115,8 +118,10 @@ export const serviceSecrets = sqliteTable("service_secrets", {
 
   export const recommendationMediaTypes = ["tv", "movie"] as const;
 
-export const watchHistorySourceTypes = ["manual", "tautulli"] as const;
+export const watchHistorySourceTypes = ["manual", "tautulli", "plex"] as const;
 export const watchHistorySyncStatuses = ["pending", "succeeded", "failed"] as const;
+export const jobTypes = ["watch-history-sync"] as const;
+export const jobStatuses = ["idle", "running", "succeeded", "failed"] as const;
 
 export const watchHistorySources = sqliteTable(
   "watch_history_sources",
@@ -184,6 +189,40 @@ export const watchHistoryItems = sqliteTable(
       table.sourceId,
       table.mediaType,
       table.normalizedKey,
+    ),
+  ],
+);
+
+export const jobs = sqliteTable(
+  "jobs",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    jobType: text("job_type", { enum: jobTypes }).notNull(),
+    targetType: text("target_type").notNull(),
+    targetKey: text("target_key").notNull(),
+    scheduleMinutes: integer("schedule_minutes").notNull(),
+    isEnabled: integer("is_enabled", { mode: "boolean" }).notNull().default(true),
+    nextRunAt: integer("next_run_at", { mode: "timestamp_ms" }),
+    lastStartedAt: integer("last_started_at", { mode: "timestamp_ms" }),
+    lastCompletedAt: integer("last_completed_at", { mode: "timestamp_ms" }),
+    lastStatus: text("last_status", { enum: jobStatuses }).notNull().default("idle"),
+    lastError: text("last_error"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    uniqueIndex("jobs_user_type_target_unique").on(
+      table.userId,
+      table.jobType,
+      table.targetType,
+      table.targetKey,
     ),
   ],
 );
@@ -287,6 +326,8 @@ export type ServiceConnectionType = (typeof serviceConnectionTypes)[number];
 export type ServiceConnectionStatus = (typeof serviceConnectionStatuses)[number];
 export type WatchHistorySourceType = (typeof watchHistorySourceTypes)[number];
 export type WatchHistorySyncStatus = (typeof watchHistorySyncStatuses)[number];
+export type JobType = (typeof jobTypes)[number];
+export type JobStatus = (typeof jobStatuses)[number];
 export type RecommendationMediaType = (typeof recommendationMediaTypes)[number];
 export type RecommendationRunStatus = (typeof recommendationRunStatuses)[number];
 export type RecommendationFeedbackValue = (typeof recommendationFeedbackValues)[number];

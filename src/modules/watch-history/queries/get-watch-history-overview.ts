@@ -1,3 +1,4 @@
+import { parsePlexWatchHistorySourceMetadata } from "@/modules/watch-history/plex-watch-history-source-metadata";
 import {
   getWatchHistoryItemCounts,
   listRecentWatchHistoryItems,
@@ -6,8 +7,8 @@ import {
 } from "@/modules/watch-history/repositories/watch-history-repository";
 import {
   parseTautulliWatchHistorySourceMetadata,
-  parseWatchHistorySourceMetadataJson,
 } from "@/modules/watch-history/tautulli-watch-history-source-metadata";
+import { parseWatchHistorySourceMetadataJson } from "@/modules/watch-history/source-metadata";
 
 export async function getWatchHistoryOverview(userId: string) {
   const [sources, syncRuns, counts, recentItems] = await Promise.all([
@@ -27,12 +28,16 @@ export async function getWatchHistoryOverview(userId: string) {
     movieCount: counts.movieCount,
     sources: sources.map((source) => {
       const latestRun = latestSyncBySourceId.get(source.id);
+      const sourceMetadata = parseWatchHistorySourceMetadataJson(source.metadataJson);
       const tautulliMetadata =
         source.sourceType === "tautulli"
-          ? parseTautulliWatchHistorySourceMetadata(
-              parseWatchHistorySourceMetadataJson(source.metadataJson),
-            )
+          ? parseTautulliWatchHistorySourceMetadata(sourceMetadata)
           : null;
+      const plexMetadata =
+        source.sourceType === "plex"
+          ? parsePlexWatchHistorySourceMetadata(sourceMetadata)
+          : null;
+      const selectedUserMetadata = tautulliMetadata ?? plexMetadata;
 
       return {
         id: source.id,
@@ -44,9 +49,9 @@ export async function getWatchHistoryOverview(userId: string) {
             ? latestRun.errorMessage ?? "The latest watch-history sync failed."
             : `Latest ${latestRun.mediaType === "tv" ? "TV" : "movie"} sync imported ${latestRun.itemCount} titles.`
           : "No watch-history sync has been run yet.",
-        selectedUserId: tautulliMetadata?.selectedUserId ?? null,
-        selectedUserName: tautulliMetadata?.selectedUserName ?? null,
-        importLimit: tautulliMetadata?.importLimit ?? null,
+        selectedUserId: selectedUserMetadata?.selectedUserId ?? null,
+        selectedUserName: selectedUserMetadata?.selectedUserName ?? null,
+        importLimit: selectedUserMetadata?.importLimit ?? null,
         lastSyncedAt: latestRun?.completedAt ?? null,
         lastMediaType: latestRun?.mediaType ?? null,
         lastImportedCount: latestRun?.itemCount ?? 0,

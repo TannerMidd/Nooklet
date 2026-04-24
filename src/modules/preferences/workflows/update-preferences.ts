@@ -20,6 +20,7 @@ export async function updatePreferences(
       defaultMediaMode: input.defaultMediaMode,
       defaultResultCount: input.defaultResultCount,
       watchHistoryOnly: input.watchHistoryOnly,
+      watchHistorySourceTypes: input.watchHistorySourceTypes,
     }),
   });
 
