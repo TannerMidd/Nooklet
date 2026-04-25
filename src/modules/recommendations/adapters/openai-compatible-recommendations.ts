@@ -2,6 +2,10 @@ import { z } from "zod";
 
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { safeFetch } from "@/lib/security/safe-fetch";
+import {
+  resolveChatCompletionsUrl,
+  type AiProviderFlavor,
+} from "@/modules/service-connections/ai-provider-endpoints";
 
 const aiRecommendationResponseSchema = z.object({
   items: z.array(z.unknown()).min(1),
@@ -16,6 +20,7 @@ type GenerateRecommendationsInput = {
   requestPrompt: string;
   requestedCount: number;
   watchHistoryOnly: boolean;
+  flavor?: AiProviderFlavor;
   watchHistoryContext: Array<{
     title: string;
     year: number | null;
@@ -37,10 +42,6 @@ type GeneratedRecommendation = {
 };
 
 const fallbackRationale = "Recommended by the AI provider, but no rationale was returned.";
-
-function trimTrailingSlash(baseUrl: string) {
-  return baseUrl.replace(/\/+$/, "");
-}
 
 function extractJsonObject(content: string) {
   const firstBrace = content.indexOf("{");
@@ -121,43 +122,46 @@ export async function generateOpenAiCompatibleRecommendations(
           .join("\n")
       : "None provided.";
 
-  const response = await safeFetch(`${trimTrailingSlash(input.baseUrl)}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${input.apiKey}`,
-      "Content-Type": "application/json",
+  const response = await safeFetch(
+    resolveChatCompletionsUrl(input.baseUrl, input.flavor ?? "openai-compatible"),
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${input.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      timeoutMs: 60_000,
+      maxBytes: 2 * 1024 * 1024,
+      body: JSON.stringify({
+        model: input.model,
+        messages: [
+          {
+            role: "system",
+            content:
+              `You are a recommendation assistant for a self-hosted media app. ` +
+              `Recommend ${input.requestedCount} ${input.mediaType === "tv" ? "TV series" : "movies"}. ` +
+              `Return only valid JSON with this shape: ` +
+              `{"items":[{"title":"string","year":2024,"rationale":"string","confidence":"high|medium|low"}]}. ` +
+              `Do not include markdown, commentary, or extra keys.`,
+          },
+          {
+            role: "user",
+            content:
+              `${trimmedRequestPrompt.length > 0 ? `Request context: ${trimmedRequestPrompt}\n` : "No explicit request context was provided. Infer the user's taste from the owned library sample and recent watched titles.\n"}` +
+              `Owned library sample: ${input.libraryTasteContext.length} of ${input.libraryTasteTotalCount} known ${input.mediaType === "tv" ? "series" : "movies"}.\n` +
+              `${input.libraryTasteContext.length > 0 ? "Treat the owned-library sample below as an important taste signal and avoid recommending titles that already appear in it when possible.\n" : "No owned-library sample was provided.\n"}` +
+              `Owned library sample titles:\n${libraryTasteContextBlock}\n` +
+              `Watch-history-only mode: ${input.watchHistoryOnly ? "enabled" : "disabled"}.\n` +
+              `${input.watchHistoryOnly ? "Use the watched-title list below as the primary source context for these recommendations.\n" : "Use the watched-title list below as optional taste context when it is present.\n"}` +
+              `Recent watched titles:\n${watchHistoryContextBlock}\n` +
+              `Prefer a diverse set of results with specific rationales.`,
+          },
+        ],
+        temperature: input.temperature,
+      }),
     },
-    cache: "no-store",
-    timeoutMs: 60_000,
-    maxBytes: 2 * 1024 * 1024,
-    body: JSON.stringify({
-      model: input.model,
-      messages: [
-        {
-          role: "system",
-          content:
-            `You are a recommendation assistant for a self-hosted media app. ` +
-            `Recommend ${input.requestedCount} ${input.mediaType === "tv" ? "TV series" : "movies"}. ` +
-            `Return only valid JSON with this shape: ` +
-            `{"items":[{"title":"string","year":2024,"rationale":"string","confidence":"high|medium|low"}]}. ` +
-            `Do not include markdown, commentary, or extra keys.`,
-        },
-        {
-          role: "user",
-          content:
-            `${trimmedRequestPrompt.length > 0 ? `Request context: ${trimmedRequestPrompt}\n` : "No explicit request context was provided. Infer the user's taste from the owned library sample and recent watched titles.\n"}` +
-            `Owned library sample: ${input.libraryTasteContext.length} of ${input.libraryTasteTotalCount} known ${input.mediaType === "tv" ? "series" : "movies"}.\n` +
-            `${input.libraryTasteContext.length > 0 ? "Treat the owned-library sample below as an important taste signal and avoid recommending titles that already appear in it when possible.\n" : "No owned-library sample was provided.\n"}` +
-            `Owned library sample titles:\n${libraryTasteContextBlock}\n` +
-            `Watch-history-only mode: ${input.watchHistoryOnly ? "enabled" : "disabled"}.\n` +
-            `${input.watchHistoryOnly ? "Use the watched-title list below as the primary source context for these recommendations.\n" : "Use the watched-title list below as optional taste context when it is present.\n"}` +
-            `Recent watched titles:\n${watchHistoryContextBlock}\n` +
-            `Prefer a diverse set of results with specific rationales.`,
-        },
-      ],
-      temperature: input.temperature,
-    }),
-  });
+  );
 
   if (!response.ok) {
     throw new Error(`The AI provider request failed with status ${response.status}.`);

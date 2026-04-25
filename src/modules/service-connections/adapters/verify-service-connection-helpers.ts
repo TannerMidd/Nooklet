@@ -1,16 +1,44 @@
 import { type LibraryManagerMetadata } from "@/modules/service-connections/library-manager-metadata";
+import { type AiProviderFlavor } from "@/modules/service-connections/ai-provider-endpoints";
+
+export type AiProviderModelEntry = {
+  // OpenAI-compatible payloads expose `id`; LM Studio's native /api/v1/models
+  // payload exposes `key` instead. Other providers seen in this app stick to
+  // one of these two fields.
+  id?: string;
+  key?: string;
+};
 
 export type AiProviderModelPayload = {
-  data?: Array<{
-    id?: string;
-  }>;
+  data?: AiProviderModelEntry[];
+  models?: AiProviderModelEntry[];
 };
+
+function extractModelId(entry: AiProviderModelEntry | string | null | undefined) {
+  if (typeof entry === "string") {
+    return entry.trim();
+  }
+
+  if (!entry || typeof entry !== "object") {
+    return "";
+  }
+
+  const candidate = entry.id ?? entry.key;
+  return typeof candidate === "string" ? candidate.trim() : "";
+}
 
 export function normalizeAiProviderModelIds(payload: AiProviderModelPayload) {
   const modelIds = new Set<string>();
 
-  for (const entry of payload.data ?? []) {
-    const modelId = typeof entry.id === "string" ? entry.id.trim() : "";
+  // OpenAI-compatible shape: { data: [{ id }, ...] }
+  // LM Studio native v1 shape: { models: [{ key, display_name, ... }, ...] }
+  const entries = [
+    ...(Array.isArray(payload.data) ? payload.data : []),
+    ...(Array.isArray(payload.models) ? payload.models : []),
+  ];
+
+  for (const entry of entries) {
+    const modelId = extractModelId(entry);
 
     if (modelId) {
       modelIds.add(modelId);
@@ -23,6 +51,7 @@ export function normalizeAiProviderModelIds(payload: AiProviderModelPayload) {
 export function buildAiProviderVerificationResult(input: {
   availableModels: string[];
   metadata: Record<string, unknown> | null;
+  flavor: AiProviderFlavor;
 }) {
   const configuredModel =
     typeof input.metadata?.model === "string" ? input.metadata.model : null;
@@ -34,6 +63,7 @@ export function buildAiProviderVerificationResult(input: {
       metadata: {
         ...(input.metadata ?? {}),
         availableModels: input.availableModels,
+        aiProviderFlavor: input.flavor,
       },
     };
   }
@@ -46,6 +76,7 @@ export function buildAiProviderVerificationResult(input: {
     metadata: {
       ...(input.metadata ?? {}),
       availableModels: input.availableModels,
+      aiProviderFlavor: input.flavor,
     },
   };
 }

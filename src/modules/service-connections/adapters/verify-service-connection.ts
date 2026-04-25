@@ -14,6 +14,10 @@ import {
   type LibraryManagerRootFolderResponse,
   type LibraryManagerTagResponse,
 } from "@/modules/service-connections/adapters/verify-service-connection-helpers";
+import {
+  detectAiProviderFlavor,
+  resolveListModelsUrl,
+} from "@/modules/service-connections/ai-provider-endpoints";
 
 type VerifyServiceConnectionInput = {
   serviceType: ServiceConnectionType;
@@ -50,7 +54,7 @@ async function fetchJsonWithTimeout<T>(input: RequestInfo | URL, init?: RequestI
 async function verifyAiProvider(
   input: VerifyServiceConnectionInput,
 ): Promise<VerifyServiceConnectionResult> {
-  const response = await fetchWithTimeout(`${trimTrailingSlash(input.baseUrl)}/models`, {
+  const response = await fetchWithTimeout(resolveListModelsUrl(input.baseUrl), {
     headers: {
       Authorization: `Bearer ${input.secret}`,
     },
@@ -66,10 +70,12 @@ async function verifyAiProvider(
 
   const payload = (await response.json()) as AiProviderModelPayload;
   const availableModels = normalizeAiProviderModelIds(payload);
+  const flavor = detectAiProviderFlavor(payload);
 
   return buildAiProviderVerificationResult({
     availableModels,
     metadata: input.metadata,
+    flavor,
   });
 }
 

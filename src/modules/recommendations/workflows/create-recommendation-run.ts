@@ -15,6 +15,7 @@ import {
   lookupLibraryItemMatch,
   type SampledLibraryTasteItem,
 } from "@/modules/service-connections/adapters/add-library-item";
+import { parseAiProviderFlavor } from "@/modules/service-connections/ai-provider-endpoints";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import { getServiceConnectionDefinition } from "@/modules/service-connections/service-definitions";
 import { verifyConfiguredServiceConnection } from "@/modules/service-connections/workflows/verify-configured-service-connection";
@@ -248,7 +249,21 @@ async function ensureVerifiedAiProviderConnection(userId: string) {
     };
   }
 
-  if (aiProvider.connection.status !== "verified") {
+  // Re-verify when the connection is unverified, or when its persisted
+  // metadata predates the AI-provider flavor seam so we don't know whether
+  // chat completions need the LM Studio /api/v1 -> /v1 rewrite. The flavor
+  // migration only fires when verification has previously stored
+  // `availableModels` (i.e. a real verify happened) but no `aiProviderFlavor`
+  // yet, so we don't loop for bare-metadata fixtures or fresh installs.
+  const metadata = aiProvider.metadata;
+  const hasLegacyVerifiedMetadata =
+    metadata !== null &&
+    Array.isArray(metadata.availableModels) &&
+    parseAiProviderFlavor(metadata) === null;
+  const needsReverify =
+    aiProvider.connection.status !== "verified" || hasLegacyVerifiedMetadata;
+
+  if (needsReverify) {
     const verificationResult = await verifyConfiguredServiceConnection(userId, "ai-provider");
 
     if (!verificationResult.ok) {
@@ -276,6 +291,7 @@ async function ensureVerifiedAiProviderConnection(userId: string) {
     ok: true as const,
     baseUrl: aiProvider.connection.baseUrl,
     encryptedSecret: aiProvider.secret.encryptedValue,
+    flavor: parseAiProviderFlavor(aiProvider.metadata) ?? "openai-compatible",
   };
 }
 
@@ -384,6 +400,7 @@ export async function createRecommendationRunWorkflow(
           model: aiModel,
           temperature: input.temperature,
           mediaType: input.mediaType,
+          flavor: aiProvider.flavor,
           requestPrompt,
           requestedCount,
           watchHistoryOnly: preferences.watchHistoryOnly,

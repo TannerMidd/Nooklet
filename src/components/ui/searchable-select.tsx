@@ -80,13 +80,10 @@ export function SearchableSelect({
     !options.some((option) => option.toLowerCase() === trimmedQuery.toLowerCase());
 
   const totalRows = filtered.length + (showCustomRow ? 1 : 0);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    setHighlight(0);
-  }, [open, trimmedQuery]);
+  // Clamp the highlighted row so it stays in range whenever the filtered list
+  // shrinks (e.g. as the user types). Resetting in event handlers below keeps
+  // user-driven changes snappy without an effect.
+  const effectiveHighlight = totalRows === 0 ? 0 : Math.min(highlight, totalRows - 1);
 
   useEffect(() => {
     if (!open) {
@@ -143,7 +140,7 @@ export function SearchableSelect({
       setHighlight((current) => (totalRows === 0 ? 0 : (current - 1 + totalRows) % totalRows));
     } else if (event.key === "Enter") {
       event.preventDefault();
-      commitIndex(highlight);
+      commitIndex(effectiveHighlight);
     } else if (event.key === "Escape") {
       event.preventDefault();
       setOpen(false);
@@ -162,9 +159,10 @@ export function SearchableSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
-        aria-invalid={ariaInvalid}
+        data-invalid={ariaInvalid ? "true" : undefined}
         onClick={() => {
           if (!disabled) {
+            setHighlight(0);
             setOpen((current) => !current);
           }
         }}
@@ -188,7 +186,10 @@ export function SearchableSelect({
               ref={searchRef}
               type="text"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setHighlight(0);
+              }}
               onKeyDown={handleSearchKeyDown}
               placeholder={searchPlaceholder}
               autoComplete="off"
@@ -205,7 +206,7 @@ export function SearchableSelect({
               <li className="px-3 py-2 text-sm text-muted">{emptyLabel}</li>
             ) : null}
             {filtered.map((option, index) => {
-              const isHighlighted = index === highlight;
+              const isHighlighted = index === effectiveHighlight;
               const isSelected = option === value;
               return (
                 <li key={option} role="option" aria-selected={isSelected}>
@@ -237,7 +238,7 @@ export function SearchableSelect({
                   onClick={() => commitIndex(filtered.length)}
                   className={cn(
                     "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition",
-                    highlight === filtered.length
+                    effectiveHighlight === filtered.length
                       ? "bg-accent/10 text-foreground"
                       : "text-foreground hover:bg-accent/5",
                   )}
