@@ -4,7 +4,10 @@ import { auth } from "@/auth";
 import { RecommendationHistoryItemActions } from "@/components/recommendations/recommendation-history-item-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { Panel } from "@/components/ui/panel";
-import { getPreferencesByUserId } from "@/modules/preferences/repositories/preferences-repository";
+import {
+  getLibrarySelectionDefaults,
+  getPreferencesByUserId,
+} from "@/modules/preferences/repositories/preferences-repository";
 import { listRecommendationHistory } from "@/modules/recommendations/queries/list-recommendation-history";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 
@@ -70,6 +73,8 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
   const returnTo = buildHistoryHref(currentView, history.currentPage);
   const sonarrSummary = connectionSummaries.find((summary) => summary.serviceType === "sonarr") ?? null;
   const radarrSummary = connectionSummaries.find((summary) => summary.serviceType === "radarr") ?? null;
+  const sonarrDefaults = getLibrarySelectionDefaults(preferences, "sonarr");
+  const radarrDefaults = getLibrarySelectionDefaults(preferences, "radarr");
 
   return (
     <div className="space-y-6">
@@ -216,6 +221,16 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                       returnTo={returnTo}
                       libraryConnection={item.mediaType === "tv" ? sonarrSummary : radarrSummary}
                       providerMetadata={item.providerMetadata}
+                      savedRootFolderPath={
+                        item.mediaType === "tv"
+                          ? sonarrDefaults.rootFolderPath
+                          : radarrDefaults.rootFolderPath
+                      }
+                      savedQualityProfileId={
+                        item.mediaType === "tv"
+                          ? sonarrDefaults.qualityProfileId
+                          : radarrDefaults.qualityProfileId
+                      }
                     />
                   </div>
                 </div>

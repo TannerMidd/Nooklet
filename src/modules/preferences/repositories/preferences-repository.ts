@@ -14,6 +14,13 @@ export type PreferenceRecord = Omit<StoredPreferenceRecord, "watchHistorySourceT
   watchHistorySourceTypes: WatchHistorySourceType[];
 };
 
+export type LibrarySelectionPreferenceService = "sonarr" | "radarr";
+
+export type LibrarySelectionPreferenceDefaults = {
+  rootFolderPath: string | null;
+  qualityProfileId: number | null;
+};
+
 function parseWatchHistorySourceTypes(metadataJson: string | null | undefined) {
   if (!metadataJson) {
     return [...watchHistorySourceTypes];
@@ -57,6 +64,10 @@ export const defaultPreferenceValues: Omit<PreferenceRecord, "userId" | "updated
   defaultMediaMode: "tv",
   defaultResultCount: 10,
   defaultTemperature: 0.9,
+  defaultSonarrRootFolderPath: null,
+  defaultSonarrQualityProfileId: null,
+  defaultRadarrRootFolderPath: null,
+  defaultRadarrQualityProfileId: null,
   watchHistoryOnly: false,
   watchHistorySourceTypes: [...watchHistorySourceTypes],
   historyHideExisting: false,
@@ -64,6 +75,36 @@ export const defaultPreferenceValues: Omit<PreferenceRecord, "userId" | "updated
   historyHideDisliked: false,
   historyHideHidden: true,
 };
+
+function buildLibrarySelectionPreferencePatch(
+  serviceType: LibrarySelectionPreferenceService,
+  input: LibrarySelectionPreferenceDefaults,
+) {
+  return serviceType === "sonarr"
+    ? {
+        defaultSonarrRootFolderPath: input.rootFolderPath,
+        defaultSonarrQualityProfileId: input.qualityProfileId,
+      }
+    : {
+        defaultRadarrRootFolderPath: input.rootFolderPath,
+        defaultRadarrQualityProfileId: input.qualityProfileId,
+      };
+}
+
+export function getLibrarySelectionDefaults(
+  preferences: PreferenceRecord,
+  serviceType: LibrarySelectionPreferenceService,
+): LibrarySelectionPreferenceDefaults {
+  return serviceType === "sonarr"
+    ? {
+        rootFolderPath: preferences.defaultSonarrRootFolderPath,
+        qualityProfileId: preferences.defaultSonarrQualityProfileId,
+      }
+    : {
+        rootFolderPath: preferences.defaultRadarrRootFolderPath,
+        qualityProfileId: preferences.defaultRadarrQualityProfileId,
+      };
+}
 
 export async function getPreferencesByUserId(userId: string) {
   const database = ensureDatabaseReady();
@@ -177,6 +218,31 @@ export async function updateWatchHistoryOnly(userId: string, watchHistoryOnly: b
       target: preferences.userId,
       set: {
         watchHistoryOnly,
+        updatedAt: new Date(),
+      },
+    })
+    .run();
+}
+
+export async function updateLibrarySelectionDefaults(
+  userId: string,
+  serviceType: LibrarySelectionPreferenceService,
+  input: LibrarySelectionPreferenceDefaults,
+) {
+  const database = ensureDatabaseReady();
+  const preferencePatch = buildLibrarySelectionPreferencePatch(serviceType, input);
+
+  database
+    .insert(preferences)
+    .values({
+      userId,
+      ...preferencePatch,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: preferences.userId,
+      set: {
+        ...preferencePatch,
         updatedAt: new Date(),
       },
     })

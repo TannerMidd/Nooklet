@@ -11,6 +11,16 @@ type RecommendationLibrarySelectionInput = Pick<
   seasonNumbers?: AddRecommendationToLibraryInput["seasonNumbers"];
 };
 
+type RecommendationLibrarySelectionDefaults = {
+  rootFolderPath?: string | null;
+  qualityProfileId?: number | null;
+};
+
+type RecommendationLibrarySelectionMetadata = Pick<
+  LibraryManagerMetadata,
+  "rootFolders" | "qualityProfiles"
+>;
+
 type RecommendationLibrarySelectionValidationOptions = {
   mediaType?: RecommendationMediaType;
   availableSeasonNumbers?: number[] | null;
@@ -23,6 +33,27 @@ export type RecommendationLibrarySelectionValidationResult =
       message: string;
       field?: "rootFolderPath" | "qualityProfileId" | "seasonNumbers" | "tagIds";
     };
+
+export function resolveRecommendationLibrarySelectionDefaults(
+  metadata: RecommendationLibrarySelectionMetadata | null,
+  defaults: Partial<RecommendationLibrarySelectionDefaults> = {},
+) {
+  const rootFolderPath = metadata?.rootFolders.some(
+    (entry) => entry.path === defaults.rootFolderPath,
+  )
+    ? defaults.rootFolderPath ?? metadata.rootFolders[0]?.path ?? ""
+    : metadata?.rootFolders[0]?.path ?? "";
+  const qualityProfileId = metadata?.qualityProfiles.some(
+    (entry) => entry.id === defaults.qualityProfileId,
+  )
+    ? defaults.qualityProfileId ?? metadata.qualityProfiles[0]?.id ?? null
+    : metadata?.qualityProfiles[0]?.id ?? null;
+
+  return {
+    rootFolderPath,
+    qualityProfileId,
+  };
+}
 
 export function validateRecommendationLibrarySelection(
   metadata: LibraryManagerMetadata | null,

@@ -26,6 +26,8 @@ type SonarrRecommendationAddModalProps = {
   availableSeasons: RecommendationProviderSeason[];
   seasonSelectionMode: "all" | "custom";
   onSeasonSelectionModeChange: (mode: "all" | "custom") => void;
+  defaultRootFolderPath: string;
+  defaultQualityProfileId: number | null;
   titleId: string;
 };
 
@@ -40,6 +42,8 @@ export function SonarrRecommendationAddModal({
   availableSeasons,
   seasonSelectionMode,
   onSeasonSelectionModeChange,
+  defaultRootFolderPath,
+  defaultQualityProfileId,
   titleId,
 }: SonarrRecommendationAddModalProps) {
   return (
@@ -61,6 +65,8 @@ export function SonarrRecommendationAddModal({
               <RecommendationDestinationFields
                 connectionSummary={connectionSummary}
                 fieldErrors={state.fieldErrors}
+                defaultRootFolderPath={defaultRootFolderPath}
+                defaultQualityProfileId={defaultQualityProfileId}
               />
 
               <section className="rounded-[28px] border border-line/70 bg-panel-strong/70 p-5 md:p-6">

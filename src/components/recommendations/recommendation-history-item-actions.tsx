@@ -1,8 +1,8 @@
 import {
-  submitRecommendationFeedbackAction,
   submitRecommendationHiddenStateAction,
 } from "@/app/(workspace)/recommendation-item-actions";
 import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
+import { RecommendationFeedbackActions } from "@/components/recommendations/recommendation-feedback-actions";
 import { Button } from "@/components/ui/button";
 import {
   type RecommendationFeedbackValue,
@@ -20,6 +20,8 @@ type RecommendationHistoryItemActionsProps = {
   returnTo: string;
   libraryConnection: ServiceConnectionSummary | null;
   providerMetadata?: RecommendationProviderMetadata | null;
+  savedRootFolderPath?: string | null;
+  savedQualityProfileId?: number | null;
 };
 
 export function RecommendationHistoryItemActions({
@@ -31,27 +33,13 @@ export function RecommendationHistoryItemActions({
   returnTo,
   libraryConnection,
   providerMetadata,
+  savedRootFolderPath,
+  savedQualityProfileId,
 }: RecommendationHistoryItemActionsProps) {
   return (
     <div className="mt-4">
       <div className="flex flex-wrap gap-3">
-        <form action={submitRecommendationFeedbackAction}>
-          <input type="hidden" name="itemId" value={itemId} />
-          <input type="hidden" name="feedback" value="like" />
-          <input type="hidden" name="returnTo" value={returnTo} />
-          <Button type="submit" variant={feedback === "like" ? "primary" : "secondary"}>
-            Like
-          </Button>
-        </form>
-
-        <form action={submitRecommendationFeedbackAction}>
-          <input type="hidden" name="itemId" value={itemId} />
-          <input type="hidden" name="feedback" value="dislike" />
-          <input type="hidden" name="returnTo" value={returnTo} />
-          <Button type="submit" variant={feedback === "dislike" ? "primary" : "secondary"}>
-            Dislike
-          </Button>
-        </form>
+        <RecommendationFeedbackActions itemId={itemId} feedback={feedback} returnTo={returnTo} />
 
         <form action={submitRecommendationHiddenStateAction}>
           <input type="hidden" name="itemId" value={itemId} />
@@ -70,6 +58,8 @@ export function RecommendationHistoryItemActions({
         returnTo={returnTo}
         connectionSummary={libraryConnection}
         providerMetadata={providerMetadata}
+        savedRootFolderPath={savedRootFolderPath}
+        savedQualityProfileId={savedQualityProfileId}
       />
     </div>
   );

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { validateRecommendationLibrarySelection } from "./recommendation-library-selection";
+import {
+  resolveRecommendationLibrarySelectionDefaults,
+  validateRecommendationLibrarySelection,
+} from "./recommendation-library-selection";
 
 const validMetadata = {
   rootFolders: [
@@ -24,6 +27,54 @@ const validMetadata = {
 };
 
 describe("recommendation-library-selection", () => {
+  it("prefers saved defaults when they still exist in the verified metadata", () => {
+    expect(
+      resolveRecommendationLibrarySelectionDefaults(validMetadata, {
+        rootFolderPath: "/library/movies",
+        qualityProfileId: 7,
+      }),
+    ).toEqual({
+      rootFolderPath: "/library/movies",
+      qualityProfileId: 7,
+    });
+  });
+
+  it("falls back to the first verified destination when saved defaults are stale", () => {
+    expect(
+      resolveRecommendationLibrarySelectionDefaults(
+        {
+          rootFolders: [
+            {
+              path: "/library/tv",
+              label: "TV",
+            },
+            {
+              path: "/library/archive",
+              label: "Archive",
+            },
+          ],
+          qualityProfiles: [
+            {
+              id: 10,
+              name: "Any",
+            },
+            {
+              id: 15,
+              name: "HD-1080p",
+            },
+          ],
+        },
+        {
+          rootFolderPath: "/library/removed",
+          qualityProfileId: 99,
+        },
+      ),
+    ).toEqual({
+      rootFolderPath: "/library/tv",
+      qualityProfileId: 10,
+    });
+  });
+
   it("requires verified metadata with root folders and quality profiles", () => {
     expect(
       validateRecommendationLibrarySelection(null, {

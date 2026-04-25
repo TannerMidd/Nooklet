@@ -9,6 +9,7 @@ import { submitRecommendationLibraryAction } from "@/app/(workspace)/recommendat
 import { Button } from "@/components/ui/button";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { type RecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
+import { resolveRecommendationLibrarySelectionDefaults } from "@/modules/recommendations/workflows/recommendation-library-selection";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 import { RadarrRecommendationAddModal } from "./radarr-recommendation-add-modal";
@@ -21,6 +22,8 @@ type RecommendationAddFormProps = {
   returnTo: string;
   connectionSummary: ServiceConnectionSummary | null;
   providerMetadata?: RecommendationProviderMetadata | null;
+  savedRootFolderPath?: string | null;
+  savedQualityProfileId?: number | null;
 };
 
 export function RecommendationAddForm({
@@ -30,6 +33,8 @@ export function RecommendationAddForm({
   returnTo,
   connectionSummary,
   providerMetadata,
+  savedRootFolderPath,
+  savedQualityProfileId,
 }: RecommendationAddFormProps) {
   const [state, formAction] = useActionState(
     submitRecommendationLibraryAction,
@@ -70,6 +75,11 @@ export function RecommendationAddForm({
       </p>
     );
   }
+
+  const selectionDefaults = resolveRecommendationLibrarySelectionDefaults(connectionSummary, {
+    rootFolderPath: savedRootFolderPath,
+    qualityProfileId: savedQualityProfileId,
+  });
 
   return (
     <div className="mt-4 space-y-3">
@@ -117,6 +127,8 @@ export function RecommendationAddForm({
           availableSeasons={availableSeasons}
           seasonSelectionMode={seasonSelectionMode}
           onSeasonSelectionModeChange={setSeasonSelectionMode}
+          defaultRootFolderPath={selectionDefaults.rootFolderPath}
+          defaultQualityProfileId={selectionDefaults.qualityProfileId}
           titleId={dialogTitleId}
         />
       ) : (
@@ -128,6 +140,8 @@ export function RecommendationAddForm({
           connectionSummary={connectionSummary}
           state={state}
           formAction={formAction}
+          defaultRootFolderPath={selectionDefaults.rootFolderPath}
+          defaultQualityProfileId={selectionDefaults.qualityProfileId}
           titleId={dialogTitleId}
         />
       )}

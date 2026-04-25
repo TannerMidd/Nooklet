@@ -39,6 +39,7 @@ export async function submitRecommendationFeedbackAction(formData: FormData) {
   );
 
   revalidatePath("/history");
+  revalidatePath(safeRevalidatePath(parsedInput.returnTo));
   redirect(safeReturnTo(parsedInput.returnTo));
 }
 

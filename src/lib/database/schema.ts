@@ -45,6 +45,10 @@ export const preferences = sqliteTable("preferences", {
     .default("tv"),
   defaultResultCount: integer("default_result_count").notNull().default(10),
   defaultTemperature: real("default_temperature").notNull().default(0.9),
+  defaultSonarrRootFolderPath: text("default_sonarr_root_folder_path"),
+  defaultSonarrQualityProfileId: integer("default_sonarr_quality_profile_id"),
+  defaultRadarrRootFolderPath: text("default_radarr_root_folder_path"),
+  defaultRadarrQualityProfileId: integer("default_radarr_quality_profile_id"),
   watchHistoryOnly: integer("watch_history_only", { mode: "boolean" })
     .notNull()
     .default(false),

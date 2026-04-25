@@ -143,19 +143,54 @@ export async function listRecommendationRuns(
     .all();
 }
 
-export async function listRecommendationItemsByRunIds(runIds: string[]) {
+export async function listRecommendationItemsByRunIds(userId: string, runIds: string[]) {
   const database = ensureDatabaseReady();
 
+  type RecommendationRunItemRow = {
+    id: string;
+    runId: string;
+    mediaType: RecommendationMediaType;
+    position: number;
+    title: string;
+    year: number | null;
+    rationale: string;
+    confidenceLabel: string | null;
+    providerMetadataJson: string | null;
+    existingInLibrary: boolean;
+    createdAt: Date;
+    feedback: RecommendationFeedbackValue | null;
+  };
+
   if (runIds.length === 0) {
-    return [] as Array<typeof recommendationItems.$inferSelect>;
+    return [] as RecommendationRunItemRow[];
   }
 
   return database
-    .select()
+    .select({
+      id: recommendationItems.id,
+      runId: recommendationItems.runId,
+      mediaType: recommendationItems.mediaType,
+      position: recommendationItems.position,
+      title: recommendationItems.title,
+      year: recommendationItems.year,
+      rationale: recommendationItems.rationale,
+      confidenceLabel: recommendationItems.confidenceLabel,
+      providerMetadataJson: recommendationItems.providerMetadataJson,
+      existingInLibrary: recommendationItems.existingInLibrary,
+      createdAt: recommendationItems.createdAt,
+      feedback: recommendationFeedback.feedback,
+    })
     .from(recommendationItems)
+    .leftJoin(
+      recommendationFeedback,
+      and(
+        eq(recommendationFeedback.itemId, recommendationItems.id),
+        eq(recommendationFeedback.userId, userId),
+      ),
+    )
     .where(inArray(recommendationItems.runId, runIds))
     .orderBy(asc(recommendationItems.position))
-    .all();
+    .all() satisfies RecommendationRunItemRow[];
 }
 
 export async function listRecommendationExclusionItems(

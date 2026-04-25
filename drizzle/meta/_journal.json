@@ -71,6 +71,13 @@
       "when": 1777075460449,
       "tag": "0009_material_silver_surfer",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1777098600000,
+      "tag": "0010_fair_battleworld",
+      "breakpoints": true
     }
   ]
 }

@@ -66,9 +66,13 @@ export function RecommendationAddMessage({
 export function RecommendationDestinationFields({
   connectionSummary,
   fieldErrors,
+  defaultRootFolderPath,
+  defaultQualityProfileId,
 }: {
   connectionSummary: ServiceConnectionSummary;
   fieldErrors: RecommendationLibraryActionState["fieldErrors"];
+  defaultRootFolderPath: string;
+  defaultQualityProfileId: number | null;
 }) {
   return (
     <section className="rounded-[28px] border border-line/70 bg-panel-strong/70 p-5 md:p-6">
@@ -77,7 +81,7 @@ export function RecommendationDestinationFields({
           <span className="text-sm font-medium text-foreground">Root folder</span>
           <select
             name="rootFolderPath"
-            defaultValue={connectionSummary.rootFolders[0]?.path ?? ""}
+            defaultValue={defaultRootFolderPath}
             className="min-h-11 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
             aria-invalid={Boolean(fieldErrors?.rootFolderPath)}
           >
@@ -96,7 +100,7 @@ export function RecommendationDestinationFields({
           <span className="text-sm font-medium text-foreground">Quality profile</span>
           <select
             name="qualityProfileId"
-            defaultValue={String(connectionSummary.qualityProfiles[0]?.id ?? "")}
+            defaultValue={String(defaultQualityProfileId ?? "")}
             className="min-h-11 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
             aria-invalid={Boolean(fieldErrors?.qualityProfileId)}
           >

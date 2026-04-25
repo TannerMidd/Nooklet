@@ -8,7 +8,7 @@ export async function listRecentRecommendationRuns(
 ) {
   const runs = await listRecommendationRuns(userId, mediaType, 4);
   const runIds = runs.map((run) => run.id);
-  const items = await listRecommendationItemsByRunIds(runIds);
+  const items = await listRecommendationItemsByRunIds(userId, runIds);
 
   return runs.map((run) => ({
     ...run,

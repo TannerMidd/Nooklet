@@ -22,6 +22,8 @@ type RadarrRecommendationAddModalProps = {
   connectionSummary: ServiceConnectionSummary;
   state: RecommendationLibraryActionState;
   formAction: RecommendationModalFormAction;
+  defaultRootFolderPath: string;
+  defaultQualityProfileId: number | null;
   titleId: string;
 };
 
@@ -33,6 +35,8 @@ export function RadarrRecommendationAddModal({
   connectionSummary,
   state,
   formAction,
+  defaultRootFolderPath,
+  defaultQualityProfileId,
   titleId,
 }: RadarrRecommendationAddModalProps) {
   return (
@@ -54,6 +58,8 @@ export function RadarrRecommendationAddModal({
               <RecommendationDestinationFields
                 connectionSummary={connectionSummary}
                 fieldErrors={state.fieldErrors}
+                defaultRootFolderPath={defaultRootFolderPath}
+                defaultQualityProfileId={defaultQualityProfileId}
               />
             </div>
 

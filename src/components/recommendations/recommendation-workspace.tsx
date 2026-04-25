@@ -3,13 +3,17 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { submitRecommendationWatchHistoryModeAction } from "@/app/(workspace)/recommendation-actions";
 import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
+import { RecommendationFeedbackActions } from "@/components/recommendations/recommendation-feedback-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationRequestForm } from "@/components/recommendations/recommendation-request-form";
 import { RecommendationRetryForm } from "@/components/recommendations/recommendation-retry-form";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { type RecommendationMediaType } from "@/lib/database/schema";
-import { getPreferencesByUserId } from "@/modules/preferences/repositories/preferences-repository";
+import {
+  getLibrarySelectionDefaults,
+  getPreferencesByUserId,
+} from "@/modules/preferences/repositories/preferences-repository";
 import { listRecentRecommendationRuns } from "@/modules/recommendations/queries/list-recent-recommendation-runs";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
@@ -82,6 +86,10 @@ export async function RecommendationWorkspace({
   const selectedWatchHistorySourceNames = preferences.watchHistorySourceTypes
     .map((sourceType) => getWatchHistorySourceDefinition(sourceType).displayName)
     .join(", ");
+  const librarySelectionDefaults = getLibrarySelectionDefaults(
+    preferences,
+    mediaType === "tv" ? "sonarr" : "radarr",
+  );
   const featuredRun =
     recentRuns.find((run) => run.id === activeRunId) ?? recentRuns[0] ?? null;
   const previousRuns = featuredRun
@@ -276,6 +284,14 @@ export async function RecommendationWorkspace({
                   </div>
                 </div>
 
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <RecommendationFeedbackActions
+                    itemId={item.id}
+                    feedback={item.feedback}
+                    returnTo={routePath}
+                  />
+                </div>
+
                 <RecommendationAddForm
                   itemId={item.id}
                   mediaType={item.mediaType}
@@ -283,6 +299,8 @@ export async function RecommendationWorkspace({
                   returnTo={routePath}
                   connectionSummary={relevantLibraryManager ?? null}
                   providerMetadata={item.providerMetadata}
+                  savedRootFolderPath={librarySelectionDefaults.rootFolderPath}
+                  savedQualityProfileId={librarySelectionDefaults.qualityProfileId}
                 />
               </article>
             ))}
@@ -362,12 +380,22 @@ export async function RecommendationWorkspace({
                           </div>
                         </div>
 
+                        <div className="mt-4 flex flex-wrap gap-3">
+                          <RecommendationFeedbackActions
+                            itemId={item.id}
+                            feedback={item.feedback}
+                            returnTo={routePath}
+                          />
+                        </div>
+
                         <RecommendationAddForm
                           itemId={item.id}
                           mediaType={item.mediaType}
                           existingInLibrary={item.existingInLibrary}
                           returnTo={routePath}
                           connectionSummary={relevantLibraryManager ?? null}
+                          savedRootFolderPath={librarySelectionDefaults.rootFolderPath}
+                          savedQualityProfileId={librarySelectionDefaults.qualityProfileId}
                         />
                       </div>
                     ))}

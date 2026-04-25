@@ -1,5 +1,6 @@
 import { parseRecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
 import { decryptSecret } from "@/lib/security/secret-box";
+import { updateLibrarySelectionDefaults } from "@/modules/preferences/repositories/preferences-repository";
 import { addLibraryItem } from "@/modules/service-connections/adapters/add-library-item";
 import { parseLibraryManagerMetadata } from "@/modules/service-connections/library-manager-metadata";
 import {
@@ -79,6 +80,11 @@ export async function addRecommendationToLibrary(
   if (!validationResult.ok) {
     return validationResult;
   }
+
+  await updateLibrarySelectionDefaults(userId, serviceType, {
+    rootFolderPath: input.rootFolderPath,
+    qualityProfileId: input.qualityProfileId,
+  });
 
   const result = await addLibraryItem({
     serviceType,
