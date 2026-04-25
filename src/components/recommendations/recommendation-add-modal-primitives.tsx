@@ -19,23 +19,37 @@ type RecommendationAddModalShellProps = {
   onClose: () => void;
   children: ReactNode;
   maxWidthClassName?: string;
+  closeDisabled?: boolean;
+  closeButtonLabel?: string;
 };
 
-export function SubmitButton({ serviceLabel }: { serviceLabel: string }) {
+export function SubmitButton({
+  serviceLabel,
+  disabled = false,
+}: {
+  serviceLabel: string;
+  disabled?: boolean;
+}) {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" className="w-full sm:w-auto" disabled={pending}>
+    <Button type="submit" className="w-full sm:w-auto" disabled={pending || disabled}>
       {pending ? `Adding to ${serviceLabel}...` : `Add to ${serviceLabel}`}
     </Button>
   );
 }
 
-export function CancelButton({ onClose }: { onClose: () => void }) {
+export function CancelButton({
+  onClose,
+  disabled = false,
+}: {
+  onClose: () => void;
+  disabled?: boolean;
+}) {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="button" variant="secondary" onClick={onClose} disabled={pending}>
+    <Button type="button" variant="secondary" onClick={onClose} disabled={pending || disabled}>
       Cancel
     </Button>
   );
@@ -66,13 +80,19 @@ export function RecommendationAddMessage({
 export function RecommendationDestinationFields({
   connectionSummary,
   fieldErrors,
-  defaultRootFolderPath,
-  defaultQualityProfileId,
+  selectedRootFolderPath,
+  selectedQualityProfileId,
+  onRootFolderPathChange,
+  onQualityProfileIdChange,
+  disabled = false,
 }: {
   connectionSummary: ServiceConnectionSummary;
   fieldErrors: RecommendationLibraryActionState["fieldErrors"];
-  defaultRootFolderPath: string;
-  defaultQualityProfileId: number | null;
+  selectedRootFolderPath: string;
+  selectedQualityProfileId: number | null;
+  onRootFolderPathChange: (value: string) => void;
+  onQualityProfileIdChange: (value: number) => void;
+  disabled?: boolean;
 }) {
   return (
     <section className="rounded-[28px] border border-line/70 bg-panel-strong/70 p-5 md:p-6">
@@ -81,7 +101,9 @@ export function RecommendationDestinationFields({
           <span className="text-sm font-medium text-foreground">Root folder</span>
           <select
             name="rootFolderPath"
-            defaultValue={defaultRootFolderPath}
+            value={selectedRootFolderPath}
+            onChange={(event) => onRootFolderPathChange(event.target.value)}
+            disabled={disabled}
             className="min-h-11 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
             aria-invalid={Boolean(fieldErrors?.rootFolderPath)}
           >
@@ -100,7 +122,9 @@ export function RecommendationDestinationFields({
           <span className="text-sm font-medium text-foreground">Quality profile</span>
           <select
             name="qualityProfileId"
-            defaultValue={String(defaultQualityProfileId ?? "")}
+            value={String(selectedQualityProfileId ?? "")}
+            onChange={(event) => onQualityProfileIdChange(Number.parseInt(event.target.value, 10))}
+            disabled={disabled}
             className="min-h-11 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
             aria-invalid={Boolean(fieldErrors?.qualityProfileId)}
           >
@@ -184,6 +208,8 @@ export function RecommendationAddModalShell({
   onClose,
   children,
   maxWidthClassName = "max-w-5xl",
+  closeDisabled = false,
+  closeButtonLabel = "Close",
 }: RecommendationAddModalShellProps) {
   const [isMounted, setIsMounted] = useState(false);
 
@@ -202,7 +228,7 @@ export function RecommendationAddModalShell({
 
     const previousOverflow = document.body.style.overflow;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !closeDisabled) {
         onClose();
       }
     };
@@ -221,7 +247,14 @@ export function RecommendationAddModalShell({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] bg-background/80 backdrop-blur-md" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[120] bg-background/80 backdrop-blur-md"
+      onClick={() => {
+        if (!closeDisabled) {
+          onClose();
+        }
+      }}
+    >
       <div className="flex min-h-full items-center justify-center px-4 py-6 md:px-8 md:py-10">
         <div
           role="dialog"
@@ -243,8 +276,8 @@ export function RecommendationAddModalShell({
               </h3>
               <p className="max-w-3xl text-sm leading-6 text-muted md:text-base">{description}</p>
             </div>
-            <Button type="button" variant="secondary" onClick={onClose}>
-              Close
+            <Button type="button" variant="secondary" onClick={onClose} disabled={closeDisabled}>
+              {closeButtonLabel}
             </Button>
           </div>
 

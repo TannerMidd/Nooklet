@@ -1,13 +1,18 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import {
   initialRecommendationLibraryActionState,
 } from "@/app/(workspace)/recommendation-action-state";
-import { submitRecommendationLibraryAction } from "@/app/(workspace)/recommendation-item-actions";
+import {
+  submitRecommendationLibraryAction,
+  submitRecommendationLibraryDefaultsAction,
+} from "@/app/(workspace)/recommendation-item-actions";
 import { Button } from "@/components/ui/button";
 import { type RecommendationMediaType } from "@/lib/database/schema";
+import { type LibrarySelectionPreferenceService } from "@/modules/preferences/repositories/preferences-repository";
 import { type RecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
 import { resolveRecommendationLibrarySelectionDefaults } from "@/modules/recommendations/workflows/recommendation-library-selection";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
@@ -40,17 +45,44 @@ export function RecommendationAddForm({
     submitRecommendationLibraryAction,
     initialRecommendationLibraryActionState,
   );
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [isSavingDefaults, setIsSavingDefaults] = useState(false);
   const [seasonSelectionMode, setSeasonSelectionMode] = useState<"all" | "custom">("all");
   const availableSeasons = mediaType === "tv" ? providerMetadata?.availableSeasons ?? [] : [];
   const serviceLabel = mediaType === "tv" ? "Sonarr" : "Radarr";
+  const serviceType: LibrarySelectionPreferenceService = mediaType === "tv" ? "sonarr" : "radarr";
   const dialogTitleId = `${itemId}-library-dialog-title`;
+  const selectionDefaults = connectionSummary
+    ? resolveRecommendationLibrarySelectionDefaults(connectionSummary, {
+        rootFolderPath: savedRootFolderPath,
+        qualityProfileId: savedQualityProfileId,
+      })
+    : {
+        rootFolderPath: "",
+        qualityProfileId: null,
+      };
+  const [selectedRootFolderPath, setSelectedRootFolderPath] = useState(
+    selectionDefaults.rootFolderPath,
+  );
+  const [selectedQualityProfileId, setSelectedQualityProfileId] = useState(
+    selectionDefaults.qualityProfileId,
+  );
 
   useEffect(() => {
     if (state.status === "success") {
       setIsOpen(false);
     }
   }, [state.status]);
+
+  useEffect(() => {
+    if (isOpen) {
+      return;
+    }
+
+    setSelectedRootFolderPath(selectionDefaults.rootFolderPath);
+    setSelectedQualityProfileId(selectionDefaults.qualityProfileId);
+  }, [isOpen, selectionDefaults.qualityProfileId, selectionDefaults.rootFolderPath]);
 
   if (existingInLibrary) {
     return (
@@ -76,10 +108,35 @@ export function RecommendationAddForm({
     );
   }
 
-  const selectionDefaults = resolveRecommendationLibrarySelectionDefaults(connectionSummary, {
-    rootFolderPath: savedRootFolderPath,
-    qualityProfileId: savedQualityProfileId,
-  });
+  async function handleClose() {
+    if (isSavingDefaults) {
+      return;
+    }
+
+    const hasChangedDefaults =
+      selectedRootFolderPath !== selectionDefaults.rootFolderPath ||
+      selectedQualityProfileId !== selectionDefaults.qualityProfileId;
+
+    setIsSavingDefaults(true);
+
+    try {
+      if (hasChangedDefaults && selectedQualityProfileId !== null) {
+        await submitRecommendationLibraryDefaultsAction({
+          serviceType,
+          rootFolderPath: selectedRootFolderPath,
+          qualityProfileId: selectedQualityProfileId,
+        });
+      }
+
+      setIsOpen(false);
+
+      if (hasChangedDefaults) {
+        router.refresh();
+      }
+    } finally {
+      setIsSavingDefaults(false);
+    }
+  }
 
   return (
     <div className="mt-4 space-y-3">
@@ -97,7 +154,7 @@ export function RecommendationAddForm({
             setSeasonSelectionMode("all");
             setIsOpen(true);
           }}
-          disabled={state.status === "success"}
+          disabled={state.status === "success" || isSavingDefaults}
         >
           {state.status === "success" ? `${serviceLabel} updated` : `Add to ${serviceLabel}`}
         </Button>
@@ -118,7 +175,7 @@ export function RecommendationAddForm({
       {mediaType === "tv" ? (
         <SonarrRecommendationAddModal
           open={isOpen}
-          onClose={() => setIsOpen(false)}
+          onClose={handleClose}
           itemId={itemId}
           returnTo={returnTo}
           connectionSummary={connectionSummary}
@@ -127,21 +184,27 @@ export function RecommendationAddForm({
           availableSeasons={availableSeasons}
           seasonSelectionMode={seasonSelectionMode}
           onSeasonSelectionModeChange={setSeasonSelectionMode}
-          defaultRootFolderPath={selectionDefaults.rootFolderPath}
-          defaultQualityProfileId={selectionDefaults.qualityProfileId}
+          selectedRootFolderPath={selectedRootFolderPath}
+          selectedQualityProfileId={selectedQualityProfileId}
+          onRootFolderPathChange={setSelectedRootFolderPath}
+          onQualityProfileIdChange={setSelectedQualityProfileId}
+          isSavingDefaults={isSavingDefaults}
           titleId={dialogTitleId}
         />
       ) : (
         <RadarrRecommendationAddModal
           open={isOpen}
-          onClose={() => setIsOpen(false)}
+          onClose={handleClose}
           itemId={itemId}
           returnTo={returnTo}
           connectionSummary={connectionSummary}
           state={state}
           formAction={formAction}
-          defaultRootFolderPath={selectionDefaults.rootFolderPath}
-          defaultQualityProfileId={selectionDefaults.qualityProfileId}
+          selectedRootFolderPath={selectedRootFolderPath}
+          selectedQualityProfileId={selectedQualityProfileId}
+          onRootFolderPathChange={setSelectedRootFolderPath}
+          onQualityProfileIdChange={setSelectedQualityProfileId}
+          isSavingDefaults={isSavingDefaults}
           titleId={dialogTitleId}
         />
       )}

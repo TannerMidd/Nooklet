@@ -22,8 +22,11 @@ type RadarrRecommendationAddModalProps = {
   connectionSummary: ServiceConnectionSummary;
   state: RecommendationLibraryActionState;
   formAction: RecommendationModalFormAction;
-  defaultRootFolderPath: string;
-  defaultQualityProfileId: number | null;
+  selectedRootFolderPath: string;
+  selectedQualityProfileId: number | null;
+  onRootFolderPathChange: (value: string) => void;
+  onQualityProfileIdChange: (value: number) => void;
+  isSavingDefaults?: boolean;
   titleId: string;
 };
 
@@ -35,8 +38,11 @@ export function RadarrRecommendationAddModal({
   connectionSummary,
   state,
   formAction,
-  defaultRootFolderPath,
-  defaultQualityProfileId,
+  selectedRootFolderPath,
+  selectedQualityProfileId,
+  onRootFolderPathChange,
+  onQualityProfileIdChange,
+  isSavingDefaults = false,
   titleId,
 }: RadarrRecommendationAddModalProps) {
   return (
@@ -47,6 +53,8 @@ export function RadarrRecommendationAddModal({
       title="Add to Radarr"
       description="Choose where the movie should go and which tags Radarr should store with it."
       maxWidthClassName="max-w-5xl"
+      closeDisabled={isSavingDefaults}
+      closeButtonLabel={isSavingDefaults ? "Saving..." : "Close"}
     >
       <form action={formAction} className="flex min-h-0 flex-1 flex-col">
         <input type="hidden" name="itemId" value={itemId} />
@@ -58,8 +66,11 @@ export function RadarrRecommendationAddModal({
               <RecommendationDestinationFields
                 connectionSummary={connectionSummary}
                 fieldErrors={state.fieldErrors}
-                defaultRootFolderPath={defaultRootFolderPath}
-                defaultQualityProfileId={defaultQualityProfileId}
+                selectedRootFolderPath={selectedRootFolderPath}
+                selectedQualityProfileId={selectedQualityProfileId}
+                onRootFolderPathChange={onRootFolderPathChange}
+                onQualityProfileIdChange={onQualityProfileIdChange}
+                disabled={isSavingDefaults}
               />
             </div>
 
@@ -82,8 +93,8 @@ export function RadarrRecommendationAddModal({
             The request stays on this page. Close the modal at any time before submitting.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <CancelButton onClose={onClose} />
-            <SubmitButton serviceLabel="Radarr" />
+            <CancelButton onClose={onClose} disabled={isSavingDefaults} />
+            <SubmitButton serviceLabel="Radarr" disabled={isSavingDefaults} />
           </div>
         </div>
       </form>

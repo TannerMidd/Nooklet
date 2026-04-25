@@ -18,6 +18,12 @@ export const hiddenStateActionSchema = z.object({
   returnTo: z.string().min(1),
 });
 
+export const recommendationLibraryDefaultsActionSchema = z.object({
+  serviceType: z.enum(["sonarr", "radarr"]),
+  rootFolderPath: z.string().trim().min(1),
+  qualityProfileId: z.number().int().nonnegative(),
+});
+
 export function parseRecommendationLibraryActionFormData(formData: FormData) {
   return addRecommendationToLibrarySchema.safeParse({
     itemId: formData.get("itemId"),

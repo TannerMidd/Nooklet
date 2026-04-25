@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
 import { type RecommendationLibraryActionState } from "@/app/(workspace)/recommendation-action-state";
+import { updateLibrarySelectionDefaults } from "@/modules/preferences/repositories/preferences-repository";
 import {
   safeReturnTo,
   safeRevalidatePath,
@@ -14,6 +15,7 @@ import {
   hiddenStateActionSchema,
   parseRecommendationLibraryActionFormData,
   projectRecommendationLibraryFieldErrors,
+  recommendationLibraryDefaultsActionSchema,
 } from "./recommendation-item-action-helpers";
 import { addRecommendationToLibrary } from "@/modules/recommendations/workflows/add-recommendation-to-library";
 import { updateRecommendationFeedback } from "@/modules/recommendations/workflows/update-recommendation-feedback";
@@ -64,6 +66,29 @@ export async function submitRecommendationHiddenStateAction(formData: FormData) 
 
   revalidatePath("/history");
   redirect(safeReturnTo(parsedInput.returnTo));
+}
+
+export async function submitRecommendationLibraryDefaultsAction(input: {
+  serviceType: "sonarr" | "radarr";
+  rootFolderPath: string;
+  qualityProfileId: number;
+}) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return;
+  }
+
+  const parsedInput = recommendationLibraryDefaultsActionSchema.parse(input);
+
+  await updateLibrarySelectionDefaults(session.user.id, parsedInput.serviceType, {
+    rootFolderPath: parsedInput.rootFolderPath,
+    qualityProfileId: parsedInput.qualityProfileId,
+  });
+
+  revalidatePath("/history");
+  revalidatePath("/tv");
+  revalidatePath("/movies");
 }
 
 export async function submitRecommendationLibraryAction(

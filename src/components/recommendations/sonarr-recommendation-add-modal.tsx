@@ -26,8 +26,11 @@ type SonarrRecommendationAddModalProps = {
   availableSeasons: RecommendationProviderSeason[];
   seasonSelectionMode: "all" | "custom";
   onSeasonSelectionModeChange: (mode: "all" | "custom") => void;
-  defaultRootFolderPath: string;
-  defaultQualityProfileId: number | null;
+  selectedRootFolderPath: string;
+  selectedQualityProfileId: number | null;
+  onRootFolderPathChange: (value: string) => void;
+  onQualityProfileIdChange: (value: number) => void;
+  isSavingDefaults?: boolean;
   titleId: string;
 };
 
@@ -42,8 +45,11 @@ export function SonarrRecommendationAddModal({
   availableSeasons,
   seasonSelectionMode,
   onSeasonSelectionModeChange,
-  defaultRootFolderPath,
-  defaultQualityProfileId,
+  selectedRootFolderPath,
+  selectedQualityProfileId,
+  onRootFolderPathChange,
+  onQualityProfileIdChange,
+  isSavingDefaults = false,
   titleId,
 }: SonarrRecommendationAddModalProps) {
   return (
@@ -54,6 +60,8 @@ export function SonarrRecommendationAddModal({
       title="Add to Sonarr"
       description="Choose where the series should go and which seasons Sonarr should monitor."
       maxWidthClassName="max-w-6xl"
+      closeDisabled={isSavingDefaults}
+      closeButtonLabel={isSavingDefaults ? "Saving..." : "Close"}
     >
       <form action={formAction} className="flex min-h-0 flex-1 flex-col">
         <input type="hidden" name="itemId" value={itemId} />
@@ -65,8 +73,11 @@ export function SonarrRecommendationAddModal({
               <RecommendationDestinationFields
                 connectionSummary={connectionSummary}
                 fieldErrors={state.fieldErrors}
-                defaultRootFolderPath={defaultRootFolderPath}
-                defaultQualityProfileId={defaultQualityProfileId}
+                selectedRootFolderPath={selectedRootFolderPath}
+                selectedQualityProfileId={selectedQualityProfileId}
+                onRootFolderPathChange={onRootFolderPathChange}
+                onQualityProfileIdChange={onQualityProfileIdChange}
+                disabled={isSavingDefaults}
               />
 
               <section className="rounded-[28px] border border-line/70 bg-panel-strong/70 p-5 md:p-6">
@@ -170,8 +181,8 @@ export function SonarrRecommendationAddModal({
             The request stays on this page. Close the modal at any time before submitting.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <CancelButton onClose={onClose} />
-            <SubmitButton serviceLabel="Sonarr" />
+            <CancelButton onClose={onClose} disabled={isSavingDefaults} />
+            <SubmitButton serviceLabel="Sonarr" disabled={isSavingDefaults} />
           </div>
         </div>
       </form>

@@ -5,6 +5,7 @@ import {
   hiddenStateActionSchema,
   parseRecommendationLibraryActionFormData,
   projectRecommendationLibraryFieldErrors,
+  recommendationLibraryDefaultsActionSchema,
 } from "./recommendation-item-action-helpers";
 
 describe("recommendation-item-action-helpers", () => {
@@ -21,6 +22,13 @@ describe("recommendation-item-action-helpers", () => {
         itemId: "6abf5bba-aef9-4eef-8f67-c7775e249fd7",
         isHidden: "true",
         returnTo: "/movies",
+      }).success,
+    ).toBe(true);
+    expect(
+      recommendationLibraryDefaultsActionSchema.safeParse({
+        serviceType: "radarr",
+        rootFolderPath: "/library/movies",
+        qualityProfileId: 7,
       }).success,
     ).toBe(true);
   });
@@ -47,6 +55,8 @@ describe("recommendation-item-action-helpers", () => {
       itemId: "6abf5bba-aef9-4eef-8f67-c7775e249fd7",
       rootFolderPath: "/library/movies",
       qualityProfileId: 7,
+      seasonSelectionMode: "all",
+      seasonNumbers: [],
       tagIds: [11, 12],
       returnTo: "/history?page=2",
     });
