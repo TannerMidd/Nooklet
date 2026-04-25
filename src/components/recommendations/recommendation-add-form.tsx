@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { useFormStatus } from "react-dom";
 
 import {
   initialRecommendationLibraryActionState,
@@ -12,6 +11,9 @@ import { type RecommendationMediaType } from "@/lib/database/schema";
 import { type RecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
+import { RadarrRecommendationAddModal } from "./radarr-recommendation-add-modal";
+import { SonarrRecommendationAddModal } from "./sonarr-recommendation-add-modal";
+
 type RecommendationAddFormProps = {
   itemId: string;
   mediaType: RecommendationMediaType;
@@ -20,28 +22,6 @@ type RecommendationAddFormProps = {
   connectionSummary: ServiceConnectionSummary | null;
   providerMetadata?: RecommendationProviderMetadata | null;
 };
-
-function SubmitButton({ mediaType }: { mediaType: RecommendationMediaType }) {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button type="submit" className="w-full sm:w-auto" disabled={pending}>
-      {pending
-        ? `Adding to ${mediaType === "tv" ? "Sonarr" : "Radarr"}...`
-        : `Add to ${mediaType === "tv" ? "Sonarr" : "Radarr"}`}
-    </Button>
-  );
-}
-
-function CloseButton({ onClose }: { onClose: () => void }) {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button type="button" variant="secondary" onClick={onClose} disabled={pending}>
-      Cancel
-    </Button>
-  );
-}
 
 export function RecommendationAddForm({
   itemId,
@@ -66,27 +46,6 @@ export function RecommendationAddForm({
       setIsOpen(false);
     }
   }, [state.status]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    };
-
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen]);
 
   if (existingInLibrary) {
     return (
@@ -124,7 +83,10 @@ export function RecommendationAddForm({
         <Button
           type="button"
           className="w-full sm:w-auto"
-          onClick={() => setIsOpen(true)}
+          onClick={() => {
+            setSeasonSelectionMode("all");
+            setIsOpen(true);
+          }}
           disabled={state.status === "success"}
         >
           {state.status === "success" ? `${serviceLabel} updated` : `Add to ${serviceLabel}`}
@@ -143,209 +105,32 @@ export function RecommendationAddForm({
         </p>
       ) : null}
 
-      {isOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 px-4 py-6 backdrop-blur-sm"
-          onClick={() => setIsOpen(false)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={dialogTitleId}
-            className="max-h-[calc(100vh-3rem)] w-full max-w-3xl overflow-y-auto rounded-[32px] border border-line/80 bg-panel px-5 py-5 shadow-soft md:px-6 md:py-6"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-4 border-b border-line/70 pb-4">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
-                  Library add
-                </p>
-                <h3 id={dialogTitleId} className="font-heading text-2xl leading-tight text-foreground">
-                  Add to {serviceLabel}
-                </h3>
-                <p className="max-w-2xl text-sm leading-6 text-muted">
-                  Review the library options here without stretching the recommendation card.
-                </p>
-              </div>
-              <Button type="button" variant="secondary" onClick={() => setIsOpen(false)}>
-                Close
-              </Button>
-            </div>
-
-            <form action={formAction} className="mt-5 space-y-5">
-              <input type="hidden" name="itemId" value={itemId} />
-              <input type="hidden" name="returnTo" value={returnTo} />
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-foreground">Root folder</span>
-                  <select
-                    name="rootFolderPath"
-                    defaultValue={connectionSummary.rootFolders[0]?.path ?? ""}
-                    className="min-h-11 w-full rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
-                    aria-invalid={Boolean(state.fieldErrors?.rootFolderPath)}
-                  >
-                    {connectionSummary.rootFolders.map((entry) => (
-                      <option key={entry.path} value={entry.path}>
-                        {entry.label}
-                      </option>
-                    ))}
-                  </select>
-                  {state.fieldErrors?.rootFolderPath ? (
-                    <p className="text-sm text-highlight">{state.fieldErrors.rootFolderPath}</p>
-                  ) : null}
-                </label>
-
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-foreground">Quality profile</span>
-                  <select
-                    name="qualityProfileId"
-                    defaultValue={String(connectionSummary.qualityProfiles[0]?.id ?? "")}
-                    className="min-h-11 w-full rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
-                    aria-invalid={Boolean(state.fieldErrors?.qualityProfileId)}
-                  >
-                    {connectionSummary.qualityProfiles.map((entry) => (
-                      <option key={entry.id} value={entry.id}>
-                        {entry.name}
-                      </option>
-                    ))}
-                  </select>
-                  {state.fieldErrors?.qualityProfileId ? (
-                    <p className="text-sm text-highlight">{state.fieldErrors.qualityProfileId}</p>
-                  ) : null}
-                </label>
-              </div>
-
-              {mediaType === "tv" ? (
-                <fieldset className="space-y-3">
-                  <legend className="text-sm font-medium text-foreground">Seasons</legend>
-                  {availableSeasons.length > 0 ? (
-                    <>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <label className="flex items-start gap-3 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm text-foreground">
-                          <input
-                            type="radio"
-                            name="seasonSelectionMode"
-                            value="all"
-                            checked={seasonSelectionMode === "all"}
-                            onChange={() => setSeasonSelectionMode("all")}
-                            className="mt-1 h-4 w-4 border-line bg-panel text-accent"
-                          />
-                          <span>
-                            <span className="block font-medium text-foreground">All available seasons</span>
-                            <span className="mt-1 block text-muted">
-                              Ask Sonarr to monitor every season returned for this show.
-                            </span>
-                          </span>
-                        </label>
-
-                        <label className="flex items-start gap-3 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm text-foreground">
-                          <input
-                            type="radio"
-                            name="seasonSelectionMode"
-                            value="custom"
-                            checked={seasonSelectionMode === "custom"}
-                            onChange={() => setSeasonSelectionMode("custom")}
-                            className="mt-1 h-4 w-4 border-line bg-panel text-accent"
-                          />
-                          <span>
-                            <span className="block font-medium text-foreground">Choose specific seasons</span>
-                            <span className="mt-1 block text-muted">
-                              Only the selected seasons will be monitored for this request.
-                            </span>
-                          </span>
-                        </label>
-                      </div>
-
-                      <fieldset
-                        disabled={seasonSelectionMode !== "custom"}
-                        className={`space-y-2 ${seasonSelectionMode === "custom" ? "" : "opacity-60"}`}
-                      >
-                        <legend className="text-sm text-muted">Available seasons</legend>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {availableSeasons.map((season) => (
-                            <label
-                              key={season.seasonNumber}
-                              className="flex items-center gap-2 rounded-2xl border border-line/70 bg-panel-strong/70 px-3 py-3 text-sm text-foreground"
-                            >
-                              <input
-                                type="checkbox"
-                                name="seasonNumbers"
-                                value={season.seasonNumber}
-                                className="h-4 w-4 rounded border-line bg-panel text-accent"
-                              />
-                              <span>{season.label}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </fieldset>
-                    </>
-                  ) : (
-                    <>
-                      <input type="hidden" name="seasonSelectionMode" value="all" />
-                      <p className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm leading-6 text-muted">
-                        Season choices are unavailable for this item, so Sonarr will request all available seasons.
-                      </p>
-                    </>
-                  )}
-                  {state.fieldErrors?.seasonNumbers ? (
-                    <p className="text-sm text-highlight">{state.fieldErrors.seasonNumbers}</p>
-                  ) : null}
-                </fieldset>
-              ) : null}
-
-              <fieldset className="space-y-2">
-                <legend className="text-sm font-medium text-foreground">Tags</legend>
-                {connectionSummary.tags.length === 0 ? (
-                  <p className="text-sm text-muted">No tags were returned by the verified connection.</p>
-                ) : (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {connectionSummary.tags.map((tag) => (
-                      <label
-                        key={tag.id}
-                        className="flex items-center gap-2 rounded-2xl border border-line/70 bg-panel-strong/70 px-3 py-3 text-sm text-foreground"
-                      >
-                        <input
-                          type="checkbox"
-                          name="tagIds"
-                          value={tag.id}
-                          className="h-4 w-4 rounded border-line bg-panel text-accent"
-                        />
-                        <span>{tag.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-                {state.fieldErrors?.tagIds ? (
-                  <p className="text-sm text-highlight">{state.fieldErrors.tagIds}</p>
-                ) : null}
-              </fieldset>
-
-              {state.message ? (
-                <p
-                  className={
-                    state.status === "success"
-                      ? "rounded-2xl border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-foreground"
-                      : "rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight"
-                  }
-                >
-                  {state.message}
-                </p>
-              ) : null}
-
-              <div className="flex flex-col gap-3 border-t border-line/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm leading-6 text-muted">
-                  The add request searches the verified library manager by title and year, then submits the selected options.
-                </p>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <CloseButton onClose={() => setIsOpen(false)} />
-                  <SubmitButton mediaType={mediaType} />
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
+      {mediaType === "tv" ? (
+        <SonarrRecommendationAddModal
+          open={isOpen}
+          onClose={() => setIsOpen(false)}
+          itemId={itemId}
+          returnTo={returnTo}
+          connectionSummary={connectionSummary}
+          state={state}
+          formAction={formAction}
+          availableSeasons={availableSeasons}
+          seasonSelectionMode={seasonSelectionMode}
+          onSeasonSelectionModeChange={setSeasonSelectionMode}
+          titleId={dialogTitleId}
+        />
+      ) : (
+        <RadarrRecommendationAddModal
+          open={isOpen}
+          onClose={() => setIsOpen(false)}
+          itemId={itemId}
+          returnTo={returnTo}
+          connectionSummary={connectionSummary}
+          state={state}
+          formAction={formAction}
+          titleId={dialogTitleId}
+        />
+      )}
     </div>
   );
 }
