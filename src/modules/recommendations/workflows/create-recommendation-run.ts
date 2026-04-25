@@ -13,6 +13,7 @@ import {
   lookupLibraryItemMatch,
 } from "@/modules/service-connections/adapters/add-library-item";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
+import { verifyConfiguredServiceConnection } from "@/modules/service-connections/workflows/verify-configured-service-connection";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
 import { generateBackfilledRecommendationItems } from "@/modules/recommendations/workflows/recommendation-generation";
@@ -124,30 +125,63 @@ async function loadSampledLibraryTasteContext(
   return result;
 }
 
-export async function createRecommendationRunWorkflow(
-  userId: string,
-  input: RecommendationRequestInput,
-): Promise<CreateRecommendationRunResult> {
-  const preferences = await getPreferencesByUserId(userId);
-  const aiProvider = await findServiceConnectionByType(userId, "ai-provider");
+async function ensureVerifiedAiProviderConnection(userId: string) {
+  let aiProvider = await findServiceConnectionByType(userId, "ai-provider");
 
   if (!aiProvider?.secret) {
     return {
-      ok: false,
+      ok: false as const,
       message: "Configure the AI provider connection before requesting recommendations.",
     };
   }
 
   if (aiProvider.connection.status !== "verified") {
+    const verificationResult = await verifyConfiguredServiceConnection(userId, "ai-provider");
+
+    if (!verificationResult.ok) {
+      return {
+        ok: false as const,
+        message: verificationResult.message,
+      };
+    }
+
+    aiProvider = await findServiceConnectionByType(userId, "ai-provider");
+  }
+
+  if (
+    !aiProvider?.secret ||
+    aiProvider.connection.status !== "verified" ||
+    !aiProvider.connection.baseUrl
+  ) {
+    return {
+      ok: false as const,
+      message: "The AI provider could not be verified automatically. Re-save the connection and try again.",
+    };
+  }
+
+  return {
+    ok: true as const,
+    baseUrl: aiProvider.connection.baseUrl,
+    encryptedSecret: aiProvider.secret.encryptedValue,
+  };
+}
+
+export async function createRecommendationRunWorkflow(
+  userId: string,
+  input: RecommendationRequestInput,
+): Promise<CreateRecommendationRunResult> {
+  const preferences = await getPreferencesByUserId(userId);
+  const aiProvider = await ensureVerifiedAiProviderConnection(userId);
+
+  if (!aiProvider.ok) {
     return {
       ok: false,
-      message: "Verify the AI provider connection before requesting recommendations.",
+      message: aiProvider.message,
     };
   }
 
   const trimmedRequestPrompt = input.requestPrompt.trim();
   const aiModel = input.aiModel.trim();
-  const aiProviderSecret = aiProvider.secret;
   const [watchHistoryContext, libraryTasteContext] = await Promise.all([
     listWatchHistoryContext(userId, input.mediaType, 12, preferences.watchHistorySourceTypes),
     loadSampledLibraryTasteContext(userId, input.mediaType),
@@ -215,8 +249,8 @@ export async function createRecommendationRunWorkflow(
       libraryNormalizedKeys: libraryTasteContext.normalizedKeys,
       generateRecommendations: ({ requestPrompt, requestedCount }) =>
         generateOpenAiCompatibleRecommendations({
-          baseUrl: aiProvider.connection.baseUrl ?? "",
-          apiKey: decryptSecret(aiProviderSecret.encryptedValue),
+          baseUrl: aiProvider.baseUrl,
+          apiKey: decryptSecret(aiProvider.encryptedSecret),
           model: aiModel,
           temperature: input.temperature,
           mediaType: input.mediaType,

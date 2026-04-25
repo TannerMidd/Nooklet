@@ -75,7 +75,10 @@ export async function RecommendationWorkspace({
   const relevantLibraryManager = connectionSummaries.find((summary) =>
     mediaType === "tv" ? summary.serviceType === "sonarr" : summary.serviceType === "radarr",
   );
-  const canRequest = aiProvider?.status === "verified";
+  const canRequest = Boolean(aiProvider && aiProvider.status !== "disconnected");
+  const recommendationRequestBlockedMessage = canRequest
+    ? null
+    : aiProvider?.statusMessage ?? "Configure the AI provider before requesting recommendations.";
   const defaultModel = aiProvider?.model ?? "gpt-4.1-mini";
   const availableModels = aiProvider?.availableModels ?? [];
   const selectedWatchHistorySourceNames = preferences.watchHistorySourceTypes
@@ -115,13 +118,14 @@ export async function RecommendationWorkspace({
             defaultTemperature={preferences.defaultTemperature}
             availableModels={availableModels}
             canSubmit={Boolean(canRequest)}
+            submitBlockedMessage={recommendationRequestBlockedMessage}
           />
         </Panel>
 
         <Panel
           eyebrow="Prerequisites"
           title="Current service readiness"
-          description="A verified AI provider is required before you can request results. Sonarr or Radarr becomes important when you want to add a recommendation straight to your library."
+          description="A saved AI provider connection is required before you can request results, and the app will recheck it automatically when needed. Sonarr or Radarr becomes important when you want to add a recommendation straight to your library."
         >
           <div className="space-y-3 text-sm leading-6 text-foreground">
             <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { type FocusEvent, type MouseEvent as ReactMouseEvent, startTransition, useActionState, useRef } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -20,6 +21,7 @@ type RecommendationRequestFormProps = {
   defaultTemperature: number;
   availableModels: string[];
   canSubmit: boolean;
+  submitBlockedMessage?: string | null;
 };
 
 function SubmitButton({ canSubmit }: { canSubmit: boolean }) {
@@ -60,6 +62,7 @@ export function RecommendationRequestForm({
   defaultTemperature,
   availableModels,
   canSubmit,
+  submitBlockedMessage,
 }: RecommendationRequestFormProps) {
   const [state, formAction] = useActionState(
     submitRecommendationRequestAction,
@@ -156,10 +159,10 @@ export function RecommendationRequestForm({
                   <option key={modelId} value={modelId} />
                 ))}
               </datalist>
-              <p className="text-sm text-muted">Pick any verified provider model without leaving this page.</p>
+              <p className="text-sm text-muted">Pick any discovered provider model without leaving this page.</p>
             </>
           ) : (
-            <p className="text-sm text-muted">Verify the AI provider to load available model IDs.</p>
+            <p className="text-sm text-muted">Available model IDs will appear after the next successful provider check.</p>
           )}
           {state.fieldErrors?.aiModel ? (
             <p className="text-sm text-highlight">{state.fieldErrors.aiModel}</p>
@@ -207,6 +210,20 @@ export function RecommendationRequestForm({
         <p className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
           {state.message}
         </p>
+      ) : null}
+
+      {!canSubmit ? (
+        <div className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm leading-6 text-highlight">
+          <p>
+            {submitBlockedMessage ?? "Verify the AI provider connection before requesting recommendations."}
+          </p>
+          <Link
+            href="/settings/connections"
+            className="mt-2 inline-flex font-medium text-foreground underline decoration-current/60 underline-offset-4 transition hover:text-highlight"
+          >
+            Open connections
+          </Link>
+        </div>
       ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
