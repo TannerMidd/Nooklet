@@ -292,37 +292,6 @@ export default async function WatchHistorySettingsPage() {
               </div>
             </div>
           </Panel>
-
-          <Panel
-            eyebrow="Recommendation context"
-            title="What this powers"
-          >
-            <ul className="space-y-3 text-sm leading-6 text-foreground">
-              <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Watch-history-only mode can refuse empty history with a clear message.
-              </li>
-              <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Recommendation prompts can use recent watched titles as direct taste context.
-              </li>
-              <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Direct Plex and Tautulli sync both persist the selected user with the source so provider-backed history stays scoped between sync runs.
-              </li>
-            </ul>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Link
-                href="/settings/preferences"
-                className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
-              >
-                Open preferences
-              </Link>
-              <Link
-                href="/tv"
-                className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
-              >
-                Open TV recommendations
-              </Link>
-            </div>
-          </Panel>
         </div>
       </div>
 
