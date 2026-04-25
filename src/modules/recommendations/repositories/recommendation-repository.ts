@@ -158,6 +158,29 @@ export async function listRecommendationItemsByRunIds(runIds: string[]) {
     .all();
 }
 
+export async function listRecommendationExclusionItems(
+  userId: string,
+  mediaType: RecommendationMediaType,
+) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({
+      title: recommendationItems.title,
+      year: recommendationItems.year,
+    })
+    .from(recommendationItems)
+    .innerJoin(recommendationRuns, eq(recommendationRuns.id, recommendationItems.runId))
+    .where(
+      and(
+        eq(recommendationRuns.userId, userId),
+        eq(recommendationItems.mediaType, mediaType),
+      ),
+    )
+    .groupBy(recommendationItems.title, recommendationItems.year)
+    .all();
+}
+
 export async function listRecommendationHistoryRows(
   userId: string,
   mediaType?: RecommendationMediaType,

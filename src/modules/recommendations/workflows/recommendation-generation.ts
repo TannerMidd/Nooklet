@@ -17,12 +17,79 @@ function extractLibraryTitleKey(normalizedKey: string) {
   return separatorIndex === -1 ? normalizedKey : normalizedKey.slice(0, separatorIndex);
 }
 
+function extractLibraryYear(normalizedKey: string) {
+  const separatorIndex = normalizedKey.lastIndexOf("::");
+
+  if (separatorIndex === -1) {
+    return null;
+  }
+
+  const rawYear = normalizedKey.slice(separatorIndex + 2);
+
+  if (rawYear === "unknown") {
+    return null;
+  }
+
+  const parsedYear = Number.parseInt(rawYear, 10);
+
+  return Number.isInteger(parsedYear) ? parsedYear : null;
+}
+
 function formatRecommendationTitle(item: RecommendationIdentity) {
   return `${item.title}${item.year ? ` (${item.year})` : ""}`;
 }
 
 function buildRecommendationItemKey(item: RecommendationIdentity) {
   return buildLibraryTasteItemKey(item);
+}
+
+function buildRecommendationExclusionIndex(excludedNormalizedKeys: string[]) {
+  const keySet = new Set<string>();
+  const titleYears = new Map<string, Set<number | null>>();
+
+  for (const normalizedKey of excludedNormalizedKeys) {
+    keySet.add(normalizedKey);
+
+    const titleKey = extractLibraryTitleKey(normalizedKey);
+    const titleYearsForKey = titleYears.get(titleKey) ?? new Set<number | null>();
+
+    titleYearsForKey.add(extractLibraryYear(normalizedKey));
+    titleYears.set(titleKey, titleYearsForKey);
+  }
+
+  return {
+    keySet,
+    titleYears,
+  };
+}
+
+function shouldExcludeRecommendationItem(
+  item: RecommendationIdentity,
+  exclusionIndex: ReturnType<typeof buildRecommendationExclusionIndex>,
+) {
+  const normalizedKey = buildRecommendationItemKey(item);
+
+  if (exclusionIndex.keySet.has(normalizedKey)) {
+    return true;
+  }
+
+  const excludedYears = exclusionIndex.titleYears.get(extractLibraryTitleKey(normalizedKey));
+
+  if (!excludedYears || excludedYears.size === 0) {
+    return false;
+  }
+
+  if (item.year === null || excludedYears.has(null) || excludedYears.size === 1) {
+    return true;
+  }
+
+  for (const excludedYear of excludedYears) {
+    if (excludedYear !== null && Math.abs(excludedYear - item.year) <= 1) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export function buildBackfillRequestPrompt(
@@ -66,28 +133,21 @@ export function dedupeRecommendationItems<T extends RecommendationIdentity>(item
   });
 }
 
-export function filterRecommendationItemsAgainstLibrary<T extends RecommendationIdentity>(
+export function filterRecommendationItemsAgainstExclusions<T extends RecommendationIdentity>(
   items: T[],
-  libraryNormalizedKeys: string[],
+  excludedNormalizedKeys: string[],
 ) {
-  if (libraryNormalizedKeys.length === 0) {
+  if (excludedNormalizedKeys.length === 0) {
     return {
       items,
       excludedCount: 0,
     };
   }
 
-  const libraryKeySet = new Set(libraryNormalizedKeys);
-  const libraryTitleSet = new Set(libraryNormalizedKeys.map((key) => extractLibraryTitleKey(key)));
-  const filteredItems = items.filter((item) => {
-    const normalizedKey = buildRecommendationItemKey(item);
-
-    if (libraryKeySet.has(normalizedKey)) {
-      return false;
-    }
-
-    return item.year !== null || !libraryTitleSet.has(extractLibraryTitleKey(normalizedKey));
-  });
+  const exclusionIndex = buildRecommendationExclusionIndex(excludedNormalizedKeys);
+  const filteredItems = items.filter(
+    (item) => !shouldExcludeRecommendationItem(item, exclusionIndex),
+  );
 
   return {
     items: filteredItems,
@@ -95,11 +155,18 @@ export function filterRecommendationItemsAgainstLibrary<T extends Recommendation
   };
 }
 
+export function filterRecommendationItemsAgainstLibrary<T extends RecommendationIdentity>(
+  items: T[],
+  libraryNormalizedKeys: string[],
+) {
+  return filterRecommendationItemsAgainstExclusions(items, libraryNormalizedKeys);
+}
+
 type GenerateBackfilledRecommendationItemsInput<T extends RecommendationIdentity> = {
   requestPrompt: string;
   requestedCount: number;
   mediaType: RecommendationMediaType;
-  libraryNormalizedKeys: string[];
+  excludedNormalizedKeys: string[];
   generateRecommendations: (input: {
     requestPrompt: string;
     requestedCount: number;
@@ -116,7 +183,7 @@ export async function generateBackfilledRecommendationItems<T extends Recommenda
   const acceptedItems: T[] = [];
   const seenGeneratedKeys = new Set<string>();
   const excludedPromptItems: RecommendationIdentity[] = [];
-  let excludedLibraryItemCount = 0;
+  let excludedExistingItemCount = 0;
   let attemptCount = 0;
 
   const attemptLimit = input.attemptLimit ?? defaultRecommendationGenerationAttemptLimit;
@@ -165,18 +232,18 @@ export async function generateBackfilledRecommendationItems<T extends Recommenda
       })),
     );
 
-    const filteredItems = filterRecommendationItemsAgainstLibrary(
+    const filteredItems = filterRecommendationItemsAgainstExclusions(
       distinctGeneratedItems,
-      input.libraryNormalizedKeys,
+      input.excludedNormalizedKeys,
     );
 
-    excludedLibraryItemCount += filteredItems.excludedCount;
+    excludedExistingItemCount += filteredItems.excludedCount;
     acceptedItems.push(...filteredItems.items);
   }
 
   return {
     items: acceptedItems.slice(0, input.requestedCount),
-    excludedLibraryItemCount,
+    excludedExistingItemCount,
     attemptCount,
   };
 }

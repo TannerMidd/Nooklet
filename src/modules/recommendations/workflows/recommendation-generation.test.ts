@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildBackfillRequestPrompt,
   dedupeRecommendationItems,
+  filterRecommendationItemsAgainstExclusions,
   filterRecommendationItemsAgainstLibrary,
   generateBackfilledRecommendationItems,
 } from "./recommendation-generation";
@@ -56,7 +57,20 @@ describe("recommendation-generation", () => {
     expect(filtered.excludedCount).toBe(3);
   });
 
-  it("backfills across attempts, excludes library items, and avoids duplicates across attempts", async () => {
+  it("filters same-title items when there is only one known excluded match", () => {
+    const filtered = filterRecommendationItemsAgainstExclusions(
+      [
+        { title: "Dune", year: 2024 },
+        { title: "Moon", year: 2009 },
+      ],
+      [buildLibraryTasteItemKey({ title: "Dune", year: 2021 })],
+    );
+
+    expect(filtered.items).toEqual([{ title: "Moon", year: 2009 }]);
+    expect(filtered.excludedCount).toBe(1);
+  });
+
+  it("backfills across attempts, excludes existing titles, and avoids duplicates across attempts", async () => {
     const queuedResponses = [
       [
         { title: "Arrival", year: 2016 },
@@ -83,7 +97,10 @@ describe("recommendation-generation", () => {
       requestPrompt: "Recommend tense sci-fi",
       requestedCount: 3,
       mediaType: "movie",
-      libraryNormalizedKeys: [buildLibraryTasteItemKey({ title: "Arrival", year: 2016 })],
+      excludedNormalizedKeys: [
+        buildLibraryTasteItemKey({ title: "Arrival", year: 2016 }),
+        buildLibraryTasteItemKey({ title: "Primer", year: 2004 }),
+      ],
       generateRecommendations,
       attemptLimit: 2,
       overfetchBuffer: 1,
@@ -95,7 +112,7 @@ describe("recommendation-generation", () => {
       { title: "Coherence", year: 2013 },
       { title: "Moon", year: 2009 },
     ]);
-    expect(result.excludedLibraryItemCount).toBe(1);
+    expect(result.excludedExistingItemCount).toBe(1);
     expect(result.attemptCount).toBe(2);
     expect(callInputs).toHaveLength(2);
     expect(callInputs[0]?.requestedCount).toBe(6);

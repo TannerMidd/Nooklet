@@ -5,14 +5,18 @@ import { generateOpenAiCompatibleRecommendations } from "@/modules/recommendatio
 import {
   completeRecommendationRun,
   createRecommendationRun,
+  listRecommendationExclusionItems,
   markRecommendationRunFailed,
 } from "@/modules/recommendations/repositories/recommendation-repository";
 import { type RecommendationRequestInput } from "@/modules/recommendations/schemas/recommendation-request";
 import {
+  buildLibraryTasteItemKey,
   listSampledLibraryItems,
   lookupLibraryItemMatch,
+  type SampledLibraryTasteItem,
 } from "@/modules/service-connections/adapters/add-library-item";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
+import { getServiceConnectionDefinition } from "@/modules/service-connections/service-definitions";
 import { verifyConfiguredServiceConnection } from "@/modules/service-connections/workflows/verify-configured-service-connection";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
@@ -23,6 +27,12 @@ type CreateRecommendationRunResult =
   | { ok: false; message: string };
 
 const libraryTasteSampleSize = 36;
+
+type RecommendationLibraryTasteContext = {
+  totalCount: number;
+  sampledItems: SampledLibraryTasteItem[];
+  normalizedKeys: string[];
+};
 
 type GeneratedRecommendationItem = Awaited<
   ReturnType<typeof generateOpenAiCompatibleRecommendations>
@@ -88,12 +98,41 @@ async function enrichGeneratedItemsWithPosterUrls(
   );
 }
 
+function buildEmptyLibraryTasteContext(): RecommendationLibraryTasteContext {
+  return {
+    totalCount: 0,
+    sampledItems: [],
+    normalizedKeys: [],
+  };
+}
+
 async function loadSampledLibraryTasteContext(
   userId: string,
   mediaType: RecommendationMediaType,
 ) {
   const serviceType = mediaType === "tv" ? "sonarr" : "radarr";
-  const connection = await findServiceConnectionByType(userId, serviceType);
+  const definition = getServiceConnectionDefinition(serviceType);
+  let connection = await findServiceConnectionByType(userId, serviceType);
+
+  if (!connection?.secret) {
+    return {
+      ok: true as const,
+      context: buildEmptyLibraryTasteContext(),
+    };
+  }
+
+  if (connection.connection.status !== "verified") {
+    const verificationResult = await verifyConfiguredServiceConnection(userId, serviceType);
+
+    if (!verificationResult.ok) {
+      return {
+        ok: false as const,
+        message: `${definition.displayName} could not be verified automatically, so Recommendarr cannot safely exclude titles that are already in your library. Fix the connection and try again.`,
+      };
+    }
+
+    connection = await findServiceConnectionByType(userId, serviceType);
+  }
 
   if (
     !connection?.secret ||
@@ -101,9 +140,8 @@ async function loadSampledLibraryTasteContext(
     !connection.connection.baseUrl
   ) {
     return {
-      totalCount: 0,
-      sampledItems: [],
-      normalizedKeys: [],
+      ok: false as const,
+      message: `${definition.displayName} is not ready, so Recommendarr cannot safely exclude titles that are already in your library. Fix the connection and try again.`,
     };
   }
 
@@ -116,13 +154,15 @@ async function loadSampledLibraryTasteContext(
 
   if (!result.ok) {
     return {
-      totalCount: 0,
-      sampledItems: [],
-      normalizedKeys: [],
+      ok: false as const,
+      message: `${definition.displayName} library lookup failed, so Recommendarr cannot safely exclude titles that are already in your library. ${result.message}`,
     };
   }
 
-  return result;
+  return {
+    ok: true as const,
+    context: result,
+  };
 }
 
 async function ensureVerifiedAiProviderConnection(userId: string) {
@@ -182,10 +222,26 @@ export async function createRecommendationRunWorkflow(
 
   const trimmedRequestPrompt = input.requestPrompt.trim();
   const aiModel = input.aiModel.trim();
-  const [watchHistoryContext, libraryTasteContext] = await Promise.all([
+  const [watchHistoryContext, libraryTasteContextResult, priorRecommendationItems] = await Promise.all([
     listWatchHistoryContext(userId, input.mediaType, 12, preferences.watchHistorySourceTypes),
     loadSampledLibraryTasteContext(userId, input.mediaType),
+    listRecommendationExclusionItems(userId, input.mediaType),
   ]);
+
+  if (!libraryTasteContextResult.ok) {
+    return {
+      ok: false,
+      message: libraryTasteContextResult.message,
+    };
+  }
+
+  const libraryTasteContext = libraryTasteContextResult.context;
+  const excludedNormalizedKeys = Array.from(
+    new Set([
+      ...libraryTasteContext.normalizedKeys,
+      ...priorRecommendationItems.map((item) => buildLibraryTasteItemKey(item)),
+    ]),
+  );
 
   if (
     trimmedRequestPrompt.length === 0 &&
@@ -235,10 +291,11 @@ export async function createRecommendationRunWorkflow(
       watchHistorySourceTypes: preferences.watchHistorySourceTypes,
       libraryTasteTotalCount: libraryTasteContext.totalCount,
       libraryTasteSampleCount: libraryTasteContext.sampledItems.length,
+      priorRecommendationExclusionCount: priorRecommendationItems.length,
     }),
   });
 
-  let excludedLibraryItemCount = 0;
+  let excludedExistingItemCount = 0;
   let generationAttemptCount = 0;
 
   try {
@@ -246,7 +303,7 @@ export async function createRecommendationRunWorkflow(
       requestPrompt: trimmedRequestPrompt,
       requestedCount: input.requestedCount,
       mediaType: input.mediaType,
-      libraryNormalizedKeys: libraryTasteContext.normalizedKeys,
+      excludedNormalizedKeys,
       generateRecommendations: ({ requestPrompt, requestedCount }) =>
         generateOpenAiCompatibleRecommendations({
           baseUrl: aiProvider.baseUrl,
@@ -262,7 +319,7 @@ export async function createRecommendationRunWorkflow(
           libraryTasteTotalCount: libraryTasteContext.totalCount,
         }),
     });
-    excludedLibraryItemCount = generatedItems.excludedLibraryItemCount;
+    excludedExistingItemCount = generatedItems.excludedExistingItemCount;
     generationAttemptCount = generatedItems.attemptCount;
     const enrichedItems = await enrichGeneratedItemsWithPosterUrls(
       userId,
@@ -273,15 +330,15 @@ export async function createRecommendationRunWorkflow(
 
     if (normalizedItems.length === 0) {
       throw new Error(
-        excludedLibraryItemCount > 0
-          ? "The AI only returned titles that already exist in your library. Try a more specific prompt for something new."
+        excludedExistingItemCount > 0
+          ? "The AI only returned titles that are already in your library or recommendation history. Try a more specific prompt for something new."
           : "The AI provider returned no usable recommendations.",
       );
     }
 
     if (normalizedItems.length < input.requestedCount) {
       throw new Error(
-        `The AI could not produce ${input.requestedCount} new ${input.mediaType === "tv" ? "TV series" : "movies"} after filtering your existing library. Try a more specific prompt.`,
+        `The AI could not produce ${input.requestedCount} new ${input.mediaType === "tv" ? "TV series" : "movies"} after filtering titles that are already in your library or recommendation history. Try a more specific prompt.`,
       );
     }
 
@@ -298,7 +355,8 @@ export async function createRecommendationRunWorkflow(
         watchHistorySourceTypes: preferences.watchHistorySourceTypes,
         libraryTasteTotalCount: libraryTasteContext.totalCount,
         libraryTasteSampleCount: libraryTasteContext.sampledItems.length,
-        excludedLibraryItemCount,
+        priorRecommendationExclusionCount: priorRecommendationItems.length,
+        excludedExistingItemCount,
         generationAttemptCount,
       }),
     });
@@ -323,7 +381,8 @@ export async function createRecommendationRunWorkflow(
         watchHistorySourceTypes: preferences.watchHistorySourceTypes,
         libraryTasteTotalCount: libraryTasteContext.totalCount,
         libraryTasteSampleCount: libraryTasteContext.sampledItems.length,
-        excludedLibraryItemCount,
+        priorRecommendationExclusionCount: priorRecommendationItems.length,
+        excludedExistingItemCount,
         generationAttemptCount,
       }),
     });
