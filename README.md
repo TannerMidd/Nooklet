@@ -238,7 +238,5 @@ TBD — see the repository's `LICENSE` file once published.
 
 ## Acknowledgements
 
-- The original [Recommendarr](https://github.com/) project that inspired this
-  rewrite.
 - Sonarr, Radarr, Plex, and Tautulli for their open APIs.
 
