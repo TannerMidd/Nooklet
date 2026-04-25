@@ -1,7 +1,7 @@
 import {
   submitRecommendationFeedbackAction,
   submitRecommendationHiddenStateAction,
-} from "@/app/(workspace)/recommendation-actions";
+} from "@/app/(workspace)/recommendation-item-actions";
 import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
 import { Button } from "@/components/ui/button";
 import {

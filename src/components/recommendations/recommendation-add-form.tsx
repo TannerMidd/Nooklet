@@ -6,7 +6,7 @@ import { useFormStatus } from "react-dom";
 import {
   initialRecommendationLibraryActionState,
 } from "@/app/(workspace)/recommendation-action-state";
-import { submitRecommendationLibraryAction } from "@/app/(workspace)/recommendation-actions";
+import { submitRecommendationLibraryAction } from "@/app/(workspace)/recommendation-item-actions";
 import { Button } from "@/components/ui/button";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
