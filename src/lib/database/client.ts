@@ -63,26 +63,31 @@ function readMigrationSignature() {
 }
 
 const sharedDatabaseState = databaseGlobals.__recommendarrDatabase ?? {};
-
-const sqlite = sharedDatabaseState.sqlite ?? createSqliteConnection();
-const db = sharedDatabaseState.db ?? drizzle(sqlite, { schema });
-
-sharedDatabaseState.sqlite = sqlite;
-sharedDatabaseState.db = db;
 databaseGlobals.__recommendarrDatabase = sharedDatabaseState;
 
+function getOrCreateDatabase() {
+  if (!sharedDatabaseState.sqlite || !sharedDatabaseState.db) {
+    const sqlite = createSqliteConnection();
+    const db = drizzle(sqlite, { schema });
+
+    sharedDatabaseState.sqlite = sqlite;
+    sharedDatabaseState.db = db;
+  }
+
+  return sharedDatabaseState.db;
+}
+
 export function ensureDatabaseReady() {
+  const database = getOrCreateDatabase();
   const migrationSignature = readMigrationSignature();
 
   if (sharedDatabaseState.migrationSignature !== migrationSignature) {
-    migrate(db, {
+    migrate(database, {
       migrationsFolder: path.join(process.cwd(), "drizzle"),
     });
 
     sharedDatabaseState.migrationSignature = migrationSignature;
   }
 
-  return db;
+  return database;
 }
-
-export { db };
