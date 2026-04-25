@@ -33,7 +33,7 @@ management.
 npm install
 ```
 
-2. Create a local env file:
+2. Create a local env file. `AUTH_SECRET` is required (the app will refuse to start without it) and must be at least 32 characters. Generate one with `openssl rand -base64 48`:
 
 ```bash
 APP_URL=http://localhost:3000

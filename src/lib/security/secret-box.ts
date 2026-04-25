@@ -2,10 +2,8 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 
 import { env } from "@/lib/env";
 
-const DEV_SECRET = "development-auth-secret-change-before-production";
-
 function getSecretMaterial() {
-  return env.AUTH_SECRET ?? DEV_SECRET;
+  return env.AUTH_SECRET;
 }
 
 function deriveKey(secret: string) {

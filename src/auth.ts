@@ -6,14 +6,8 @@ import { loginInputSchema } from "@/modules/identity-access/schemas/login";
 import { authenticateWithPassword } from "@/modules/identity-access/workflows/authenticate-with-password";
 import { getBootstrapStatus } from "@/modules/identity-access/workflows/bootstrap-status";
 
-const authSecret =
-  env.AUTH_SECRET ??
-  (env.NODE_ENV === "production"
-    ? undefined
-    : "development-auth-secret-change-before-production");
-
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  secret: authSecret,
+  secret: env.AUTH_SECRET,
   session: {
     strategy: "jwt",
   },
