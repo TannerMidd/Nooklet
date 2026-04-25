@@ -14,7 +14,7 @@ export const serviceConnectionDefinitions = [
     serviceType: "ai-provider",
     displayName: "AI provider",
     description:
-      "OpenAI-compatible provider used for recommendation generation and model execution.",
+      "Connect the model provider that generates your recommendations.",
     secretLabel: "API key",
     modelLabel: "Default model",
     defaultBaseUrl: "https://api.openai.com/v1",
@@ -23,7 +23,7 @@ export const serviceConnectionDefinitions = [
     serviceType: "sonarr",
     displayName: "Sonarr",
     description:
-      "TV library manager used for add-to-library actions and existing-title checks.",
+      "Connect your TV library so Recommendarr can avoid duplicates and add shows for you.",
     secretLabel: "API key",
     defaultBaseUrl: "http://localhost:8989",
   },
@@ -31,7 +31,7 @@ export const serviceConnectionDefinitions = [
     serviceType: "radarr",
     displayName: "Radarr",
     description:
-      "Movie library manager used for add-to-library actions and duplicate suppression.",
+      "Connect your movie library so Recommendarr can avoid duplicates and add movies for you.",
     secretLabel: "API key",
     defaultBaseUrl: "http://localhost:7878",
   },
@@ -39,7 +39,7 @@ export const serviceConnectionDefinitions = [
     serviceType: "tautulli",
     displayName: "Tautulli",
     description:
-      "Watch-history provider used for remote-user discovery and recent play imports.",
+      "Import recent watches from Tautulli and choose which Plex user to follow.",
     secretLabel: "API key",
     defaultBaseUrl: "http://localhost:8181",
   },
@@ -47,7 +47,7 @@ export const serviceConnectionDefinitions = [
     serviceType: "plex",
     displayName: "Plex",
     description:
-      "Direct Plex watch-history provider used for remote-user discovery and recent play imports when Tautulli is not configured.",
+      "Import recent watches directly from Plex when you want to sync without Tautulli.",
     secretLabel: "X-Plex-Token",
     defaultBaseUrl: "http://localhost:32400",
   },

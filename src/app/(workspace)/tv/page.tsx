@@ -17,7 +17,6 @@ export default async function TvRecommendationsPage({ searchParams }: TvRecommen
       mediaType="tv"
       routePath="/tv"
       title="TV recommendations"
-      description="TV recommendation requests now create explicit persisted runs with normalized result items and a clean path into history and feedback flows."
       activeRunId={resolvedSearchParams?.run ?? null}
       wasJustGenerated={resolvedSearchParams?.generated === "1"}
     />

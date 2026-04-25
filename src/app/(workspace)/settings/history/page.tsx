@@ -108,9 +108,6 @@ export default async function WatchHistorySettingsPage() {
           <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
             History sources
           </h1>
-          <p className="text-base leading-7 text-muted">
-            Import watched titles and use them as recommendation context. Manual sync and Tautulli-backed history both feed the same watch-history system.
-          </p>
         </div>
       </header>
 
@@ -119,7 +116,7 @@ export default async function WatchHistorySettingsPage() {
           <Panel
             eyebrow="Plex source"
             title="Sync recent history directly from Plex"
-            description="Import unique watched TV or movie titles from a verified Plex server using a saved X-Plex-Token and keep the selected user with the source."
+            description="Import recent TV or movie watches from Plex using your saved server connection and selected user."
           >
             {plexSummary?.status === "verified" ? (
               <>
@@ -150,7 +147,7 @@ export default async function WatchHistorySettingsPage() {
                       lastRunAt={plexSchedule?.lastCompletedAt ?? null}
                       lastStatus={plexSchedule?.lastStatus ?? null}
                       lastError={plexSchedule?.lastError ?? null}
-                      helperText="Auto-sync refreshes both TV and movie Plex history using the last saved Plex user and import limit. Run at least one manual sync first so the worker has a persisted source to refresh."
+                      helperText="Auto-sync refreshes both TV and movie Plex history using the last saved Plex user and import limit. Run one manual sync first so the schedule has a saved source to reuse."
                     />
                   </div>
                 ) : (
@@ -180,7 +177,7 @@ export default async function WatchHistorySettingsPage() {
           <Panel
             eyebrow="Tautulli source"
             title="Sync recent Plex history"
-            description="Import unique watched TV or movie titles from a verified Tautulli connection and keep the selected remote user with the source."
+            description="Import recent TV or movie watches from Tautulli using your saved connection and selected user."
           >
             {tautulliSummary?.status === "verified" ? (
               <>
@@ -211,7 +208,7 @@ export default async function WatchHistorySettingsPage() {
                       lastRunAt={tautulliSchedule?.lastCompletedAt ?? null}
                       lastStatus={tautulliSchedule?.lastStatus ?? null}
                       lastError={tautulliSchedule?.lastError ?? null}
-                      helperText="Auto-sync refreshes both TV and movie Tautulli history using the last saved remote user and import limit. Run at least one manual sync first so the worker has a persisted source to refresh."
+                      helperText="Auto-sync refreshes both TV and movie Tautulli history using the last saved user and import limit. Run one manual sync first so the schedule has a saved source to reuse."
                     />
                   </div>
                 ) : (
@@ -298,7 +295,7 @@ export default async function WatchHistorySettingsPage() {
       <Panel
         eyebrow="Recent titles"
         title="Imported items"
-        description="These are the most recent TV and movie watch-history items currently available to recommendation workflows."
+        description="These are the most recent TV and movie titles currently available to use in recommendations."
       >
         {!hasRecentItems ? (
           <p className="text-sm leading-6 text-muted">

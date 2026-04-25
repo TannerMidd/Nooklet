@@ -20,7 +20,6 @@ type RecommendationWorkspaceProps = {
   mediaType: RecommendationMediaType;
   routePath: "/tv" | "/movies";
   title: string;
-  description: string;
   activeRunId?: string | null;
   wasJustGenerated?: boolean;
 };
@@ -48,7 +47,6 @@ export async function RecommendationWorkspace({
   mediaType,
   routePath,
   title,
-  description,
   activeRunId,
   wasJustGenerated = false,
 }: RecommendationWorkspaceProps) {
@@ -96,11 +94,10 @@ export async function RecommendationWorkspace({
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">
           Recommendation mode
         </p>
-        <div className="mt-4 max-w-4xl space-y-3">
+        <div className="mt-4 max-w-4xl">
           <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
             {title}
           </h1>
-          <p className="text-base leading-7 text-muted">{description}</p>
         </div>
       </header>
 

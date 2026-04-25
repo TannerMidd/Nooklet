@@ -25,28 +25,23 @@ export default async function ConnectionsSettingsPage() {
           <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
             Connections
           </h1>
-          <p className="text-base leading-7 text-muted">
-            Connect the AI provider, library managers, and watch-history providers,
-            then verify each service before using it in recommendations, library
-            actions, or remote-user history sync.
-          </p>
         </div>
       </header>
 
       <Panel
         eyebrow="Connected services"
         title="Configured services"
-        description="These services power recommendation generation, model discovery, duplicate checks, poster enrichment, add-to-library actions, and provider-backed watch-history sync."
+        description="Save the services you want to use here, then check each one before relying on it."
       >
         <div className="grid gap-4 text-sm leading-6 text-foreground md:grid-cols-3">
           <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-            Secrets are encrypted at rest and shown back only as masked summaries.
+            Saved API keys stay masked after you enter them.
           </div>
           <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-            Verification runs through server-only adapters instead of browser-side vendor calls.
+            Checking a connection confirms the service can be reached.
           </div>
           <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-            Connection status and messages are persisted so downstream routes can check prerequisites cleanly.
+            Connection status here affects recommendations, watch history, and add-to-library tools.
           </div>
         </div>
       </Panel>

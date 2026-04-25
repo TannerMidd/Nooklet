@@ -19,7 +19,6 @@ export default async function MovieRecommendationsPage({
       mediaType="movie"
       routePath="/movies"
       title="Movie recommendations"
-      description="Movie recommendation requests now share the same run workflow core while keeping the route, downstream status, and history views separate from TV mode."
       activeRunId={resolvedSearchParams?.run ?? null}
       wasJustGenerated={resolvedSearchParams?.generated === "1"}
     />

@@ -61,7 +61,6 @@ export function AppShell({ children, user }: AppShellProps) {
                         )}
                       >
                         <p className="font-medium text-foreground">{item.label}</p>
-                        <p className="mt-1 text-sm leading-5 text-muted">{item.description}</p>
                       </Link>
                     ))}
                   </div>

@@ -79,10 +79,6 @@ export default async function PreferencesSettingsPage({
           <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
             Preferences
           </h1>
-          <p className="text-base leading-7 text-muted">
-            Set your default media mode, result count, history filters, and
-            watch-history behavior for future recommendation runs.
-          </p>
         </div>
       </header>
 

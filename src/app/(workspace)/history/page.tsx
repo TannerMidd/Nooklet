@@ -81,10 +81,6 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
           <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
             History
           </h1>
-          <p className="text-base leading-7 text-muted">
-            Browse saved TV and movie recommendations, filter out what you have
-            already handled, and send titles to your library when they are ready.
-          </p>
         </div>
       </header>
 
@@ -92,7 +88,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
         <Panel
           eyebrow="Views"
           title="Media scope"
-          description="Separate TV, movie, and combined history views are driven by the persisted media type on each recommendation item."
+          description="Switch between all recommendations, TV only, or movies only."
         >
           <div className="flex flex-wrap gap-3">
             {[
@@ -121,8 +117,8 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
 
         <Panel
           eyebrow="Active filters"
-          title="Persisted filter rules"
-          description="History currently respects the saved preferences. Adjust these on the preferences route when you want different default filtering behavior."
+          title="Saved filters"
+          description="These defaults come from your preferences. Change them there if you want history to open with different filters."
         >
           <div className="grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
             <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
@@ -148,7 +144,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
             ? `Showing ${history.pageStart}-${history.pageEnd} of ${history.filteredCount}`
             : `Showing 0 of ${history.totalCount}`
         }
-        description="Saved filters apply automatically, and large histories are now split into pages so browsing stays manageable as more runs accumulate."
+        description="Your saved filters still apply here, and longer histories are split into pages to keep browsing manageable."
       >
         {history.items.length === 0 ? (
           <div className="space-y-3 text-sm leading-6 text-muted">

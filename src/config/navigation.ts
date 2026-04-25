@@ -13,68 +13,68 @@ export const publicEntryPoints = [
   {
     href: "/login",
     label: "Local login",
-    description: "Foundation route for session-backed local authentication.",
+    description: "Sign in with your Recommendarr account.",
   },
   {
     href: "/bootstrap",
     label: "First-admin bootstrap",
-    description: "One-time setup flow with no default admin password behavior.",
+    description: "Set up the first administrator for a new install.",
   },
 ] as const satisfies readonly NavigationItem[];
 
 export const navigationGroups = [
   {
-    title: "Recommendation flows",
+    title: "Recommendations",
     items: [
       {
         href: "/tv",
         label: "TV recommendations",
-        description: "TV-specific recommendation requests and follow-up actions.",
+        description: "Get TV picks based on your taste and manage them in one place.",
       },
       {
         href: "/movies",
         label: "Movie recommendations",
-        description: "Movie-specific recommendation requests and library actions.",
+        description: "Get movie picks based on your taste and manage them in one place.",
       },
       {
         href: "/history",
         label: "History",
-        description: "Persisted recommendation history with explicit filters.",
+        description: "Review past recommendations, feedback, and library actions.",
       },
     ],
   },
   {
-    title: "Setup and preferences",
+    title: "Settings",
     items: [
       {
         href: "/settings/account",
         label: "Account",
-        description: "Password changes and user-scoped account controls.",
+        description: "Update your password and personal account settings.",
       },
       {
         href: "/settings/connections",
         label: "Connections",
-        description: "Service connect, test, disconnect, and remote-user selection.",
+        description: "Connect the services Recommendarr uses.",
       },
       {
         href: "/settings/preferences",
         label: "Preferences",
-        description: "Filters, defaults, and watch-history source preferences.",
+        description: "Choose your defaults, filters, and watch-history options.",
       },
       {
         href: "/settings/history",
         label: "History sources",
-        description: "Sync and inspect watch-history sources used by recommendation workflows.",
+        description: "Import watched titles from Plex, Tautulli, or manual entries.",
       },
     ],
   },
   {
-    title: "Operations",
+    title: "Administration",
     items: [
       {
         href: "/admin",
         label: "Admin",
-        description: "Operational controls, users, roles, and audit views.",
+        description: "Manage users, roles, and admin-only tools.",
       },
     ],
   },
