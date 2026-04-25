@@ -10,6 +10,22 @@ export class SsrfBlockedError extends Error {
   }
 }
 
+/**
+ * Raised when a request is canceled before a response is received. Wraps the
+ * runtime-level `AbortError` from fetch so callers see a stable, user-friendly
+ * message rather than the host runtime's `DOMException.message` (which has
+ * historically rendered as raw text like "operation aborted" in the UI).
+ */
+export class SafeFetchAbortError extends Error {
+  readonly reason: "timeout" | "canceled";
+
+  constructor(reason: "timeout" | "canceled", message: string) {
+    super(message);
+    this.name = "SafeFetchAbortError";
+    this.reason = reason;
+  }
+}
+
 export type SafeFetchOptions = RequestInit & {
   timeoutMs?: number;
   maxBytes?: number;
@@ -173,7 +189,11 @@ export async function safeFetch(
   } = options;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
 
   if (callerSignal) {
     if (callerSignal.aborted) {
@@ -197,6 +217,28 @@ export async function safeFetch(
     }
 
     return await enforceBodySizeLimit(response, maxBytes);
+  } catch (error) {
+    // Translate raw AbortError / DOMException so the surfaced UI message is
+    // stable across Node versions and runtimes. Caller cancellations and
+    // request-level timeouts get distinct messages so the UI can disambiguate.
+    if (
+      error instanceof Error &&
+      (error.name === "AbortError" || error.name === "TimeoutError")
+    ) {
+      if (timedOut) {
+        throw new SafeFetchAbortError(
+          "timeout",
+          `The request timed out after ${Math.round(timeoutMs / 1000)}s. ` +
+            `The remote service did not respond in time.`,
+        );
+      }
+      throw new SafeFetchAbortError(
+        "canceled",
+        "The request was canceled before a response was received.",
+      );
+    }
+
+    throw error;
   } finally {
     clearTimeout(timer);
   }
