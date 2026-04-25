@@ -2,7 +2,7 @@ export type UpdatePreferencesActionState = {
   status: "idle" | "error" | "success";
   message?: string;
   fieldErrors?: Partial<
-    Record<"defaultMediaMode" | "defaultResultCount" | "watchHistorySourceTypes", string>
+    Record<"defaultMediaMode" | "defaultResultCount" | "defaultTemperature" | "watchHistorySourceTypes", string>
   >;
 };
 

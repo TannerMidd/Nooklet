@@ -1,10 +1,12 @@
 import Link from "next/link";
 
 import { auth } from "@/auth";
+import { submitRecommendationWatchHistoryModeAction } from "@/app/(workspace)/recommendation-actions";
 import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationRequestForm } from "@/components/recommendations/recommendation-request-form";
 import { RecommendationRetryForm } from "@/components/recommendations/recommendation-retry-form";
+import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { getPreferencesByUserId } from "@/modules/preferences/repositories/preferences-repository";
@@ -110,7 +112,7 @@ export async function RecommendationWorkspace({
             redirectPath={routePath}
             defaultResultCount={preferences.defaultResultCount}
             defaultModel={defaultModel}
-            defaultTemperature={0.9}
+            defaultTemperature={preferences.defaultTemperature}
             availableModels={availableModels}
             canSubmit={Boolean(canRequest)}
           />
@@ -151,6 +153,31 @@ export async function RecommendationWorkspace({
                     : `Watch-history-only mode is enabled, but no synced ${mediaType === "tv" ? "TV" : "movie"} history is available from ${selectedWatchHistorySourceNames}. Import titles on the history settings route or adjust selected sources in preferences.`
                   : `Selected sources: ${selectedWatchHistorySourceNames}. Syncing watch history is optional unless watch-history-only mode is enabled.`}
               </p>
+            </div>
+            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Recommendation context mode</p>
+                  <p className="mt-1 text-sm leading-6 text-muted">
+                    {preferences.watchHistoryOnly
+                      ? "Using only the selected watch-history sources for taste context on new requests."
+                      : "Using sampled library context alongside the selected watch-history sources for new requests."}
+                  </p>
+                </div>
+                <form action={submitRecommendationWatchHistoryModeAction}>
+                  <input type="hidden" name="redirectPath" value={routePath} />
+                  <input
+                    type="hidden"
+                    name="watchHistoryOnly"
+                    value={preferences.watchHistoryOnly ? "false" : "true"}
+                  />
+                  <Button type="submit" variant="secondary" className="w-full md:w-auto">
+                    {preferences.watchHistoryOnly
+                      ? "Use library and history"
+                      : "Use watch history only"}
+                  </Button>
+                </form>
+              </div>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-3">

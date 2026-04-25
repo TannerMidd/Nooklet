@@ -73,6 +73,7 @@ export function PreferencesForm({
     preferences.updatedAt.getTime(),
     preferences.defaultMediaMode,
     preferences.defaultResultCount,
+    preferences.defaultTemperature.toFixed(1),
     Number(preferences.watchHistoryOnly),
     preferences.watchHistorySourceTypes.join(","),
     Number(preferences.historyHideExisting),
@@ -83,7 +84,7 @@ export function PreferencesForm({
 
   return (
     <form key={formResetKey} action={formAction} className="space-y-6">
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="grid gap-5 md:grid-cols-3">
         <label className="space-y-2">
           <span className="text-sm font-medium text-foreground">Default media mode</span>
           <select
@@ -113,6 +114,22 @@ export function PreferencesForm({
           />
           {state.fieldErrors?.defaultResultCount ? (
             <p className="text-sm text-highlight">{state.fieldErrors.defaultResultCount}</p>
+          ) : null}
+        </label>
+
+        <label className="space-y-2">
+          <span className="text-sm font-medium text-foreground">Default temperature</span>
+          <Input
+            name="defaultTemperature"
+            type="number"
+            min={0}
+            max={2}
+            step={0.1}
+            defaultValue={preferences.defaultTemperature.toFixed(1)}
+            aria-invalid={Boolean(state.fieldErrors?.defaultTemperature)}
+          />
+          {state.fieldErrors?.defaultTemperature ? (
+            <p className="text-sm text-highlight">{state.fieldErrors.defaultTemperature}</p>
           ) : null}
         </label>
       </div>

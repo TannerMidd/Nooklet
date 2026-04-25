@@ -44,6 +44,7 @@ export const preferences = sqliteTable("preferences", {
     .notNull()
     .default("tv"),
   defaultResultCount: integer("default_result_count").notNull().default(10),
+  defaultTemperature: real("default_temperature").notNull().default(0.9),
   watchHistoryOnly: integer("watch_history_only", { mode: "boolean" })
     .notNull()
     .default(false),

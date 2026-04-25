@@ -11,7 +11,10 @@ import {
   type RecommendationRunActionState,
 } from "@/app/(workspace)/recommendation-action-state";
 import { addRecommendationToLibrarySchema } from "@/modules/recommendations/schemas/add-to-library";
-import { updateDefaultResultCount } from "@/modules/preferences/repositories/preferences-repository";
+import {
+  updateRecommendationRequestDefaults,
+  updateWatchHistoryOnly,
+} from "@/modules/preferences/repositories/preferences-repository";
 import { recommendationRequestSchema } from "@/modules/recommendations/schemas/recommendation-request";
 import { addRecommendationToLibrary } from "@/modules/recommendations/workflows/add-recommendation-to-library";
 import { createRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
@@ -28,6 +31,11 @@ const hiddenStateActionSchema = z.object({
   itemId: z.string().uuid(),
   isHidden: z.enum(["true", "false"]),
   returnTo: z.string().min(1),
+});
+
+const watchHistoryOnlyActionSchema = z.object({
+  watchHistoryOnly: z.enum(["true", "false"]),
+  redirectPath: z.string().min(1),
 });
 
 function safeReturnTo(value: string) {
@@ -87,7 +95,10 @@ export async function submitRecommendationRequestAction(
     };
   }
 
-  await updateDefaultResultCount(session.user.id, parsedInput.data.requestedCount);
+  await updateRecommendationRequestDefaults(session.user.id, {
+    defaultResultCount: parsedInput.data.requestedCount,
+    defaultTemperature: parsedInput.data.temperature,
+  });
 
   const result = await createRecommendationRunWorkflow(session.user.id, parsedInput.data);
 
@@ -99,9 +110,42 @@ export async function submitRecommendationRequestAction(
   }
 
   revalidatePath(redirectPath);
+  revalidatePath("/tv");
+  revalidatePath("/movies");
   revalidatePath("/history");
   revalidatePath("/settings/preferences");
   redirect(buildRecommendationRedirectPath(redirectPath, result.runId));
+}
+
+export async function submitRecommendationWatchHistoryModeAction(formData: FormData) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const parsedInput = watchHistoryOnlyActionSchema.safeParse({
+    watchHistoryOnly: formData.get("watchHistoryOnly"),
+    redirectPath: formData.get("redirectPath"),
+  });
+
+  const redirectPath = safeReturnTo(formData.get("redirectPath")?.toString() ?? "/tv");
+
+  if (!parsedInput.success) {
+    redirect(redirectPath);
+  }
+
+  await updateWatchHistoryOnly(
+    session.user.id,
+    parsedInput.data.watchHistoryOnly === "true",
+  );
+
+  revalidatePath(redirectPath);
+  revalidatePath("/tv");
+  revalidatePath("/movies");
+  revalidatePath("/history");
+  revalidatePath("/settings/preferences");
+  redirect(redirectPath);
 }
 
 export async function submitRecommendationRetryAction(

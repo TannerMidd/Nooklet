@@ -56,6 +56,7 @@ function mapPreferenceRecord(record: StoredPreferenceRecord): PreferenceRecord {
 export const defaultPreferenceValues: Omit<PreferenceRecord, "userId" | "updatedAt"> = {
   defaultMediaMode: "tv",
   defaultResultCount: 10,
+  defaultTemperature: 0.9,
   watchHistoryOnly: false,
   watchHistorySourceTypes: [...watchHistorySourceTypes],
   historyHideExisting: false,
@@ -85,6 +86,7 @@ type UpsertPreferencesInput = {
   userId: string;
   defaultMediaMode: PreferenceMediaMode;
   defaultResultCount: number;
+  defaultTemperature: number;
   watchHistoryOnly: boolean;
   watchHistorySourceTypes: WatchHistorySourceType[];
   historyHideExisting: boolean;
@@ -102,6 +104,7 @@ export async function upsertPreferences(input: UpsertPreferencesInput) {
       userId: input.userId,
       defaultMediaMode: input.defaultMediaMode,
       defaultResultCount: input.defaultResultCount,
+      defaultTemperature: input.defaultTemperature,
       watchHistoryOnly: input.watchHistoryOnly,
       watchHistorySourceTypesJson: serializeWatchHistorySourceTypes(input.watchHistorySourceTypes),
       historyHideExisting: input.historyHideExisting,
@@ -115,6 +118,7 @@ export async function upsertPreferences(input: UpsertPreferencesInput) {
       set: {
         defaultMediaMode: input.defaultMediaMode,
         defaultResultCount: input.defaultResultCount,
+        defaultTemperature: input.defaultTemperature,
         watchHistoryOnly: input.watchHistoryOnly,
         watchHistorySourceTypesJson: serializeWatchHistorySourceTypes(input.watchHistorySourceTypes),
         historyHideExisting: input.historyHideExisting,
@@ -129,20 +133,50 @@ export async function upsertPreferences(input: UpsertPreferencesInput) {
   return getPreferencesByUserId(input.userId);
 }
 
-export async function updateDefaultResultCount(userId: string, defaultResultCount: number) {
+type RecommendationRequestDefaultsInput = {
+  defaultResultCount: number;
+  defaultTemperature: number;
+};
+
+export async function updateRecommendationRequestDefaults(
+  userId: string,
+  input: RecommendationRequestDefaultsInput,
+) {
   const database = ensureDatabaseReady();
 
   database
     .insert(preferences)
     .values({
       userId,
-      defaultResultCount,
+      defaultResultCount: input.defaultResultCount,
+      defaultTemperature: input.defaultTemperature,
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
       target: preferences.userId,
       set: {
-        defaultResultCount,
+        defaultResultCount: input.defaultResultCount,
+        defaultTemperature: input.defaultTemperature,
+        updatedAt: new Date(),
+      },
+    })
+    .run();
+}
+
+export async function updateWatchHistoryOnly(userId: string, watchHistoryOnly: boolean) {
+  const database = ensureDatabaseReady();
+
+  database
+    .insert(preferences)
+    .values({
+      userId,
+      watchHistoryOnly,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: preferences.userId,
+      set: {
+        watchHistoryOnly,
         updatedAt: new Date(),
       },
     })
