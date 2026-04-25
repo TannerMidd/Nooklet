@@ -10,6 +10,7 @@ import {
   findRecommendationItemForUser,
   markRecommendationItemExistingInLibrary,
 } from "@/modules/recommendations/repositories/recommendation-repository";
+import { validateRecommendationLibrarySelection } from "@/modules/recommendations/workflows/recommendation-library-selection";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 
 type AddRecommendationToLibraryResult =
@@ -59,38 +60,14 @@ export async function addRecommendationToLibrary(
   }
 
   const metadata = parseLibraryManagerMetadata(connection.metadata);
+  const validationResult = validateRecommendationLibrarySelection(
+    metadata,
+    input,
+    definition.displayName,
+  );
 
-  if (!metadata || metadata.rootFolders.length === 0 || metadata.qualityProfiles.length === 0) {
-    return {
-      ok: false,
-      message: `Re-run ${definition.displayName} verification to load root folders and quality profiles.`,
-    };
-  }
-
-  if (!metadata.rootFolders.some((entry) => entry.path === input.rootFolderPath)) {
-    return {
-      ok: false,
-      message: "Select a valid root folder.",
-      field: "rootFolderPath",
-    };
-  }
-
-  if (!metadata.qualityProfiles.some((entry) => entry.id === input.qualityProfileId)) {
-    return {
-      ok: false,
-      message: "Select a valid quality profile.",
-      field: "qualityProfileId",
-    };
-  }
-
-  const availableTagIds = new Set(metadata.tags.map((entry) => entry.id));
-
-  if (input.tagIds.some((tagId) => !availableTagIds.has(tagId))) {
-    return {
-      ok: false,
-      message: "Select only tags returned by the verified library manager connection.",
-      field: "tagIds",
-    };
+  if (!validationResult.ok) {
+    return validationResult;
   }
 
   const result = await addLibraryItem({
