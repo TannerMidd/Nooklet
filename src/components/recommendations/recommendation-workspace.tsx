@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { submitRecommendationWatchHistoryModeAction } from "@/app/(workspace)/recommendation-actions";
 import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
+import { RecommendationFeaturedCard } from "@/components/recommendations/recommendation-featured-card";
 import { RecommendationFeedbackActions } from "@/components/recommendations/recommendation-feedback-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationRequestForm } from "@/components/recommendations/recommendation-request-form";
@@ -258,51 +259,25 @@ export async function RecommendationWorkspace({
             runStatus={featuredRun.status}
           />
 
-          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 2xl:gap-5">
+          <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {featuredRun.items.map((item, index) => (
-              <article
+              <RecommendationFeaturedCard
                 key={item.id}
-                className="recommendation-featured-card rounded-[28px] border border-line/70 bg-panel p-5"
-                style={{ animationDelay: `${index * 90}ms` }}
-              >
-                <div className="flex min-w-0 flex-col gap-4 sm:flex-row lg:flex-col xl:flex-row">
-                  <RecommendationPoster title={item.title} posterUrl={item.providerMetadata?.posterUrl} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-foreground">
-                          {item.title}
-                          {item.year ? ` (${item.year})` : ""}
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.22em] text-muted">
-                          {item.confidenceLabel ? <span>{item.confidenceLabel}</span> : null}
-                          {item.existingInLibrary ? <span>existing in library</span> : null}
-                        </div>
-                      </div>
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-muted">{item.rationale}</p>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <RecommendationFeedbackActions
-                    itemId={item.id}
-                    feedback={item.feedback}
-                    returnTo={routePath}
-                  />
-                </div>
-
-                <RecommendationAddForm
-                  itemId={item.id}
-                  mediaType={item.mediaType}
-                  existingInLibrary={item.existingInLibrary}
-                  returnTo={routePath}
-                  connectionSummary={relevantLibraryManager ?? null}
-                  providerMetadata={item.providerMetadata}
-                  savedRootFolderPath={librarySelectionDefaults.rootFolderPath}
-                  savedQualityProfileId={librarySelectionDefaults.qualityProfileId}
-                />
-              </article>
+                itemId={item.id}
+                mediaType={item.mediaType}
+                title={item.title}
+                year={item.year}
+                rationale={item.rationale}
+                confidenceLabel={item.confidenceLabel}
+                feedback={item.feedback}
+                existingInLibrary={item.existingInLibrary}
+                providerMetadata={item.providerMetadata}
+                routePath={routePath}
+                libraryConnection={relevantLibraryManager ?? null}
+                savedRootFolderPath={librarySelectionDefaults.rootFolderPath}
+                savedQualityProfileId={librarySelectionDefaults.qualityProfileId}
+                animationDelayMs={index * 90}
+              />
             ))}
           </div>
         </section>
@@ -385,6 +360,7 @@ export async function RecommendationWorkspace({
                             itemId={item.id}
                             feedback={item.feedback}
                             returnTo={routePath}
+                            buttonClassName="min-h-10 rounded-full px-4 py-2"
                           />
                         </div>
 
@@ -396,6 +372,8 @@ export async function RecommendationWorkspace({
                           connectionSummary={relevantLibraryManager ?? null}
                           savedRootFolderPath={librarySelectionDefaults.rootFolderPath}
                           savedQualityProfileId={librarySelectionDefaults.qualityProfileId}
+                          variant="compact"
+                          buttonClassName="min-h-10 rounded-full px-4 py-2 whitespace-nowrap"
                         />
                       </div>
                     ))}

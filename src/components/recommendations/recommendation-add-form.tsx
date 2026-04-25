@@ -12,6 +12,7 @@ import {
 } from "@/app/(workspace)/recommendation-item-actions";
 import { Button } from "@/components/ui/button";
 import { type RecommendationMediaType } from "@/lib/database/schema";
+import { cn } from "@/lib/utils";
 import { type LibrarySelectionPreferenceService } from "@/modules/preferences/repositories/preferences-repository";
 import { type RecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
 import { resolveRecommendationLibrarySelectionDefaults } from "@/modules/recommendations/workflows/recommendation-library-selection";
@@ -29,6 +30,8 @@ type RecommendationAddFormProps = {
   providerMetadata?: RecommendationProviderMetadata | null;
   savedRootFolderPath?: string | null;
   savedQualityProfileId?: number | null;
+  variant?: "default" | "compact";
+  buttonClassName?: string;
 };
 
 export function RecommendationAddForm({
@@ -40,6 +43,8 @@ export function RecommendationAddForm({
   providerMetadata,
   savedRootFolderPath,
   savedQualityProfileId,
+  variant = "default",
+  buttonClassName,
 }: RecommendationAddFormProps) {
   const [state, formAction] = useActionState(
     submitRecommendationLibraryAction,
@@ -84,27 +89,44 @@ export function RecommendationAddForm({
     setSelectedQualityProfileId(selectionDefaults.qualityProfileId);
   }, [isOpen, selectionDefaults.qualityProfileId, selectionDefaults.rootFolderPath]);
 
-  if (existingInLibrary) {
+  const isCompact = variant === "compact";
+  const buttonLabel = state.status === "success" ? `${serviceLabel} updated` : `Add to ${serviceLabel}`;
+
+  function renderCompactNotice(message: string, tone: "success" | "muted" | "error") {
     return (
-      <p className="mt-4 rounded-2xl border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-foreground">
-        This recommendation is already marked as existing in your library.
+      <p
+        className={cn(
+          "rounded-2xl px-4 py-3 text-sm leading-6",
+          tone === "success" && "border border-accent/20 bg-accent/10 text-foreground",
+          tone === "muted" && "border border-line/70 bg-panel-strong/60 text-muted",
+          tone === "error" && "border border-highlight/20 bg-highlight/10 text-highlight",
+        )}
+      >
+        {message}
       </p>
+    );
+  }
+
+  if (existingInLibrary) {
+    return renderCompactNotice(
+      isCompact
+        ? "Already marked as existing in your library."
+        : "This recommendation is already marked as existing in your library.",
+      "success",
     );
   }
 
   if (!connectionSummary || connectionSummary.status !== "verified") {
-    return (
-      <p className="mt-4 rounded-2xl border border-line/70 bg-panel px-4 py-3 text-sm text-muted">
-        Verify {mediaType === "tv" ? "Sonarr" : "Radarr"} on the connections page before adding recommended titles.
-      </p>
+    return renderCompactNotice(
+      `Verify ${mediaType === "tv" ? "Sonarr" : "Radarr"} on the connections page before adding recommended titles.`,
+      "muted",
     );
   }
 
   if (connectionSummary.rootFolders.length === 0 || connectionSummary.qualityProfiles.length === 0) {
-    return (
-      <p className="mt-4 rounded-2xl border border-line/70 bg-panel px-4 py-3 text-sm text-muted">
-        Re-run {connectionSummary.displayName} verification to load root folders and quality profiles.
-      </p>
+    return renderCompactNotice(
+      `Re-run ${connectionSummary.displayName} verification to load root folders and quality profiles.`,
+      "muted",
     );
   }
 
@@ -139,26 +161,42 @@ export function RecommendationAddForm({
   }
 
   return (
-    <div className="mt-4 space-y-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-foreground">Add to {serviceLabel}</p>
-          <p className="text-sm leading-6 text-muted">
-            Open a focused add panel for folder, quality, tags{mediaType === "tv" ? ", and season choices" : ""}.
-          </p>
+    <div className={cn(isCompact ? "space-y-2" : "mt-4 space-y-3")}>
+      {isCompact ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            className={cn("w-full sm:w-auto", buttonClassName)}
+            onClick={() => {
+              setSeasonSelectionMode("all");
+              setIsOpen(true);
+            }}
+            disabled={state.status === "success" || isSavingDefaults}
+          >
+            {buttonLabel}
+          </Button>
         </div>
-        <Button
-          type="button"
-          className="w-full sm:w-auto"
-          onClick={() => {
-            setSeasonSelectionMode("all");
-            setIsOpen(true);
-          }}
-          disabled={state.status === "success" || isSavingDefaults}
-        >
-          {state.status === "success" ? `${serviceLabel} updated` : `Add to ${serviceLabel}`}
-        </Button>
-      </div>
+      ) : (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-foreground">Add to {serviceLabel}</p>
+            <p className="text-sm leading-6 text-muted">
+              Open a focused add panel for folder, quality, tags{mediaType === "tv" ? ", and season choices" : ""}.
+            </p>
+          </div>
+          <Button
+            type="button"
+            className={cn("w-full sm:w-auto", buttonClassName)}
+            onClick={() => {
+              setSeasonSelectionMode("all");
+              setIsOpen(true);
+            }}
+            disabled={state.status === "success" || isSavingDefaults}
+          >
+            {buttonLabel}
+          </Button>
+        </div>
+      )}
 
       {state.message && !isOpen ? (
         <p
