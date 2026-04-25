@@ -9,209 +9,23 @@ import {
 } from "@/modules/recommendations/repositories/recommendation-repository";
 import { type RecommendationRequestInput } from "@/modules/recommendations/schemas/recommendation-request";
 import {
-  buildLibraryTasteItemKey,
   listSampledLibraryItems,
   lookupLibraryItemMatch,
 } from "@/modules/service-connections/adapters/add-library-item";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
+import { generateBackfilledRecommendationItems } from "@/modules/recommendations/workflows/recommendation-generation";
 
 type CreateRecommendationRunResult =
   | { ok: true; runId: string }
   | { ok: false; message: string };
 
 const libraryTasteSampleSize = 36;
-const recommendationGenerationAttemptLimit = 3;
-const recommendationGenerationOverfetchBuffer = 6;
-const recommendationGenerationHardCap = 30;
-const recommendationPromptExclusionLimit = 60;
 
 type GeneratedRecommendationItem = Awaited<
   ReturnType<typeof generateOpenAiCompatibleRecommendations>
 >[number];
-
-function extractLibraryTitleKey(normalizedKey: string) {
-  const separatorIndex = normalizedKey.lastIndexOf("::");
-
-  return separatorIndex === -1 ? normalizedKey : normalizedKey.slice(0, separatorIndex);
-}
-
-function buildGeneratedRecommendationItemKey(
-  item: Pick<GeneratedRecommendationItem, "title" | "year">,
-) {
-  return buildLibraryTasteItemKey(item);
-}
-
-function formatRecommendationTitle(item: Pick<GeneratedRecommendationItem, "title" | "year">) {
-  return `${item.title}${item.year ? ` (${item.year})` : ""}`;
-}
-
-function buildBackfillRequestPrompt(
-  basePrompt: string,
-  mediaType: RecommendationMediaType,
-  remainingCount: number,
-  excludedItems: Array<Pick<GeneratedRecommendationItem, "title" | "year">>,
-) {
-  if (excludedItems.length === 0) {
-    return basePrompt;
-  }
-
-  const exclusionBlock = excludedItems
-    .slice(0, recommendationPromptExclusionLimit)
-    .map((item) => `- ${formatRecommendationTitle(item)}`)
-    .join("\n");
-
-  const promptSections = [basePrompt.trim()].filter((section) => section.length > 0);
-
-  promptSections.push(
-    `Backfill requirement: return ${remainingCount} additional ${mediaType === "tv" ? "TV series" : "movies"} that are genuinely new for this user.`,
-    `Do not return any title from this exclusion list:\n${exclusionBlock}`,
-  );
-
-  return promptSections.join("\n\n");
-}
-
-function dedupeGeneratedItems(
-  items: GeneratedRecommendationItem[],
-) {
-  const seenKeys = new Set<string>();
-
-  return items
-    .filter((item) => {
-      const key = buildGeneratedRecommendationItemKey(item);
-
-      if (seenKeys.has(key)) {
-        return false;
-      }
-
-      seenKeys.add(key);
-      return true;
-    });
-}
-
-function filterGeneratedItemsAgainstLibrary(
-  items: GeneratedRecommendationItem[],
-  libraryNormalizedKeys: string[],
-) {
-  if (libraryNormalizedKeys.length === 0) {
-    return {
-      items,
-      excludedCount: 0,
-    };
-  }
-
-  const libraryKeySet = new Set(libraryNormalizedKeys);
-  const libraryTitleSet = new Set(libraryNormalizedKeys.map((key) => extractLibraryTitleKey(key)));
-  const filteredItems = items.filter((item) => {
-    const normalizedKey = buildLibraryTasteItemKey({
-      title: item.title,
-      year: item.year,
-    });
-
-    if (libraryKeySet.has(normalizedKey)) {
-      return false;
-    }
-
-    return item.year !== null || !libraryTitleSet.has(extractLibraryTitleKey(normalizedKey));
-  });
-
-  return {
-    items: filteredItems,
-    excludedCount: items.length - filteredItems.length,
-  };
-}
-
-async function generateBackfilledRecommendationItems(input: {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-  temperature: number;
-  mediaType: RecommendationMediaType;
-  requestPrompt: string;
-  requestedCount: number;
-  watchHistoryOnly: boolean;
-  watchHistoryContext: Array<{
-    title: string;
-    year: number | null;
-  }>;
-  libraryTasteContext: Array<{
-    title: string;
-    year: number | null;
-    genres: string[];
-  }>;
-  libraryTasteTotalCount: number;
-  libraryNormalizedKeys: string[];
-}) {
-  const acceptedItems: GeneratedRecommendationItem[] = [];
-  const seenGeneratedKeys = new Set<string>();
-  const excludedPromptItems: Array<Pick<GeneratedRecommendationItem, "title" | "year">> = [];
-  let excludedLibraryItemCount = 0;
-  let attemptCount = 0;
-
-  for (
-    let attemptIndex = 0;
-    attemptIndex < recommendationGenerationAttemptLimit && acceptedItems.length < input.requestedCount;
-    attemptIndex += 1
-  ) {
-    attemptCount += 1;
-
-    const remainingCount = input.requestedCount - acceptedItems.length;
-    const requestedCandidateCount = Math.min(
-      Math.max(remainingCount * 2, remainingCount + recommendationGenerationOverfetchBuffer),
-      recommendationGenerationHardCap,
-    );
-    const generatedItems = await generateOpenAiCompatibleRecommendations({
-      baseUrl: input.baseUrl,
-      apiKey: input.apiKey,
-      model: input.model,
-      temperature: input.temperature,
-      mediaType: input.mediaType,
-      requestPrompt: buildBackfillRequestPrompt(
-        input.requestPrompt,
-        input.mediaType,
-        remainingCount,
-        excludedPromptItems,
-      ),
-      requestedCount: requestedCandidateCount,
-      watchHistoryOnly: input.watchHistoryOnly,
-      watchHistoryContext: input.watchHistoryContext,
-      libraryTasteContext: input.libraryTasteContext,
-      libraryTasteTotalCount: input.libraryTasteTotalCount,
-    });
-    const distinctGeneratedItems = dedupeGeneratedItems(generatedItems).filter((item) => {
-      const normalizedKey = buildGeneratedRecommendationItemKey(item);
-
-      if (seenGeneratedKeys.has(normalizedKey)) {
-        return false;
-      }
-
-      seenGeneratedKeys.add(normalizedKey);
-      return true;
-    });
-
-    excludedPromptItems.push(
-      ...distinctGeneratedItems.map((item) => ({
-        title: item.title,
-        year: item.year,
-      })),
-    );
-
-    const filteredItems = filterGeneratedItemsAgainstLibrary(
-      distinctGeneratedItems,
-      input.libraryNormalizedKeys,
-    );
-
-    excludedLibraryItemCount += filteredItems.excludedCount;
-    acceptedItems.push(...filteredItems.items);
-  }
-
-  return {
-    items: acceptedItems.slice(0, input.requestedCount),
-    excludedLibraryItemCount,
-    attemptCount,
-  };
-}
 
 function buildStoredRecommendationItems(
   mediaType: RecommendationMediaType,
@@ -333,6 +147,7 @@ export async function createRecommendationRunWorkflow(
 
   const trimmedRequestPrompt = input.requestPrompt.trim();
   const aiModel = input.aiModel.trim();
+  const aiProviderSecret = aiProvider.secret;
   const [watchHistoryContext, libraryTasteContext] = await Promise.all([
     listWatchHistoryContext(userId, input.mediaType, 12, preferences.watchHistorySourceTypes),
     loadSampledLibraryTasteContext(userId, input.mediaType),
@@ -394,18 +209,24 @@ export async function createRecommendationRunWorkflow(
 
   try {
     const generatedItems = await generateBackfilledRecommendationItems({
-      baseUrl: aiProvider.connection.baseUrl ?? "",
-      apiKey: decryptSecret(aiProvider.secret.encryptedValue),
-      model: aiModel,
-      temperature: input.temperature,
-      mediaType: input.mediaType,
       requestPrompt: trimmedRequestPrompt,
       requestedCount: input.requestedCount,
-      watchHistoryOnly: preferences.watchHistoryOnly,
-      watchHistoryContext,
-      libraryTasteContext: libraryTasteContext.sampledItems,
-      libraryTasteTotalCount: libraryTasteContext.totalCount,
+      mediaType: input.mediaType,
       libraryNormalizedKeys: libraryTasteContext.normalizedKeys,
+      generateRecommendations: ({ requestPrompt, requestedCount }) =>
+        generateOpenAiCompatibleRecommendations({
+          baseUrl: aiProvider.connection.baseUrl ?? "",
+          apiKey: decryptSecret(aiProviderSecret.encryptedValue),
+          model: aiModel,
+          temperature: input.temperature,
+          mediaType: input.mediaType,
+          requestPrompt,
+          requestedCount,
+          watchHistoryOnly: preferences.watchHistoryOnly,
+          watchHistoryContext,
+          libraryTasteContext: libraryTasteContext.sampledItems,
+          libraryTasteTotalCount: libraryTasteContext.totalCount,
+        }),
     });
     excludedLibraryItemCount = generatedItems.excludedLibraryItemCount;
     generationAttemptCount = generatedItems.attemptCount;
