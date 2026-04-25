@@ -1,0 +1,1 @@
+ALTER TABLE `preferences` ADD `default_temperature` real DEFAULT 0.9 NOT NULL;
