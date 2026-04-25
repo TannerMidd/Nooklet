@@ -78,17 +78,59 @@ export async function createUser(input: CreateUserInput) {
 
 export async function updateUserPassword(userId: string, passwordHash: string) {
   const database = ensureDatabaseReady();
+  const now = new Date();
 
   database
     .update(users)
     .set({
       passwordHash,
-      updatedAt: new Date(),
+      passwordChangedAt: now,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      updatedAt: now,
     })
     .where(eq(users.id, userId))
     .run();
 
   return findUserById(userId);
+}
+
+export async function recordFailedLogin(userId: string, lockoutThreshold: number, lockoutDurationMs: number) {
+  const database = ensureDatabaseReady();
+  const now = new Date();
+
+  return database.transaction((tx) => {
+    const user = tx.select().from(users).where(eq(users.id, userId)).get();
+    if (!user) return null;
+
+    const nextAttempts = (user.failedLoginAttempts ?? 0) + 1;
+    const shouldLock = nextAttempts >= lockoutThreshold;
+
+    tx.update(users)
+      .set({
+        failedLoginAttempts: nextAttempts,
+        lockedUntil: shouldLock ? new Date(now.getTime() + lockoutDurationMs) : user.lockedUntil,
+        updatedAt: now,
+      })
+      .where(eq(users.id, userId))
+      .run();
+
+    return { attempts: nextAttempts, locked: shouldLock };
+  });
+}
+
+export async function clearFailedLogins(userId: string) {
+  const database = ensureDatabaseReady();
+
+  database
+    .update(users)
+    .set({
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId))
+    .run();
 }
 
 export async function updateUserRole(userId: string, role: UserRole) {

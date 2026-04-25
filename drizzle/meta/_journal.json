@@ -85,6 +85,13 @@
       "when": 1777184400000,
       "tag": "0011_rate_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1777184500000,
+      "tag": "0012_user_login_security",
+      "breakpoints": true
     }
   ]
 }

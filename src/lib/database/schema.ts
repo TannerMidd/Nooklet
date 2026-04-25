@@ -12,6 +12,11 @@ export const users = sqliteTable(
     passwordHash: text("password_hash").notNull(),
     role: text("role", { enum: userRoles }).notNull().default("user"),
     isDisabled: integer("is_disabled", { mode: "boolean" }).notNull().default(false),
+    failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
+    lockedUntil: integer("locked_until", { mode: "timestamp_ms" }),
+    passwordChangedAt: integer("password_changed_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
