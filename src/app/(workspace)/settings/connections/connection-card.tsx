@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { initialConnectionActionState } from "@/app/(workspace)/settings/connections/action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   getServiceConnectionDefinition,
   type ServiceConnectionDefinition,
@@ -48,30 +49,22 @@ function ModelField({
     return null;
   }
 
-  const datalistId = `${definition.serviceType}-model-options`;
-
   return (
     <label className="min-w-0 space-y-2">
       <span className="text-sm font-medium text-foreground">{definition.modelLabel}</span>
-      <Input
+      <SearchableSelect
         name="model"
         defaultValue={defaultValue}
-        list={availableModels.length > 0 ? datalistId : undefined}
+        options={availableModels}
         placeholder={availableModels.length > 0 ? "Search available models" : "Enter a model identifier"}
-        autoComplete="off"
-        aria-invalid={Boolean(error)}
+        searchPlaceholder="Search models…"
+        emptyLabel="Run verify to load available models from the configured provider."
+        ariaInvalid={Boolean(error)}
       />
       {availableModels.length > 0 ? (
-        <>
-          <datalist id={datalistId}>
-            {availableModels.map((modelId) => (
-              <option key={modelId} value={modelId} />
-            ))}
-          </datalist>
-          <p className="text-sm text-muted">
-            {availableModels.length} models loaded from the configured provider. Start typing to filter.
-          </p>
-        </>
+        <p className="text-sm text-muted">
+          {availableModels.length} models loaded from the configured provider. Start typing to filter.
+        </p>
       ) : (
         <p className="text-sm text-muted">Run verify to load available models from the configured provider.</p>
       )}

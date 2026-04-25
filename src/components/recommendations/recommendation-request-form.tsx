@@ -19,6 +19,7 @@ import {
 import { initialRecommendationActionState } from "@/app/(workspace)/recommendation-action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 
 type RecommendationRequestFormProps = {
@@ -195,7 +196,6 @@ export function RecommendationRequestForm({
     submitRecommendationRequestAction,
     initialRecommendationActionState,
   );
-  const datalistId = `${mediaType}-recommendation-models`;
   const formRef = useRef<HTMLFormElement>(null);
   const lastSubmittedDefaultsRef = useRef(
     buildRequestDefaultsKey(defaultResultCount, defaultTemperature),
@@ -271,23 +271,17 @@ export function RecommendationRequestForm({
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),180px,180px]">
         <label className="space-y-2">
           <span className="text-sm font-medium text-foreground">Model</span>
-          <Input
+          <SearchableSelect
             name="aiModel"
             defaultValue={defaultModel}
-            list={availableModels.length > 0 ? datalistId : undefined}
+            options={availableModels}
             placeholder={availableModels.length > 0 ? "Search available models" : "Enter a model identifier"}
-            autoComplete="off"
-            aria-invalid={Boolean(state.fieldErrors?.aiModel)}
+            searchPlaceholder="Search models…"
+            emptyLabel="Available model IDs will appear after the next successful provider check."
+            ariaInvalid={Boolean(state.fieldErrors?.aiModel)}
           />
           {availableModels.length > 0 ? (
-            <>
-              <datalist id={datalistId}>
-                {availableModels.map((modelId) => (
-                  <option key={modelId} value={modelId} />
-                ))}
-              </datalist>
-              <p className="text-sm text-muted">Pick any discovered provider model without leaving this page.</p>
-            </>
+            <p className="text-sm text-muted">Pick any discovered provider model without leaving this page.</p>
           ) : (
             <p className="text-sm text-muted">Available model IDs will appear after the next successful provider check.</p>
           )}
