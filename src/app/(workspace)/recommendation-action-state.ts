@@ -22,7 +22,9 @@ export const initialRecommendationRunActionState: RecommendationRunActionState =
 export type RecommendationLibraryActionState = {
   status: "idle" | "error" | "success";
   message?: string;
-  fieldErrors?: Partial<Record<"rootFolderPath" | "qualityProfileId" | "tagIds", string>>;
+  fieldErrors?: Partial<
+    Record<"rootFolderPath" | "qualityProfileId" | "seasonNumbers" | "tagIds", string>
+  >;
 };
 
 export const initialRecommendationLibraryActionState: RecommendationLibraryActionState = {

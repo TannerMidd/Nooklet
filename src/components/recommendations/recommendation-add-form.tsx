@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -9,6 +9,7 @@ import {
 import { submitRecommendationLibraryAction } from "@/app/(workspace)/recommendation-item-actions";
 import { Button } from "@/components/ui/button";
 import { type RecommendationMediaType } from "@/lib/database/schema";
+import { type RecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 type RecommendationAddFormProps = {
@@ -17,6 +18,7 @@ type RecommendationAddFormProps = {
   existingInLibrary?: boolean;
   returnTo: string;
   connectionSummary: ServiceConnectionSummary | null;
+  providerMetadata?: RecommendationProviderMetadata | null;
 };
 
 function SubmitButton({ mediaType }: { mediaType: RecommendationMediaType }) {
@@ -37,11 +39,14 @@ export function RecommendationAddForm({
   existingInLibrary,
   returnTo,
   connectionSummary,
+  providerMetadata,
 }: RecommendationAddFormProps) {
   const [state, formAction] = useActionState(
     submitRecommendationLibraryAction,
     initialRecommendationLibraryActionState,
   );
+  const [seasonSelectionMode, setSeasonSelectionMode] = useState<"all" | "custom">("all");
+  const availableSeasons = mediaType === "tv" ? providerMetadata?.availableSeasons ?? [] : [];
 
   if (existingInLibrary) {
     return (
@@ -116,6 +121,78 @@ export function RecommendationAddForm({
             ) : null}
           </label>
         </div>
+
+        {mediaType === "tv" ? (
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-medium text-foreground">Seasons</legend>
+            {availableSeasons.length > 0 ? (
+              <>
+                <label className="flex items-start gap-3 rounded-2xl border border-line/70 bg-panel-strong/70 px-3 py-3 text-sm text-foreground">
+                  <input
+                    type="radio"
+                    name="seasonSelectionMode"
+                    value="all"
+                    checked={seasonSelectionMode === "all"}
+                    onChange={() => setSeasonSelectionMode("all")}
+                    className="mt-1 h-4 w-4 border-line bg-panel text-accent"
+                  />
+                  <span>
+                    <span className="block font-medium text-foreground">All available seasons</span>
+                    <span className="mt-1 block text-muted">Ask Sonarr to monitor every season returned for this show.</span>
+                  </span>
+                </label>
+
+                <label className="flex items-start gap-3 rounded-2xl border border-line/70 bg-panel-strong/70 px-3 py-3 text-sm text-foreground">
+                  <input
+                    type="radio"
+                    name="seasonSelectionMode"
+                    value="custom"
+                    checked={seasonSelectionMode === "custom"}
+                    onChange={() => setSeasonSelectionMode("custom")}
+                    className="mt-1 h-4 w-4 border-line bg-panel text-accent"
+                  />
+                  <span>
+                    <span className="block font-medium text-foreground">Choose specific seasons</span>
+                    <span className="mt-1 block text-muted">Only the selected seasons will be monitored for this request.</span>
+                  </span>
+                </label>
+
+                <fieldset
+                  disabled={seasonSelectionMode !== "custom"}
+                  className={`space-y-2 ${seasonSelectionMode === "custom" ? "" : "opacity-60"}`}
+                >
+                  <legend className="text-sm text-muted">Available seasons</legend>
+                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {availableSeasons.map((season) => (
+                      <label
+                        key={season.seasonNumber}
+                        className="flex items-center gap-2 rounded-2xl border border-line/70 bg-panel-strong/70 px-3 py-2 text-sm text-foreground"
+                      >
+                        <input
+                          type="checkbox"
+                          name="seasonNumbers"
+                          value={season.seasonNumber}
+                          className="h-4 w-4 rounded border-line bg-panel text-accent"
+                        />
+                        <span>{season.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              </>
+            ) : (
+              <>
+                <input type="hidden" name="seasonSelectionMode" value="all" />
+                <p className="text-sm leading-6 text-muted">
+                  Season choices are unavailable for this item, so Sonarr will request all available seasons.
+                </p>
+              </>
+            )}
+            {state.fieldErrors?.seasonNumbers ? (
+              <p className="text-sm text-highlight">{state.fieldErrors.seasonNumbers}</p>
+            ) : null}
+          </fieldset>
+        ) : null}
 
         <fieldset className="space-y-2">
           <legend className="text-sm font-medium text-foreground">Tags</legend>

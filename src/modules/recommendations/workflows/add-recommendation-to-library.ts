@@ -1,3 +1,4 @@
+import { parseRecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
 import { decryptSecret } from "@/lib/security/secret-box";
 import { addLibraryItem } from "@/modules/service-connections/adapters/add-library-item";
 import { parseLibraryManagerMetadata } from "@/modules/service-connections/library-manager-metadata";
@@ -18,7 +19,7 @@ type AddRecommendationToLibraryResult =
   | {
       ok: false;
       message: string;
-      field?: "rootFolderPath" | "qualityProfileId" | "tagIds";
+      field?: "rootFolderPath" | "qualityProfileId" | "seasonNumbers" | "tagIds";
     };
 
 export async function addRecommendationToLibrary(
@@ -40,6 +41,11 @@ export async function addRecommendationToLibrary(
       message: "This recommendation is already marked as existing in the library.",
     };
   }
+
+  const itemProviderMetadata = parseRecommendationProviderMetadata(item.providerMetadataJson);
+  const availableSeasonNumbers = itemProviderMetadata?.availableSeasons?.map(
+    (season) => season.seasonNumber,
+  );
 
   const serviceType = item.mediaType === "tv" ? "sonarr" : "radarr";
   const definition = getServiceConnectionDefinition(serviceType);
@@ -64,6 +70,10 @@ export async function addRecommendationToLibrary(
     metadata,
     input,
     definition.displayName,
+    {
+      mediaType: item.mediaType,
+      availableSeasonNumbers,
+    },
   );
 
   if (!validationResult.ok) {
@@ -78,6 +88,8 @@ export async function addRecommendationToLibrary(
     year: item.year,
     rootFolderPath: input.rootFolderPath,
     qualityProfileId: input.qualityProfileId,
+    seasonSelectionMode: input.seasonSelectionMode,
+    seasonNumbers: input.seasonNumbers,
     tagIds: input.tagIds,
   });
 
@@ -94,6 +106,8 @@ export async function addRecommendationToLibrary(
       year: item.year,
       rootFolderPath: input.rootFolderPath,
       qualityProfileId: input.qualityProfileId,
+      seasonSelectionMode: input.seasonSelectionMode,
+      seasonNumbers: input.seasonNumbers,
       tagIds: input.tagIds,
       ok: result.ok,
       message: result.message,

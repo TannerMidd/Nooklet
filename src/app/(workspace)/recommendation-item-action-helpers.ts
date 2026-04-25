@@ -23,6 +23,8 @@ export function parseRecommendationLibraryActionFormData(formData: FormData) {
     itemId: formData.get("itemId"),
     rootFolderPath: formData.get("rootFolderPath"),
     qualityProfileId: formData.get("qualityProfileId"),
+    seasonSelectionMode: formData.get("seasonSelectionMode") ?? undefined,
+    seasonNumbers: formData.getAll("seasonNumbers"),
     tagIds: formData.getAll("tagIds"),
     returnTo: formData.get("returnTo"),
   });
@@ -36,6 +38,7 @@ export function projectRecommendationLibraryFieldErrors(
   return {
     rootFolderPath: flattenedErrors.rootFolderPath?.[0],
     qualityProfileId: flattenedErrors.qualityProfileId?.[0],
+    seasonNumbers: flattenedErrors.seasonNumbers?.[0],
     tagIds: flattenedErrors.tagIds?.[0],
   };
 }

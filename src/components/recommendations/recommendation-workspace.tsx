@@ -282,6 +282,7 @@ export async function RecommendationWorkspace({
                   existingInLibrary={item.existingInLibrary}
                   returnTo={routePath}
                   connectionSummary={relevantLibraryManager ?? null}
+                  providerMetadata={item.providerMetadata}
                 />
               </article>
             ))}

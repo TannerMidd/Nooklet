@@ -8,12 +8,14 @@ type AddLibraryItemInput = {
   year: number | null;
   rootFolderPath: string;
   qualityProfileId: number;
+  seasonSelectionMode: "all" | "custom";
+  seasonNumbers: number[];
   tagIds: number[];
 };
 
 type AddLibraryItemResult =
   | { ok: true; message: string }
-  | { ok: false; message: string };
+  | { ok: false; message: string; field?: "seasonNumbers" };
 
 type LibraryLookupCandidate = Record<string, unknown> & {
   title?: string;
@@ -340,12 +342,48 @@ function buildCollectionEndpoint(serviceType: LibraryManagerServiceType) {
   return serviceType === "sonarr" ? "series" : "movie";
 }
 
+function extractCandidateSeasonNumbers(candidate: LibraryLookupCandidate) {
+  if (!Array.isArray(candidate.seasons)) {
+    return [] as number[];
+  }
+
+  const seenSeasonNumbers = new Set<number>();
+  const seasonNumbers = candidate.seasons
+    .map((season) => {
+      if (typeof season !== "object" || season === null) {
+        return null;
+      }
+
+      const seasonNumber = (season as { seasonNumber?: unknown }).seasonNumber;
+
+      if (
+        typeof seasonNumber !== "number" ||
+        !Number.isInteger(seasonNumber) ||
+        seasonNumber < 0 ||
+        seenSeasonNumbers.has(seasonNumber)
+      ) {
+        return null;
+      }
+
+      seenSeasonNumbers.add(seasonNumber);
+
+      return seasonNumber;
+    })
+    .filter((seasonNumber): seasonNumber is number => seasonNumber !== null)
+    .sort((left, right) => left - right);
+
+  return seasonNumbers;
+}
+
 function buildAddPayload(
   serviceType: LibraryManagerServiceType,
   candidate: LibraryLookupCandidate,
   input: AddLibraryItemInput,
 ) {
   if (serviceType === "sonarr") {
+    const selectedSeasonNumbers =
+      input.seasonSelectionMode === "custom" ? new Set(input.seasonNumbers) : null;
+
     return {
       ...candidate,
       rootFolderPath: input.rootFolderPath,
@@ -355,7 +393,17 @@ function buildAddPayload(
       seasons: Array.isArray(candidate.seasons)
         ? candidate.seasons.map((season) =>
             typeof season === "object" && season !== null
-              ? { ...(season as Record<string, unknown>), monitored: true }
+              ? {
+                  ...(season as Record<string, unknown>),
+                  monitored:
+                    selectedSeasonNumbers === null
+                      ? true
+                      : selectedSeasonNumbers.has(
+                          typeof (season as { seasonNumber?: unknown }).seasonNumber === "number"
+                            ? (season as { seasonNumber: number }).seasonNumber
+                            : Number.NaN,
+                        ),
+                }
               : season,
           )
         : [],
@@ -499,6 +547,36 @@ export async function addLibraryItem(input: AddLibraryItemInput): Promise<AddLib
 
   if (!lookupResult.ok) {
     return lookupResult;
+  }
+
+  if (input.serviceType === "sonarr" && input.seasonSelectionMode === "custom") {
+    const availableSeasonNumbers = extractCandidateSeasonNumbers(lookupResult.candidate);
+
+    if (availableSeasonNumbers.length === 0) {
+      return {
+        ok: false,
+        message: "Season choices are unavailable for this show right now. Choose all seasons instead.",
+        field: "seasonNumbers",
+      };
+    }
+
+    if (input.seasonNumbers.length === 0) {
+      return {
+        ok: false,
+        message: "Select at least one season or choose all seasons.",
+        field: "seasonNumbers",
+      };
+    }
+
+    const availableSeasonNumberSet = new Set(availableSeasonNumbers);
+
+    if (input.seasonNumbers.some((seasonNumber) => !availableSeasonNumberSet.has(seasonNumber))) {
+      return {
+        ok: false,
+        message: "Select only seasons returned by Sonarr for this show.",
+        field: "seasonNumbers",
+      };
+    }
   }
 
   const response = await fetchWithTimeout(

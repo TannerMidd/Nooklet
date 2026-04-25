@@ -215,6 +215,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                       isHidden={item.isHidden}
                       returnTo={returnTo}
                       libraryConnection={item.mediaType === "tv" ? sonarrSummary : radarrSummary}
+                      providerMetadata={item.providerMetadata}
                     />
                   </div>
                 </div>

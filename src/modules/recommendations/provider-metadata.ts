@@ -1,10 +1,60 @@
+export type RecommendationProviderSeason = {
+  seasonNumber: number;
+  label: string;
+};
+
 export type RecommendationProviderMetadata = {
   source?: string;
   model?: string;
   temperature?: number;
   posterUrl?: string;
   posterLookupService?: "sonarr" | "radarr";
+  availableSeasons?: RecommendationProviderSeason[];
 };
+
+function buildSeasonLabel(seasonNumber: number, label: unknown) {
+  if (typeof label === "string" && label.trim().length > 0) {
+    return label.trim();
+  }
+
+  return seasonNumber === 0 ? "Specials" : `Season ${seasonNumber}`;
+}
+
+function parseRecommendationProviderSeasons(value: unknown) {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const seenSeasonNumbers = new Set<number>();
+  const seasons = value
+    .map((entry) => {
+      if (typeof entry !== "object" || entry === null) {
+        return null;
+      }
+
+      const seasonNumber = (entry as { seasonNumber?: unknown }).seasonNumber;
+
+      if (
+        typeof seasonNumber !== "number" ||
+        !Number.isInteger(seasonNumber) ||
+        seasonNumber < 0 ||
+        seenSeasonNumbers.has(seasonNumber)
+      ) {
+        return null;
+      }
+
+      seenSeasonNumbers.add(seasonNumber);
+
+      return {
+        seasonNumber,
+        label: buildSeasonLabel(seasonNumber, (entry as { label?: unknown }).label),
+      } satisfies RecommendationProviderSeason;
+    })
+    .filter((entry): entry is RecommendationProviderSeason => entry !== null)
+    .sort((left, right) => left.seasonNumber - right.seasonNumber);
+
+  return seasons.length > 0 ? seasons : undefined;
+}
 
 export function parseRecommendationProviderMetadata(
   metadataJson: string | null,
@@ -25,6 +75,7 @@ export function parseRecommendationProviderMetadata(
       metadata.posterLookupService === "sonarr" || metadata.posterLookupService === "radarr"
         ? metadata.posterLookupService
         : undefined;
+    const availableSeasons = parseRecommendationProviderSeasons(metadata.availableSeasons);
 
     return {
       source: typeof metadata.source === "string" ? metadata.source : undefined,
@@ -38,6 +89,7 @@ export function parseRecommendationProviderMetadata(
           ? metadata.posterUrl.trim()
           : undefined,
       posterLookupService,
+      availableSeasons,
     } satisfies RecommendationProviderMetadata;
   } catch {
     return null;

@@ -8,6 +8,7 @@ import {
   type RecommendationFeedbackValue,
   type RecommendationMediaType,
 } from "@/lib/database/schema";
+import { type RecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 type RecommendationHistoryItemActionsProps = {
@@ -18,6 +19,7 @@ type RecommendationHistoryItemActionsProps = {
   isHidden?: boolean | null;
   returnTo: string;
   libraryConnection: ServiceConnectionSummary | null;
+  providerMetadata?: RecommendationProviderMetadata | null;
 };
 
 export function RecommendationHistoryItemActions({
@@ -28,6 +30,7 @@ export function RecommendationHistoryItemActions({
   isHidden,
   returnTo,
   libraryConnection,
+  providerMetadata,
 }: RecommendationHistoryItemActionsProps) {
   return (
     <div className="mt-4">
@@ -66,6 +69,7 @@ export function RecommendationHistoryItemActions({
         existingInLibrary={existingInLibrary}
         returnTo={returnTo}
         connectionSummary={libraryConnection}
+        providerMetadata={providerMetadata}
       />
     </div>
   );

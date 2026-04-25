@@ -53,7 +53,55 @@ function buildStoredRecommendationItems(
   }));
 }
 
-async function enrichGeneratedItemsWithPosterUrls(
+function buildSeasonLabel(seasonNumber: number, label: unknown) {
+  if (typeof label === "string" && label.trim().length > 0) {
+    return label.trim();
+  }
+
+  return seasonNumber === 0 ? "Specials" : `Season ${seasonNumber}`;
+}
+
+function extractAvailableSeasonsFromLookupCandidate(
+  candidate: Record<string, unknown> & { seasons?: unknown[] },
+) {
+  if (!Array.isArray(candidate.seasons)) {
+    return undefined;
+  }
+
+  const seenSeasonNumbers = new Set<number>();
+  const availableSeasons = candidate.seasons
+    .map((season) => {
+      if (typeof season !== "object" || season === null) {
+        return null;
+      }
+
+      const seasonNumber = (season as { seasonNumber?: unknown }).seasonNumber;
+
+      if (
+        typeof seasonNumber !== "number" ||
+        !Number.isInteger(seasonNumber) ||
+        seasonNumber < 0 ||
+        seenSeasonNumbers.has(seasonNumber)
+      ) {
+        return null;
+      }
+
+      seenSeasonNumbers.add(seasonNumber);
+
+      return {
+        seasonNumber,
+        label: buildSeasonLabel(seasonNumber, (season as { title?: unknown }).title),
+      };
+    })
+    .filter(
+      (season): season is { seasonNumber: number; label: string } => season !== null,
+    )
+    .sort((left, right) => left.seasonNumber - right.seasonNumber);
+
+  return availableSeasons.length > 0 ? availableSeasons : undefined;
+}
+
+async function enrichGeneratedItemsWithLibraryMetadata(
   userId: string,
   mediaType: RecommendationMediaType,
   items: GeneratedRecommendationItem[],
@@ -83,8 +131,32 @@ async function enrichGeneratedItemsWithPosterUrls(
       });
 
       if (!lookupResult.ok || !lookupResult.posterUrl) {
-        return item;
+        if (!lookupResult.ok) {
+          return item;
+        }
+
+        const availableSeasons =
+          serviceType === "sonarr"
+            ? extractAvailableSeasonsFromLookupCandidate(lookupResult.candidate)
+            : undefined;
+
+        if (!availableSeasons) {
+          return item;
+        }
+
+        return {
+          ...item,
+          providerMetadata: {
+            ...item.providerMetadata,
+            availableSeasons,
+          },
+        };
       }
+
+      const availableSeasons =
+        serviceType === "sonarr"
+          ? extractAvailableSeasonsFromLookupCandidate(lookupResult.candidate)
+          : undefined;
 
       return {
         ...item,
@@ -92,6 +164,7 @@ async function enrichGeneratedItemsWithPosterUrls(
           ...item.providerMetadata,
           posterLookupService: serviceType,
           posterUrl: lookupResult.posterUrl,
+          ...(availableSeasons ? { availableSeasons } : {}),
         },
       };
     }),
@@ -321,7 +394,7 @@ export async function createRecommendationRunWorkflow(
     });
     excludedExistingItemCount = generatedItems.excludedExistingItemCount;
     generationAttemptCount = generatedItems.attemptCount;
-    const enrichedItems = await enrichGeneratedItemsWithPosterUrls(
+    const enrichedItems = await enrichGeneratedItemsWithLibraryMetadata(
       userId,
       input.mediaType,
       generatedItems.items,

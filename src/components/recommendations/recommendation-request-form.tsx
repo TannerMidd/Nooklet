@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { type FocusEvent, type MouseEvent as ReactMouseEvent, startTransition, useActionState, useRef } from "react";
+import {
+  type FocusEvent,
+  type MouseEvent as ReactMouseEvent,
+  startTransition,
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -24,6 +32,51 @@ type RecommendationRequestFormProps = {
   submitBlockedMessage?: string | null;
 };
 
+const requestProgressStages = [
+  {
+    label: "Starting the request",
+    description: "Saving the request and preparing a run for this batch.",
+    minElapsedMs: 0,
+  },
+  {
+    label: "Checking connections",
+    description: "Rechecking the configured AI provider and library connection before generation starts.",
+    minElapsedMs: 1500,
+  },
+  {
+    label: "Loading taste context",
+    description: "Pulling watch history and sampled library context for this request.",
+    minElapsedMs: 4000,
+  },
+  {
+    label: "Waiting on the AI provider",
+    description: "Generating fresh recommendation candidates. Slower models can take a minute here.",
+    minElapsedMs: 9000,
+  },
+  {
+    label: "Backfilling after filtering",
+    description: "If duplicates or library matches are removed, Recommendarr asks for more titles automatically.",
+    minElapsedMs: 20000,
+  },
+  {
+    label: "Finalizing the batch",
+    description: "Saving the results and preparing the page refresh.",
+    minElapsedMs: 35000,
+  },
+] as const;
+
+function resolveActiveProgressStage(elapsedMs: number) {
+  let activeStageIndex = 0;
+
+  for (let index = 0; index < requestProgressStages.length; index += 1) {
+    if (elapsedMs >= requestProgressStages[index].minElapsedMs) {
+      activeStageIndex = index;
+    }
+  }
+
+  return activeStageIndex;
+}
+
 function SubmitButton({ canSubmit }: { canSubmit: boolean }) {
   const { pending } = useFormStatus();
 
@@ -31,6 +84,80 @@ function SubmitButton({ canSubmit }: { canSubmit: boolean }) {
     <Button type="submit" className="w-full sm:w-auto" disabled={!canSubmit || pending}>
       {pending ? "Generating recommendations..." : "Generate recommendations"}
     </Button>
+  );
+}
+
+function RequestProgressPanel() {
+  const { pending } = useFormStatus();
+  const [elapsedMs, setElapsedMs] = useState(0);
+
+  useEffect(() => {
+    if (!pending) {
+      setElapsedMs(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    const intervalId = window.setInterval(() => {
+      setElapsedMs(Date.now() - startedAt);
+    }, 700);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [pending]);
+
+  if (!pending) {
+    return null;
+  }
+
+  const activeStageIndex = resolveActiveProgressStage(elapsedMs);
+
+  return (
+    <div className="rounded-[28px] border border-accent/20 bg-accent/5 px-4 py-4" role="status">
+      <div className="flex items-start gap-3">
+        <div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-accent animate-pulse" />
+        <div className="min-w-0 space-y-4">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-foreground">Recommendation request in progress</p>
+            <p className="text-sm leading-6 text-muted">
+              This can take a few seconds to over a minute depending on the model and provider.
+              The page will refresh automatically when the batch is ready.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            {requestProgressStages.map((stage, index) => {
+              const isComplete = index < activeStageIndex;
+              const isActive = index === activeStageIndex;
+
+              return (
+                <div
+                  key={stage.label}
+                  className="flex items-start gap-3 rounded-2xl border border-line/60 bg-panel/70 px-3 py-3"
+                >
+                  <div
+                    className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
+                      isComplete || isActive ? "bg-accent" : "bg-line"
+                    } ${isActive ? "animate-pulse" : ""}`}
+                  />
+                  <div className="min-w-0">
+                    <p
+                      className={`text-sm font-medium ${
+                        isComplete || isActive ? "text-foreground" : "text-muted"
+                      }`}
+                    >
+                      {stage.label}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-muted">{stage.description}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -211,6 +338,8 @@ export function RecommendationRequestForm({
           {state.message}
         </p>
       ) : null}
+
+      <RequestProgressPanel />
 
       {!canSubmit ? (
         <div className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm leading-6 text-highlight">

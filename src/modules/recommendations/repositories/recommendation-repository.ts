@@ -245,6 +245,7 @@ export async function findRecommendationItemForUser(userId: string, itemId: stri
         title: recommendationItems.title,
         year: recommendationItems.year,
         existingInLibrary: recommendationItems.existingInLibrary,
+        providerMetadataJson: recommendationItems.providerMetadataJson,
       })
       .from(recommendationItems)
       .innerJoin(recommendationRuns, eq(recommendationRuns.id, recommendationItems.runId))

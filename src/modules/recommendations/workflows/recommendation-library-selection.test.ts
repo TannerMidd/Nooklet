@@ -30,6 +30,8 @@ describe("recommendation-library-selection", () => {
         rootFolderPath: "/library/movies",
         qualityProfileId: 7,
         tagIds: [],
+        seasonSelectionMode: "all",
+        seasonNumbers: [],
       }, "Radarr"),
     ).toEqual({
       ok: false,
@@ -43,6 +45,8 @@ describe("recommendation-library-selection", () => {
         rootFolderPath: "/library/other",
         qualityProfileId: 7,
         tagIds: [],
+        seasonSelectionMode: "all",
+        seasonNumbers: [],
       }, "Radarr"),
     ).toEqual({
       ok: false,
@@ -57,6 +61,8 @@ describe("recommendation-library-selection", () => {
         rootFolderPath: "/library/movies",
         qualityProfileId: 99,
         tagIds: [],
+        seasonSelectionMode: "all",
+        seasonNumbers: [],
       }, "Radarr"),
     ).toEqual({
       ok: false,
@@ -71,11 +77,83 @@ describe("recommendation-library-selection", () => {
         rootFolderPath: "/library/movies",
         qualityProfileId: 7,
         tagIds: [11, 12],
+        seasonSelectionMode: "all",
+        seasonNumbers: [],
       }, "Radarr"),
     ).toEqual({
       ok: false,
       message: "Select only tags returned by the verified library manager connection.",
       field: "tagIds",
+    });
+  });
+
+  it("requires a season selection when a custom TV selection is requested", () => {
+    expect(
+      validateRecommendationLibrarySelection(
+        validMetadata,
+        {
+          rootFolderPath: "/library/movies",
+          qualityProfileId: 7,
+          tagIds: [11],
+          seasonSelectionMode: "custom",
+          seasonNumbers: [],
+        },
+        "Sonarr",
+        {
+          mediaType: "tv",
+          availableSeasonNumbers: [1, 2, 3],
+        },
+      ),
+    ).toEqual({
+      ok: false,
+      message: "Select at least one season or choose all seasons.",
+      field: "seasonNumbers",
+    });
+  });
+
+  it("rejects unknown season numbers for custom TV selections", () => {
+    expect(
+      validateRecommendationLibrarySelection(
+        validMetadata,
+        {
+          rootFolderPath: "/library/movies",
+          qualityProfileId: 7,
+          tagIds: [11],
+          seasonSelectionMode: "custom",
+          seasonNumbers: [1, 4],
+        },
+        "Sonarr",
+        {
+          mediaType: "tv",
+          availableSeasonNumbers: [1, 2, 3],
+        },
+      ),
+    ).toEqual({
+      ok: false,
+      message: "Select only seasons returned for this show.",
+      field: "seasonNumbers",
+    });
+  });
+
+  it("accepts valid custom TV season selections", () => {
+    expect(
+      validateRecommendationLibrarySelection(
+        validMetadata,
+        {
+          rootFolderPath: "/library/movies",
+          qualityProfileId: 7,
+          tagIds: [11],
+          seasonSelectionMode: "custom",
+          seasonNumbers: [1, 3],
+        },
+        "Sonarr",
+        {
+          mediaType: "tv",
+          availableSeasonNumbers: [1, 2, 3],
+        },
+      ),
+    ).toEqual({
+      ok: true,
     });
   });
 
@@ -85,6 +163,8 @@ describe("recommendation-library-selection", () => {
         rootFolderPath: "/library/movies",
         qualityProfileId: 7,
         tagIds: [11],
+        seasonSelectionMode: "all",
+        seasonNumbers: [],
       }, "Radarr"),
     ).toEqual({
       ok: true,
