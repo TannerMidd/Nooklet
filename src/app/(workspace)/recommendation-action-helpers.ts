@@ -14,6 +14,12 @@ export const watchHistoryOnlyActionSchema = z.object({
 export const recommendationDefaultsActionSchema = z.object({
   requestedCount: z.number().int("Use a whole number.").min(1).max(20),
   temperature: z.number().min(0).max(2),
+  aiModel: z
+    .string()
+    .trim()
+    .min(1, "Choose or enter a model.")
+    .max(200, "Keep the model identifier under 200 characters.")
+    .optional(),
 });
 
 export function safeReturnTo(value: string) {

@@ -166,8 +166,12 @@ type DefaultsFieldExitEvent =
   | FocusEvent<HTMLInputElement>
   | ReactMouseEvent<HTMLInputElement>;
 
-function buildRequestDefaultsKey(requestedCount: number, temperature: number) {
-  return `${requestedCount}:${temperature}`;
+function buildRequestDefaultsKey(
+  requestedCount: number,
+  temperature: number,
+  aiModel: string,
+) {
+  return `${requestedCount}:${temperature}:${aiModel}`;
 }
 
 function readNumericInputValue(input: HTMLInputElement) {
@@ -197,36 +201,17 @@ export function RecommendationRequestForm({
     initialRecommendationActionState,
   );
   const formRef = useRef<HTMLFormElement>(null);
+  const [selectedModel, setSelectedModel] = useState(defaultModel);
   const lastSubmittedDefaultsRef = useRef(
-    buildRequestDefaultsKey(defaultResultCount, defaultTemperature),
+    buildRequestDefaultsKey(defaultResultCount, defaultTemperature, defaultModel),
   );
 
-  function saveDefaultsOnFieldExit(event: DefaultsFieldExitEvent) {
-    const form = event.currentTarget.form ?? formRef.current;
-
-    if (!form) {
-      return;
-    }
-
-    const requestedCountField = form.elements.namedItem("requestedCount");
-    const temperatureField = form.elements.namedItem("temperature");
-
-    if (!(requestedCountField instanceof HTMLInputElement) || !(temperatureField instanceof HTMLInputElement)) {
-      return;
-    }
-
-    if (!requestedCountField.checkValidity() || !temperatureField.checkValidity()) {
-      return;
-    }
-
-    const requestedCount = readNumericInputValue(requestedCountField);
-    const temperature = readNumericInputValue(temperatureField);
-
-    if (requestedCount === null || temperature === null) {
-      return;
-    }
-
-    const nextDefaultsKey = buildRequestDefaultsKey(requestedCount, temperature);
+  function persistDefaults(
+    requestedCount: number,
+    temperature: number,
+    aiModel: string,
+  ) {
+    const nextDefaultsKey = buildRequestDefaultsKey(requestedCount, temperature, aiModel);
 
     if (nextDefaultsKey === lastSubmittedDefaultsRef.current) {
       return;
@@ -238,8 +223,74 @@ export function RecommendationRequestForm({
       void submitRecommendationDefaultsAction({
         requestedCount,
         temperature,
+        aiModel: aiModel.trim().length > 0 ? aiModel.trim() : undefined,
       });
     });
+  }
+
+  function readDefaultsFromForm(form: HTMLFormElement) {
+    const requestedCountField = form.elements.namedItem("requestedCount");
+    const temperatureField = form.elements.namedItem("temperature");
+    const aiModelField = form.elements.namedItem("aiModel");
+
+    if (
+      !(requestedCountField instanceof HTMLInputElement) ||
+      !(temperatureField instanceof HTMLInputElement)
+    ) {
+      return null;
+    }
+
+    if (!requestedCountField.checkValidity() || !temperatureField.checkValidity()) {
+      return null;
+    }
+
+    const requestedCount = readNumericInputValue(requestedCountField);
+    const temperature = readNumericInputValue(temperatureField);
+
+    if (requestedCount === null || temperature === null) {
+      return null;
+    }
+
+    const aiModel = aiModelField instanceof HTMLInputElement ? aiModelField.value : selectedModel;
+
+    return { requestedCount, temperature, aiModel };
+  }
+
+  function saveDefaultsOnFieldExit(event: DefaultsFieldExitEvent) {
+    const form = event.currentTarget.form ?? formRef.current;
+
+    if (!form) {
+      return;
+    }
+
+    const defaults = readDefaultsFromForm(form);
+
+    if (!defaults) {
+      return;
+    }
+
+    persistDefaults(defaults.requestedCount, defaults.temperature, defaults.aiModel);
+  }
+
+  function handleModelChange(nextModel: string) {
+    setSelectedModel(nextModel);
+
+    const form = formRef.current;
+
+    if (!form) {
+      return;
+    }
+
+    const defaults = readDefaultsFromForm(form);
+
+    // The hidden aiModel input updates synchronously via SearchableSelect, but
+    // when called from the change callback we want to persist using the value
+    // we just received either way to avoid relying on render order.
+    const requestedCount =
+      defaults?.requestedCount ?? defaultResultCount;
+    const temperature = defaults?.temperature ?? defaultTemperature;
+
+    persistDefaults(requestedCount, temperature, nextModel);
   }
 
   return (
@@ -273,7 +324,8 @@ export function RecommendationRequestForm({
           <span className="text-sm font-medium text-foreground">Model</span>
           <SearchableSelect
             name="aiModel"
-            defaultValue={defaultModel}
+            value={selectedModel}
+            onChange={handleModelChange}
             options={availableModels}
             placeholder={availableModels.length > 0 ? "Search available models" : "Enter a model identifier"}
             searchPlaceholder="Search models…"

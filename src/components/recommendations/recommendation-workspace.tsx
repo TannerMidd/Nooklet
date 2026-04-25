@@ -82,7 +82,10 @@ export async function RecommendationWorkspace({
   const recommendationRequestBlockedMessage = canRequest
     ? null
     : aiProvider?.statusMessage ?? "Configure the AI provider before requesting recommendations.";
-  const defaultModel = aiProvider?.model ?? "gpt-4.1-mini";
+  const defaultModel =
+    preferences.defaultAiModel?.trim().length
+      ? preferences.defaultAiModel
+      : aiProvider?.model ?? "gpt-4.1-mini";
   const availableModels = aiProvider?.availableModels ?? [];
   const selectedWatchHistorySourceNames = preferences.watchHistorySourceTypes
     .map((sourceType) => getWatchHistorySourceDefinition(sourceType).displayName)

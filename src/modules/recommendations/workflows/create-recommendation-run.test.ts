@@ -118,6 +118,7 @@ describe("createRecommendationRunWorkflow", () => {
       defaultMediaMode: "movies",
       defaultResultCount: 10,
       defaultTemperature: 0.8,
+      defaultAiModel: null,
       defaultSonarrRootFolderPath: null,
       defaultSonarrQualityProfileId: null,
       defaultRadarrRootFolderPath: null,

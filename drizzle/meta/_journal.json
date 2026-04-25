@@ -92,6 +92,13 @@
       "when": 1777184500000,
       "tag": "0012_user_login_security",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1777270900000,
+      "tag": "0013_default_ai_model",
+      "breakpoints": true
     }
   ]
 }

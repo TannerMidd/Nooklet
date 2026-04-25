@@ -62,6 +62,7 @@ export async function submitRecommendationRequestAction(
   await updateRecommendationRequestDefaults(session.user.id, {
     defaultResultCount: parsedInput.data.requestedCount,
     defaultTemperature: parsedInput.data.temperature,
+    defaultAiModel: parsedInput.data.aiModel,
   });
 
   const result = await createRecommendationRunWorkflow(session.user.id, parsedInput.data);
@@ -115,6 +116,7 @@ export async function submitRecommendationWatchHistoryModeAction(formData: FormD
 export async function submitRecommendationDefaultsAction(input: {
   requestedCount: number;
   temperature: number;
+  aiModel?: string;
 }) {
   const session = await auth();
 
@@ -131,6 +133,7 @@ export async function submitRecommendationDefaultsAction(input: {
   await updateRecommendationRequestDefaults(session.user.id, {
     defaultResultCount: parsedInput.data.requestedCount,
     defaultTemperature: parsedInput.data.temperature,
+    defaultAiModel: parsedInput.data.aiModel,
   });
 }
 

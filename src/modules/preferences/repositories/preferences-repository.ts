@@ -64,6 +64,7 @@ export const defaultPreferenceValues: Omit<PreferenceRecord, "userId" | "updated
   defaultMediaMode: "tv",
   defaultResultCount: 10,
   defaultTemperature: 0.9,
+  defaultAiModel: null,
   defaultSonarrRootFolderPath: null,
   defaultSonarrQualityProfileId: null,
   defaultRadarrRootFolderPath: null,
@@ -177,6 +178,7 @@ export async function upsertPreferences(input: UpsertPreferencesInput) {
 type RecommendationRequestDefaultsInput = {
   defaultResultCount: number;
   defaultTemperature: number;
+  defaultAiModel?: string | null;
 };
 
 export async function updateRecommendationRequestDefaults(
@@ -185,21 +187,37 @@ export async function updateRecommendationRequestDefaults(
 ) {
   const database = ensureDatabaseReady();
 
+  // Treat empty / whitespace-only model identifiers as "clear the saved
+  // preference" so callers don't accidentally persist blank strings.
+  const normalizedModel =
+    typeof input.defaultAiModel === "string" && input.defaultAiModel.trim().length > 0
+      ? input.defaultAiModel.trim()
+      : input.defaultAiModel === undefined
+        ? undefined
+        : null;
+
+  const baseValues = {
+    defaultResultCount: input.defaultResultCount,
+    defaultTemperature: input.defaultTemperature,
+    updatedAt: new Date(),
+  };
+
+  const insertValues =
+    normalizedModel === undefined
+      ? { userId, ...baseValues }
+      : { userId, ...baseValues, defaultAiModel: normalizedModel };
+
+  const updateValues =
+    normalizedModel === undefined
+      ? baseValues
+      : { ...baseValues, defaultAiModel: normalizedModel };
+
   database
     .insert(preferences)
-    .values({
-      userId,
-      defaultResultCount: input.defaultResultCount,
-      defaultTemperature: input.defaultTemperature,
-      updatedAt: new Date(),
-    })
+    .values(insertValues)
     .onConflictDoUpdate({
       target: preferences.userId,
-      set: {
-        defaultResultCount: input.defaultResultCount,
-        defaultTemperature: input.defaultTemperature,
-        updatedAt: new Date(),
-      },
+      set: updateValues,
     })
     .run();
 }
