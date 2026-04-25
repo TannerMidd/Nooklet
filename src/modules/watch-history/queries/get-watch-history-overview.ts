@@ -11,11 +11,12 @@ import {
 import { parseWatchHistorySourceMetadataJson } from "@/modules/watch-history/source-metadata";
 
 export async function getWatchHistoryOverview(userId: string) {
-  const [sources, syncRuns, counts, recentItems] = await Promise.all([
+  const [sources, syncRuns, counts, recentTvItems, recentMovieItems] = await Promise.all([
     listWatchHistorySources(userId),
     listWatchHistorySyncRuns(userId, 8),
     getWatchHistoryItemCounts(userId),
-    listRecentWatchHistoryItems(userId, undefined, 10),
+    listRecentWatchHistoryItems(userId, "tv", 8),
+    listRecentWatchHistoryItems(userId, "movie", 8),
   ]);
 
   const latestSyncBySourceId = new Map(
@@ -26,6 +27,8 @@ export async function getWatchHistoryOverview(userId: string) {
     totalCount: counts.totalCount,
     tvCount: counts.tvCount,
     movieCount: counts.movieCount,
+    recentTvItems,
+    recentMovieItems,
     sources: sources.map((source) => {
       const latestRun = latestSyncBySourceId.get(source.id);
       const sourceMetadata = parseWatchHistorySourceMetadataJson(source.metadataJson);
@@ -57,6 +60,5 @@ export async function getWatchHistoryOverview(userId: string) {
         lastImportedCount: latestRun?.itemCount ?? 0,
       };
     }),
-    recentItems,
   };
 }

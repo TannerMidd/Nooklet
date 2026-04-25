@@ -24,6 +24,42 @@ function formatDate(value: Date | null) {
   }).format(value);
 }
 
+type WatchHistoryOverview = Awaited<ReturnType<typeof getWatchHistoryOverview>>;
+
+function RecentWatchHistoryItemList({
+  items,
+  emptyMessage,
+}: {
+  items: WatchHistoryOverview["recentTvItems"];
+  emptyMessage: string;
+}) {
+  if (items.length === 0) {
+    return <p className="text-sm leading-6 text-muted">{emptyMessage}</p>;
+  }
+
+  return (
+    <div className="grid gap-3">
+      {items.map((item) => (
+        <article
+          key={item.id}
+          className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4"
+        >
+          <p className="font-medium text-foreground">
+            {item.title}
+            {item.year ? ` (${item.year})` : ""}
+          </p>
+          <p className="mt-1 text-sm text-muted">
+            {item.mediaType === "tv" ? "TV" : "Movie"} watched item
+          </p>
+          <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-accent">
+            {formatDate(item.watchedAt)}
+          </p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export default async function WatchHistorySettingsPage() {
   const session = await auth();
 
@@ -48,6 +84,8 @@ export default async function WatchHistorySettingsPage() {
   const tautulliSummary =
     connectionSummaries.find((summary) => summary.serviceType === "tautulli") ?? null;
   const tautulliSchedule = scheduledJobBySourceType.get("tautulli") ?? null;
+  const hasRecentItems =
+    overview.recentTvItems.length > 0 || overview.recentMovieItems.length > 0;
   const lastSyncedAt = overview.sources.reduce<Date | null>((latest, source) => {
     if (!source.lastSyncedAt) {
       return latest;
@@ -290,32 +328,36 @@ export default async function WatchHistorySettingsPage() {
 
       <Panel
         eyebrow="Recent titles"
-        title={`Imported items (${overview.recentItems.length})`}
-        description="These are the most recent watch-history items currently available to recommendation workflows."
+        title="Imported items"
+        description="These are the most recent TV and movie watch-history items currently available to recommendation workflows."
       >
-        {overview.recentItems.length === 0 ? (
+        {!hasRecentItems ? (
           <p className="text-sm leading-6 text-muted">
             No watch-history items have been imported yet.
           </p>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {overview.recentItems.map((item) => (
-              <article
-                key={item.id}
-                className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4"
-              >
-                <p className="font-medium text-foreground">
-                  {item.title}
-                  {item.year ? ` (${item.year})` : ""}
-                </p>
-                <p className="mt-1 text-sm text-muted">
-                  {item.mediaType === "tv" ? "TV" : "Movie"} watched item
-                </p>
-                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-accent">
-                  {formatDate(item.watchedAt)}
-                </p>
-              </article>
-            ))}
+          <div className="grid gap-6 xl:grid-cols-2">
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-medium text-foreground">Recent TV titles</h3>
+                <p className="text-sm text-muted">{overview.recentTvItems.length}</p>
+              </div>
+              <RecentWatchHistoryItemList
+                items={overview.recentTvItems}
+                emptyMessage="No TV watch-history items have been imported yet."
+              />
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-medium text-foreground">Recent movie titles</h3>
+                <p className="text-sm text-muted">{overview.recentMovieItems.length}</p>
+              </div>
+              <RecentWatchHistoryItemList
+                items={overview.recentMovieItems}
+                emptyMessage="No movie watch-history items have been imported yet."
+              />
+            </section>
           </div>
         )}
       </Panel>
