@@ -1,6 +1,7 @@
 import { verifyPlexConnection } from "@/lib/integrations/plex";
 import { verifyTautulliConnection } from "@/lib/integrations/tautulli";
 import { type ServiceConnectionType } from "@/lib/database/schema";
+import { safeFetch } from "@/lib/security/safe-fetch";
 import { type PlexMetadata } from "@/modules/service-connections/plex-metadata";
 import { type TautulliMetadata } from "@/modules/service-connections/tautulli-metadata";
 import {
@@ -28,17 +29,8 @@ type VerifyServiceConnectionResult = {
 };
 
 async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-
-  try {
-    return await fetch(input, {
-      ...init,
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timeout);
-  }
+  const target = typeof input === "string" || input instanceof URL ? input : input.url;
+  return safeFetch(target, { ...init, timeoutMs: 5000 });
 }
 
 function trimTrailingSlash(baseUrl: string) {

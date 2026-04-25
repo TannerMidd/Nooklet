@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { type RecommendationMediaType } from "@/lib/database/schema";
+import { safeFetch } from "@/lib/security/safe-fetch";
 
 const aiRecommendationResponseSchema = z.object({
   items: z.array(z.unknown()).min(1),
@@ -120,13 +121,15 @@ export async function generateOpenAiCompatibleRecommendations(
           .join("\n")
       : "None provided.";
 
-  const response = await fetch(`${trimTrailingSlash(input.baseUrl)}/chat/completions`, {
+  const response = await safeFetch(`${trimTrailingSlash(input.baseUrl)}/chat/completions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${input.apiKey}`,
       "Content-Type": "application/json",
     },
     cache: "no-store",
+    timeoutMs: 60_000,
+    maxBytes: 2 * 1024 * 1024,
     body: JSON.stringify({
       model: input.model,
       messages: [

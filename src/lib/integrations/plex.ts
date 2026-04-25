@@ -1,3 +1,5 @@
+import { safeFetch } from "@/lib/security/safe-fetch";
+
 type PlexCredentials = {
   baseUrl: string;
   apiKey: string;
@@ -57,17 +59,8 @@ function trimTrailingSlash(baseUrl: string) {
 }
 
 async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-
-  try {
-    return await fetch(input, {
-      ...init,
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timeout);
-  }
+  const target = typeof input === "string" || input instanceof URL ? input : input.url;
+  return safeFetch(target, { ...init, timeoutMs: 5000 });
 }
 
 function buildPlexUrl(baseUrl: string, path: string, params: Record<string, string> = {}) {
