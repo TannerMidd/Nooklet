@@ -19,6 +19,13 @@ WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Next.js evaluates route modules during `next build` to collect page data, and
+# our env schema validates AUTH_SECRET at import time. Provide a throwaway
+# value here so the build can complete; the real secret is supplied at runtime
+# via the runner stage's env_file. This dummy value is NOT baked into the
+# output bundle (env is read with process.env at runtime).
+ENV AUTH_SECRET=build-time-placeholder-not-used-at-runtime-xxxxxxxxxxxxx
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
@@ -38,7 +45,6 @@ ENV NODE_ENV=production \
 # under .next/standalone. We still need the Drizzle migrations folder at
 # runtime because ensureDatabaseReady() runs them on first DB access, and we
 # need the better-sqlite3 native module which standalone tracing pulls in.
-COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/drizzle ./drizzle
