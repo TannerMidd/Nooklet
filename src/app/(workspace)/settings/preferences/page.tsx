@@ -128,23 +128,6 @@ export default async function PreferencesSettingsPage({
               </div>
             </div>
           </Panel>
-
-          <Panel
-            eyebrow="Included here"
-            title="What these settings control"
-          >
-            <ul className="space-y-3 text-sm leading-6 text-foreground">
-              <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Default request values for TV and movie recommendations.
-              </li>
-              <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Default history filters for existing, liked, disliked, hidden, and imported items.
-              </li>
-              <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Watch-history-only behavior and which synced history sources are allowed to influence prompts.
-              </li>
-            </ul>
-          </Panel>
         </div>
       </div>
     </div>
