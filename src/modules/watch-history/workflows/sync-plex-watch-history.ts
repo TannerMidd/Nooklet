@@ -3,7 +3,6 @@ import { decryptSecret } from "@/lib/security/secret-box";
 import { parsePlexMetadata } from "@/modules/service-connections/plex-metadata";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
-import { buildWatchHistoryNormalizedKey } from "@/modules/watch-history/normalization";
 import { type PlexWatchHistorySyncInput } from "@/modules/watch-history/schemas/plex-watch-history-sync";
 import {
   completeWatchHistorySyncRun,
@@ -12,6 +11,10 @@ import {
   replaceWatchHistoryItemsForSource,
   upsertWatchHistorySource,
 } from "@/modules/watch-history/repositories/watch-history-repository";
+import {
+  normalizeWatchHistorySyncItems,
+  resolveWatchHistoryFetchLimit,
+} from "@/modules/watch-history/workflows/watch-history-sync-helpers";
 
 const plexSourceDisplayName = "Plex watch history";
 
@@ -89,23 +92,9 @@ export async function syncPlexWatchHistory(
       apiKey: decryptSecret(connectionRecord.secret.encryptedValue),
       mediaType: input.mediaType,
       userId: selectedUser.id,
-      limit: Math.min(Math.max(input.importLimit * 3, 50), 500),
+      limit: resolveWatchHistoryFetchLimit(input.importLimit),
     });
-    const seenKeys = new Set<string>();
-    const items = rawItems
-      .map((item) => ({
-        ...item,
-        normalizedKey: buildWatchHistoryNormalizedKey(input.mediaType, item.title, item.year),
-      }))
-      .filter((item) => {
-        if (seenKeys.has(item.normalizedKey)) {
-          return false;
-        }
-
-        seenKeys.add(item.normalizedKey);
-        return true;
-      })
-      .slice(0, input.importLimit);
+    const items = normalizeWatchHistorySyncItems(input.mediaType, rawItems, input.importLimit);
 
     await replaceWatchHistoryItemsForSource({
       sourceId: source.id,
