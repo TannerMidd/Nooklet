@@ -14,6 +14,10 @@ const envSchema = z.object({
   AUTH_SECRET: z
     .string({ error: "AUTH_SECRET is required. Generate one with `openssl rand -base64 48`." })
     .min(32, "AUTH_SECRET must be at least 32 characters."),
+  SECRET_BOX_KEY: z
+    .string()
+    .min(32, "SECRET_BOX_KEY must be at least 32 characters when set.")
+    .optional(),
   ALLOW_PRIVATE_SERVICE_HOSTS: booleanFromEnv.default(true),
 });
 
@@ -22,5 +26,6 @@ export const env = envSchema.parse({
   APP_URL: process.env.APP_URL,
   DATABASE_URL: process.env.DATABASE_URL,
   AUTH_SECRET: process.env.AUTH_SECRET,
+  SECRET_BOX_KEY: process.env.SECRET_BOX_KEY,
   ALLOW_PRIVATE_SERVICE_HOSTS: process.env.ALLOW_PRIVATE_SERVICE_HOSTS,
 });
