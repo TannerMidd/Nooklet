@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { type ConnectionActionState } from "@/app/(workspace)/settings/connections/action-state";
 import { auth } from "@/auth";
+import { consumeRateLimit, formatRetryAfter } from "@/lib/security/rate-limit";
 import {
   apiKeyServiceConnectionSchema,
   aiProviderConnectionSchema,
@@ -41,6 +42,19 @@ export async function submitConnectionAction(
   }
 
   if (intent === "verify") {
+    const rateLimit = consumeRateLimit({
+      key: `verify-connection:${session.user.id}:${serviceType}`,
+      limit: 10,
+      windowMs: 5 * 60 * 1000,
+    });
+
+    if (!rateLimit.ok) {
+      return {
+        status: "error",
+        message: `Too many verification attempts. Try again in ${formatRetryAfter(rateLimit.retryAfterMs)}.`,
+      };
+    }
+
     const result = await verifyConfiguredServiceConnection(session.user.id, serviceType);
     revalidatePath("/settings/connections");
 

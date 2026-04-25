@@ -326,6 +326,12 @@ export const recommendationItemStates = sqliteTable(
   ],
 );
 
+export const rateLimits = sqliteTable("rate_limits", {
+  key: text("key").primaryKey(),
+  windowStartedAt: integer("window_started_at", { mode: "number" }).notNull(),
+  attempts: integer("attempts").notNull().default(0),
+});
+
 export type UserRole = (typeof userRoles)[number];
 export type PreferenceMediaMode = (typeof preferenceMediaModes)[number];
 export type ServiceConnectionType = (typeof serviceConnectionTypes)[number];

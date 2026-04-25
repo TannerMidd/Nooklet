@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { type BootstrapActionState } from "@/app/(auth)/bootstrap/action-state";
+import { consumeRateLimit, formatRetryAfter } from "@/lib/security/rate-limit";
 import { bootstrapInputSchema } from "@/modules/identity-access/schemas/bootstrap";
 import { createFirstAdmin } from "@/modules/identity-access/workflows/create-first-admin";
 
@@ -10,6 +11,19 @@ export async function submitBootstrapAction(
   _previousState: BootstrapActionState,
   formData: FormData,
 ): Promise<BootstrapActionState> {
+  const rateLimit = consumeRateLimit({
+    key: "bootstrap:global",
+    limit: 5,
+    windowMs: 15 * 60 * 1000,
+  });
+
+  if (!rateLimit.ok) {
+    return {
+      status: "error",
+      message: `Too many bootstrap attempts. Try again in ${formatRetryAfter(rateLimit.retryAfterMs)}.`,
+    };
+  }
+
   const parsedInput = bootstrapInputSchema.safeParse({
     displayName: formData.get("displayName"),
     email: formData.get("email"),

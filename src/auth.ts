@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
 import { env } from "@/lib/env";
+import { consumeRateLimit } from "@/lib/security/rate-limit";
 import { loginInputSchema } from "@/modules/identity-access/schemas/login";
 import { authenticateWithPassword } from "@/modules/identity-access/workflows/authenticate-with-password";
 import { getBootstrapStatus } from "@/modules/identity-access/workflows/bootstrap-status";
@@ -31,6 +32,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const parsedCredentials = loginInputSchema.safeParse(credentials);
 
         if (!parsedCredentials.success) {
+          return null;
+        }
+
+        const normalizedEmail = parsedCredentials.data.email.trim().toLowerCase();
+        const rateLimit = consumeRateLimit({
+          key: `login:${normalizedEmail}`,
+          limit: 10,
+          windowMs: 5 * 60 * 1000,
+        });
+
+        if (!rateLimit.ok) {
           return null;
         }
 

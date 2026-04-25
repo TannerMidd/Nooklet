@@ -16,6 +16,7 @@ import {
   safeReturnTo,
   watchHistoryOnlyActionSchema,
 } from "./recommendation-action-helpers";
+import { consumeRateLimit, formatRetryAfter } from "@/lib/security/rate-limit";
 import {
   updateRecommendationRequestDefaults,
   updateWatchHistoryOnly,
@@ -32,6 +33,19 @@ export async function submitRecommendationRequestAction(
     return {
       status: "error",
       message: "You need to sign in again.",
+    };
+  }
+
+  const rateLimit = consumeRateLimit({
+    key: `recommendation:${session.user.id}`,
+    limit: 30,
+    windowMs: 60 * 60 * 1000,
+  });
+
+  if (!rateLimit.ok) {
+    return {
+      status: "error",
+      message: `You've reached the recommendation request limit. Try again in ${formatRetryAfter(rateLimit.retryAfterMs)}.`,
     };
   }
 
@@ -130,6 +144,19 @@ export async function submitRecommendationRetryAction(
     return {
       status: "error",
       message: "You need to sign in again.",
+    };
+  }
+
+  const rateLimit = consumeRateLimit({
+    key: `recommendation:${session.user.id}`,
+    limit: 30,
+    windowMs: 60 * 60 * 1000,
+  });
+
+  if (!rateLimit.ok) {
+    return {
+      status: "error",
+      message: `You've reached the recommendation request limit. Try again in ${formatRetryAfter(rateLimit.retryAfterMs)}.`,
     };
   }
 
