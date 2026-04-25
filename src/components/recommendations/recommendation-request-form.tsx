@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { type FocusEvent, type MouseEvent as ReactMouseEvent, startTransition, useActionState, useRef } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
+  submitRecommendationDefaultsAction,
   submitRecommendationRequestAction,
 } from "@/app/(workspace)/recommendation-actions";
 import { initialRecommendationActionState } from "@/app/(workspace)/recommendation-action-state";
@@ -31,6 +32,26 @@ function SubmitButton({ canSubmit }: { canSubmit: boolean }) {
   );
 }
 
+type DefaultsFieldExitEvent =
+  | FocusEvent<HTMLInputElement>
+  | ReactMouseEvent<HTMLInputElement>;
+
+function buildRequestDefaultsKey(requestedCount: number, temperature: number) {
+  return `${requestedCount}:${temperature}`;
+}
+
+function readNumericInputValue(input: HTMLInputElement) {
+  const trimmedValue = input.value.trim();
+
+  if (trimmedValue.length === 0) {
+    return null;
+  }
+
+  const value = Number(trimmedValue);
+
+  return Number.isFinite(value) ? value : null;
+}
+
 export function RecommendationRequestForm({
   mediaType,
   redirectPath,
@@ -45,9 +66,54 @@ export function RecommendationRequestForm({
     initialRecommendationActionState,
   );
   const datalistId = `${mediaType}-recommendation-models`;
+  const formRef = useRef<HTMLFormElement>(null);
+  const lastSubmittedDefaultsRef = useRef(
+    buildRequestDefaultsKey(defaultResultCount, defaultTemperature),
+  );
+
+  function saveDefaultsOnFieldExit(event: DefaultsFieldExitEvent) {
+    const form = event.currentTarget.form ?? formRef.current;
+
+    if (!form) {
+      return;
+    }
+
+    const requestedCountField = form.elements.namedItem("requestedCount");
+    const temperatureField = form.elements.namedItem("temperature");
+
+    if (!(requestedCountField instanceof HTMLInputElement) || !(temperatureField instanceof HTMLInputElement)) {
+      return;
+    }
+
+    if (!requestedCountField.checkValidity() || !temperatureField.checkValidity()) {
+      return;
+    }
+
+    const requestedCount = readNumericInputValue(requestedCountField);
+    const temperature = readNumericInputValue(temperatureField);
+
+    if (requestedCount === null || temperature === null) {
+      return;
+    }
+
+    const nextDefaultsKey = buildRequestDefaultsKey(requestedCount, temperature);
+
+    if (nextDefaultsKey === lastSubmittedDefaultsRef.current) {
+      return;
+    }
+
+    lastSubmittedDefaultsRef.current = nextDefaultsKey;
+
+    startTransition(() => {
+      void submitRecommendationDefaultsAction({
+        requestedCount,
+        temperature,
+      });
+    });
+  }
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form ref={formRef} action={formAction} className="space-y-5">
       <input type="hidden" name="mediaType" value={mediaType} />
       <input type="hidden" name="redirectPath" value={redirectPath} />
 
@@ -109,6 +175,8 @@ export function RecommendationRequestForm({
             max={2}
             step={0.1}
             defaultValue={defaultTemperature.toFixed(1)}
+            onBlur={saveDefaultsOnFieldExit}
+            onMouseLeave={saveDefaultsOnFieldExit}
             aria-invalid={Boolean(state.fieldErrors?.temperature)}
           />
           <p className="text-sm text-muted">Lower is steadier. Higher is broader and less predictable.</p>
@@ -125,6 +193,8 @@ export function RecommendationRequestForm({
             min={1}
             max={20}
             defaultValue={defaultResultCount}
+            onBlur={saveDefaultsOnFieldExit}
+            onMouseLeave={saveDefaultsOnFieldExit}
             aria-invalid={Boolean(state.fieldErrors?.requestedCount)}
           />
           {state.fieldErrors?.requestedCount ? (

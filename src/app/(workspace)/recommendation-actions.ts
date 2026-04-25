@@ -10,12 +10,20 @@ import {
   type RecommendationLibraryActionState,
   type RecommendationRunActionState,
 } from "@/app/(workspace)/recommendation-action-state";
+import {
+  buildRecommendationRedirectPath,
+  parseRecommendationRequestActionFormData,
+  projectRecommendationRequestFieldErrors,
+  recommendationDefaultsActionSchema,
+  safeReturnTo,
+  safeRevalidatePath,
+  watchHistoryOnlyActionSchema,
+} from "./recommendation-action-helpers";
 import { addRecommendationToLibrarySchema } from "@/modules/recommendations/schemas/add-to-library";
 import {
   updateRecommendationRequestDefaults,
   updateWatchHistoryOnly,
 } from "@/modules/preferences/repositories/preferences-repository";
-import { recommendationRequestSchema } from "@/modules/recommendations/schemas/recommendation-request";
 import { addRecommendationToLibrary } from "@/modules/recommendations/workflows/add-recommendation-to-library";
 import { createRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
 import { updateRecommendationFeedback } from "@/modules/recommendations/workflows/update-recommendation-feedback";
@@ -33,31 +41,6 @@ const hiddenStateActionSchema = z.object({
   returnTo: z.string().min(1),
 });
 
-const watchHistoryOnlyActionSchema = z.object({
-  watchHistoryOnly: z.enum(["true", "false"]),
-  redirectPath: z.string().min(1),
-});
-
-function safeReturnTo(value: string) {
-  return value.startsWith("/") ? value : "/history";
-}
-
-function safeRevalidatePath(value: string) {
-  const normalizedPath = safeReturnTo(value);
-  const queryIndex = normalizedPath.indexOf("?");
-
-  return queryIndex === -1 ? normalizedPath : normalizedPath.slice(0, queryIndex);
-}
-
-function buildRecommendationRedirectPath(basePath: string, runId: string) {
-  const searchParams = new URLSearchParams({
-    run: runId,
-    generated: "1",
-  });
-
-  return `${basePath}?${searchParams.toString()}`;
-}
-
 export async function submitRecommendationRequestAction(
   _previousState: RecommendationActionState,
   formData: FormData,
@@ -71,27 +54,13 @@ export async function submitRecommendationRequestAction(
     };
   }
 
-  const redirectPath = safeReturnTo(formData.get("redirectPath")?.toString() ?? "/tv");
-  const parsedInput = recommendationRequestSchema.safeParse({
-    mediaType: formData.get("mediaType"),
-    requestPrompt: formData.get("requestPrompt"),
-    requestedCount: formData.get("requestedCount"),
-    aiModel: formData.get("aiModel"),
-    temperature: formData.get("temperature"),
-  });
+  const { redirectPath, parsedInput } = parseRecommendationRequestActionFormData(formData);
 
   if (!parsedInput.success) {
-    const flattenedErrors = parsedInput.error.flatten().fieldErrors;
-
     return {
       status: "error",
       message: "Review the highlighted fields and try again.",
-      fieldErrors: {
-        requestPrompt: flattenedErrors.requestPrompt?.[0],
-        requestedCount: flattenedErrors.requestedCount?.[0],
-        aiModel: flattenedErrors.aiModel?.[0],
-        temperature: flattenedErrors.temperature?.[0],
-      },
+      fieldErrors: projectRecommendationRequestFieldErrors(parsedInput.error),
     };
   }
 
@@ -148,6 +117,28 @@ export async function submitRecommendationWatchHistoryModeAction(formData: FormD
   redirect(redirectPath);
 }
 
+export async function submitRecommendationDefaultsAction(input: {
+  requestedCount: number;
+  temperature: number;
+}) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return;
+  }
+
+  const parsedInput = recommendationDefaultsActionSchema.safeParse(input);
+
+  if (!parsedInput.success) {
+    return;
+  }
+
+  await updateRecommendationRequestDefaults(session.user.id, {
+    defaultResultCount: parsedInput.data.requestedCount,
+    defaultTemperature: parsedInput.data.temperature,
+  });
+}
+
 export async function submitRecommendationRetryAction(
   _previousState: RecommendationRunActionState,
   formData: FormData,
@@ -161,14 +152,7 @@ export async function submitRecommendationRetryAction(
     };
   }
 
-  const redirectPath = safeReturnTo(formData.get("redirectPath")?.toString() ?? "/tv");
-  const parsedInput = recommendationRequestSchema.safeParse({
-    mediaType: formData.get("mediaType"),
-    requestPrompt: formData.get("requestPrompt"),
-    requestedCount: formData.get("requestedCount"),
-    aiModel: formData.get("aiModel"),
-    temperature: formData.get("temperature"),
-  });
+  const { redirectPath, parsedInput } = parseRecommendationRequestActionFormData(formData);
 
   if (!parsedInput.success) {
     return {
