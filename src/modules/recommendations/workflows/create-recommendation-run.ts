@@ -2,6 +2,7 @@ import { decryptSecret } from "@/lib/security/secret-box";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { getPreferencesByUserId } from "@/modules/preferences/repositories/preferences-repository";
 import { generateOpenAiCompatibleRecommendations } from "@/modules/recommendations/adapters/openai-compatible-recommendations";
+import { formatRecommendationGenres } from "@/modules/recommendations/recommendation-genres";
 import {
   completeRecommendationRun,
   createRecommendationRun,
@@ -183,6 +184,7 @@ function buildEmptyLibraryTasteContext(): RecommendationLibraryTasteContext {
 async function loadSampledLibraryTasteContext(
   userId: string,
   mediaType: RecommendationMediaType,
+  selectedGenres: RecommendationRequestInput["selectedGenres"],
 ) {
   const serviceType = mediaType === "tv" ? "sonarr" : "radarr";
   const definition = getServiceConnectionDefinition(serviceType);
@@ -224,6 +226,7 @@ async function loadSampledLibraryTasteContext(
     baseUrl: connection.connection.baseUrl,
     apiKey: decryptSecret(connection.secret.encryptedValue),
     sampleSize: libraryTasteSampleSize,
+    selectedGenres,
   });
 
   if (!result.ok) {
@@ -311,9 +314,11 @@ export async function createRecommendationRunWorkflow(
 
   const trimmedRequestPrompt = input.requestPrompt.trim();
   const aiModel = input.aiModel.trim();
+  const selectedGenres = input.selectedGenres;
+  const selectedGenreLabels = formatRecommendationGenres(selectedGenres);
   const [watchHistoryContext, libraryTasteContextResult, priorRecommendationItems] = await Promise.all([
     listWatchHistoryContext(userId, input.mediaType, 12, preferences.watchHistorySourceTypes),
-    loadSampledLibraryTasteContext(userId, input.mediaType),
+    loadSampledLibraryTasteContext(userId, input.mediaType, selectedGenres),
     listRecommendationExclusionItems(userId, input.mediaType),
   ]);
 
@@ -334,6 +339,7 @@ export async function createRecommendationRunWorkflow(
 
   if (
     trimmedRequestPrompt.length === 0 &&
+    selectedGenres.length === 0 &&
     watchHistoryContext.length === 0 &&
     libraryTasteContext.totalCount === 0
   ) {
@@ -355,6 +361,7 @@ export async function createRecommendationRunWorkflow(
     userId,
     mediaType: input.mediaType,
     requestPrompt: trimmedRequestPrompt,
+    selectedGenres,
     requestedCount: input.requestedCount,
     aiModel,
     aiTemperature: input.temperature,
@@ -375,6 +382,7 @@ export async function createRecommendationRunWorkflow(
     subjectId: run.id,
     payloadJson: JSON.stringify({
       mediaType: input.mediaType,
+      selectedGenres: selectedGenreLabels,
       requestedCount: input.requestedCount,
       watchHistoryItemCount: watchHistoryContext.length,
       watchHistorySourceTypes: preferences.watchHistorySourceTypes,
@@ -402,6 +410,7 @@ export async function createRecommendationRunWorkflow(
           mediaType: input.mediaType,
           flavor: aiProvider.flavor,
           requestPrompt,
+          selectedGenres,
           requestedCount,
           watchHistoryOnly: preferences.watchHistoryOnly,
           watchHistoryContext,
@@ -434,6 +443,7 @@ export async function createRecommendationRunWorkflow(
       subjectId: run.id,
       payloadJson: JSON.stringify({
         mediaType: input.mediaType,
+        selectedGenres: selectedGenreLabels,
         itemCount: normalizedItems.length,
         watchHistoryItemCount: watchHistoryContext.length,
         watchHistorySourceTypes: preferences.watchHistorySourceTypes,
@@ -460,6 +470,7 @@ export async function createRecommendationRunWorkflow(
       subjectId: run.id,
       payloadJson: JSON.stringify({
         mediaType: input.mediaType,
+        selectedGenres: selectedGenreLabels,
         error: message,
         watchHistoryItemCount: watchHistoryContext.length,
         watchHistorySourceTypes: preferences.watchHistorySourceTypes,

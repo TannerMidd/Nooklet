@@ -250,6 +250,7 @@ export const recommendationRuns = sqliteTable("recommendation_runs", {
     .notNull()
     .default("pending"),
   requestPrompt: text("request_prompt").notNull(),
+  selectedGenresJson: text("selected_genres_json").notNull().default("[]"),
   requestedCount: integer("requested_count").notNull(),
   aiModel: text("ai_model"),
   aiTemperature: real("ai_temperature").notNull().default(0.9),

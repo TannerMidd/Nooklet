@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+import {
+  normalizeRecommendationGenres,
+  recommendationGenreValues,
+} from "@/modules/recommendations/recommendation-genres";
+
+const recommendationGenreSchema = z.enum(recommendationGenreValues);
+
 export const recommendationRequestSchema = z.object({
   mediaType: z.enum(["tv", "movie"]),
   requestPrompt: z.preprocess(
@@ -20,6 +27,20 @@ export const recommendationRequestSchema = z.object({
     .number()
     .min(0, "Temperature must be 0 or higher.")
     .max(2, "Temperature must be 2 or lower."),
+  selectedGenres: z.preprocess(
+    (value) => {
+      if (Array.isArray(value)) {
+        return value;
+      }
+
+      if (typeof value === "string" && value.trim().length > 0) {
+        return [value];
+      }
+
+      return [];
+    },
+    z.array(recommendationGenreSchema),
+  ).transform((value) => normalizeRecommendationGenres(value)),
 });
 
 export type RecommendationRequestInput = z.infer<typeof recommendationRequestSchema>;

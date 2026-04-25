@@ -99,6 +99,13 @@
       "when": 1777270900000,
       "tag": "0013_default_ai_model",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1777160198717,
+      "tag": "0014_curved_rhino",
+      "breakpoints": true
     }
   ]
 }

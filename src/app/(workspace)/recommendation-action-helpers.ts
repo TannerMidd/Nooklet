@@ -55,6 +55,7 @@ export function parseRecommendationRequestActionFormData(
     requestedCount: formData.get("requestedCount"),
     aiModel: formData.get("aiModel"),
     temperature: formData.get("temperature"),
+    selectedGenres: formData.getAll("selectedGenres"),
   });
 
   return {
@@ -73,5 +74,6 @@ export function projectRecommendationRequestFieldErrors(
     requestedCount: flattenedErrors.requestedCount?.[0],
     aiModel: flattenedErrors.aiModel?.[0],
     temperature: flattenedErrors.temperature?.[0],
+    selectedGenres: flattenedErrors.selectedGenres?.[0],
   };
 }

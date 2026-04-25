@@ -11,11 +11,17 @@ import {
   type RecommendationFeedbackValue,
   type RecommendationMediaType,
 } from "@/lib/database/schema";
+import {
+  parseRecommendationGenresJson,
+  serializeRecommendationGenres,
+  type RecommendationGenre,
+} from "@/modules/recommendations/recommendation-genres";
 
 type CreateRecommendationRunInput = {
   userId: string;
   mediaType: RecommendationMediaType;
   requestPrompt: string;
+  selectedGenres: RecommendationGenre[];
   requestedCount: number;
   aiModel: string;
   aiTemperature: number;
@@ -43,6 +49,7 @@ export async function createRecommendationRun(input: CreateRecommendationRunInpu
       userId: input.userId,
       mediaType: input.mediaType,
       requestPrompt: input.requestPrompt,
+      selectedGenresJson: serializeRecommendationGenres(input.selectedGenres),
       requestedCount: input.requestedCount,
       aiModel: input.aiModel,
       aiTemperature: input.aiTemperature,
@@ -111,12 +118,13 @@ export async function listRecommendationRuns(
 ) {
   const database = ensureDatabaseReady();
 
-  return database
+  const rows = database
     .select({
       id: recommendationRuns.id,
       mediaType: recommendationRuns.mediaType,
       status: recommendationRuns.status,
       requestPrompt: recommendationRuns.requestPrompt,
+      selectedGenresJson: recommendationRuns.selectedGenresJson,
       requestedCount: recommendationRuns.requestedCount,
       aiModel: recommendationRuns.aiModel,
       aiTemperature: recommendationRuns.aiTemperature,
@@ -141,6 +149,11 @@ export async function listRecommendationRuns(
     .orderBy(desc(recommendationRuns.createdAt))
     .limit(limit)
     .all();
+
+  return rows.map(({ selectedGenresJson, ...run }) => ({
+    ...run,
+    selectedGenres: parseRecommendationGenresJson(selectedGenresJson),
+  }));
 }
 
 export async function listRecommendationItemsByRunIds(userId: string, runIds: string[]) {

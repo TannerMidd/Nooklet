@@ -220,6 +220,7 @@ describe("createRecommendationRunWorkflow", () => {
     const result = await createRecommendationRunWorkflow("user-1", {
       mediaType: "movie",
       requestPrompt: "Recommend cerebral sci-fi",
+      selectedGenres: ["science-fiction", "comedy"],
       requestedCount: 1,
       aiModel: "deepseek/deepseek-v4-pro",
       temperature: 0.6,
@@ -227,7 +228,18 @@ describe("createRecommendationRunWorkflow", () => {
 
     expect(result).toEqual({ ok: true, runId: "run-1" });
     expect(mockedVerifyConfiguredServiceConnection).toHaveBeenCalledWith("user-1", "radarr");
+    expect(mockedListSampledLibraryItems).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selectedGenres: ["science-fiction", "comedy"],
+      }),
+    );
     expect(mockedGenerateOpenAiCompatibleRecommendations).toHaveBeenCalledTimes(2);
+    expect(mockedGenerateOpenAiCompatibleRecommendations).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        selectedGenres: ["science-fiction", "comedy"],
+      }),
+    );
     expect(generationCalls[1]?.requestPrompt).toContain("- Arrival (2016)");
     expect(generationCalls[1]?.requestPrompt).toContain("- Ex Machina (2014)");
     expect(mockedCompleteRecommendationRun).toHaveBeenCalledWith("run-1", [
@@ -263,6 +275,7 @@ describe("createRecommendationRunWorkflow", () => {
     const result = await createRecommendationRunWorkflow("user-1", {
       mediaType: "movie",
       requestPrompt: "Recommend cerebral sci-fi",
+      selectedGenres: [],
       requestedCount: 1,
       aiModel: "deepseek/deepseek-v4-pro",
       temperature: 0.6,
@@ -314,6 +327,7 @@ describe("createRecommendationRunWorkflow", () => {
     const result = await createRecommendationRunWorkflow("user-1", {
       mediaType: "tv",
       requestPrompt: "Recommend sharp prestige sci-fi",
+      selectedGenres: ["science-fiction"],
       requestedCount: 3,
       aiModel: "deepseek/deepseek-v4-pro",
       temperature: 0.6,
@@ -329,5 +343,47 @@ describe("createRecommendationRunWorkflow", () => {
       }),
     ]);
     expect(mockedMarkRecommendationRunFailed).not.toHaveBeenCalled();
+  });
+
+  it("allows a request driven only by selected genres when no other taste context exists", async () => {
+    const aiProviderConnection = createConnectionRecord("ai-provider", "verified");
+    const verifiedRadarrConnection = createConnectionRecord("radarr", "verified");
+
+    mockedFindServiceConnectionByType.mockImplementation(async (_userId, serviceType) => {
+      if (serviceType === "ai-provider") {
+        return aiProviderConnection;
+      }
+
+      if (serviceType === "radarr") {
+        return verifiedRadarrConnection;
+      }
+
+      return null;
+    });
+    mockedGenerateOpenAiCompatibleRecommendations.mockResolvedValue([
+      {
+        title: "Bottoms",
+        year: 2023,
+        rationale: "Genre-led pick.",
+        confidenceLabel: "high",
+        providerMetadata: {},
+      },
+    ]);
+
+    const result = await createRecommendationRunWorkflow("user-1", {
+      mediaType: "movie",
+      requestPrompt: "",
+      selectedGenres: ["comedy"],
+      requestedCount: 1,
+      aiModel: "deepseek/deepseek-v4-pro",
+      temperature: 0.6,
+    });
+
+    expect(result).toEqual({ ok: true, runId: "run-1" });
+    expect(mockedGenerateOpenAiCompatibleRecommendations).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selectedGenres: ["comedy"],
+      }),
+    );
   });
 });

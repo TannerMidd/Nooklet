@@ -8,6 +8,8 @@ import {
   safeRevalidatePath,
 } from "./recommendation-action-helpers";
 
+import { recommendationGenreValues } from "@/modules/recommendations/recommendation-genres";
+
 describe("recommendation-action-helpers", () => {
   it("normalizes return paths and strips search params for revalidation", () => {
     expect(safeReturnTo("/movies?run=123")).toBe("/movies?run=123");
@@ -29,6 +31,8 @@ describe("recommendation-action-helpers", () => {
     formData.set("requestedCount", "6");
     formData.set("aiModel", "gpt-test-model");
     formData.set("temperature", "0.7");
+    formData.append("selectedGenres", "science-fiction");
+    formData.append("selectedGenres", "comedy");
     formData.set("redirectPath", "/movies");
 
     const result = parseRecommendationRequestActionFormData(formData);
@@ -46,6 +50,7 @@ describe("recommendation-action-helpers", () => {
       requestedCount: 6,
       aiModel: "gpt-test-model",
       temperature: 0.7,
+      selectedGenres: ["science-fiction", "comedy"],
     });
   });
 
@@ -57,6 +62,7 @@ describe("recommendation-action-helpers", () => {
     formData.set("requestedCount", "0");
     formData.set("aiModel", "");
     formData.set("temperature", "9");
+    formData.append("selectedGenres", "not-a-real-genre");
     formData.set("redirectPath", "javascript:alert(1)");
 
     const result = parseRecommendationRequestActionFormData(formData);
@@ -73,6 +79,7 @@ describe("recommendation-action-helpers", () => {
       requestedCount: "Request at least 1 recommendation.",
       aiModel: "Choose or enter a model.",
       temperature: "Temperature must be 2 or lower.",
+      selectedGenres: `Invalid option: expected one of ${recommendationGenreValues.map((value) => `\"${value}\"`).join("|")}`,
     });
   });
 });

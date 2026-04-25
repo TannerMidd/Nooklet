@@ -21,6 +21,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { type RecommendationMediaType } from "@/lib/database/schema";
+import {
+  formatRecommendationGenres,
+  getRecommendationGenreOptions,
+  type RecommendationGenre,
+} from "@/modules/recommendations/recommendation-genres";
 
 type RecommendationRequestFormProps = {
   mediaType: RecommendationMediaType;
@@ -202,9 +207,19 @@ export function RecommendationRequestForm({
   );
   const formRef = useRef<HTMLFormElement>(null);
   const [selectedModel, setSelectedModel] = useState(defaultModel);
+  const [selectedGenres, setSelectedGenres] = useState<RecommendationGenre[]>([]);
   const lastSubmittedDefaultsRef = useRef(
     buildRequestDefaultsKey(defaultResultCount, defaultTemperature, defaultModel),
   );
+  const genreOptions = getRecommendationGenreOptions(mediaType);
+
+  function toggleSelectedGenre(nextGenre: RecommendationGenre) {
+    setSelectedGenres((currentGenres) =>
+      currentGenres.includes(nextGenre)
+        ? currentGenres.filter((genre) => genre !== nextGenre)
+        : [...currentGenres, nextGenre],
+    );
+  }
 
   function persistDefaults(
     requestedCount: number,
@@ -297,6 +312,9 @@ export function RecommendationRequestForm({
     <form ref={formRef} action={formAction} className="space-y-5">
       <input type="hidden" name="mediaType" value={mediaType} />
       <input type="hidden" name="redirectPath" value={redirectPath} />
+      {selectedGenres.map((genre) => (
+        <input key={genre} type="hidden" name="selectedGenres" value={genre} />
+      ))}
 
       <label className="space-y-2">
         <span className="text-sm font-medium text-foreground">Optional request focus</span>
@@ -318,6 +336,46 @@ export function RecommendationRequestForm({
           <p className="text-sm text-highlight">{state.fieldErrors.requestPrompt}</p>
         ) : null}
       </label>
+
+      <div className="space-y-3">
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-foreground">Quick genre selectors</p>
+          <p className="text-sm leading-6 text-muted">
+            Selected genres are weighted heavily in the AI prompt. When you choose any,
+            the sampled library context narrows to matching titles and keeps a mix across
+            the selected genres.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Quick genre selectors">
+          {genreOptions.map((option) => {
+            const isSelected = selectedGenres.includes(option.value);
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={isSelected}
+                onClick={() => toggleSelectedGenre(option.value)}
+                className={`inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                  isSelected
+                    ? "border-accent/40 bg-accent/10 text-foreground"
+                    : "border-line bg-panel text-muted hover:border-accent/30 hover:text-foreground"
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+        {selectedGenres.length > 0 ? (
+          <p className="text-sm text-foreground">
+            Prioritizing: {formatRecommendationGenres(selectedGenres).join(", ")}
+          </p>
+        ) : null}
+        {state.fieldErrors?.selectedGenres ? (
+          <p className="text-sm text-highlight">{state.fieldErrors.selectedGenres}</p>
+        ) : null}
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),180px,180px]">
         <label className="space-y-2">

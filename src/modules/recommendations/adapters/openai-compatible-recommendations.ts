@@ -3,6 +3,10 @@ import { z } from "zod";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { safeFetch } from "@/lib/security/safe-fetch";
 import {
+  formatRecommendationGenres,
+  type RecommendationGenre,
+} from "@/modules/recommendations/recommendation-genres";
+import {
   resolveChatCompletionsUrl,
   type AiProviderFlavor,
 } from "@/modules/service-connections/ai-provider-endpoints";
@@ -18,6 +22,7 @@ type GenerateRecommendationsInput = {
   temperature: number;
   mediaType: RecommendationMediaType;
   requestPrompt: string;
+  selectedGenres: RecommendationGenre[];
   requestedCount: number;
   watchHistoryOnly: boolean;
   flavor?: AiProviderFlavor;
@@ -102,10 +107,9 @@ function normalizeRecommendationItem(value: unknown) {
   } satisfies Omit<GeneratedRecommendation, "providerMetadata">;
 }
 
-export async function generateOpenAiCompatibleRecommendations(
-  input: GenerateRecommendationsInput,
-): Promise<GeneratedRecommendation[]> {
+export function buildRecommendationUserPrompt(input: GenerateRecommendationsInput) {
   const trimmedRequestPrompt = input.requestPrompt.trim();
+  const selectedGenreLabels = formatRecommendationGenres(input.selectedGenres);
   const libraryTasteContextBlock =
     input.libraryTasteContext.length > 0
       ? input.libraryTasteContext
@@ -121,7 +125,45 @@ export async function generateOpenAiCompatibleRecommendations(
           .map((item) => `- ${item.title}${item.year ? ` (${item.year})` : ""}`)
           .join("\n")
       : "None provided.";
+  const genrePriorityBlock =
+    selectedGenreLabels.length > 0
+      ? `Priority genres: ${selectedGenreLabels.join(", ")}\.\nThese selected genres are the strongest instruction for this request. Every recommendation must align with at least one selected genre, and the full batch should include a mix across all selected genres when possible.\n`
+      : "No priority genres were selected.\n";
+  const librarySampleSummary =
+    selectedGenreLabels.length > 0
+      ? `Owned library sample: ${input.libraryTasteContext.length} of ${input.libraryTasteTotalCount} known ${input.mediaType === "tv" ? "series" : "movies"} matching the selected genres.\n`
+      : `Owned library sample: ${input.libraryTasteContext.length} of ${input.libraryTasteTotalCount} known ${input.mediaType === "tv" ? "series" : "movies"}.\n`;
+  const librarySampleInstruction =
+    input.libraryTasteContext.length > 0
+      ? selectedGenreLabels.length > 0
+        ? "Treat the genre-filtered owned-library sample below as an important taste signal and avoid recommending titles that already appear in it when possible.\n"
+        : "Treat the owned-library sample below as an important taste signal and avoid recommending titles that already appear in it when possible.\n"
+      : selectedGenreLabels.length > 0
+        ? "No owned-library sample matched the selected genres. Rely more heavily on the selected genres and watch history.\n"
+        : "No owned-library sample was provided.\n";
+  const requestContextIntro =
+    trimmedRequestPrompt.length > 0
+      ? `Request context: ${trimmedRequestPrompt}\n`
+      : selectedGenreLabels.length > 0
+        ? "No explicit free-text request context was provided beyond the selected genres. Infer the rest of the taste profile from the owned library sample and recent watched titles.\n"
+        : "No explicit request context was provided. Infer the user's taste from the owned library sample and recent watched titles.\n";
 
+  return (
+    requestContextIntro +
+    genrePriorityBlock +
+    librarySampleSummary +
+    librarySampleInstruction +
+    `Owned library sample titles:\n${libraryTasteContextBlock}\n` +
+    `Watch-history-only mode: ${input.watchHistoryOnly ? "enabled" : "disabled"}.\n` +
+    `${input.watchHistoryOnly ? "Use the watched-title list below as the primary source context for these recommendations.\n" : "Use the watched-title list below as optional taste context when it is present.\n"}` +
+    `Recent watched titles:\n${watchHistoryContextBlock}\n` +
+    "Prefer a diverse set of results with specific rationales."
+  );
+}
+
+export async function generateOpenAiCompatibleRecommendations(
+  input: GenerateRecommendationsInput,
+): Promise<GeneratedRecommendation[]> {
   const response = await safeFetch(
     resolveChatCompletionsUrl(input.baseUrl, input.flavor ?? "openai-compatible"),
     {
@@ -151,15 +193,7 @@ export async function generateOpenAiCompatibleRecommendations(
           },
           {
             role: "user",
-            content:
-              `${trimmedRequestPrompt.length > 0 ? `Request context: ${trimmedRequestPrompt}\n` : "No explicit request context was provided. Infer the user's taste from the owned library sample and recent watched titles.\n"}` +
-              `Owned library sample: ${input.libraryTasteContext.length} of ${input.libraryTasteTotalCount} known ${input.mediaType === "tv" ? "series" : "movies"}.\n` +
-              `${input.libraryTasteContext.length > 0 ? "Treat the owned-library sample below as an important taste signal and avoid recommending titles that already appear in it when possible.\n" : "No owned-library sample was provided.\n"}` +
-              `Owned library sample titles:\n${libraryTasteContextBlock}\n` +
-              `Watch-history-only mode: ${input.watchHistoryOnly ? "enabled" : "disabled"}.\n` +
-              `${input.watchHistoryOnly ? "Use the watched-title list below as the primary source context for these recommendations.\n" : "Use the watched-title list below as optional taste context when it is present.\n"}` +
-              `Recent watched titles:\n${watchHistoryContextBlock}\n` +
-              `Prefer a diverse set of results with specific rationales.`,
+            content: buildRecommendationUserPrompt(input),
           },
         ],
         temperature: input.temperature,

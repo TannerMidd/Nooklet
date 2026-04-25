@@ -9,10 +9,12 @@ import {
 import { submitRecommendationRetryAction } from "@/app/(workspace)/recommendation-actions";
 import { Button } from "@/components/ui/button";
 import { type RecommendationMediaType, type RecommendationRunStatus } from "@/lib/database/schema";
+import { type RecommendationGenre } from "@/modules/recommendations/recommendation-genres";
 
 type RecommendationRetryFormProps = {
   mediaType: RecommendationMediaType;
   requestPrompt: string;
+  selectedGenres: RecommendationGenre[];
   requestedCount: number;
   aiModel: string;
   aiTemperature: number;
@@ -37,6 +39,7 @@ function SubmitButton({ runStatus }: { runStatus: RecommendationRunStatus }) {
 export function RecommendationRetryForm({
   mediaType,
   requestPrompt,
+  selectedGenres,
   requestedCount,
   aiModel,
   aiTemperature,
@@ -52,6 +55,9 @@ export function RecommendationRetryForm({
     <form action={formAction} className="mt-4 space-y-3">
       <input type="hidden" name="mediaType" value={mediaType} />
       <input type="hidden" name="requestPrompt" value={requestPrompt} />
+      {selectedGenres.map((genre) => (
+        <input key={genre} type="hidden" name="selectedGenres" value={genre} />
+      ))}
       <input type="hidden" name="requestedCount" value={requestedCount} />
       <input type="hidden" name="aiModel" value={aiModel} />
       <input type="hidden" name="temperature" value={aiTemperature} />

@@ -1,4 +1,5 @@
 import { safeFetch } from "@/lib/security/safe-fetch";
+import { type RecommendationGenre } from "@/modules/recommendations/recommendation-genres";
 
 export type LibraryManagerServiceType = "sonarr" | "radarr";
 
@@ -46,6 +47,7 @@ type ListSampledLibraryItemsInput = Pick<
   "serviceType" | "baseUrl" | "apiKey"
 > & {
   sampleSize?: number;
+  selectedGenres?: RecommendationGenre[];
 };
 
 type ListSampledLibraryItemsResult =
@@ -116,6 +118,14 @@ function normalizeGenres(value: unknown) {
   return normalizedGenres;
 }
 
+function normalizeGenreKey(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function toSampledLibraryTasteItem(
   candidate: LibraryCollectionCandidate,
 ): SampledLibraryTasteItem | null {
@@ -173,20 +183,112 @@ function dedupeSampledLibraryTasteItems(items: SampledLibraryTasteItem[]) {
   return Array.from(dedupedItems.values());
 }
 
-function sampleLibraryTasteItems(items: SampledLibraryTasteItem[], sampleSize: number) {
+function filterLibraryTasteItemsByGenres(
+  items: SampledLibraryTasteItem[],
+  selectedGenres: readonly RecommendationGenre[],
+) {
+  if (selectedGenres.length === 0) {
+    return items;
+  }
+
+  const selectedGenreKeys = new Set(selectedGenres.map((genre) => normalizeGenreKey(genre)));
+
+  return items.filter((item) =>
+    item.genres.some((genre) => selectedGenreKeys.has(normalizeGenreKey(genre))),
+  );
+}
+
+function sortSampledLibraryTasteItemsForSampling(items: SampledLibraryTasteItem[]) {
+  return [...items].sort((left, right) => {
+    const leftHash = stableHash(buildLibraryTasteItemKey(left));
+    const rightHash = stableHash(buildLibraryTasteItemKey(right));
+
+    return leftHash - rightHash || compareSampledLibraryTasteItems(left, right);
+  });
+}
+
+function sampleMixedLibraryTasteItemsByGenres(
+  items: SampledLibraryTasteItem[],
+  boundedSampleSize: number,
+  selectedGenres: readonly RecommendationGenre[],
+) {
+  const sortedItems = sortSampledLibraryTasteItemsForSampling(items);
+  const buckets = selectedGenres.map((genre) => ({
+    genre,
+    items: sortedItems.filter((item) =>
+      item.genres.some((itemGenre) => normalizeGenreKey(itemGenre) === normalizeGenreKey(genre)),
+    ),
+    cursor: 0,
+  }));
+  const selectedItems: SampledLibraryTasteItem[] = [];
+  const seenItemKeys = new Set<string>();
+
+  while (selectedItems.length < boundedSampleSize) {
+    let selectedInRound = false;
+
+    for (const bucket of buckets) {
+      while (bucket.cursor < bucket.items.length) {
+        const candidate = bucket.items[bucket.cursor];
+        const candidateKey = buildLibraryTasteItemKey(candidate);
+
+        bucket.cursor += 1;
+
+        if (seenItemKeys.has(candidateKey)) {
+          continue;
+        }
+
+        seenItemKeys.add(candidateKey);
+        selectedItems.push(candidate);
+        selectedInRound = true;
+        break;
+      }
+
+      if (selectedItems.length >= boundedSampleSize) {
+        break;
+      }
+    }
+
+    if (!selectedInRound) {
+      break;
+    }
+  }
+
+  if (selectedItems.length < boundedSampleSize) {
+    for (const item of sortedItems) {
+      const itemKey = buildLibraryTasteItemKey(item);
+
+      if (seenItemKeys.has(itemKey)) {
+        continue;
+      }
+
+      seenItemKeys.add(itemKey);
+      selectedItems.push(item);
+
+      if (selectedItems.length >= boundedSampleSize) {
+        break;
+      }
+    }
+  }
+
+  return selectedItems.sort(compareSampledLibraryTasteItems);
+}
+
+function sampleLibraryTasteItems(
+  items: SampledLibraryTasteItem[],
+  sampleSize: number,
+  selectedGenres: readonly RecommendationGenre[],
+) {
   const boundedSampleSize = Math.max(1, Math.min(sampleSize, 60));
 
   if (items.length <= boundedSampleSize) {
     return [...items].sort(compareSampledLibraryTasteItems);
   }
 
-  return [...items]
-    .sort((left, right) => {
-      const leftHash = stableHash(buildLibraryTasteItemKey(left));
-      const rightHash = stableHash(buildLibraryTasteItemKey(right));
+  if (selectedGenres.length > 0) {
+    return sampleMixedLibraryTasteItemsByGenres(items, boundedSampleSize, selectedGenres);
+  }
 
-      return leftHash - rightHash || compareSampledLibraryTasteItems(left, right);
-    })
+  return sortSampledLibraryTasteItemsForSampling(items)
     .slice(0, boundedSampleSize)
     .sort(compareSampledLibraryTasteItems);
 }
@@ -519,11 +621,19 @@ export async function listSampledLibraryItems(
         .map((entry) => toSampledLibraryTasteItem(entry))
         .filter((entry): entry is SampledLibraryTasteItem => entry !== null),
     );
+    const filteredItems = filterLibraryTasteItemsByGenres(
+      dedupedItems,
+      input.selectedGenres ?? [],
+    );
 
     return {
       ok: true,
-      totalCount: dedupedItems.length,
-      sampledItems: sampleLibraryTasteItems(dedupedItems, input.sampleSize ?? 36),
+      totalCount: filteredItems.length,
+      sampledItems: sampleLibraryTasteItems(
+        filteredItems,
+        input.sampleSize ?? 36,
+        input.selectedGenres ?? [],
+      ),
       normalizedKeys: dedupedItems.map((item) => buildLibraryTasteItemKey(item)),
     };
   } catch (error) {

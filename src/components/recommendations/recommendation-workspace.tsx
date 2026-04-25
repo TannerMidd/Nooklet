@@ -15,6 +15,10 @@ import {
   getLibrarySelectionDefaults,
   getPreferencesByUserId,
 } from "@/modules/preferences/repositories/preferences-repository";
+import {
+  formatRecommendationGenres,
+  type RecommendationGenre,
+} from "@/modules/recommendations/recommendation-genres";
 import { listRecentRecommendationRuns } from "@/modules/recommendations/queries/list-recent-recommendation-runs";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
@@ -44,8 +48,22 @@ function formatTemperature(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(1) : "0.9";
 }
 
-function formatPromptLabel(value: string) {
-  return value.trim().length > 0 ? value : "Taste-based automatic request";
+function formatGenreSummary(selectedGenres: readonly RecommendationGenre[]) {
+  return selectedGenres.length > 0
+    ? formatRecommendationGenres(selectedGenres).join(", ")
+    : null;
+}
+
+function formatPromptLabel(value: string, selectedGenres: readonly RecommendationGenre[]) {
+  const trimmedValue = value.trim();
+
+  if (trimmedValue.length > 0) {
+    return trimmedValue;
+  }
+
+  const genreSummary = formatGenreSummary(selectedGenres);
+
+  return genreSummary ? `Genre-led request: ${genreSummary}` : "Taste-based automatic request";
 }
 
 export async function RecommendationWorkspace({
@@ -99,6 +117,9 @@ export async function RecommendationWorkspace({
   const previousRuns = featuredRun
     ? recentRuns.filter((run) => run.id !== featuredRun.id)
     : recentRuns;
+  const featuredRunGenreSummary = featuredRun
+    ? formatGenreSummary(featuredRun.selectedGenres)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -232,8 +253,11 @@ export async function RecommendationWorkspace({
                   {featuredRun.items.length} {mediaType === "tv" ? "TV picks" : "movie picks"} ready
                 </h2>
                 <p className="max-w-4xl text-base leading-7 text-muted">
-                  {formatPromptLabel(featuredRun.requestPrompt)}
+                  {formatPromptLabel(featuredRun.requestPrompt, featuredRun.selectedGenres)}
                 </p>
+                {featuredRunGenreSummary ? (
+                  <p className="text-sm font-medium text-accent">Genres: {featuredRunGenreSummary}</p>
+                ) : null}
               </div>
             </div>
             <div className="grid gap-3 text-sm leading-6 text-foreground sm:grid-cols-2 xl:min-w-[360px]">
@@ -255,6 +279,7 @@ export async function RecommendationWorkspace({
           <RecommendationRetryForm
             mediaType={featuredRun.mediaType}
             requestPrompt={featuredRun.requestPrompt}
+            selectedGenres={featuredRun.selectedGenres}
             requestedCount={featuredRun.requestedCount}
             aiModel={featuredRun.aiModel ?? defaultModel}
             aiTemperature={featuredRun.aiTemperature ?? 0.9}
@@ -304,9 +329,16 @@ export async function RecommendationWorkspace({
                 key={run.id}
                 className="rounded-[24px] border border-line/70 bg-panel-strong/70 p-5"
               >
+                {(() => {
+                  const genreSummary = formatGenreSummary(run.selectedGenres);
+
+                  return (
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <p className="text-sm font-medium text-foreground">{formatPromptLabel(run.requestPrompt)}</p>
+                    <p className="text-sm font-medium text-foreground">{formatPromptLabel(run.requestPrompt, run.selectedGenres)}</p>
+                    {genreSummary ? (
+                      <p className="mt-1 text-sm text-accent">Genres: {genreSummary}</p>
+                    ) : null}
                     <p className="mt-1 text-sm text-muted">
                       {run.itemCount} items, requested {run.requestedCount}, model {run.aiModel ?? defaultModel}, temp {formatTemperature(run.aiTemperature)}
                     </p>
@@ -316,6 +348,8 @@ export async function RecommendationWorkspace({
                     <div>{formatDate(run.completedAt ?? run.createdAt)}</div>
                   </div>
                 </div>
+                  );
+                })()}
 
                 {run.errorMessage ? (
                   <p className="mt-4 rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
@@ -326,6 +360,7 @@ export async function RecommendationWorkspace({
                 <RecommendationRetryForm
                   mediaType={run.mediaType}
                   requestPrompt={run.requestPrompt}
+                  selectedGenres={run.selectedGenres}
                   requestedCount={run.requestedCount}
                   aiModel={run.aiModel ?? defaultModel}
                   aiTemperature={run.aiTemperature ?? 0.9}

@@ -2,7 +2,10 @@ export type RecommendationActionState = {
   status: "idle" | "error";
   message?: string;
   fieldErrors?: Partial<
-    Record<"requestPrompt" | "requestedCount" | "aiModel" | "temperature", string>
+    Record<
+      "requestPrompt" | "requestedCount" | "aiModel" | "temperature" | "selectedGenres",
+      string
+    >
   >;
 };
 
