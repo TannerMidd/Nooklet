@@ -273,4 +273,56 @@ describe("createRecommendationRunWorkflow", () => {
     expect(mockedGenerateOpenAiCompatibleRecommendations).not.toHaveBeenCalled();
     expect(mockedCreateRecommendationRun).not.toHaveBeenCalled();
   });
+
+  it("succeeds with a partial batch when backfill attempts are exhausted", async () => {
+    const aiProviderConnection = createConnectionRecord("ai-provider", "verified");
+    const verifiedSonarrConnection = createConnectionRecord("sonarr", "verified");
+    const queuedResponses = [
+      [
+        {
+          title: "Severance",
+          year: 2022,
+          rationale: "Fresh pick.",
+          confidenceLabel: "high",
+          providerMetadata: {},
+        },
+      ],
+      [],
+      [],
+    ];
+
+    mockedFindServiceConnectionByType.mockImplementation(async (_userId, serviceType) => {
+      if (serviceType === "ai-provider") {
+        return aiProviderConnection;
+      }
+
+      if (serviceType === "sonarr") {
+        return verifiedSonarrConnection;
+      }
+
+      return null;
+    });
+    mockedGenerateOpenAiCompatibleRecommendations.mockImplementation(async () => {
+      return queuedResponses.shift() ?? [];
+    });
+
+    const result = await createRecommendationRunWorkflow("user-1", {
+      mediaType: "tv",
+      requestPrompt: "Recommend sharp prestige sci-fi",
+      requestedCount: 3,
+      aiModel: "deepseek/deepseek-v4-pro",
+      temperature: 0.6,
+    });
+
+    expect(result).toEqual({ ok: true, runId: "run-1" });
+    expect(mockedCompleteRecommendationRun).toHaveBeenCalledWith("run-1", [
+      expect.objectContaining({
+        mediaType: "tv",
+        position: 1,
+        title: "Severance",
+        year: 2022,
+      }),
+    ]);
+    expect(mockedMarkRecommendationRunFailed).not.toHaveBeenCalled();
+  });
 });

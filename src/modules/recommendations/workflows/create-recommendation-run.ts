@@ -336,12 +336,6 @@ export async function createRecommendationRunWorkflow(
       );
     }
 
-    if (normalizedItems.length < input.requestedCount) {
-      throw new Error(
-        `The AI could not produce ${input.requestedCount} new ${input.mediaType === "tv" ? "TV series" : "movies"} after filtering titles that are already in your library or recommendation history. Try a more specific prompt.`,
-      );
-    }
-
     await completeRecommendationRun(run.id, normalizedItems);
     await createAuditEvent({
       actorUserId: userId,
