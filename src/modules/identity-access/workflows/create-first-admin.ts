@@ -16,8 +16,8 @@ export async function createFirstAdmin(
 ): Promise<CreateFirstAdminResult> {
   const database = ensureDatabaseReady();
 
-  const result = database.transaction(() => {
-    const adminCount = database
+  const result = database.transaction((tx) => {
+    const adminCount = tx
       .select({ count: count() })
       .from(users)
       .where(eq(users.role, "admin"))
@@ -30,7 +30,7 @@ export async function createFirstAdmin(
       };
     }
 
-    const existingUser = database
+    const existingUser = tx
       .select({ id: users.id })
       .from(users)
       .where(eq(users.email, input.email))
@@ -46,7 +46,7 @@ export async function createFirstAdmin(
 
     const userId = randomUUID();
 
-    database
+    tx
       .insert(users)
       .values({
         id: userId,
@@ -57,7 +57,7 @@ export async function createFirstAdmin(
       })
       .run();
 
-    database
+    tx
       .insert(auditEvents)
       .values({
         id: randomUUID(),
