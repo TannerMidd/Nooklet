@@ -4,6 +4,7 @@ import { and, count, desc, eq } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import { auditEvents, users, type UserRole } from "@/lib/database/schema";
+import { buildAuditPayload } from "@/lib/security/audit-payload";
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -169,10 +170,26 @@ type CreateAuditEventInput = {
   subjectType: string;
   subjectId?: string | null;
   payloadJson?: string | null;
+  payload?: unknown;
 };
 
 export async function createAuditEvent(input: CreateAuditEventInput) {
   const database = ensureDatabaseReady();
+
+  // Prefer the structured `payload` field (gets scrubbed automatically). Fall back to
+  // the legacy `payloadJson` string for callers that haven't migrated yet — but still
+  // run it through the scrubber by parsing then re-serializing.
+  let scrubbedPayloadJson: string | null = null;
+  if (input.payload !== undefined) {
+    scrubbedPayloadJson = buildAuditPayload(input.payload);
+  } else if (input.payloadJson) {
+    try {
+      scrubbedPayloadJson = buildAuditPayload(JSON.parse(input.payloadJson));
+    } catch {
+      // Non-JSON legacy payload — keep as-is rather than dropping audit data.
+      scrubbedPayloadJson = input.payloadJson;
+    }
+  }
 
   database
     .insert(auditEvents)
@@ -182,7 +199,7 @@ export async function createAuditEvent(input: CreateAuditEventInput) {
       eventType: input.eventType,
       subjectType: input.subjectType,
       subjectId: input.subjectId ?? null,
-      payloadJson: input.payloadJson ?? null,
+      payloadJson: scrubbedPayloadJson,
     })
     .run();
 }
