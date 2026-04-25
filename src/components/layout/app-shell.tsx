@@ -15,8 +15,8 @@ type AppShellProps = {
 
 export function AppShell({ children, user }: AppShellProps) {
   return (
-    <div className="min-h-screen overflow-x-clip px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:gap-6 lg:flex-row lg:items-start">
+    <div className="min-h-screen overflow-x-clip px-4 py-6 sm:px-6 sm:py-8 xl:px-8 xl:py-10">
+      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 sm:gap-6 xl:gap-8 lg:flex-row lg:items-start">
         <aside className="lg:sticky lg:top-8 lg:w-80 lg:flex-none">
           <div className="rounded-[32px] border border-line/80 bg-panel/95 p-5 shadow-soft backdrop-blur sm:p-6">
             <p className="text-[0.7rem] font-semibold uppercase tracking-[0.26em] text-accent sm:text-xs sm:tracking-[0.32em]">

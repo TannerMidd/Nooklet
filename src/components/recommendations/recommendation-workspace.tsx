@@ -89,11 +89,11 @@ export async function RecommendationWorkspace({
 
   return (
     <div className="space-y-6">
-      <header className="rounded-[32px] border border-line/80 bg-panel/90 px-6 py-8 shadow-soft backdrop-blur md:px-8">
+      <header className="rounded-[32px] border border-line/80 bg-panel/90 px-6 py-8 shadow-soft backdrop-blur md:px-8 xl:px-10">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">
           Recommendation mode
         </p>
-        <div className="mt-4 max-w-3xl space-y-3">
+        <div className="mt-4 max-w-4xl space-y-3">
           <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
             {title}
           </h1>
@@ -101,7 +101,7 @@ export async function RecommendationWorkspace({
         </div>
       </header>
 
-      <div className="grid gap-6 xl:grid-cols-[1.08fr,0.92fr]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(22rem,0.92fr)] 2xl:grid-cols-[minmax(0,1.14fr)_minmax(24rem,0.86fr)]">
         <Panel
           eyebrow="Request run"
           title="Start a recommendation run"
@@ -205,7 +205,7 @@ export async function RecommendationWorkspace({
 
       {featuredRun ? (
         <section
-          className={`rounded-[32px] border border-line/80 bg-panel/90 px-6 py-6 shadow-soft backdrop-blur md:px-8 ${
+          className={`rounded-[32px] border border-line/80 bg-panel/90 px-6 py-6 shadow-soft backdrop-blur md:px-8 xl:px-10 ${
             wasJustGenerated && featuredRun.id === activeRunId ? "recommendation-featured-run recommendation-featured-run--fresh" : ""
           }`}
         >
@@ -218,7 +218,7 @@ export async function RecommendationWorkspace({
                 <h2 className="font-heading text-3xl leading-tight text-foreground md:text-4xl">
                   {featuredRun.items.length} {mediaType === "tv" ? "TV picks" : "movie picks"} ready
                 </h2>
-                <p className="max-w-3xl text-base leading-7 text-muted">
+                <p className="max-w-4xl text-base leading-7 text-muted">
                   {formatPromptLabel(featuredRun.requestPrompt)}
                 </p>
               </div>
@@ -249,7 +249,7 @@ export async function RecommendationWorkspace({
             runStatus={featuredRun.status}
           />
 
-          <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 2xl:gap-5">
             {featuredRun.items.map((item, index) => (
               <article
                 key={item.id}
