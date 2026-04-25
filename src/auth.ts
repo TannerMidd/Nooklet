@@ -10,6 +10,10 @@ import { findUserById } from "@/modules/users/repositories/user-repository";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: env.AUTH_SECRET,
+  // Self-hosted deployments sit behind reverse proxies and bind to arbitrary
+  // hostnames, so we explicitly trust the incoming Host header. Operators are
+  // expected to terminate TLS and restrict ingress at the proxy layer.
+  trustHost: true,
   session: {
     strategy: "jwt",
     maxAge: 24 * 60 * 60,
