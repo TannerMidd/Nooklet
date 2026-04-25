@@ -175,8 +175,42 @@ rather than a public issue.
 
 ## Production deployment
 
-The app is a single Next.js process plus a SQLite file. Behind a reverse proxy
-that terminates TLS:
+The app is a single Next.js process plus a SQLite file. Two supported paths:
+
+### Docker (recommended)
+
+A multi-stage `Dockerfile` and `docker-compose.yml` ship with the repo. The
+runtime image is based on `node:20-bookworm-slim`, runs as the non-root `node`
+user, uses Next.js standalone output (~200 MB image), and persists the SQLite
+database on a named volume mounted at `/app/data`.
+
+```bash
+cp .env.example .env
+# Edit .env and set AUTH_SECRET (openssl rand -base64 48)
+# APP_URL should match the public origin you'll serve the app from.
+
+docker compose up -d --build
+```
+
+Then open <http://localhost:3000> and complete the bootstrap flow.
+
+Notes:
+
+- The compose file forces `DATABASE_URL=file:/app/data/recommendarr.db` inside
+  the container so the database always lives on the mounted volume.
+- The container exposes a `/api/health` endpoint and ships with a Docker
+  `HEALTHCHECK` that uses it.
+- To back up your data, snapshot the `recommendarr-data` volume (or run
+  `docker compose exec app sqlite3 /app/data/recommendarr.db ".backup '/app/data/backup.db'"`).
+- If your Sonarr/Radarr/Plex services run on the Docker host's LAN and the app
+  needs to reach them, either attach them to the same Docker network or run
+  the app with `network_mode: host`. Set `ALLOW_PRIVATE_SERVICE_HOSTS=false`
+  in any deployment where users should not be able to point service URLs at
+  internal addresses.
+- Put a TLS-terminating reverse proxy (Caddy, Traefik, nginx, Cloudflare
+  Tunnel, …) in front of the container in any internet-exposed deployment.
+
+### Bare-metal Node
 
 1. Build the app: `npm run build`
 2. Set `NODE_ENV=production` and the env vars above (especially `AUTH_SECRET`
@@ -185,8 +219,6 @@ that terminates TLS:
 4. Run `npm start`.
 5. Ensure `ALLOW_PRIVATE_SERVICE_HOSTS=false` if your deployment shouldn't be
    able to reach internal addresses.
-
-A container image and compose example will land in a follow-up release.
 
 ## Contributing
 

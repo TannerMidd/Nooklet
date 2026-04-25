@@ -31,6 +31,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Emit a self-contained Node.js server bundle under .next/standalone for the
+  // Docker runtime stage. See Dockerfile for how this is consumed.
+  output: "standalone",
   async headers() {
     return [
       {

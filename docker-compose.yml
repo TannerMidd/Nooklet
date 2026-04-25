@@ -1,0 +1,22 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: recommendarr-next:local
+    container_name: recommendarr-next
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Force the in-container DB path regardless of what's in .env so a host
+      # path like ./data/recommendarr.db doesn't accidentally land outside the
+      # mounted volume.
+      DATABASE_URL: file:/app/data/recommendarr.db
+    volumes:
+      - recommendarr-data:/app/data
+
+volumes:
+  recommendarr-data:
