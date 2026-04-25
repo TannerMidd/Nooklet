@@ -131,7 +131,11 @@ export async function generateOpenAiCompatibleRecommendations(
         "Content-Type": "application/json",
       },
       cache: "no-store",
-      timeoutMs: 60_000,
+      // AI providers (especially local LM Studio / Ollama runs and slower
+      // hosted reasoning models) routinely take well over a minute to
+      // produce a full recommendation batch. Allow up to 5 minutes before
+      // safeFetch surfaces a stable timeout error.
+      timeoutMs: 5 * 60_000,
       maxBytes: 2 * 1024 * 1024,
       body: JSON.stringify({
         model: input.model,
