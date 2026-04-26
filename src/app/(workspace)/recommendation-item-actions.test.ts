@@ -57,31 +57,42 @@ beforeEach(() => {
 });
 
 describe("submitRecommendationFeedbackAction", () => {
-  it("redirects to /login when no session", async () => {
+  it("returns a sign-in error when no session", async () => {
     authMock.mockResolvedValue(null as never);
     const formData = new FormData();
     formData.set("itemId", ITEM_ID);
     formData.set("feedback", "like");
     formData.set("returnTo", "/history");
 
-    await expect(submitRecommendationFeedbackAction(formData)).rejects.toThrow(
-      /NEXT_REDIRECT:\/login/,
+    await expect(
+      submitRecommendationFeedbackAction({ status: "idle", feedback: null }, formData),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        status: "error",
+        message: "You need to sign in again.",
+        feedback: null,
+      }),
     );
     expect(feedbackMock).not.toHaveBeenCalled();
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 
-  it("calls the workflow with the parsed feedback and redirects to the safe return path", async () => {
+  it("calls the workflow with the parsed feedback without redirecting", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
     const formData = new FormData();
     formData.set("itemId", ITEM_ID);
     formData.set("feedback", "dislike");
     formData.set("returnTo", "/history?run=abc");
 
-    await expect(submitRecommendationFeedbackAction(formData)).rejects.toThrow(
-      /NEXT_REDIRECT:\/history\?run=abc/,
+    const result = await submitRecommendationFeedbackAction(
+      { status: "idle", feedback: null },
+      formData,
     );
+
+    expect(result).toEqual({ status: "success", feedback: "dislike" });
     expect(feedbackMock).toHaveBeenCalledWith("u1", ITEM_ID, "dislike");
     expect(revalidateMock).toHaveBeenCalledWith("/history");
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 });
 

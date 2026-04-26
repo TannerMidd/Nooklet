@@ -4,7 +4,10 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
-import { type RecommendationLibraryActionState } from "@/app/(workspace)/recommendation-action-state";
+import {
+  type RecommendationFeedbackActionState,
+  type RecommendationLibraryActionState,
+} from "@/app/(workspace)/recommendation-action-state";
 import { updateLibrarySelectionDefaults } from "@/modules/preferences/repositories/preferences-repository";
 import {
   safeReturnTo,
@@ -21,28 +24,47 @@ import { addRecommendationToLibrary } from "@/modules/recommendations/workflows/
 import { updateRecommendationFeedback } from "@/modules/recommendations/workflows/update-recommendation-feedback";
 import { updateRecommendationHiddenState } from "@/modules/recommendations/workflows/update-recommendation-hidden-state";
 
-export async function submitRecommendationFeedbackAction(formData: FormData) {
+export async function submitRecommendationFeedbackAction(
+  previousState: RecommendationFeedbackActionState,
+  formData: FormData,
+): Promise<RecommendationFeedbackActionState> {
   const session = await auth();
 
   if (!session?.user?.id) {
-    redirect("/login");
+    return {
+      status: "error",
+      message: "You need to sign in again.",
+      feedback: previousState.feedback ?? null,
+    };
   }
 
-  const parsedInput = feedbackActionSchema.parse({
+  const parsedInput = feedbackActionSchema.safeParse({
     itemId: formData.get("itemId"),
     feedback: formData.get("feedback"),
     returnTo: formData.get("returnTo"),
   });
 
+  if (!parsedInput.success) {
+    return {
+      status: "error",
+      message: "Unable to save feedback for this recommendation.",
+      feedback: previousState.feedback ?? null,
+    };
+  }
+
   await updateRecommendationFeedback(
     session.user.id,
-    parsedInput.itemId,
-    parsedInput.feedback,
+    parsedInput.data.itemId,
+    parsedInput.data.feedback,
   );
 
   revalidatePath("/history");
-  revalidatePath(safeRevalidatePath(parsedInput.returnTo));
-  redirect(safeReturnTo(parsedInput.returnTo));
+  revalidatePath(safeRevalidatePath(parsedInput.data.returnTo));
+
+  return {
+    status: "success",
+    feedback: parsedInput.data.feedback,
+  };
 }
 
 export async function submitRecommendationHiddenStateAction(formData: FormData) {

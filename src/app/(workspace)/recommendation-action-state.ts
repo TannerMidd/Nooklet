@@ -22,6 +22,17 @@ export const initialRecommendationRunActionState: RecommendationRunActionState =
   status: "idle",
 };
 
+export type RecommendationFeedbackActionState = {
+  status: "idle" | "error" | "success";
+  message?: string;
+  feedback?: "like" | "dislike" | null;
+};
+
+export const initialRecommendationFeedbackActionState: RecommendationFeedbackActionState = {
+  status: "idle",
+  feedback: null,
+};
+
 export type RecommendationLibraryActionState = {
   status: "idle" | "error" | "success";
   message?: string;
