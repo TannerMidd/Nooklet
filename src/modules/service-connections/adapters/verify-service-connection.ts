@@ -3,6 +3,7 @@ import { verifyLibraryManager } from "./verify-library-manager";
 import { verifyPlex } from "./verify-plex";
 import { verifySabnzbd } from "./verify-sabnzbd";
 import { verifyTautulli } from "./verify-tautulli";
+import { verifyTmdb } from "./verify-tmdb";
 import type {
   VerifyServiceConnectionInput,
   VerifyServiceConnectionResult,
@@ -29,6 +30,8 @@ export async function verifyServiceConnection(
         return await verifyPlex(input);
       case "sabnzbd":
         return await verifySabnzbd(input);
+      case "tmdb":
+        return await verifyTmdb(input);
       default:
         return {
           ok: false,

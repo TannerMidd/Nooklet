@@ -59,6 +59,14 @@ export const serviceConnectionDefinitions = [
     secretLabel: "API key",
     defaultBaseUrl: "http://localhost:8080",
   },
+  {
+    serviceType: "tmdb",
+    displayName: "TMDB",
+    description:
+      "Connect The Movie Database for title overviews, artwork, genres, and strict original-language checks.",
+    secretLabel: "API key or read token",
+    defaultBaseUrl: "https://api.themoviedb.org/3",
+  },
 ] as const satisfies readonly ServiceConnectionDefinition[];
 
 export function getServiceConnectionDefinition(
