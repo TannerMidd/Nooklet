@@ -1,242 +1,113 @@
 # Recommendarr Next
 
-A self-hosted, AI-powered recommendation companion for your Sonarr, Radarr, Plex, and
-Tautulli library. Recommendarr Next pairs your existing watch history and library
-metadata with an OpenAI-compatible LLM to surface personalized TV and movie picks,
-then lets you queue them straight into Sonarr or Radarr with one click.
+Recommendarr Next is a self-hosted AI recommendation app for TV and movies. It
+uses your existing library metadata, optional watch history, and an
+OpenAI-compatible chat model to suggest titles, then helps queue them in Sonarr
+or Radarr.
 
-> **Disclaimer**
-> This codebase was written with substantial AI assistance (GitHub Copilot / Claude).
-> Every change was reviewed, tested, and committed by a human, but readers should
-> still treat the code with the same scrutiny they would apply to any other
-> third-party contribution. Please report suspected bugs or security issues via
-> GitHub issues.
-
----
+This codebase was written with substantial AI assistance and human review. Treat
+it with the same scrutiny as any other third-party code, and report suspected
+bugs or security issues through GitHub.
 
 ## Features
 
-- **AI-driven recommendations** — Bring your own OpenAI-compatible endpoint
-  (OpenAI, Azure OpenAI, OpenRouter, LM Studio, Ollama, vLLM, etc.) and tune
-  model, temperature, and result count per request.
-- **Library-aware suggestions** — Pulls a sample of your owned titles and
-  optional watch history into the prompt so suggestions reflect your taste and
-  avoid duplicates.
-- **One-click add to library** — Submit recommendations directly to Sonarr or
-  Radarr with quality-profile, root-folder, and tag selection. Defaults persist
-  per-user across sessions.
-- **Feedback & history** — Like, dislike, hide, or revisit any past
-  recommendation. History pages support filtering by feedback state.
-- **Watch-history sync** — Manual import, plus Plex and Tautulli adapters for
-  pulling watched-title context.
-- **Multi-user with admin tools** — First-admin bootstrap, role management,
-  account disable/enable, password reset, and audit logging.
-- **Self-hostable** — Single Next.js app, single SQLite file, no external
-  services required beyond your AI provider and *arr stack.
+- TV and movie recommendations from an OpenAI-compatible provider.
+- Duplicate-aware prompts using existing library items and prior suggestions.
+- Optional Plex or Tautulli watch-history context.
+- One-click Sonarr and Radarr adds with saved per-user defaults.
+- Recommendation history with feedback, hidden items, filters, and pagination.
+- Local multi-user auth, first-admin bootstrap, admin tools, and audit logging.
 
-## Tech stack
+## Stack
 
-- [Next.js 16](https://nextjs.org/) (App Router) on Node.js 20+
-- React 19 with strict TypeScript
-- [Tailwind CSS v4](https://tailwindcss.com/) for styling
-- [Drizzle ORM](https://orm.drizzle.team/) on top of better-sqlite3
-- [Auth.js (NextAuth v5)](https://authjs.dev/) credentials provider
-- [Zod v4](https://zod.dev/) for input validation
-- [Vitest](https://vitest.dev/) for unit and workflow tests
+- Next.js 16, React 19, TypeScript, Tailwind CSS v4
+- Drizzle ORM, SQLite, better-sqlite3
+- Auth.js credentials auth, Zod validation
+- Vitest for unit and workflow tests
 
-## Getting started
+## Requirements
 
-### Prerequisites
+- Node.js 20 or newer
+- An OpenAI-compatible chat-completions endpoint and API key
+- Optional Sonarr, Radarr, Plex, or Tautulli instances reachable from the app
 
-- Node.js **20 or newer**
-- An OpenAI-compatible chat-completions endpoint (and an API key)
-- *Optional:* Sonarr, Radarr, Plex, and/or Tautulli reachable from where you
-  run the app
-
-### Install and run
+## Quick Start
 
 ```bash
-git clone https://github.com/<your-org>/recommendarr-next.git
-cd recommendarr-next
 npm install
-cp .env.example .env       # then edit values (see "Configuration")
+cp .env.example .env
+# edit .env; AUTH_SECRET must be at least 32 characters
 npm run dev
 ```
 
-Open <http://localhost:3000>. On a fresh database you'll land on the bootstrap
-flow first — create the initial admin account, then sign in and configure your
-service connections.
+Open <http://localhost:3000>, create the first admin account, then configure
+services under Settings -> Connections. Request recommendations from `/tv` or
+`/movies`.
 
-### Configuration
+## Configuration
 
-All settings come from environment variables. See [`.env.example`](.env.example)
-for the canonical list.
+See [`.env.example`](.env.example) for the canonical environment list.
 
-| Variable | Required | Description |
+| Variable | Required | Notes |
 | --- | --- | --- |
-| `APP_URL` | yes | Public origin of the app, e.g. `https://recommendarr.example.com`. |
-| `DATABASE_URL` | yes | SQLite path. Defaults to `file:./data/recommendarr.db`. |
-| `AUTH_SECRET` | **yes** | NextAuth signing key. **Minimum 32 characters.** Generate with `openssl rand -base64 48`. The app refuses to start without it. |
-| `SECRET_BOX_KEY` | no | Dedicated AES-GCM key for encrypting stored service-connection secrets. If unset, derived from `AUTH_SECRET`. Recommended in production so that JWT secret rotation doesn't force re-entry of every API key. |
-| `ALLOW_PRIVATE_SERVICE_HOSTS` | no | Defaults to `true`. Set to `false` in cloud deployments to refuse outbound calls to private/RFC1918 addresses (mitigates SSRF when users can supply arbitrary URLs). |
+| `APP_URL` | Yes | Public app origin, such as `https://recommendarr.example.com`. |
+| `DATABASE_URL` | Yes | SQLite URL. Local default: `file:./data/recommendarr.db`. |
+| `AUTH_SECRET` | Yes | Auth.js signing secret. Must be at least 32 characters. |
+| `SECRET_BOX_KEY` | No | Separate encryption key for stored service secrets. Falls back to `AUTH_SECRET`. |
+| `ALLOW_PRIVATE_SERVICE_HOSTS` | No | Defaults to `true`. Set `false` for cloud deployments that must block private-network service URLs. |
 
-### First-time setup
-
-1. Sign in as the bootstrap admin you just created.
-2. Visit **Settings → Connections** and configure:
-   - **AI provider** — base URL + API key + model identifier.
-   - **Sonarr** and/or **Radarr** — base URL + API key. Verify the connection
-     to populate root folders and quality profiles.
-   - **Plex** or **Tautulli** *(optional)* — for watch-history sync.
-3. *(Optional)* Visit **Settings → History** to import watch history.
-4. Visit **/tv** or **/movies** to request recommendations.
-5. *(Optional, admin only)* Visit **/admin** to invite additional users.
-
-## Development
-
-### Common commands
-
-```bash
-npm run dev          # start the Next.js dev server
-npm run typecheck    # tsc --noEmit
-npm run lint         # eslint
-npm test             # vitest run
-npm run build        # production build
-npm run db:generate  # generate a new Drizzle migration after schema changes
-```
-
-### Recommended workflow
-
-1. Keep `npm run dev` running.
-2. After a workflow or schema change, run `npm run typecheck` and `npm test`.
-3. After UI or action changes, run `npm run typecheck` and `npm run lint`.
-4. Before committing, run `npm run build` if you touched anything that affects
-   route generation.
-5. Only run `npm run db:generate` after editing `src/lib/database/schema.ts`.
-
-### Project layout
-
-```
-src/
-  app/                Next.js App Router routes, layouts, and server actions
-  components/         Shared UI primitives and feature components
-  lib/                Framework-agnostic helpers
-    database/         Drizzle client, schema, and migration runner
-    integrations/     Plex, Tautulli HTTP clients
-    security/         safeFetch (SSRF guard), rate-limit, secret-box, audit-payload
-  modules/            Domain modules (identity, recommendations, preferences, …)
-    <domain>/
-      schemas/        Zod input schemas
-      repositories/   Drizzle data access
-      workflows/      Use-cases composed from repositories + adapters
-      adapters/       Outbound integrations
-  types/              Ambient module augmentation (NextAuth, etc.)
-drizzle/              Generated SQL migrations and snapshots
-docs/                 ADRs and product behavior matrix
-```
-
-### Testing
-
-Tests live alongside the code they cover (`*.test.ts`). They run against an
-isolated temp-directory SQLite file (configured in `vitest.setup.ts`) so they
-won't touch your dev database.
-
-```bash
-npm test
-```
-
-## Security
-
-This project takes self-hosted security seriously. Implemented controls include:
-
-- **Authentication** — scrypt password hashing with timing-safe comparison;
-  account lockout after repeated failed logins; JWT sessions with 24-hour
-  rolling refresh that are invalidated on password change or account disable.
-- **Authorization** — every server action calls `auth()` and every database
-  query is scoped to the requesting user's id.
-- **SSRF protection** — all outbound calls to user-supplied URLs go through a
-  `safeFetch` helper that resolves the hostname, blocks link-local / multicast
-  / cloud-metadata addresses (and optionally private addresses), refuses to
-  follow redirects, and caps response size.
-- **Secret encryption** — service-connection API keys are stored encrypted with
-  AES-256-GCM using an HKDF-derived key and a versioned envelope. A separate
-  `SECRET_BOX_KEY` may be supplied to decouple from `AUTH_SECRET`.
-- **Rate limiting** — DB-backed sliding-window limits on login, bootstrap,
-  recommendation requests, and connection verification.
-- **Transport headers** — strict CSP, HSTS, `X-Frame-Options: DENY`,
-  `Referrer-Policy: strict-origin-when-cross-origin`, and a restrictive
-  `Permissions-Policy` are applied to every response.
-- **Audit logging** — every privileged action is recorded; a payload scrubber
-  redacts any field whose key matches a sensitive pattern (`password`, `token`,
-  `api_key`, etc.) as defense-in-depth.
-
-If you discover a vulnerability, please open a private GitHub security advisory
-rather than a public issue.
-
-## Production deployment
-
-The app is a single Next.js process plus a SQLite file. Two supported paths:
-
-### Docker (recommended)
-
-A multi-stage `Dockerfile` and `docker-compose.yml` ship with the repo. The
-runtime image is based on `node:20-bookworm-slim`, runs as the non-root `node`
-user, uses Next.js standalone output (~200 MB image), and persists the SQLite
-database on a named volume mounted at `/app/data`.
+## Docker
 
 ```bash
 cp .env.example .env
-# Edit .env and set AUTH_SECRET (openssl rand -base64 48)
-# APP_URL should match the public origin you'll serve the app from.
-
+# set AUTH_SECRET and APP_URL
 docker compose up -d --build
 ```
 
-Then open <http://localhost:3000> and complete the bootstrap flow.
+Docker Compose persists SQLite data in the `recommendarr-data` volume and forces
+`DATABASE_URL=file:/app/data/recommendarr.db` inside the container. The app
+exposes `/api/health`; put TLS in front of any internet-exposed deployment.
 
-Notes:
+## Development
 
-- The compose file forces `DATABASE_URL=file:/app/data/recommendarr.db` inside
-  the container so the database always lives on the mounted volume.
-- The container exposes a `/api/health` endpoint and ships with a Docker
-  `HEALTHCHECK` that uses it.
-- To back up your data, snapshot the `recommendarr-data` volume (or run
-  `docker compose exec app sqlite3 /app/data/recommendarr.db ".backup '/app/data/backup.db'"`).
-- If your Sonarr/Radarr/Plex services run on the Docker host's LAN and the app
-  needs to reach them, either attach them to the same Docker network or run
-  the app with `network_mode: host`. Set `ALLOW_PRIVATE_SERVICE_HOSTS=false`
-  in any deployment where users should not be able to point service URLs at
-  internal addresses.
-- Put a TLS-terminating reverse proxy (Caddy, Traefik, nginx, Cloudflare
-  Tunnel, …) in front of the container in any internet-exposed deployment.
+```bash
+npm run dev          # start Next.js locally
+npm run typecheck    # TypeScript checks
+npm run lint         # ESLint
+npm test             # Vitest
+npm run build        # production build
+npm run db:generate  # generate Drizzle migrations after schema changes
+```
 
-### Bare-metal Node
+Tests live beside the code they cover as `*.test.ts` and use an isolated SQLite
+database configured by `vitest.setup.ts`.
 
-1. Build the app: `npm run build`
-2. Set `NODE_ENV=production` and the env vars above (especially `AUTH_SECRET`
-   and an `APP_URL` that matches your public origin).
-3. Persist the directory containing your `DATABASE_URL` file (and back it up).
-4. Run `npm start`.
-5. Ensure `ALLOW_PRIVATE_SERVICE_HOSTS=false` if your deployment shouldn't be
-   able to reach internal addresses.
+## Project Map
 
-## Contributing
+```text
+src/app/          Next.js routes, layouts, and server actions
+src/components/   shared UI and feature components
+src/lib/          database, integrations, security, and framework helpers
+src/modules/      domain workflows, repositories, schemas, and adapters
+drizzle/          generated SQL migrations and snapshots
+docs/             ADRs, architecture notes, and product behavior matrix
+```
 
-Contributions are welcome. Please:
+For architectural context, see
+[docs/adr/ADR-0001-rewrite-principles.md](docs/adr/ADR-0001-rewrite-principles.md),
+[docs/architecture/project-structure.md](docs/architecture/project-structure.md),
+and [docs/product/behavior-matrix.md](docs/product/behavior-matrix.md).
 
-1. Open an issue first for non-trivial changes so we can align on scope.
-2. Keep commits small and focused; include tests for new behavior.
-3. Run `npm run typecheck`, `npm test`, and `npm run lint` before opening a PR.
+## Security
 
-See [`docs/adr/ADR-0001-rewrite-principles.md`](docs/adr/ADR-0001-rewrite-principles.md)
-and [`docs/product/behavior-matrix.md`](docs/product/behavior-matrix.md) for
-the architectural ground rules.
+The app includes encrypted service secrets, DB-backed rate limits, strict
+security headers, audit logging, scoped authorization checks, and an SSRF guard
+for outbound requests to user-configured services.
+
+If you discover a vulnerability, open a private GitHub security advisory rather
+than a public issue.
 
 ## License
 
-TBD — see the repository's `LICENSE` file once published.
-
-## Acknowledgements
-
-- Sonarr, Radarr, Plex, and Tautulli for their open APIs.
+TBD.
 
