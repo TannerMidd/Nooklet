@@ -55,7 +55,7 @@ export function LibraryRequestForm({
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isSavingDefaults, setIsSavingDefaults] = useState(false);
-  const [seasonSelectionMode, setSeasonSelectionMode] = useState<"all" | "custom">("all");
+  const [seasonSelectionMode, setSeasonSelectionMode] = useState<"all" | "custom" | "episode">("all");
   const serviceLabel = mediaType === "tv" ? "Sonarr" : "Radarr";
   const serviceType: LibrarySelectionPreferenceService = mediaType === "tv" ? "sonarr" : "radarr";
   const dialogTitleId = `${requestKey}-library-dialog-title`;

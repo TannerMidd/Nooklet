@@ -33,3 +33,13 @@ export type RecommendationLibraryActionState = {
 export const initialRecommendationLibraryActionState: RecommendationLibraryActionState = {
   status: "idle",
 };
+
+export type RecommendationEpisodeSelectionActionState = {
+  status: "idle" | "error" | "success";
+  message?: string;
+  fieldErrors?: Partial<Record<"episodeIds", string>>;
+};
+
+export const initialRecommendationEpisodeSelectionActionState: RecommendationEpisodeSelectionActionState = {
+  status: "idle",
+};

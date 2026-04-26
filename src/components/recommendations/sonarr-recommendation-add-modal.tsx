@@ -23,8 +23,8 @@ type SonarrRecommendationAddModalProps = {
   state: RecommendationLibraryActionState;
   formAction: RecommendationModalFormAction;
   availableSeasons: Array<{ seasonNumber: number; label: string }>;
-  seasonSelectionMode: "all" | "custom";
-  onSeasonSelectionModeChange: (mode: "all" | "custom") => void;
+  seasonSelectionMode: "all" | "custom" | "episode";
+  onSeasonSelectionModeChange: (mode: "all" | "custom" | "episode") => void;
   selectedRootFolderPath: string;
   selectedQualityProfileId: number | null;
   onRootFolderPathChange: (value: string) => void;
@@ -95,7 +95,7 @@ export function SonarrRecommendationAddModal({
 
                   {availableSeasons.length > 0 ? (
                     <>
-                      <div className="grid gap-3 lg:grid-cols-2">
+                      <div className="grid gap-3 lg:grid-cols-3">
                         <label className="flex items-start gap-3 rounded-2xl border border-line/70 bg-panel px-4 py-4 text-sm text-foreground">
                           <input
                             type="radio"
@@ -125,30 +125,54 @@ export function SonarrRecommendationAddModal({
                             <span className="mt-1 block text-muted">Only monitor the seasons selected below.</span>
                           </span>
                         </label>
+
+                        <label className="flex items-start gap-3 rounded-2xl border border-line/70 bg-panel px-4 py-4 text-sm text-foreground">
+                          <input
+                            type="radio"
+                            name="seasonSelectionMode"
+                            value="episode"
+                            checked={seasonSelectionMode === "episode"}
+                            onChange={() => onSeasonSelectionModeChange("episode")}
+                            className="mt-1 h-4 w-4 border-line bg-panel text-accent"
+                          />
+                          <span>
+                            <span className="block font-medium text-foreground">Choose specific episodes</span>
+                            <span className="mt-1 block text-muted">
+                              Sonarr adds the show without monitoring; pick episodes on the next screen.
+                            </span>
+                          </span>
+                        </label>
                       </div>
 
-                      <fieldset
-                        disabled={seasonSelectionMode !== "custom"}
-                        className={`space-y-3 ${seasonSelectionMode === "custom" ? "" : "opacity-60"}`}
-                      >
-                        <legend className="text-sm text-muted">Available seasons</legend>
-                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                          {availableSeasons.map((season) => (
-                            <label
-                              key={season.seasonNumber}
-                              className="flex items-center gap-2 rounded-2xl border border-line/70 bg-panel px-4 py-3 text-sm text-foreground"
-                            >
-                              <input
-                                type="checkbox"
-                                name="seasonNumbers"
-                                value={season.seasonNumber}
-                                className="h-4 w-4 rounded border-line bg-panel text-accent"
-                              />
-                              <span>{season.label}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </fieldset>
+                      {seasonSelectionMode === "episode" ? (
+                        <p className="rounded-2xl border border-line/70 bg-panel px-4 py-3 text-sm leading-6 text-muted">
+                          On submit, the series is added to Sonarr with monitoring off. You&apos;ll be taken to a follow-up
+                          page that lists every episode Sonarr returns so you can pick which ones to monitor and search for.
+                        </p>
+                      ) : (
+                        <fieldset
+                          disabled={seasonSelectionMode !== "custom"}
+                          className={`space-y-3 ${seasonSelectionMode === "custom" ? "" : "opacity-60"}`}
+                        >
+                          <legend className="text-sm text-muted">Available seasons</legend>
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {availableSeasons.map((season) => (
+                              <label
+                                key={season.seasonNumber}
+                                className="flex items-center gap-2 rounded-2xl border border-line/70 bg-panel px-4 py-3 text-sm text-foreground"
+                              >
+                                <input
+                                  type="checkbox"
+                                  name="seasonNumbers"
+                                  value={season.seasonNumber}
+                                  className="h-4 w-4 rounded border-line bg-panel text-accent"
+                                />
+                                <span>{season.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                      )}
                     </>
                   ) : (
                     <>
