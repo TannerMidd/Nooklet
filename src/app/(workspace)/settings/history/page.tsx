@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { auth } from "@/auth";
 import { Panel } from "@/components/ui/panel";
-import { listJobsForUser } from "@/modules/jobs/repositories/job-repository";
+import { listHistoryJobs } from "@/modules/jobs/queries/list-history-jobs";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import { getWatchHistoryOverview } from "@/modules/watch-history/queries/get-watch-history-overview";
 
@@ -70,7 +70,7 @@ export default async function WatchHistorySettingsPage() {
   const [overview, connectionSummaries, scheduledJobs] = await Promise.all([
     getWatchHistoryOverview(session.user.id),
     listConnectionSummaries(session.user.id),
-    listJobsForUser(session.user.id, "watch-history-sync"),
+    listHistoryJobs(session.user.id, "watch-history-sync"),
   ]);
   const scheduledJobBySourceType = new Map(
     scheduledJobs

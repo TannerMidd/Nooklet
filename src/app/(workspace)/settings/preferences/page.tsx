@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { Panel } from "@/components/ui/panel";
-import { getPreferencesByUserId } from "@/modules/preferences/repositories/preferences-repository";
+import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import {
   getWatchHistorySourceDefinition,
@@ -35,7 +35,7 @@ export default async function PreferencesSettingsPage({
   }
 
   const [preferences, watchHistoryOverview, connectionSummaries] = await Promise.all([
-    getPreferencesByUserId(session.user.id),
+    getUserPreferences(session.user.id),
     getWatchHistoryOverview(session.user.id),
     listConnectionSummaries(session.user.id),
   ]);

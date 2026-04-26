@@ -4,10 +4,8 @@ import { auth } from "@/auth";
 import { RecommendationHistoryItemActions } from "@/components/recommendations/recommendation-history-item-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { Panel } from "@/components/ui/panel";
-import {
-  getLibrarySelectionDefaults,
-  getPreferencesByUserId,
-} from "@/modules/preferences/repositories/preferences-repository";
+import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
+import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import { listRecommendationHistory } from "@/modules/recommendations/queries/list-recommendation-history";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 
@@ -52,7 +50,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
   }
 
   const [preferences, connectionSummaries] = await Promise.all([
-    getPreferencesByUserId(session.user.id),
+    getUserPreferences(session.user.id),
     listConnectionSummaries(session.user.id),
   ]);
   const resolvedSearchParams = await searchParams;

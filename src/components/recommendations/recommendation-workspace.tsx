@@ -11,10 +11,8 @@ import { RecommendationRetryForm } from "@/components/recommendations/recommenda
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { type RecommendationMediaType } from "@/lib/database/schema";
-import {
-  getLibrarySelectionDefaults,
-  getPreferencesByUserId,
-} from "@/modules/preferences/repositories/preferences-repository";
+import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
+import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import {
   formatRecommendationGenres,
   type RecommendationGenre,
@@ -79,7 +77,7 @@ export async function RecommendationWorkspace({
     return null;
   }
 
-  const preferences = await getPreferencesByUserId(session.user.id);
+  const preferences = await getUserPreferences(session.user.id);
   const [connectionSummaries, recentRuns, watchHistoryOverview, selectedWatchHistoryContext] = await Promise.all([
     listConnectionSummaries(session.user.id),
     listRecentRecommendationRuns(session.user.id, mediaType),

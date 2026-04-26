@@ -7,9 +7,9 @@ import { submitRecommendationEpisodeSelectionAction } from "@/app/(workspace)/re
 import { Panel } from "@/components/ui/panel";
 import { decryptSecret } from "@/lib/security/secret-box";
 import { parseRecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
-import { findRecommendationItemForUser } from "@/modules/recommendations/repositories/recommendation-repository";
+import { findRecommendationItemForUser } from "@/modules/recommendations/queries/find-recommendation-item-for-user";
 import { listSonarrEpisodes } from "@/modules/service-connections/adapters/sonarr-episodes";
-import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
+import { findServiceConnectionByType } from "@/modules/service-connections/queries/find-service-connection-by-type";
 
 export const dynamic = "force-dynamic";
 

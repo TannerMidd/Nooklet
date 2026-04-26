@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { Panel } from "@/components/ui/panel";
-import { findUserById } from "@/modules/users/repositories/user-repository";
+import { getAccountUser } from "@/modules/users/queries/get-account-user";
 
 import { ChangePasswordForm } from "./change-password-form";
 
@@ -13,7 +13,7 @@ export default async function AccountSettingsPage() {
     return null;
   }
 
-  const user = await findUserById(session.user.id);
+  const user = await getAccountUser(session.user.id);
 
   return (
     <div className="space-y-6">

@@ -11,7 +11,7 @@ import { submitRecommendationLibraryDefaultsAction } from "@/app/(workspace)/rec
 import { Button } from "@/components/ui/button";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { cn } from "@/lib/utils";
-import { type LibrarySelectionPreferenceService } from "@/modules/preferences/repositories/preferences-repository";
+import { type LibrarySelectionPreferenceService } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { resolveRecommendationLibrarySelectionDefaults } from "@/modules/recommendations/workflows/recommendation-library-selection";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 

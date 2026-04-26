@@ -6,7 +6,7 @@ import { useFormStatus } from "react-dom";
 import { initialUpdatePreferencesActionState } from "@/app/(workspace)/settings/preferences/action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { type PreferenceRecord } from "@/modules/preferences/repositories/preferences-repository";
+import { type PreferenceRecord } from "@/modules/preferences/queries/get-user-preferences";
 
 import {
   submitUpdatePreferencesAction,
