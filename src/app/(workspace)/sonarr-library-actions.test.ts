@@ -15,6 +15,12 @@ vi.mock("@/modules/service-connections/workflows/update-sonarr-series-episode-mo
 vi.mock("@/modules/service-connections/workflows/update-sonarr-series-monitoring", () => ({
   updateSonarrSeriesMonitoringForUser: vi.fn(),
 }));
+vi.mock("@/modules/service-connections/workflows/update-sonarr-series-quality-profile", () => ({
+  updateSonarrSeriesQualityProfileForUser: vi.fn(),
+}));
+vi.mock("@/modules/service-connections/workflows/trigger-sonarr-series-search", () => ({
+  triggerSonarrSeriesSearchForUser: vi.fn(),
+}));
 vi.mock("@/modules/service-connections/workflows/delete-sonarr-series", () => ({
   deleteSonarrSeriesForUser: vi.fn(),
 }));
@@ -27,8 +33,10 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { deleteSonarrSeriesForUser } from "@/modules/service-connections/workflows/delete-sonarr-series";
 import { listSonarrSeriesEpisodesForUser } from "@/modules/service-connections/workflows/list-sonarr-series-episodes-for-user";
+import { triggerSonarrSeriesSearchForUser } from "@/modules/service-connections/workflows/trigger-sonarr-series-search";
 import { updateSonarrSeriesEpisodeMonitoringForUser } from "@/modules/service-connections/workflows/update-sonarr-series-episode-monitoring";
 import { updateSonarrSeriesMonitoringForUser } from "@/modules/service-connections/workflows/update-sonarr-series-monitoring";
+import { updateSonarrSeriesQualityProfileForUser } from "@/modules/service-connections/workflows/update-sonarr-series-quality-profile";
 import { updateSonarrSeriesSeasonMonitoringForUser } from "@/modules/service-connections/workflows/update-sonarr-series-season-monitoring";
 
 import {
@@ -36,6 +44,8 @@ import {
   submitSonarrSeriesDeleteAction,
   submitSonarrSeriesEpisodeMonitoringAction,
   submitSonarrSeriesMonitoringAction,
+  submitSonarrSeriesQualityProfileAction,
+  submitSonarrSeriesSearchAction,
   submitSonarrSeriesSeasonMonitoringAction,
 } from "./sonarr-library-actions";
 
@@ -43,6 +53,8 @@ const authMock = vi.mocked(auth);
 const seasonsMock = vi.mocked(updateSonarrSeriesSeasonMonitoringForUser);
 const episodesMock = vi.mocked(updateSonarrSeriesEpisodeMonitoringForUser);
 const seriesMock = vi.mocked(updateSonarrSeriesMonitoringForUser);
+const qualityProfileMock = vi.mocked(updateSonarrSeriesQualityProfileForUser);
+const searchMock = vi.mocked(triggerSonarrSeriesSearchForUser);
 const deleteMock = vi.mocked(deleteSonarrSeriesForUser);
 const listMock = vi.mocked(listSonarrSeriesEpisodesForUser);
 const revalidateMock = vi.mocked(revalidatePath);
@@ -222,6 +234,115 @@ describe("submitSonarrSeriesMonitoringAction", () => {
       validForm(),
     );
     expect(result).toEqual({ status: "success", message: "Updated Sonarr." });
+    expect(revalidateMock).toHaveBeenCalledWith("/sonarr");
+  });
+});
+
+describe("submitSonarrSeriesQualityProfileAction", () => {
+  function validForm() {
+    const formData = new FormData();
+    formData.set("seriesId", "7");
+    formData.set("qualityProfileId", "2");
+    formData.set("returnTo", "/sonarr");
+    return formData;
+  }
+
+  it("returns sign-in error when there is no session", async () => {
+    authMock.mockResolvedValue(null as never);
+    const result = await submitSonarrSeriesQualityProfileAction(
+      { status: "idle" } as never,
+      validForm(),
+    );
+    expect(result).toEqual({ status: "error", message: "You need to sign in again." });
+    expect(qualityProfileMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a field error when validation fails", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    const formData = new FormData();
+    formData.set("seriesId", "7");
+    formData.set("qualityProfileId", "bad");
+    formData.set("returnTo", "/sonarr");
+
+    const result = await submitSonarrSeriesQualityProfileAction(
+      { status: "idle" } as never,
+      formData,
+    );
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Could not update Sonarr quality profile with the given input.",
+      fieldErrors: { qualityProfileId: "Select a valid quality profile." },
+    });
+  });
+
+  it("returns success and revalidates the return path on workflow success", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    qualityProfileMock.mockResolvedValue({ ok: true, message: "Updated Sonarr." } as never);
+
+    const result = await submitSonarrSeriesQualityProfileAction(
+      { status: "idle" } as never,
+      validForm(),
+    );
+
+    expect(qualityProfileMock).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({ seriesId: 7, qualityProfileId: 2 }),
+    );
+    expect(result).toEqual({ status: "success", message: "Updated Sonarr." });
+    expect(revalidateMock).toHaveBeenCalledWith("/sonarr");
+  });
+
+  it("projects workflow quality profile field errors", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    qualityProfileMock.mockResolvedValue({
+      ok: false,
+      message: "Select a valid Sonarr quality profile.",
+      field: "qualityProfileId",
+    } as never);
+
+    const result = await submitSonarrSeriesQualityProfileAction(
+      { status: "idle" } as never,
+      validForm(),
+    );
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Select a valid Sonarr quality profile.",
+      fieldErrors: { qualityProfileId: "Select a valid Sonarr quality profile." },
+    });
+  });
+});
+
+describe("submitSonarrSeriesSearchAction", () => {
+  function validForm() {
+    const formData = new FormData();
+    formData.set("seriesId", "7");
+    formData.set("returnTo", "/sonarr");
+    return formData;
+  }
+
+  it("returns sign-in error when there is no session", async () => {
+    authMock.mockResolvedValue(null as never);
+    const result = await submitSonarrSeriesSearchAction(
+      { status: "idle" } as never,
+      validForm(),
+    );
+    expect(result).toEqual({ status: "error", message: "You need to sign in again." });
+    expect(searchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns success and revalidates the return path on workflow success", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    searchMock.mockResolvedValue({ ok: true, message: "Search queued." } as never);
+
+    const result = await submitSonarrSeriesSearchAction(
+      { status: "idle" } as never,
+      validForm(),
+    );
+
+    expect(searchMock).toHaveBeenCalledWith("u1", expect.objectContaining({ seriesId: 7 }));
+    expect(result).toEqual({ status: "success", message: "Search queued." });
     expect(revalidateMock).toHaveBeenCalledWith("/sonarr");
   });
 });

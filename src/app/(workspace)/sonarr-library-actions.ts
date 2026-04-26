@@ -11,6 +11,10 @@ import { updateSonarrSeriesEpisodeMonitoringSchema } from "@/modules/service-con
 import { updateSonarrSeriesEpisodeMonitoringForUser } from "@/modules/service-connections/workflows/update-sonarr-series-episode-monitoring";
 import { updateSonarrSeriesMonitoringSchema } from "@/modules/service-connections/schemas/update-sonarr-series-monitoring";
 import { updateSonarrSeriesMonitoringForUser } from "@/modules/service-connections/workflows/update-sonarr-series-monitoring";
+import { updateSonarrSeriesQualityProfileSchema } from "@/modules/service-connections/schemas/update-sonarr-series-quality-profile";
+import { updateSonarrSeriesQualityProfileForUser } from "@/modules/service-connections/workflows/update-sonarr-series-quality-profile";
+import { triggerSonarrSeriesSearchSchema } from "@/modules/service-connections/schemas/trigger-sonarr-series-search";
+import { triggerSonarrSeriesSearchForUser } from "@/modules/service-connections/workflows/trigger-sonarr-series-search";
 import { deleteSonarrSeriesSchema } from "@/modules/service-connections/schemas/delete-sonarr-series";
 import { deleteSonarrSeriesForUser } from "@/modules/service-connections/workflows/delete-sonarr-series";
 import { listSonarrSeriesEpisodesForUser } from "@/modules/service-connections/workflows/list-sonarr-series-episodes-for-user";
@@ -161,6 +165,81 @@ export async function submitSonarrSeriesMonitoringAction(
   }
 
   const result = await updateSonarrSeriesMonitoringForUser(session.user.id, parsedInput.data);
+
+  revalidatePath(safeRevalidatePath(parsedInput.data.returnTo));
+
+  if (!result.ok) {
+    return { status: "error", message: result.message };
+  }
+
+  return { status: "success", message: result.message };
+}
+
+export async function submitSonarrSeriesQualityProfileAction(
+  _previousState: SonarrLibraryActionState,
+  formData: FormData,
+): Promise<SonarrLibraryActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { status: "error", message: "You need to sign in again." };
+  }
+
+  const parsedInput = updateSonarrSeriesQualityProfileSchema.safeParse({
+    seriesId: formData.get("seriesId"),
+    qualityProfileId: formData.get("qualityProfileId"),
+    returnTo: formData.get("returnTo"),
+  });
+
+  if (!parsedInput.success) {
+    return {
+      status: "error",
+      message: "Could not update Sonarr quality profile with the given input.",
+      fieldErrors: { qualityProfileId: "Select a valid quality profile." },
+    };
+  }
+
+  const result = await updateSonarrSeriesQualityProfileForUser(
+    session.user.id,
+    parsedInput.data,
+  );
+
+  revalidatePath(safeRevalidatePath(parsedInput.data.returnTo));
+
+  if (!result.ok) {
+    return {
+      status: "error",
+      message: result.message,
+      fieldErrors: result.field ? { [result.field]: result.message } : undefined,
+    };
+  }
+
+  return { status: "success", message: result.message };
+}
+
+export async function submitSonarrSeriesSearchAction(
+  _previousState: SonarrLibraryActionState,
+  formData: FormData,
+): Promise<SonarrLibraryActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { status: "error", message: "You need to sign in again." };
+  }
+
+  const parsedInput = triggerSonarrSeriesSearchSchema.safeParse({
+    seriesId: formData.get("seriesId"),
+    returnTo: formData.get("returnTo"),
+  });
+
+  if (!parsedInput.success) {
+    return {
+      status: "error",
+      message: "Could not trigger Sonarr search with the given input.",
+    };
+  }
+
+  const result = await triggerSonarrSeriesSearchForUser(session.user.id, parsedInput.data);
 
   revalidatePath(safeRevalidatePath(parsedInput.data.returnTo));
 
