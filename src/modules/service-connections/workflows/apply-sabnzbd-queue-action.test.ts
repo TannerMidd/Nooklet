@@ -7,8 +7,10 @@ vi.mock("@/lib/security/secret-box", () => ({
 vi.mock("@/lib/integrations/sabnzbd", () => ({
   listSabnzbdQueue: vi.fn(),
   moveSabnzbdQueueItemToPosition: vi.fn(),
+  pauseSabnzbdQueue: vi.fn(),
   pauseSabnzbdQueueItem: vi.fn(),
   removeSabnzbdQueueItem: vi.fn(),
+  resumeSabnzbdQueue: vi.fn(),
   resumeSabnzbdQueueItem: vi.fn(),
 }));
 
@@ -19,7 +21,9 @@ vi.mock("@/modules/service-connections/repositories/service-connection-repositor
 import {
   listSabnzbdQueue,
   moveSabnzbdQueueItemToPosition,
+  pauseSabnzbdQueue,
   removeSabnzbdQueueItem,
+  resumeSabnzbdQueue,
 } from "@/lib/integrations/sabnzbd";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 
@@ -27,7 +31,9 @@ import { applySabnzbdQueueAction } from "./apply-sabnzbd-queue-action";
 
 const mockedListSabnzbdQueue = vi.mocked(listSabnzbdQueue);
 const mockedMoveSabnzbdQueueItemToPosition = vi.mocked(moveSabnzbdQueueItemToPosition);
+const mockedPauseSabnzbdQueue = vi.mocked(pauseSabnzbdQueue);
 const mockedRemoveSabnzbdQueueItem = vi.mocked(removeSabnzbdQueueItem);
+const mockedResumeSabnzbdQueue = vi.mocked(resumeSabnzbdQueue);
 const mockedFindServiceConnectionByType = vi.mocked(findServiceConnectionByType);
 
 describe("applySabnzbdQueueAction", () => {
@@ -355,6 +361,68 @@ describe("applySabnzbdQueueAction", () => {
       baseUrl: "http://sab.local",
       apiKey: "decrypted:encrypted-sab",
       itemId: "item-2",
+    });
+  });
+
+  it("pauses the full queue and returns the refreshed queue state", async () => {
+    mockedListSabnzbdQueue.mockResolvedValue({
+      version: "4.5.2",
+      queueStatus: "Paused",
+      paused: true,
+      speed: "0",
+      kbPerSec: 0,
+      timeLeft: "0:10:00",
+      activeQueueCount: 2,
+      totalQueueCount: 2,
+      items: [],
+    });
+
+    await expect(
+      applySabnzbdQueueAction("user-1", {
+        type: "pauseQueue",
+      }),
+    ).resolves.toEqual({
+      connectionStatus: "verified",
+      statusMessage: "Paused the SABnzbd queue.",
+      snapshot: expect.objectContaining({
+        paused: true,
+      }),
+    });
+
+    expect(mockedPauseSabnzbdQueue).toHaveBeenCalledWith({
+      baseUrl: "http://sab.local",
+      apiKey: "decrypted:encrypted-sab",
+    });
+  });
+
+  it("resumes the full queue and returns the refreshed queue state", async () => {
+    mockedListSabnzbdQueue.mockResolvedValue({
+      version: "4.5.2",
+      queueStatus: "Downloading",
+      paused: false,
+      speed: "12.5 M",
+      kbPerSec: 12850.4,
+      timeLeft: "0:10:00",
+      activeQueueCount: 2,
+      totalQueueCount: 2,
+      items: [],
+    });
+
+    await expect(
+      applySabnzbdQueueAction("user-1", {
+        type: "resumeQueue",
+      }),
+    ).resolves.toEqual({
+      connectionStatus: "verified",
+      statusMessage: "Resumed the SABnzbd queue.",
+      snapshot: expect.objectContaining({
+        paused: false,
+      }),
+    });
+
+    expect(mockedResumeSabnzbdQueue).toHaveBeenCalledWith({
+      baseUrl: "http://sab.local",
+      apiKey: "decrypted:encrypted-sab",
     });
   });
 });

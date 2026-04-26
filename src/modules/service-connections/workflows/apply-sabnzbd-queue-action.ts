@@ -1,8 +1,10 @@
 import {
   listSabnzbdQueue,
   moveSabnzbdQueueItemToPosition,
+  pauseSabnzbdQueue,
   pauseSabnzbdQueueItem,
   removeSabnzbdQueueItem,
+  resumeSabnzbdQueue,
   resumeSabnzbdQueueItem,
 } from "@/lib/integrations/sabnzbd";
 import { decryptSecret } from "@/lib/security/secret-box";
@@ -99,7 +101,17 @@ export async function applySabnzbdQueueAction(
 ): Promise<ActiveSabnzbdQueueState> {
   const context = await getVerifiedSabnzbdContext(userId);
 
-  if (action.type === "move" || action.type === "moveToIndex") {
+  if (action.type === "pauseQueue") {
+    await pauseSabnzbdQueue({
+      baseUrl: context.baseUrl,
+      apiKey: context.apiKey,
+    });
+  } else if (action.type === "resumeQueue") {
+    await resumeSabnzbdQueue({
+      baseUrl: context.baseUrl,
+      apiKey: context.apiKey,
+    });
+  } else if (action.type === "move" || action.type === "moveToIndex") {
     const snapshot = await listSabnzbdQueue({
       baseUrl: context.baseUrl,
       apiKey: context.apiKey,

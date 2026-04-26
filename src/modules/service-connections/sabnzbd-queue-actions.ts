@@ -6,6 +6,12 @@ export const sabnzbdQueueMoveDirectionSchema = z.enum(["up", "down"]);
 
 export const sabnzbdQueueActionSchema = z.discriminatedUnion("type", [
   z.object({
+    type: z.literal("pauseQueue"),
+  }),
+  z.object({
+    type: z.literal("resumeQueue"),
+  }),
+  z.object({
     type: z.literal("pause"),
     itemId: sabnzbdQueueItemIdSchema,
   }),
@@ -34,8 +40,22 @@ export type SabnzbdQueueActionInput = z.infer<typeof sabnzbdQueueActionSchema>;
 
 export const sabnzbdQueuePageLimit = 100;
 
+export function getSabnzbdQueueActionKey(action: SabnzbdQueueActionInput) {
+  switch (action.type) {
+    case "pauseQueue":
+    case "resumeQueue":
+      return action.type;
+    default:
+      return `${action.type}:${action.itemId}`;
+  }
+}
+
 export function formatSabnzbdQueueActionMessage(action: SabnzbdQueueActionInput) {
   switch (action.type) {
+    case "pauseQueue":
+      return "Paused the SABnzbd queue.";
+    case "resumeQueue":
+      return "Resumed the SABnzbd queue.";
     case "pause":
       return "Paused the SABnzbd queue item.";
     case "resume":

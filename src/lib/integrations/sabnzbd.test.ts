@@ -9,7 +9,9 @@ import { safeFetch } from "@/lib/security/safe-fetch";
 import {
   listSabnzbdQueue,
   moveSabnzbdQueueItemToPosition,
+  pauseSabnzbdQueue,
   pauseSabnzbdQueueItem,
+  resumeSabnzbdQueue,
 } from "./sabnzbd";
 
 const mockedSafeFetch = vi.mocked(safeFetch);
@@ -126,6 +128,48 @@ describe("listSabnzbdQueue", () => {
     expect(requestUrl).toBeInstanceOf(URL);
     expect((requestUrl as URL).toString()).toBe(
       "http://localhost:8080/api?mode=queue&output=json&name=pause&value=SABnzbd_nzo_1&apikey=secret",
+    );
+  });
+
+  it("sends a global pause command for the queue", async () => {
+    mockedSafeFetch.mockResolvedValue(
+      new Response(JSON.stringify({ status: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await pauseSabnzbdQueue({
+      baseUrl: "http://localhost:8080",
+      apiKey: "secret",
+    });
+
+    const requestUrl = mockedSafeFetch.mock.calls[0]?.[0];
+
+    expect(requestUrl).toBeInstanceOf(URL);
+    expect((requestUrl as URL).toString()).toBe(
+      "http://localhost:8080/api?mode=pause&output=json&apikey=secret",
+    );
+  });
+
+  it("sends a global resume command for the queue", async () => {
+    mockedSafeFetch.mockResolvedValue(
+      new Response(JSON.stringify({ status: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await resumeSabnzbdQueue({
+      baseUrl: "http://localhost:8080",
+      apiKey: "secret",
+    });
+
+    const requestUrl = mockedSafeFetch.mock.calls[0]?.[0];
+
+    expect(requestUrl).toBeInstanceOf(URL);
+    expect((requestUrl as URL).toString()).toBe(
+      "http://localhost:8080/api?mode=resume&output=json&apikey=secret",
     );
   });
 

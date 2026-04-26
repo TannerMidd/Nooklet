@@ -220,6 +220,32 @@ export async function listSabnzbdQueue(input: {
   return normalizeSabnzbdQueueSnapshot(payload);
 }
 
+export async function pauseSabnzbdQueue(input: {
+  baseUrl: string;
+  apiKey: string;
+}) {
+  const url = buildSabnzbdApiUrl(input.baseUrl, { mode: "pause" });
+
+  setSabnzbdApiKey(url, input.apiKey);
+
+  const payload = await fetchSabnzbdJson<SabnzbdStatusResponse>(url);
+
+  assertSabnzbdStatus(payload, "pause the queue");
+}
+
+export async function resumeSabnzbdQueue(input: {
+  baseUrl: string;
+  apiKey: string;
+}) {
+  const url = buildSabnzbdApiUrl(input.baseUrl, { mode: "resume" });
+
+  setSabnzbdApiKey(url, input.apiKey);
+
+  const payload = await fetchSabnzbdJson<SabnzbdStatusResponse>(url);
+
+  assertSabnzbdStatus(payload, "resume the queue");
+}
+
 export async function pauseSabnzbdQueueItem(input: {
   baseUrl: string;
   apiKey: string;

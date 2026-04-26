@@ -5,7 +5,10 @@ import { useEffect, useEffectEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
-import { type SabnzbdQueueActionInput } from "@/modules/service-connections/sabnzbd-queue-actions";
+import {
+  getSabnzbdQueueActionKey,
+  type SabnzbdQueueActionInput,
+} from "@/modules/service-connections/sabnzbd-queue-actions";
 import { type ActiveSabnzbdQueueState } from "@/modules/service-connections/workflows/get-active-sabnzbd-queue";
 
 type SabnzbdActivityPanelProps = {
@@ -76,7 +79,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
 
     setActionError(null);
     setIsMutating(true);
-    setPendingActionKey(`${action.type}:${action.itemId}`);
+  setPendingActionKey(getSabnzbdQueueActionKey(action));
 
     try {
       const response = await fetch("/api/service-connections/sabnzbd/queue", {
@@ -221,6 +224,35 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
                 <p className="mt-2 font-medium text-foreground">{item.value}</p>
               </div>
             ))}
+          </div>
+        ) : null}
+
+        {queueState.connectionStatus === "verified" && snapshot ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              className="min-h-9 rounded-xl px-3 py-1.5 text-xs"
+              disabled={isRefreshing || isMutating || snapshot.paused}
+              onClick={() => {
+                void submitQueueAction({
+                  type: "pauseQueue",
+                });
+              }}
+            >
+              {pendingActionKey === "pauseQueue" ? "Pausing queue..." : "Pause queue"}
+            </Button>
+            <Button
+              variant="secondary"
+              className="min-h-9 rounded-xl px-3 py-1.5 text-xs"
+              disabled={isRefreshing || isMutating || !snapshot.paused}
+              onClick={() => {
+                void submitQueueAction({
+                  type: "resumeQueue",
+                });
+              }}
+            >
+              {pendingActionKey === "resumeQueue" ? "Resuming queue..." : "Resume queue"}
+            </Button>
           </div>
         ) : null}
 
