@@ -1,19 +1,11 @@
 import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
+import { type SonarrEpisode } from "@/modules/service-connections/types/sonarr-episodes";
+
+export type { SonarrEpisode } from "@/modules/service-connections/types/sonarr-episodes";
 
 type SonarrEpisodeRequest = {
   baseUrl: string;
   apiKey: string;
-};
-
-export type SonarrEpisode = {
-  id: number;
-  seasonNumber: number;
-  episodeNumber: number;
-  title: string;
-  airDate: string | null;
-  overview: string | null;
-  monitored: boolean;
-  hasFile: boolean;
 };
 
 export type ListSonarrEpisodesResult =

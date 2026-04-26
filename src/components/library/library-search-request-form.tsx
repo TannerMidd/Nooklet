@@ -2,7 +2,7 @@
 
 import { submitLibrarySearchRequestAction } from "@/app/(workspace)/library-search-actions";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
-import { type LibraryManagerServiceType } from "@/modules/service-connections/adapters/add-library-item";
+import { type LibraryManagerServiceType } from "@/modules/service-connections/types/library-manager";
 
 import { LibraryRequestForm } from "./library-request-form";
 

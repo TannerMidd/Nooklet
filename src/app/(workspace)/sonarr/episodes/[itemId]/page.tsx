@@ -5,11 +5,9 @@ import { auth } from "@/auth";
 import { RecommendationEpisodePicker } from "@/components/recommendations/recommendation-episode-picker";
 import { submitRecommendationEpisodeSelectionAction } from "@/app/(workspace)/recommendation-episode-actions";
 import { Panel } from "@/components/ui/panel";
-import { decryptSecret } from "@/lib/security/secret-box";
 import { parseRecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
 import { findRecommendationItemForUser } from "@/modules/recommendations/queries/find-recommendation-item-for-user";
-import { listSonarrEpisodes } from "@/modules/service-connections/adapters/sonarr-episodes";
-import { findServiceConnectionByType } from "@/modules/service-connections/queries/find-service-connection-by-type";
+import { listSonarrSeriesEpisodesForUser } from "@/modules/service-connections/workflows/list-sonarr-series-episodes-for-user";
 
 export const dynamic = "force-dynamic";
 
@@ -47,9 +45,12 @@ export default async function SonarrEpisodesPage({
       ? resolvedSearchParams.returnTo
       : itemMetadata.pendingEpisodeReturnTo ?? "/history";
 
-  const connection = await findServiceConnectionByType(session.user.id, "sonarr");
+  const episodesResult = await listSonarrSeriesEpisodesForUser(
+    session.user.id,
+    itemMetadata.sonarrSeriesId,
+  );
 
-  if (!connection?.secret || connection.connection.status !== "verified") {
+  if (!episodesResult.ok && episodesResult.reason !== "request-failed") {
     return (
       <div className="space-y-5">
         <Panel
@@ -58,7 +59,7 @@ export default async function SonarrEpisodesPage({
           description="Sonarr verification is required before episodes can be loaded."
         >
           <p className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
-            Re-verify Sonarr on the connections page, then return here to pick episodes.
+            {episodesResult.message}
           </p>
           <div className="mt-4">
             <Link
@@ -72,12 +73,6 @@ export default async function SonarrEpisodesPage({
       </div>
     );
   }
-
-  const episodesResult = await listSonarrEpisodes({
-    baseUrl: connection.connection.baseUrl ?? "",
-    apiKey: decryptSecret(connection.secret.encryptedValue),
-    seriesId: itemMetadata.sonarrSeriesId,
-  });
 
   return (
     <div className="space-y-5">

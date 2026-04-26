@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
-import { type LibraryManagerServiceType } from "@/modules/service-connections/adapters/add-library-item";
+import { type LibraryManagerServiceType } from "@/modules/service-connections/types/library-manager";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import { searchLibraryItemsForUser } from "@/modules/service-connections/workflows/search-library-items";
 

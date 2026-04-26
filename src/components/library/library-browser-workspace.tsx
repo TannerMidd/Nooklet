@@ -5,7 +5,7 @@ import { LibraryBrowserGrid } from "@/components/library/library-browser-grid";
 import { LibrarySearchWorkspace } from "@/components/library/library-search-workspace";
 import { LibraryTabs, type LibraryTabsTab } from "@/components/library/library-tabs";
 import { Panel } from "@/components/ui/panel";
-import { type LibraryManagerServiceType } from "@/modules/service-connections/adapters/add-library-item";
+import { type LibraryManagerServiceType } from "@/modules/service-connections/types/library-manager";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import { listLibraryCollectionForUser } from "@/modules/service-connections/workflows/list-library-collection";
 

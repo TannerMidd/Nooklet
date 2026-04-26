@@ -1,10 +1,8 @@
 import { decryptSecret } from "@/lib/security/secret-box";
-import {
-  listSonarrEpisodes,
-  type SonarrEpisode,
-} from "@/modules/service-connections/adapters/sonarr-episodes";
+import { listSonarrEpisodes } from "@/modules/service-connections/adapters/sonarr-episodes";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import { getServiceConnectionDefinition } from "@/modules/service-connections/service-definitions";
+import { type SonarrEpisode } from "@/modules/service-connections/types/sonarr-episodes";
 
 export type ListSonarrSeriesEpisodesForUserResult =
   | { ok: true; episodes: SonarrEpisode[] }

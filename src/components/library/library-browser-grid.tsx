@@ -9,7 +9,7 @@ import { RecommendationPoster } from "@/components/recommendations/recommendatio
 import {
   type RadarrLibraryMovie,
   type SonarrLibrarySeries,
-} from "@/modules/service-connections/adapters/library-collections";
+} from "@/modules/service-connections/types/library-manager";
 
 type SonarrLibraryBrowserGridProps = {
   serviceType: "sonarr";

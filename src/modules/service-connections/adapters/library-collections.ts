@@ -1,40 +1,17 @@
 import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
-import { type LibraryManagerServiceType } from "@/modules/service-connections/adapters/add-library-item";
+import {
+  type LibraryManagerServiceType,
+  type RadarrLibraryMovie,
+  type SonarrLibrarySeasonSummary,
+  type SonarrLibrarySeries,
+} from "@/modules/service-connections/types/library-manager";
 
-export type SonarrLibrarySeasonSummary = {
-  seasonNumber: number;
-  monitored: boolean;
-  episodeCount: number;
-  episodeFileCount: number;
-};
-
-export type SonarrLibrarySeries = {
-  id: number;
-  title: string;
-  sortTitle: string;
-  year: number | null;
-  monitored: boolean;
-  status: string | null;
-  network: string | null;
-  posterUrl: string | null;
-  totalSeasonCount: number;
-  monitoredSeasonCount: number;
-  episodeCount: number;
-  episodeFileCount: number;
-  seasons: SonarrLibrarySeasonSummary[];
-};
-
-export type RadarrLibraryMovie = {
-  id: number;
-  title: string;
-  sortTitle: string;
-  year: number | null;
-  monitored: boolean;
-  status: string | null;
-  hasFile: boolean;
-  posterUrl: string | null;
-  studio: string | null;
-};
+export type {
+  LibraryManagerServiceType,
+  RadarrLibraryMovie,
+  SonarrLibrarySeasonSummary,
+  SonarrLibrarySeries,
+} from "@/modules/service-connections/types/library-manager";
 
 export type ListSonarrLibraryResult =
   | { ok: true; items: SonarrLibrarySeries[] }

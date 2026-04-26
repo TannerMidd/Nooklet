@@ -1,7 +1,16 @@
 import { trimTrailingSlash } from "@/lib/integrations/http-helpers";
 import { type RecommendationGenre } from "@/modules/recommendations/recommendation-genres";
+import {
+  type LibraryManagerServiceType,
+  type LibrarySearchResult,
+  type SampledLibraryTasteItem,
+} from "@/modules/service-connections/types/library-manager";
 
-export type LibraryManagerServiceType = "sonarr" | "radarr";
+export type {
+  LibraryManagerServiceType,
+  LibrarySearchResult,
+  SampledLibraryTasteItem,
+} from "@/modules/service-connections/types/library-manager";
 
 export type LibraryLookupCandidate = Record<string, unknown> & {
   title?: string;
@@ -14,20 +23,6 @@ export type LibraryCollectionCandidate = Record<string, unknown> & {
   title?: string;
   year?: number;
   genres?: unknown;
-};
-
-export type SampledLibraryTasteItem = {
-  title: string;
-  year: number | null;
-  genres: string[];
-};
-
-export type LibrarySearchResult = {
-  resultKey: string;
-  title: string;
-  year: number | null;
-  posterUrl: string | null;
-  availableSeasons: Array<{ seasonNumber: number; label: string }>;
 };
 
 export function normalizeTitle(value: string) {

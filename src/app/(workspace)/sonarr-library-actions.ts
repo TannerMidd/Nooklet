@@ -14,7 +14,7 @@ import { updateSonarrSeriesMonitoringForUser } from "@/modules/service-connectio
 import { deleteSonarrSeriesSchema } from "@/modules/service-connections/schemas/delete-sonarr-series";
 import { deleteSonarrSeriesForUser } from "@/modules/service-connections/workflows/delete-sonarr-series";
 import { listSonarrSeriesEpisodesForUser } from "@/modules/service-connections/workflows/list-sonarr-series-episodes-for-user";
-import { type SonarrEpisode } from "@/modules/service-connections/adapters/sonarr-episodes";
+import { type SonarrEpisode } from "@/modules/service-connections/types/sonarr-episodes";
 
 export type SonarrLibraryActionState = RecommendationLibraryActionState;
 

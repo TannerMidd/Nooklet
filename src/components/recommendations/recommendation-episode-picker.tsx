@@ -7,7 +7,7 @@ import {
   type RecommendationEpisodeSelectionActionState,
 } from "@/app/(workspace)/recommendation-action-state";
 import { Button } from "@/components/ui/button";
-import { type SonarrEpisode } from "@/modules/service-connections/adapters/sonarr-episodes";
+import { type SonarrEpisode } from "@/modules/service-connections/types/sonarr-episodes";
 
 type RecommendationEpisodePickerHiddenField = {
   name: string;
