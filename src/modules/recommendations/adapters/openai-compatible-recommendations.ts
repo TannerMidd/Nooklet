@@ -216,7 +216,7 @@ export function buildRecommendationUserPrompt(input: GenerateRecommendationsInpu
     input.libraryTasteContext.length > 0
       ? selectedGenreLabels.length > 0
         ? "Treat the genre-filtered owned-library sample below as an important taste signal and avoid recommending titles that already appear in it when possible.\n"
-        : "Treat the owned-library sample below as an important taste signal and avoid recommending titles that already appear in it when possible.\n"
+        : "Treat the genre-balanced owned-library sample below as an important taste signal and avoid recommending titles that already appear in it when possible.\n"
       : selectedGenreLabels.length > 0
         ? "No owned-library sample matched the selected genres. Rely more heavily on the selected genres and watch history.\n"
         : "No owned-library sample was provided.\n";

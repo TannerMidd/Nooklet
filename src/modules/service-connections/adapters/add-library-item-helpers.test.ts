@@ -132,14 +132,38 @@ describe("add-library-item-helpers", () => {
       expect(result.map((item) => item.title)).toEqual(["alpha", "Beta"]);
     });
 
-    it("clamps sample size to between 1 and 60 and truncates correctly with no genre filter", () => {
-      const items = Array.from({ length: 80 }, (_, index) => ({
+    it("clamps sample size to between 1 and 500 and truncates correctly with no genre filter", () => {
+      const items = Array.from({ length: 600 }, (_, index) => ({
         title: `Title ${String(index).padStart(3, "0")}`,
         year: null,
         genres: [] as string[],
       }));
       expect(sampleLibraryTasteItems(items, 0, [])).toHaveLength(1);
-      expect(sampleLibraryTasteItems(items, 1000, [])).toHaveLength(60);
+      expect(sampleLibraryTasteItems(items, 1000, [])).toHaveLength(500);
+    });
+
+    it("balances unfiltered picks across discovered library genres", () => {
+      const items = [
+        ...Array.from({ length: 12 }, (_, index) => ({
+          title: `Comedy ${index}`,
+          year: null,
+          genres: ["Comedy"],
+        })),
+        { title: "Sci-Fi 1", year: null, genres: ["Science Fiction"] },
+        { title: "Sci-Fi 2", year: null, genres: ["Science Fiction"] },
+        { title: "Drama 1", year: null, genres: ["Drama"] },
+        { title: "Documentary 1", year: null, genres: ["Documentary"] },
+      ];
+
+      const result = sampleLibraryTasteItems(items, 4, []);
+      const selectedGenreKeys = new Set(
+        result.flatMap((item) => item.genres.map((genre) => normalizeGenreKey(genre))),
+      );
+
+      expect(selectedGenreKeys.has("comedy")).toBe(true);
+      expect(selectedGenreKeys.has("science-fiction")).toBe(true);
+      expect(selectedGenreKeys.has("drama")).toBe(true);
+      expect(selectedGenreKeys.has("documentary")).toBe(true);
     });
 
     it("balances picks across genre buckets when multiple genres are selected", () => {
