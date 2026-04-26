@@ -221,4 +221,47 @@ describe("recommendation-library-selection", () => {
       ok: true,
     });
   });
+
+  it("accepts the episode selection mode for TV without requiring season numbers", () => {
+    expect(
+      validateRecommendationLibrarySelection(
+        validMetadata,
+        {
+          rootFolderPath: "/library/movies",
+          qualityProfileId: 7,
+          tagIds: [11],
+          seasonSelectionMode: "episode",
+          seasonNumbers: [],
+        },
+        "Sonarr",
+        {
+          mediaType: "tv",
+          availableSeasonNumbers: [1, 2, 3],
+        },
+      ),
+    ).toEqual({
+      ok: true,
+    });
+  });
+
+  it("rejects the episode selection mode for movies", () => {
+    expect(
+      validateRecommendationLibrarySelection(
+        validMetadata,
+        {
+          rootFolderPath: "/library/movies",
+          qualityProfileId: 7,
+          tagIds: [11],
+          seasonSelectionMode: "episode",
+          seasonNumbers: [],
+        },
+        "Radarr",
+        { mediaType: "movie" },
+      ),
+    ).toEqual({
+      ok: false,
+      message: "Season-based selection is only available for shows.",
+      field: "seasonNumbers",
+    });
+  });
 });
