@@ -6,21 +6,28 @@ vi.mock("@/lib/security/secret-box", () => ({
 vi.mock("@/modules/service-connections/adapters/add-library-item", () => ({
   lookupLibraryItemMatch: vi.fn(),
 }));
+vi.mock("@/modules/service-connections/adapters/tmdb", () => ({
+  lookupTmdbTitleDetails: vi.fn(),
+}));
 vi.mock("@/modules/service-connections/repositories/service-connection-repository", () => ({
   findServiceConnectionByType: vi.fn(),
 }));
 
 import { lookupLibraryItemMatch } from "@/modules/service-connections/adapters/add-library-item";
+import { lookupTmdbTitleDetails } from "@/modules/service-connections/adapters/tmdb";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 
 import {
   buildStoredRecommendationItems,
   enrichGeneratedItemsWithLibraryMetadata,
+  enrichGeneratedItemsWithTmdbMetadata,
+  loadVerifiedTmdbConnection,
   type GeneratedRecommendationItem,
 } from "./create-recommendation-run-enrichment";
 
 const findMock = vi.mocked(findServiceConnectionByType);
 const lookupMock = vi.mocked(lookupLibraryItemMatch);
+const lookupTmdbMock = vi.mocked(lookupTmdbTitleDetails);
 
 const USER_ID = "user-1";
 
@@ -219,5 +226,166 @@ describe("enrichGeneratedItemsWithLibraryMetadata", () => {
     const result = await enrichGeneratedItemsWithLibraryMetadata(USER_ID, "tv", [item]);
 
     expect(result[0]).toBe(item);
+  });
+});
+
+describe("loadVerifiedTmdbConnection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns a decrypted TMDB connection only when the saved connection is verified", async () => {
+    findMock.mockResolvedValue({
+      connection: { baseUrl: "https://api.tmdb.test", status: "verified" },
+      secret: { encryptedValue: "tmdb-enc" },
+      metadata: { tmdbImageBaseUrl: "https://image.tmdb.test/t/p/" },
+    } as never);
+
+    await expect(loadVerifiedTmdbConnection(USER_ID)).resolves.toEqual({
+      baseUrl: "https://api.tmdb.test",
+      secret: "dec(tmdb-enc)",
+      metadata: { tmdbImageBaseUrl: "https://image.tmdb.test/t/p/" },
+    });
+  });
+
+  it("returns null when TMDB is missing or not verified", async () => {
+    findMock.mockResolvedValue({
+      connection: { baseUrl: "https://api.tmdb.test", status: "configured" },
+      secret: { encryptedValue: "tmdb-enc" },
+      metadata: null,
+    } as never);
+
+    await expect(loadVerifiedTmdbConnection(USER_ID)).resolves.toBeNull();
+  });
+});
+
+describe("enrichGeneratedItemsWithTmdbMetadata", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const tmdbConnection = {
+    baseUrl: "https://api.tmdb.test",
+    secret: "tmdb-token",
+    metadata: { tmdbImageBaseUrl: "https://image.tmdb.test/t/p/" },
+  };
+
+  it("keeps items unchanged when any language is allowed and TMDB is unavailable", async () => {
+    const item = buildItem();
+    const result = await enrichGeneratedItemsWithTmdbMetadata({
+      tmdbConnection: null,
+      mediaType: "tv",
+      languagePreference: "any",
+      items: [item],
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      items: [item],
+      excludedLanguageItemCount: 0,
+    });
+    expect(lookupTmdbMock).not.toHaveBeenCalled();
+  });
+
+  it("fails when a strict language preference lacks a TMDB connection", async () => {
+    const result = await enrichGeneratedItemsWithTmdbMetadata({
+      tmdbConnection: null,
+      mediaType: "movie",
+      languagePreference: "de",
+      items: [buildItem()],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: "Verify TMDB before requesting German recommendations. TMDB is required to strictly confirm each title's original language.",
+    });
+  });
+
+  it("attaches TMDB details and filters out mismatched original languages", async () => {
+    lookupTmdbMock.mockImplementation(async (input) => {
+      if (input.title === "Dark") {
+        return {
+          ok: true,
+          details: {
+            source: "tmdb",
+            tmdbId: 99,
+            mediaType: "tv",
+            title: "Dark",
+            originalTitle: "Dark",
+            overview: "German series.",
+            tagline: null,
+            year: 2017,
+            releaseDate: "2017-12-01",
+            originalLanguage: "de",
+            posterUrl: "https://image.tmdb.test/t/p/w500/dark.jpg",
+            backdropUrl: null,
+            genres: ["Mystery"],
+            runtimeMinutes: 53,
+            seasonCount: 3,
+            status: "Ended",
+            voteAverage: 8.4,
+            voteCount: 5000,
+            homepage: null,
+            imdbId: null,
+            tvdbId: 334824,
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        details: {
+          source: "tmdb",
+          tmdbId: 1,
+          mediaType: "tv",
+          title: "Severance",
+          originalTitle: "Severance",
+          overview: "English series.",
+          tagline: null,
+          year: 2022,
+          releaseDate: "2022-02-18",
+          originalLanguage: "en",
+          posterUrl: null,
+          backdropUrl: null,
+          genres: ["Drama"],
+          runtimeMinutes: null,
+          seasonCount: 2,
+          status: "Returning Series",
+          voteAverage: 8,
+          voteCount: 1000,
+          homepage: null,
+          imdbId: null,
+          tvdbId: null,
+        },
+      };
+    });
+
+    const result = await enrichGeneratedItemsWithTmdbMetadata({
+      tmdbConnection,
+      mediaType: "tv",
+      languagePreference: "de",
+      items: [buildItem({ title: "Dark", year: null }), buildItem({ title: "Severance", year: 2022 })],
+    });
+
+    expect(result.ok).toBe(true);
+
+    if (!result.ok) {
+      throw new Error("Expected TMDB enrichment to succeed.");
+    }
+
+    expect(result.excludedLanguageItemCount).toBe(1);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      title: "Dark",
+      year: 2017,
+      providerMetadata: {
+        source: "ai",
+        posterUrl: "https://image.tmdb.test/t/p/w500/dark.jpg",
+        tmdbDetails: {
+          originalLanguage: "de",
+          overview: "German series.",
+        },
+      },
+    });
   });
 });

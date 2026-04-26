@@ -28,6 +28,7 @@ describe("openai-compatible-recommendations", () => {
       requestPrompt: "Keep it bright and fast",
       selectedGenres: ["comedy", "science-fiction"],
       requestedCount: 5,
+      languagePreference: "en",
       watchHistoryOnly: false,
       watchHistoryContext: [{ title: "Palm Springs", year: 2020 }],
       libraryTasteContext: [{ title: "Galaxy Quest", year: 1999, genres: ["Comedy", "Science Fiction"] }],
@@ -35,6 +36,7 @@ describe("openai-compatible-recommendations", () => {
     });
 
     expect(prompt).toContain("Priority genres: Comedy, Sci-Fi.");
+    expect(prompt).toContain("Original-language requirement: every recommendation must have English (en) as its original language.");
     expect(prompt).toContain("These selected genres are the strongest instruction for this request.");
     expect(prompt).toContain("include a mix across all selected genres when possible");
     expect(prompt).toContain("Owned library sample: 1 of 8 known movies matching the selected genres.");
@@ -74,6 +76,7 @@ describe("openai-compatible-recommendations", () => {
       requestPrompt: "",
       selectedGenres: ["comedy", "science-fiction"],
       requestedCount: 1,
+      languagePreference: "any",
       watchHistoryOnly: false,
       watchHistoryContext: [],
       libraryTasteContext: [{ title: "Galaxy Quest", year: 1999, genres: ["Comedy", "Science Fiction"] }],

@@ -3,6 +3,11 @@ import { z } from "zod";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { safeFetch } from "@/lib/security/safe-fetch";
 import {
+  formatLanguagePreference,
+  languagePreferenceAny,
+  type LanguagePreferenceCode,
+} from "@/modules/preferences/language-preferences";
+import {
   formatRecommendationGenres,
   type RecommendationGenre,
 } from "@/modules/recommendations/recommendation-genres";
@@ -24,6 +29,7 @@ type GenerateRecommendationsInput = {
   requestPrompt: string;
   selectedGenres: RecommendationGenre[];
   requestedCount: number;
+  languagePreference: LanguagePreferenceCode;
   watchHistoryOnly: boolean;
   flavor?: AiProviderFlavor;
   watchHistoryContext: Array<{
@@ -110,6 +116,10 @@ function normalizeRecommendationItem(value: unknown) {
 export function buildRecommendationUserPrompt(input: GenerateRecommendationsInput) {
   const trimmedRequestPrompt = input.requestPrompt.trim();
   const selectedGenreLabels = formatRecommendationGenres(input.selectedGenres);
+  const languagePreferenceBlock =
+    input.languagePreference === languagePreferenceAny
+      ? "Original-language preference: any original language is allowed.\n"
+      : `Original-language requirement: every recommendation must have ${formatLanguagePreference(input.languagePreference)} (${input.languagePreference}) as its original language. Do not include translated dubs, remakes, or regional releases unless the title's original language is ${input.languagePreference}.\n`;
   const libraryTasteContextBlock =
     input.libraryTasteContext.length > 0
       ? input.libraryTasteContext
@@ -150,6 +160,7 @@ export function buildRecommendationUserPrompt(input: GenerateRecommendationsInpu
 
   return (
     requestContextIntro +
+    languagePreferenceBlock +
     genrePriorityBlock +
     librarySampleSummary +
     librarySampleInstruction +

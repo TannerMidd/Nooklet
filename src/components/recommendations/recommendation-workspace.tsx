@@ -14,6 +14,10 @@ import { type RecommendationMediaType } from "@/lib/database/schema";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import {
+  formatLanguagePreference,
+  languagePreferenceAny,
+} from "@/modules/preferences/language-preferences";
+import {
   formatRecommendationGenres,
   type RecommendationGenre,
 } from "@/modules/recommendations/recommendation-genres";
@@ -91,14 +95,23 @@ export async function RecommendationWorkspace({
   ]);
 
   const aiProvider = connectionSummaries.find((summary) => summary.serviceType === "ai-provider");
+  const tmdb = connectionSummaries.find((summary) => summary.serviceType === "tmdb") ?? null;
   const relevantLibraryManager = connectionSummaries.find((summary) =>
     mediaType === "tv" ? summary.serviceType === "sonarr" : summary.serviceType === "radarr",
   );
   const sabnzbd = connectionSummaries.find((summary) => summary.serviceType === "sabnzbd") ?? null;
-  const canRequest = Boolean(aiProvider && aiProvider.status !== "disconnected");
-  const recommendationRequestBlockedMessage = canRequest
-    ? null
-    : aiProvider?.statusMessage ?? "Configure the AI provider before requesting recommendations.";
+  const hasStrictLanguagePreference = preferences.languagePreference !== languagePreferenceAny;
+  const hasVerifiedTmdbForLanguage = !hasStrictLanguagePreference || tmdb?.status === "verified";
+  const canRequest = Boolean(
+    aiProvider &&
+    aiProvider.status !== "disconnected" &&
+    hasVerifiedTmdbForLanguage,
+  );
+  const recommendationRequestBlockedMessage = !aiProvider || aiProvider.status === "disconnected"
+    ? aiProvider?.statusMessage ?? "Configure the AI provider before requesting recommendations."
+    : !hasVerifiedTmdbForLanguage
+      ? `Verify TMDB before requesting ${formatLanguagePreference(preferences.languagePreference)} recommendations.`
+      : null;
   const defaultModel =
     preferences.defaultAiModel?.trim().length
       ? preferences.defaultAiModel
@@ -174,6 +187,16 @@ export async function RecommendationWorkspace({
               <span className="font-medium">SABnzbd:</span> {sabnzbd?.status ?? "disconnected"}
               <p className="mt-1 text-muted">
                 {sabnzbd?.statusMessage ?? "Optional, but required if you want Recommendarr to show active SABnzbd request progress."}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <span className="font-medium">Language:</span> {formatLanguagePreference(preferences.languagePreference)}
+              <p className="mt-1 text-muted">
+                {hasStrictLanguagePreference
+                  ? tmdb?.status === "verified"
+                    ? "TMDB is verified and will confirm original language before titles are saved."
+                    : tmdb?.statusMessage ?? "Verify TMDB to enforce this language preference on new recommendation runs."
+                  : "Any original language is allowed for new recommendation runs."}
               </p>
             </div>
             <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">

@@ -31,6 +31,10 @@ vi.mock("@/modules/recommendations/adapters/openai-compatible-recommendations", 
   generateOpenAiCompatibleRecommendations: vi.fn(),
 }));
 
+vi.mock("@/modules/service-connections/adapters/tmdb", () => ({
+  lookupTmdbTitleDetails: vi.fn(),
+}));
+
 vi.mock("@/modules/users/repositories/user-repository", () => ({
   createAuditEvent: vi.fn(),
 }));
@@ -60,6 +64,7 @@ import {
   listSampledLibraryItems,
   lookupLibraryItemMatch,
 } from "@/modules/service-connections/adapters/add-library-item";
+import { lookupTmdbTitleDetails } from "@/modules/service-connections/adapters/tmdb";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import { verifyConfiguredServiceConnection } from "@/modules/service-connections/workflows/verify-configured-service-connection";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
@@ -77,6 +82,7 @@ const mockedListRecommendationExclusionItems = vi.mocked(listRecommendationExclu
 const mockedMarkRecommendationRunFailed = vi.mocked(markRecommendationRunFailed);
 const mockedListSampledLibraryItems = vi.mocked(listSampledLibraryItems);
 const mockedLookupLibraryItemMatch = vi.mocked(lookupLibraryItemMatch);
+const mockedLookupTmdbTitleDetails = vi.mocked(lookupTmdbTitleDetails);
 const mockedFindServiceConnectionByType = vi.mocked(findServiceConnectionByType);
 const mockedVerifyConfiguredServiceConnection = vi.mocked(verifyConfiguredServiceConnection);
 const mockedCreateAuditEvent = vi.mocked(createAuditEvent);
@@ -200,6 +206,7 @@ describe("createRecommendationRunWorkflow", () => {
 
       return null;
     });
+    mockedLookupTmdbTitleDetails.mockResolvedValue({ ok: false, message: "No match" });
     mockedListSampledLibraryItems.mockResolvedValue({
       ok: true,
       totalCount: 1,
@@ -384,7 +391,187 @@ describe("createRecommendationRunWorkflow", () => {
     expect(mockedGenerateOpenAiCompatibleRecommendations).toHaveBeenCalledWith(
       expect.objectContaining({
         selectedGenres: ["comedy"],
+        languagePreference: "any",
       }),
     );
+  });
+
+  it("fails before creating a run when strict language preference has no verified TMDB connection", async () => {
+    const aiProviderConnection = createConnectionRecord("ai-provider", "verified");
+
+    mockedGetPreferencesByUserId.mockResolvedValue({
+      userId: "user-1",
+      defaultMediaMode: "movies",
+      defaultResultCount: 10,
+      defaultTemperature: 0.8,
+      defaultAiModel: null,
+      languagePreference: "de",
+      defaultSonarrRootFolderPath: null,
+      defaultSonarrQualityProfileId: null,
+      defaultRadarrRootFolderPath: null,
+      defaultRadarrQualityProfileId: null,
+      watchHistoryOnly: false,
+      watchHistorySourceTypes: [],
+      historyHideExisting: false,
+      historyHideLiked: false,
+      historyHideDisliked: false,
+      historyHideHidden: true,
+      updatedAt: new Date(),
+    });
+    mockedFindServiceConnectionByType.mockImplementation(async (_userId, serviceType) => {
+      if (serviceType === "ai-provider") {
+        return aiProviderConnection;
+      }
+
+      return null;
+    });
+
+    const result = await createRecommendationRunWorkflow("user-1", {
+      mediaType: "movie",
+      requestPrompt: "Recommend German thrillers",
+      selectedGenres: [],
+      requestedCount: 1,
+      aiModel: "deepseek/deepseek-v4-pro",
+      temperature: 0.6,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: "Verify TMDB before requesting German recommendations. TMDB is required to strictly confirm each title's original language.",
+    });
+    expect(mockedCreateRecommendationRun).not.toHaveBeenCalled();
+    expect(mockedGenerateOpenAiCompatibleRecommendations).not.toHaveBeenCalled();
+  });
+
+  it("filters generated items by TMDB original language before saving", async () => {
+    const aiProviderConnection = createConnectionRecord("ai-provider", "verified");
+    const tmdbConnection = createConnectionRecord("tmdb", "verified");
+
+    mockedGetPreferencesByUserId.mockResolvedValue({
+      userId: "user-1",
+      defaultMediaMode: "movies",
+      defaultResultCount: 10,
+      defaultTemperature: 0.8,
+      defaultAiModel: null,
+      languagePreference: "de",
+      defaultSonarrRootFolderPath: null,
+      defaultSonarrQualityProfileId: null,
+      defaultRadarrRootFolderPath: null,
+      defaultRadarrQualityProfileId: null,
+      watchHistoryOnly: false,
+      watchHistorySourceTypes: [],
+      historyHideExisting: false,
+      historyHideLiked: false,
+      historyHideDisliked: false,
+      historyHideHidden: true,
+      updatedAt: new Date(),
+    });
+    mockedFindServiceConnectionByType.mockImplementation(async (_userId, serviceType) => {
+      if (serviceType === "ai-provider") {
+        return aiProviderConnection;
+      }
+
+      if (serviceType === "tmdb") {
+        return tmdbConnection;
+      }
+
+      return null;
+    });
+    mockedGenerateOpenAiCompatibleRecommendations.mockResolvedValue([
+      {
+        title: "Dark",
+        year: 2017,
+        rationale: "German sci-fi mystery.",
+        confidenceLabel: "high",
+        providerMetadata: {},
+      },
+      {
+        title: "Arrival",
+        year: 2016,
+        rationale: "English-language sci-fi.",
+        confidenceLabel: "high",
+        providerMetadata: {},
+      },
+    ]);
+    mockedLookupTmdbTitleDetails.mockImplementation(async (input) => {
+      if (input.title === "Dark") {
+        return {
+          ok: true,
+          details: {
+            source: "tmdb",
+            tmdbId: 99,
+            mediaType: "movie",
+            title: "Dark",
+            originalTitle: "Dark",
+            overview: "German mystery.",
+            tagline: null,
+            year: 2017,
+            releaseDate: "2017-12-01",
+            originalLanguage: "de",
+            posterUrl: "https://image.test/dark.jpg",
+            backdropUrl: null,
+            genres: ["Mystery"],
+            runtimeMinutes: null,
+            seasonCount: null,
+            status: "Released",
+            voteAverage: 8,
+            voteCount: 100,
+            homepage: null,
+            imdbId: null,
+            tvdbId: null,
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        details: {
+          source: "tmdb",
+          tmdbId: 1,
+          mediaType: "movie",
+          title: "Arrival",
+          originalTitle: "Arrival",
+          overview: "English sci-fi.",
+          tagline: null,
+          year: 2016,
+          releaseDate: "2016-11-11",
+          originalLanguage: "en",
+          posterUrl: null,
+          backdropUrl: null,
+          genres: ["Science Fiction"],
+          runtimeMinutes: 116,
+          seasonCount: null,
+          status: "Released",
+          voteAverage: 7.6,
+          voteCount: 1000,
+          homepage: null,
+          imdbId: "tt2543164",
+          tvdbId: null,
+        },
+      };
+    });
+
+    const result = await createRecommendationRunWorkflow("user-1", {
+      mediaType: "movie",
+      requestPrompt: "Recommend German sci-fi",
+      selectedGenres: [],
+      requestedCount: 1,
+      aiModel: "deepseek/deepseek-v4-pro",
+      temperature: 0.6,
+    });
+
+    expect(result).toEqual({ ok: true, runId: "run-1" });
+    expect(mockedGenerateOpenAiCompatibleRecommendations).toHaveBeenCalledWith(
+      expect.objectContaining({
+        languagePreference: "de",
+      }),
+    );
+    expect(mockedCompleteRecommendationRun).toHaveBeenCalledWith("run-1", [
+      expect.objectContaining({
+        title: "Dark",
+        providerMetadataJson: expect.stringContaining('"originalLanguage":"de"'),
+      }),
+    ]);
+    expect(JSON.stringify(mockedCompleteRecommendationRun.mock.calls[0]?.[1])).not.toContain("Arrival");
   });
 });

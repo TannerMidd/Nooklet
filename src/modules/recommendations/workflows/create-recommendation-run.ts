@@ -15,8 +15,11 @@ import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-wa
 import { generateBackfilledRecommendationItems } from "@/modules/recommendations/workflows/recommendation-generation";
 
 import {
+  buildMissingTmdbLanguageMessage,
   buildStoredRecommendationItems,
   enrichGeneratedItemsWithLibraryMetadata,
+  enrichGeneratedItemsWithTmdbMetadata,
+  loadVerifiedTmdbConnection,
 } from "./create-recommendation-run-enrichment";
 import {
   ensureVerifiedAiProviderConnection,
@@ -45,6 +48,15 @@ export async function createRecommendationRunWorkflow(
   const aiModel = input.aiModel.trim();
   const selectedGenres = input.selectedGenres;
   const selectedGenreLabels = formatRecommendationGenres(selectedGenres);
+  const tmdbConnection = await loadVerifiedTmdbConnection(userId);
+
+  if (preferences.languagePreference !== "any" && !tmdbConnection) {
+    return {
+      ok: false,
+      message: buildMissingTmdbLanguageMessage(preferences.languagePreference),
+    };
+  }
+
   const [watchHistoryContext, libraryTasteContextResult, priorRecommendationItems] = await Promise.all([
     listWatchHistoryContext(userId, input.mediaType, 12, preferences.watchHistorySourceTypes),
     loadSampledLibraryTasteContext(userId, input.mediaType, selectedGenres),
@@ -112,6 +124,7 @@ export async function createRecommendationRunWorkflow(
     payloadJson: JSON.stringify({
       mediaType: input.mediaType,
       selectedGenres: selectedGenreLabels,
+      languagePreference: preferences.languagePreference,
       requestedCount: input.requestedCount,
       watchHistoryItemCount: watchHistoryContext.length,
       watchHistorySourceTypes: preferences.watchHistorySourceTypes,
@@ -122,6 +135,7 @@ export async function createRecommendationRunWorkflow(
   });
 
   let excludedExistingItemCount = 0;
+  let excludedLanguageItemCount = 0;
   let generationAttemptCount = 0;
 
   try {
@@ -141,10 +155,26 @@ export async function createRecommendationRunWorkflow(
           requestPrompt,
           selectedGenres,
           requestedCount,
+          languagePreference: preferences.languagePreference,
           watchHistoryOnly: preferences.watchHistoryOnly,
           watchHistoryContext,
           libraryTasteContext: libraryTasteContext.sampledItems,
           libraryTasteTotalCount: libraryTasteContext.totalCount,
+        }).then(async (items) => {
+          const tmdbResult = await enrichGeneratedItemsWithTmdbMetadata({
+            tmdbConnection,
+            mediaType: input.mediaType,
+            languagePreference: preferences.languagePreference,
+            items,
+          });
+
+          if (!tmdbResult.ok) {
+            throw new Error(tmdbResult.message);
+          }
+
+          excludedLanguageItemCount += tmdbResult.excludedLanguageItemCount;
+
+          return tmdbResult.items;
         }),
     });
     excludedExistingItemCount = generatedItems.excludedExistingItemCount;
@@ -158,7 +188,9 @@ export async function createRecommendationRunWorkflow(
 
     if (normalizedItems.length === 0) {
       throw new Error(
-        excludedExistingItemCount > 0
+        excludedLanguageItemCount > 0
+          ? `TMDB filtered out every generated title that did not match ${preferences.languagePreference}. Try a more specific prompt or allow any language in preferences.`
+          : excludedExistingItemCount > 0
           ? "The AI only returned titles that are already in your library or recommendation history. Try a more specific prompt for something new."
           : "The AI provider returned no usable recommendations.",
       );
@@ -174,12 +206,14 @@ export async function createRecommendationRunWorkflow(
         mediaType: input.mediaType,
         selectedGenres: selectedGenreLabels,
         itemCount: normalizedItems.length,
+        languagePreference: preferences.languagePreference,
         watchHistoryItemCount: watchHistoryContext.length,
         watchHistorySourceTypes: preferences.watchHistorySourceTypes,
         libraryTasteTotalCount: libraryTasteContext.totalCount,
         libraryTasteSampleCount: libraryTasteContext.sampledItems.length,
         priorRecommendationExclusionCount: priorRecommendationItems.length,
         excludedExistingItemCount,
+        excludedLanguageItemCount,
         generationAttemptCount,
       }),
     });
@@ -200,6 +234,7 @@ export async function createRecommendationRunWorkflow(
       payloadJson: JSON.stringify({
         mediaType: input.mediaType,
         selectedGenres: selectedGenreLabels,
+        languagePreference: preferences.languagePreference,
         error: message,
         watchHistoryItemCount: watchHistoryContext.length,
         watchHistorySourceTypes: preferences.watchHistorySourceTypes,
@@ -207,6 +242,7 @@ export async function createRecommendationRunWorkflow(
         libraryTasteSampleCount: libraryTasteContext.sampledItems.length,
         priorRecommendationExclusionCount: priorRecommendationItems.length,
         excludedExistingItemCount,
+        excludedLanguageItemCount,
         generationAttemptCount,
       }),
     });

@@ -1,3 +1,5 @@
+import { type TmdbTitleDetails } from "@/modules/service-connections/adapters/tmdb";
+
 export type RecommendationProviderSeason = {
   seasonNumber: number;
   label: string;
@@ -10,10 +12,23 @@ export type RecommendationProviderMetadata = {
   posterUrl?: string;
   posterLookupService?: "sonarr" | "radarr";
   availableSeasons?: RecommendationProviderSeason[];
+  tmdbDetails?: TmdbTitleDetails;
   sonarrSeriesId?: number;
   pendingEpisodeSelection?: boolean;
   pendingEpisodeReturnTo?: string;
 };
+
+function readString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function readInteger(value: unknown) {
+  return typeof value === "number" && Number.isInteger(value) ? value : null;
+}
+
+function readNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
 
 function buildSeasonLabel(seasonNumber: number, label: unknown) {
   if (typeof label === "string" && label.trim().length > 0) {
@@ -59,6 +74,53 @@ function parseRecommendationProviderSeasons(value: unknown) {
   return seasons.length > 0 ? seasons : undefined;
 }
 
+function parseStringArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+}
+
+function parseTmdbTitleDetails(value: unknown): TmdbTitleDetails | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const tmdbId = readInteger(record.tmdbId);
+  const mediaType = record.mediaType === "tv" || record.mediaType === "movie" ? record.mediaType : null;
+  const title = readString(record.title);
+
+  if (record.source !== "tmdb" || tmdbId === null || tmdbId <= 0 || !mediaType || !title) {
+    return undefined;
+  }
+
+  return {
+    source: "tmdb",
+    tmdbId,
+    mediaType,
+    title,
+    originalTitle: readString(record.originalTitle),
+    overview: readString(record.overview),
+    tagline: readString(record.tagline),
+    year: readInteger(record.year),
+    releaseDate: readString(record.releaseDate),
+    originalLanguage: readString(record.originalLanguage),
+    posterUrl: readString(record.posterUrl),
+    backdropUrl: readString(record.backdropUrl),
+    genres: parseStringArray(record.genres),
+    runtimeMinutes: readInteger(record.runtimeMinutes),
+    seasonCount: readInteger(record.seasonCount),
+    status: readString(record.status),
+    voteAverage: readNumber(record.voteAverage),
+    voteCount: readInteger(record.voteCount),
+    homepage: readString(record.homepage),
+    imdbId: readString(record.imdbId),
+    tvdbId: readInteger(record.tvdbId),
+  };
+}
+
 export function parseRecommendationProviderMetadata(
   metadataJson: string | null,
 ): RecommendationProviderMetadata | null {
@@ -79,6 +141,7 @@ export function parseRecommendationProviderMetadata(
         ? metadata.posterLookupService
         : undefined;
     const availableSeasons = parseRecommendationProviderSeasons(metadata.availableSeasons);
+    const tmdbDetails = parseTmdbTitleDetails(metadata.tmdbDetails);
     const sonarrSeriesId =
       typeof metadata.sonarrSeriesId === "number" &&
       Number.isInteger(metadata.sonarrSeriesId) &&
@@ -105,6 +168,7 @@ export function parseRecommendationProviderMetadata(
           : undefined,
       posterLookupService,
       availableSeasons,
+      tmdbDetails,
       sonarrSeriesId,
       pendingEpisodeSelection,
       pendingEpisodeReturnTo,
