@@ -38,13 +38,13 @@ export const navigationGroups = [
       },
       {
         href: "/sonarr",
-        label: "Sonarr search",
-        description: "Search Sonarr directly and request a show without starting a recommendation run.",
+        label: "Sonarr library",
+        description: "Browse your Sonarr library, filter in real time, and manage which seasons are monitored.",
       },
       {
         href: "/radarr",
-        label: "Radarr search",
-        description: "Search Radarr directly and request a movie without starting a recommendation run.",
+        label: "Radarr library",
+        description: "Browse your Radarr library and search Radarr directly to request a movie.",
       },
       {
         href: "/history",
