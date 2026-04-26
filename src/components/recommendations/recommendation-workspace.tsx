@@ -8,6 +8,7 @@ import { RecommendationFeedbackActions } from "@/components/recommendations/reco
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationRequestForm } from "@/components/recommendations/recommendation-request-form";
 import { RecommendationRetryForm } from "@/components/recommendations/recommendation-retry-form";
+import { RecommendationRunAutoRefresh } from "@/components/recommendations/recommendation-run-auto-refresh";
 import { RecommendationTitleOverviewDialog } from "@/components/recommendations/recommendation-title-overview-dialog";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -23,6 +24,7 @@ import {
   type RecommendationGenre,
 } from "@/modules/recommendations/recommendation-genres";
 import { getRecommendationTitleOverview } from "@/modules/recommendations/workflows/get-recommendation-title-overview";
+import { getRecommendationTasteProfile } from "@/modules/recommendations/queries/get-recommendation-taste-profile";
 import { listRecentRecommendationRuns } from "@/modules/recommendations/queries/list-recent-recommendation-runs";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
@@ -120,6 +122,7 @@ export async function RecommendationWorkspace({
     recentRuns,
     watchHistoryOverview,
     selectedWatchHistoryContext,
+    tasteProfile,
     selectedOverview,
   ] = await Promise.all([
     listConnectionSummaries(session.user.id),
@@ -131,6 +134,7 @@ export async function RecommendationWorkspace({
       6,
       preferences.watchHistorySourceTypes,
     ),
+    getRecommendationTasteProfile(session.user.id, mediaType),
     detailsItemId
       ? getRecommendationTitleOverview(session.user.id, detailsItemId)
       : Promise.resolve(null),
@@ -174,11 +178,13 @@ export async function RecommendationWorkspace({
   const featuredRunGenreSummary = featuredRun
     ? formatGenreSummary(featuredRun.selectedGenres)
     : null;
+  const featuredRunIsPending = featuredRun?.status === "pending";
   const currentWorkspaceHref = buildWorkspaceHref(routePath, activeRunId, wasJustGenerated);
   const overviewForModal = selectedOverview?.item.mediaType === mediaType ? selectedOverview : null;
 
   return (
     <div className="space-y-6">
+      <RecommendationRunAutoRefresh enabled={Boolean(featuredRunIsPending)} />
       <header className="rounded-[32px] border border-line/80 bg-panel/90 px-6 py-8 shadow-soft backdrop-blur md:px-8 xl:px-10">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">
           Recommendation mode
@@ -285,6 +291,17 @@ export async function RecommendationWorkspace({
                 </form>
               </div>
             </div>
+            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <span className="font-medium">Taste profile:</span>{" "}
+              {tasteProfile.likeCount + tasteProfile.addedCount > 0
+                ? `${tasteProfile.likeCount} liked, ${tasteProfile.addedCount} accepted/library, ${tasteProfile.dislikeCount} disliked`
+                : "No feedback signal yet"}
+              <p className="mt-1 text-muted">
+                {tasteProfile.preferredGenres.length > 0
+                  ? `Preferred genres: ${tasteProfile.preferredGenres.join(", ")}.`
+                  : "Like, dislike, hide, or add titles to strengthen future recommendations."}
+              </p>
+            </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
             <Link
@@ -328,10 +345,14 @@ export async function RecommendationWorkspace({
               </p>
               <div className="space-y-2">
                 <h2 className="font-heading text-3xl leading-tight text-foreground md:text-4xl">
-                  {featuredRun.items.length} {mediaType === "tv" ? "TV picks" : "movie picks"} ready
+                  {featuredRunIsPending
+                    ? "Recommendation batch queued"
+                    : `${featuredRun.items.length} ${mediaType === "tv" ? "TV picks" : "movie picks"} ready`}
                 </h2>
                 <p className="max-w-4xl text-base leading-7 text-muted">
-                  {formatPromptLabel(featuredRun.requestPrompt, featuredRun.selectedGenres)}
+                  {featuredRunIsPending
+                    ? "The background worker is generating this batch. This page refreshes automatically while it is pending."
+                    : formatPromptLabel(featuredRun.requestPrompt, featuredRun.selectedGenres)}
                 </p>
                 {featuredRunGenreSummary ? (
                   <p className="text-sm font-medium text-accent">Genres: {featuredRunGenreSummary}</p>
@@ -349,7 +370,8 @@ export async function RecommendationWorkspace({
                 <span className="font-medium">Requested:</span> {featuredRun.requestedCount}
               </div>
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                <span className="font-medium">Completed:</span> {formatDate(featuredRun.completedAt ?? featuredRun.createdAt)}
+                <span className="font-medium">{featuredRunIsPending ? "Queued" : "Completed"}:</span>{" "}
+                {formatDate(featuredRun.completedAt ?? featuredRun.createdAt)}
               </div>
             </div>
           </div>
@@ -365,28 +387,34 @@ export async function RecommendationWorkspace({
             runStatus={featuredRun.status}
           />
 
-          <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {featuredRun.items.map((item, index) => (
-              <RecommendationFeaturedCard
-                key={item.id}
-                itemId={item.id}
-                mediaType={item.mediaType}
-                title={item.title}
-                year={item.year}
-                rationale={item.rationale}
-                confidenceLabel={item.confidenceLabel}
-                feedback={item.feedback}
-                existingInLibrary={item.existingInLibrary}
-                providerMetadata={item.providerMetadata}
-                routePath={routePath}
-                overviewHref={appendDetailsParam(currentWorkspaceHref, item.id)}
-                libraryConnection={relevantLibraryManager ?? null}
-                savedRootFolderPath={librarySelectionDefaults.rootFolderPath}
-                savedQualityProfileId={librarySelectionDefaults.qualityProfileId}
-                animationDelayMs={index * 90}
-              />
-            ))}
-          </div>
+          {featuredRunIsPending && featuredRun.items.length === 0 ? (
+            <div className="mt-6 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+              The worker has not saved generated titles for this batch yet.
+            </div>
+          ) : (
+            <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {featuredRun.items.map((item, index) => (
+                <RecommendationFeaturedCard
+                  key={item.id}
+                  itemId={item.id}
+                  mediaType={item.mediaType}
+                  title={item.title}
+                  year={item.year}
+                  rationale={item.rationale}
+                  confidenceLabel={item.confidenceLabel}
+                  feedback={item.feedback}
+                  existingInLibrary={item.existingInLibrary}
+                  providerMetadata={item.providerMetadata}
+                  routePath={routePath}
+                  overviewHref={appendDetailsParam(currentWorkspaceHref, item.id)}
+                  libraryConnection={relevantLibraryManager ?? null}
+                  savedRootFolderPath={librarySelectionDefaults.rootFolderPath}
+                  savedQualityProfileId={librarySelectionDefaults.qualityProfileId}
+                  animationDelayMs={index * 90}
+                />
+              ))}
+            </div>
+          )}
         </section>
       ) : null}
 

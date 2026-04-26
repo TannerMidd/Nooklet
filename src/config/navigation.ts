@@ -56,6 +56,11 @@ export const navigationGroups = [
         label: "In progress",
         description: "Track active downloader work without stretching recommendation pages.",
       },
+      {
+        href: "/analytics",
+        label: "Analytics",
+        description: "Review recommendation quality, AI usage, and feedback taste signals.",
+      },
     ],
   },
   {
@@ -80,6 +85,11 @@ export const navigationGroups = [
         href: "/settings/history",
         label: "History sources",
         description: "Import watched titles from Plex, Tautulli, or manual entries.",
+      },
+      {
+        href: "/health",
+        label: "Health",
+        description: "Check service readiness, sync schedules, and queued recommendation work.",
       },
     ],
   },

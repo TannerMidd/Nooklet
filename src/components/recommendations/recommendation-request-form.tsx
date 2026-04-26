@@ -88,7 +88,7 @@ function SubmitButton({ canSubmit }: { canSubmit: boolean }) {
 
   return (
     <Button type="submit" className="w-full sm:w-auto" disabled={!canSubmit || pending}>
-      {pending ? "Generating recommendations..." : "Generate recommendations"}
+      {pending ? "Queuing recommendations..." : "Queue recommendations"}
     </Button>
   );
 }
@@ -130,8 +130,7 @@ function RequestProgressPanel() {
           <div className="space-y-1">
             <p className="text-sm font-semibold text-foreground">Recommendation request in progress</p>
             <p className="text-sm leading-6 text-muted">
-              This can take a few seconds to over a minute depending on the model and provider.
-              The page will refresh automatically when the batch is ready.
+              The request is being saved and queued for the background worker. The run will keep refreshing while it is pending.
             </p>
           </div>
 
@@ -465,7 +464,7 @@ export function RecommendationRequestForm({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <SubmitButton canSubmit={canSubmit} />
         <p className="text-sm leading-6 text-muted">
-          Results are persisted as recommendation runs and will appear here and in history.
+          Requests run in the background and appear here first as pending runs.
         </p>
       </div>
     </form>
