@@ -17,6 +17,8 @@ type LibraryBrowserWorkspaceProps = {
   directSearchTitle: string;
   directSearchDescription: string;
   searchQuery?: string;
+  autoOpenSeriesId?: number | null;
+  autoOpenMode?: "season" | "episode";
 };
 
 export async function LibraryBrowserWorkspace({
@@ -27,6 +29,8 @@ export async function LibraryBrowserWorkspace({
   directSearchTitle,
   directSearchDescription,
   searchQuery,
+  autoOpenSeriesId,
+  autoOpenMode,
 }: LibraryBrowserWorkspaceProps) {
   const session = await auth();
 
@@ -78,6 +82,8 @@ export async function LibraryBrowserWorkspace({
             serviceType="sonarr"
             items={libraryResult.items}
             returnTo={routePath}
+            autoOpenSeriesId={autoOpenSeriesId ?? null}
+            autoOpenMode={autoOpenMode ?? "season"}
           />
         ) : (
           <LibraryBrowserGrid
@@ -113,6 +119,9 @@ export async function LibraryBrowserWorkspace({
   ];
 
   const defaultTabId = searchQuery && searchQuery.trim().length > 0 ? "search" : "library";
+  // Auto-opening a series modal implies the user wants the library tab regardless of any leftover query.
+  const resolvedDefaultTabId =
+    autoOpenSeriesId !== null && autoOpenSeriesId !== undefined ? "library" : defaultTabId;
 
   return (
     <div className="space-y-6">
@@ -133,7 +142,7 @@ export async function LibraryBrowserWorkspace({
         )}
       </header>
 
-      <LibraryTabs tabs={tabs} defaultTabId={defaultTabId} />
+      <LibraryTabs tabs={tabs} defaultTabId={resolvedDefaultTabId} />
     </div>
   );
 }

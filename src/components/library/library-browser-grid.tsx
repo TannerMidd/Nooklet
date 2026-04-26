@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { SonarrSeasonMonitorModal } from "@/components/library/sonarr-season-monitor-modal";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
@@ -13,6 +13,8 @@ type SonarrLibraryBrowserGridProps = {
   serviceType: "sonarr";
   items: SonarrLibrarySeries[];
   returnTo: string;
+  autoOpenSeriesId?: number | null;
+  autoOpenMode?: "season" | "episode";
 };
 
 type RadarrLibraryBrowserGridProps = {
@@ -48,6 +50,36 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
   const needle = normalizeFilterToken(deferredFilter);
 
   const [selectedSonarrSeriesId, setSelectedSonarrSeriesId] = useState<number | null>(null);
+  const [modalInitialMode, setModalInitialMode] = useState<"season" | "episode">("season");
+
+  // When the page is opened with ?seriesId=...&mode=episode (e.g. after a direct-search add),
+  // auto-open the modal in episode mode for that series.
+  const autoOpenSeriesId =
+    serviceType === "sonarr" ? props.autoOpenSeriesId ?? null : null;
+  const autoOpenMode = serviceType === "sonarr" ? props.autoOpenMode ?? "season" : "season";
+  const lastAutoOpenedRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (
+      serviceType !== "sonarr" ||
+      autoOpenSeriesId === null ||
+      lastAutoOpenedRef.current === autoOpenSeriesId
+    ) {
+      return;
+    }
+
+    const exists = (items as SonarrLibrarySeries[]).some(
+      (entry) => entry.id === autoOpenSeriesId,
+    );
+
+    if (!exists) {
+      return;
+    }
+
+    lastAutoOpenedRef.current = autoOpenSeriesId;
+    setModalInitialMode(autoOpenMode);
+    setSelectedSonarrSeriesId(autoOpenSeriesId);
+  }, [serviceType, autoOpenSeriesId, autoOpenMode, items]);
 
   const filteredItems = useMemo(() => {
     if (serviceType === "sonarr") {
@@ -115,7 +147,10 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
                 <SonarrLibraryCard
                   key={series.id}
                   series={series}
-                  onClick={() => setSelectedSonarrSeriesId(series.id)}
+                  onClick={() => {
+                    setModalInitialMode("season");
+                    setSelectedSonarrSeriesId(series.id);
+                  }}
                 />
               ))
             : (filteredItems as RadarrLibraryMovie[]).map((movie) => (
@@ -136,6 +171,7 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
           }
           seasons={selectedSeries.seasons}
           returnTo={returnTo}
+          initialMode={modalInitialMode}
         />
       ) : null}
     </div>

@@ -31,6 +31,7 @@ type SonarrSeasonMonitorModalProps = {
   seriesTitle: string;
   seasons: SonarrLibrarySeasonSummary[];
   returnTo: string;
+  initialMode?: Mode;
 };
 
 type Mode = "season" | "episode";
@@ -94,10 +95,11 @@ export function SonarrSeasonMonitorModal({
   seriesTitle,
   seasons,
   returnTo,
+  initialMode = "season",
 }: SonarrSeasonMonitorModalProps) {
   const router = useRouter();
   const dialogTitleId = useId();
-  const [mode, setMode] = useState<Mode>("season");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [mounted, setMounted] = useState(false);
   const [episodeLoadState, setEpisodeLoadState] = useState<EpisodeLoadState>({
     status: "idle",
@@ -110,10 +112,14 @@ export function SonarrSeasonMonitorModal({
   // Reset state whenever the modal opens for a fresh series.
   useEffect(() => {
     if (open) {
-      setMode("season");
+      setMode(initialMode);
       setEpisodeLoadState({ status: "idle" });
+      if (initialMode === "episode") {
+        loadEpisodesIfNeeded();
+      }
     }
-  }, [open, seriesId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, seriesId, initialMode]);
 
   function loadEpisodesIfNeeded() {
     setEpisodeLoadState((current) => {

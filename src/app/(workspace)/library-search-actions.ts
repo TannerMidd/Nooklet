@@ -53,17 +53,7 @@ export async function submitLibrarySearchRequestAction(
     parsedInput.data.seasonSelectionMode === "episode" &&
     typeof result.sonarrSeriesId === "number"
   ) {
-    const episodeReturnTo = safeReturnTo(parsedInput.data.returnTo);
-    const queryParams = new URLSearchParams({
-      returnTo: episodeReturnTo,
-      title: parsedInput.data.title,
-    });
-
-    if (parsedInput.data.year !== null && parsedInput.data.year !== undefined) {
-      queryParams.set("year", String(parsedInput.data.year));
-    }
-
-    redirect(`/sonarr/episodes/series/${result.sonarrSeriesId}?${queryParams.toString()}`);
+    redirect(`/sonarr?seriesId=${result.sonarrSeriesId}&mode=episode`);
   }
 
   return {

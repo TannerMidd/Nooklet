@@ -138,7 +138,7 @@ export function SonarrRecommendationAddModal({
                           <span>
                             <span className="block font-medium text-foreground">Choose specific episodes</span>
                             <span className="mt-1 block text-muted">
-                              Sonarr adds the show without monitoring; pick episodes on the next screen.
+                              Sonarr adds the show without monitoring; pick episodes from the library card right after.
                             </span>
                           </span>
                         </label>
@@ -146,8 +146,8 @@ export function SonarrRecommendationAddModal({
 
                       {seasonSelectionMode === "episode" ? (
                         <p className="rounded-2xl border border-line/70 bg-panel px-4 py-3 text-sm leading-6 text-muted">
-                          On submit, the series is added to Sonarr with monitoring off. You&apos;ll be taken to a follow-up
-                          page that lists every episode Sonarr returns so you can pick which ones to monitor and search for.
+                          On submit, the series is added to Sonarr with monitoring off. You&apos;ll be taken to the
+                          Sonarr library tab where the new series&apos; episode picker opens automatically.
                         </p>
                       ) : (
                         <fieldset
