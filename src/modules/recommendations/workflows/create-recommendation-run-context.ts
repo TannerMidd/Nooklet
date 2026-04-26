@@ -10,8 +10,6 @@ import { findServiceConnectionByType } from "@/modules/service-connections/repos
 import { getServiceConnectionDefinition } from "@/modules/service-connections/service-definitions";
 import { verifyConfiguredServiceConnection } from "@/modules/service-connections/workflows/verify-configured-service-connection";
 
-const libraryTasteSampleSize = 36;
-
 export type RecommendationLibraryTasteContext = {
   totalCount: number;
   sampledItems: SampledLibraryTasteItem[];
@@ -38,6 +36,7 @@ export async function loadSampledLibraryTasteContext(
   userId: string,
   mediaType: RecommendationMediaType,
   selectedGenres: RecommendationRequestInput["selectedGenres"],
+  sampleSize: number,
 ) {
   const serviceType = mediaType === "tv" ? "sonarr" : "radarr";
   const definition = getServiceConnectionDefinition(serviceType);
@@ -78,7 +77,7 @@ export async function loadSampledLibraryTasteContext(
     serviceType,
     baseUrl: connection.connection.baseUrl,
     apiKey: decryptSecret(connection.secret.encryptedValue),
-    sampleSize: libraryTasteSampleSize,
+    sampleSize,
     selectedGenres,
   });
 

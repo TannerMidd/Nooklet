@@ -1,0 +1,1 @@
+ALTER TABLE `preferences` ADD `library_taste_sample_size` integer DEFAULT 150 NOT NULL;

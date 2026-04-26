@@ -5,6 +5,7 @@ export type UpdatePreferencesActionState = {
     Record<
       | "defaultMediaMode"
       | "defaultResultCount"
+      | "libraryTasteSampleSize"
       | "defaultTemperature"
       | "languagePreference"
       | "watchHistorySourceTypes",

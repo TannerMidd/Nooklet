@@ -8,6 +8,7 @@ import {
   type WatchHistorySourceType,
   watchHistorySourceTypes,
 } from "@/lib/database/schema";
+import { defaultLibraryTasteSampleSize } from "@/modules/recommendations/library-taste-sample-size";
 
 type StoredPreferenceRecord = typeof preferences.$inferSelect;
 
@@ -65,6 +66,7 @@ function mapPreferenceRecord(record: StoredPreferenceRecord): PreferenceRecord {
 export const defaultPreferenceValues: Omit<PreferenceRecord, "userId" | "updatedAt"> = {
   defaultMediaMode: "tv",
   defaultResultCount: 10,
+  libraryTasteSampleSize: defaultLibraryTasteSampleSize,
   defaultTemperature: 0.9,
   defaultAiModel: null,
   languagePreference: "any",
@@ -131,6 +133,7 @@ type UpsertPreferencesInput = {
   userId: string;
   defaultMediaMode: PreferenceMediaMode;
   defaultResultCount: number;
+  libraryTasteSampleSize: number;
   defaultTemperature: number;
   languagePreference: PreferenceLanguageCode;
   watchHistoryOnly: boolean;
@@ -150,6 +153,7 @@ export async function upsertPreferences(input: UpsertPreferencesInput) {
       userId: input.userId,
       defaultMediaMode: input.defaultMediaMode,
       defaultResultCount: input.defaultResultCount,
+      libraryTasteSampleSize: input.libraryTasteSampleSize,
       defaultTemperature: input.defaultTemperature,
       languagePreference: input.languagePreference,
       watchHistoryOnly: input.watchHistoryOnly,
@@ -165,6 +169,7 @@ export async function upsertPreferences(input: UpsertPreferencesInput) {
       set: {
         defaultMediaMode: input.defaultMediaMode,
         defaultResultCount: input.defaultResultCount,
+        libraryTasteSampleSize: input.libraryTasteSampleSize,
         defaultTemperature: input.defaultTemperature,
         languagePreference: input.languagePreference,
         watchHistoryOnly: input.watchHistoryOnly,

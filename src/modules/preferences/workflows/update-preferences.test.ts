@@ -18,6 +18,7 @@ const auditMock = vi.mocked(createAuditEvent);
 const baseInput = {
   defaultMediaMode: "tv" as const,
   defaultResultCount: 10,
+  libraryTasteSampleSize: 150,
   defaultTemperature: 0.9,
   languagePreference: "en" as const,
   watchHistoryOnly: false,
@@ -60,6 +61,7 @@ describe("updatePreferences", () => {
     expect(parsed).toEqual({
       defaultMediaMode: "tv",
       defaultResultCount: 10,
+      libraryTasteSampleSize: 150,
       defaultTemperature: 0.9,
       languagePreference: "en",
       watchHistoryOnly: false,

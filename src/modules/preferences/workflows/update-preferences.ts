@@ -19,6 +19,7 @@ export async function updatePreferences(
     payloadJson: JSON.stringify({
       defaultMediaMode: input.defaultMediaMode,
       defaultResultCount: input.defaultResultCount,
+      libraryTasteSampleSize: input.libraryTasteSampleSize,
       defaultTemperature: input.defaultTemperature,
       languagePreference: input.languagePreference,
       watchHistoryOnly: input.watchHistoryOnly,

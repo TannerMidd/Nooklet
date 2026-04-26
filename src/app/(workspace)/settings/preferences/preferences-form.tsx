@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { languagePreferenceOptions } from "@/modules/preferences/language-preferences";
 import { type PreferenceRecord } from "@/modules/preferences/queries/get-user-preferences";
+import {
+  maximumLibraryTasteSampleSize,
+  minimumLibraryTasteSampleSize,
+} from "@/modules/recommendations/library-taste-sample-size";
 
 import {
   submitUpdatePreferencesAction,
@@ -74,6 +78,7 @@ export function PreferencesForm({
     preferences.updatedAt.getTime(),
     preferences.defaultMediaMode,
     preferences.defaultResultCount,
+    preferences.libraryTasteSampleSize,
     preferences.defaultTemperature.toFixed(1),
     preferences.languagePreference,
     Number(preferences.watchHistoryOnly),
@@ -86,7 +91,7 @@ export function PreferencesForm({
 
   return (
     <form key={formResetKey} action={formAction} className="space-y-6">
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
         <label className="space-y-2">
           <span className="text-sm font-medium text-foreground">Default media mode</span>
           <select
@@ -116,6 +121,24 @@ export function PreferencesForm({
           />
           {state.fieldErrors?.defaultResultCount ? (
             <p className="text-sm text-highlight">{state.fieldErrors.defaultResultCount}</p>
+          ) : null}
+        </label>
+
+        <label className="space-y-2">
+          <span className="text-sm font-medium text-foreground">Library sample size</span>
+          <Input
+            name="libraryTasteSampleSize"
+            type="number"
+            min={minimumLibraryTasteSampleSize}
+            max={maximumLibraryTasteSampleSize}
+            defaultValue={preferences.libraryTasteSampleSize}
+            aria-invalid={Boolean(state.fieldErrors?.libraryTasteSampleSize)}
+          />
+          <p className="text-sm leading-6 text-muted">
+            More titles give the AI a broader taste signal for large libraries.
+          </p>
+          {state.fieldErrors?.libraryTasteSampleSize ? (
+            <p className="text-sm text-highlight">{state.fieldErrors.libraryTasteSampleSize}</p>
           ) : null}
         </label>
 

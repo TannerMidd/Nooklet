@@ -69,6 +69,7 @@ export const preferences = sqliteTable("preferences", {
     .notNull()
     .default("tv"),
   defaultResultCount: integer("default_result_count").notNull().default(10),
+  libraryTasteSampleSize: integer("library_taste_sample_size").notNull().default(150),
   defaultTemperature: real("default_temperature").notNull().default(0.9),
   defaultAiModel: text("default_ai_model"),
   languagePreference: text("language_preference", { enum: preferenceLanguageCodes })

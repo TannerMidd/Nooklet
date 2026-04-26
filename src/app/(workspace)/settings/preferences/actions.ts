@@ -28,6 +28,7 @@ export async function submitUpdatePreferencesAction(
   const parsedInput = updatePreferencesInputSchema.safeParse({
     defaultMediaMode: formData.get("defaultMediaMode"),
     defaultResultCount: formData.get("defaultResultCount"),
+    libraryTasteSampleSize: formData.get("libraryTasteSampleSize"),
     defaultTemperature: formData.get("defaultTemperature"),
     languagePreference: formData.get("languagePreference"),
     watchHistoryOnly: checkboxValue(formData, "watchHistoryOnly"),
@@ -47,6 +48,7 @@ export async function submitUpdatePreferencesAction(
       fieldErrors: {
         defaultMediaMode: flattenedErrors.defaultMediaMode?.[0],
         defaultResultCount: flattenedErrors.defaultResultCount?.[0],
+        libraryTasteSampleSize: flattenedErrors.libraryTasteSampleSize?.[0],
         defaultTemperature: flattenedErrors.defaultTemperature?.[0],
         languagePreference: flattenedErrors.languagePreference?.[0],
         watchHistorySourceTypes: flattenedErrors.watchHistorySourceTypes?.[0],

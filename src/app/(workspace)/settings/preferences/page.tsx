@@ -114,6 +114,9 @@ export default async function PreferencesSettingsPage({
                 <span className="font-medium">Default result count:</span> {preferences.defaultResultCount}
               </div>
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                <span className="font-medium">Library sample size:</span> {preferences.libraryTasteSampleSize}
+              </div>
+              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
                 <span className="font-medium">Language preference:</span> {formatLanguagePreference(preferences.languagePreference)}
               </div>
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">

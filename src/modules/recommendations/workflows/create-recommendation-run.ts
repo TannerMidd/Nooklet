@@ -207,7 +207,12 @@ async function executeRecommendationRunGeneration(
 
     const [watchHistoryContext, libraryTasteContextResult, priorRecommendationItems, tasteProfile] = await Promise.all([
       listWatchHistoryContext(userId, input.mediaType, 12, preferences.watchHistorySourceTypes),
-      loadSampledLibraryTasteContext(userId, input.mediaType, selectedGenres),
+      loadSampledLibraryTasteContext(
+        userId,
+        input.mediaType,
+        selectedGenres,
+        preferences.libraryTasteSampleSize,
+      ),
       listRecommendationExclusionItems(userId, input.mediaType),
       getRecommendationTasteProfile(userId, input.mediaType),
     ]);

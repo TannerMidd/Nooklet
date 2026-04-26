@@ -50,7 +50,7 @@ describe("loadSampledLibraryTasteContext", () => {
   it("returns an empty context when no Sonarr/Radarr connection exists", async () => {
     findMock.mockResolvedValue(null);
 
-    const result = await loadSampledLibraryTasteContext(USER_ID, "tv", []);
+    const result = await loadSampledLibraryTasteContext(USER_ID, "tv", [], 150);
 
     expect(result).toEqual({
       ok: true,
@@ -74,7 +74,7 @@ describe("loadSampledLibraryTasteContext", () => {
       normalizedKeys: ["tv::severance::unknown"],
     } as never);
 
-    const result = await loadSampledLibraryTasteContext(USER_ID, "tv", []);
+    const result = await loadSampledLibraryTasteContext(USER_ID, "tv", [], 150);
 
     expect(verifyMock).toHaveBeenCalledWith(USER_ID, "sonarr");
     expect(result.ok).toBe(true);
@@ -89,7 +89,7 @@ describe("loadSampledLibraryTasteContext", () => {
     }));
     verifyMock.mockResolvedValue({ ok: false, message: "401" } as never);
 
-    const result = await loadSampledLibraryTasteContext(USER_ID, "tv", []);
+    const result = await loadSampledLibraryTasteContext(USER_ID, "tv", [], 150);
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -108,13 +108,13 @@ describe("loadSampledLibraryTasteContext", () => {
       normalizedKeys: [],
     } as never);
 
-    await loadSampledLibraryTasteContext(USER_ID, "tv", ["drama", "science-fiction"]);
+    await loadSampledLibraryTasteContext(USER_ID, "tv", ["drama", "science-fiction"], 225);
 
     expect(listSampledMock).toHaveBeenCalledWith({
       serviceType: "sonarr",
       baseUrl: "https://sonarr.test",
       apiKey: "dec(sonarr-enc)",
-      sampleSize: 36,
+      sampleSize: 225,
       selectedGenres: ["drama", "science-fiction"],
     });
   });
@@ -123,7 +123,7 @@ describe("loadSampledLibraryTasteContext", () => {
     findMock.mockResolvedValue(verifiedSonarrConnection());
     listSampledMock.mockResolvedValue({ ok: false, message: "Sonarr 502" } as never);
 
-    const result = await loadSampledLibraryTasteContext(USER_ID, "tv", []);
+    const result = await loadSampledLibraryTasteContext(USER_ID, "tv", [], 150);
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -141,7 +141,7 @@ describe("loadSampledLibraryTasteContext", () => {
       normalizedKeys: [],
     } as never);
 
-    await loadSampledLibraryTasteContext(USER_ID, "movie", []);
+    await loadSampledLibraryTasteContext(USER_ID, "movie", [], 150);
 
     expect(findMock).toHaveBeenCalledWith(USER_ID, "radarr");
     expect(listSampledMock.mock.calls[0]?.[0]?.serviceType).toBe("radarr");
