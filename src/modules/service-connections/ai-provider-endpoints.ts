@@ -1,10 +1,8 @@
+import { trimTrailingSlash } from "@/lib/integrations/http-helpers";
+
 export type AiProviderFlavor = "openai-compatible" | "lm-studio-native";
 
 export const aiProviderFlavors = ["openai-compatible", "lm-studio-native"] as const;
-
-function trimTrailingSlash(value: string) {
-  return value.replace(/\/+$/, "");
-}
 
 /**
  * Read the AI-provider flavor that was persisted into connection metadata

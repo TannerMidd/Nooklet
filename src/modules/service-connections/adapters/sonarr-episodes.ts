@@ -1,4 +1,4 @@
-import { safeFetch } from "@/lib/security/safe-fetch";
+import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
 
 type SonarrEpisodeRequest = {
   baseUrl: string;
@@ -31,15 +31,6 @@ export type SearchSonarrEpisodesResult =
 export type EnsureSonarrSeasonsMonitoredResult =
   | { ok: true }
   | { ok: false; message: string };
-
-function trimTrailingSlash(baseUrl: string) {
-  return baseUrl.replace(/\/+$/, "");
-}
-
-async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
-  const target = typeof input === "string" || input instanceof URL ? input : input.url;
-  return safeFetch(target, { ...init, timeoutMs: 5000 });
-}
 
 async function extractErrorMessage(response: Response) {
   try {

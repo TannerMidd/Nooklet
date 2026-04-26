@@ -2,7 +2,7 @@ import { verifyPlexConnection } from "@/lib/integrations/plex";
 import { verifySabnzbdConnection } from "@/lib/integrations/sabnzbd";
 import { verifyTautulliConnection } from "@/lib/integrations/tautulli";
 import { type ServiceConnectionType } from "@/lib/database/schema";
-import { safeFetch } from "@/lib/security/safe-fetch";
+import { fetchJsonWithTimeout, fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
 import { type PlexMetadata } from "@/modules/service-connections/plex-metadata";
 import { type SabnzbdMetadata } from "@/modules/service-connections/sabnzbd-metadata";
 import { type TautulliMetadata } from "@/modules/service-connections/tautulli-metadata";
@@ -34,25 +34,6 @@ type VerifyServiceConnectionResult = {
   message: string;
   metadata?: Record<string, unknown> | null;
 };
-
-async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
-  const target = typeof input === "string" || input instanceof URL ? input : input.url;
-  return safeFetch(target, { ...init, timeoutMs: 5000 });
-}
-
-function trimTrailingSlash(baseUrl: string) {
-  return baseUrl.replace(/\/+$/, "");
-}
-
-async function fetchJsonWithTimeout<T>(input: RequestInfo | URL, init?: RequestInit) {
-  const response = await fetchWithTimeout(input, init);
-
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}.`);
-  }
-
-  return (await response.json()) as T;
-}
 
 async function verifyAiProvider(
   input: VerifyServiceConnectionInput,

@@ -1,4 +1,4 @@
-import { safeFetch } from "@/lib/security/safe-fetch";
+import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
 import { type RecommendationGenre } from "@/modules/recommendations/recommendation-genres";
 
 export type LibraryManagerServiceType = "sonarr" | "radarr";
@@ -87,15 +87,6 @@ type LibraryCollectionCandidate = Record<string, unknown> & {
   year?: number;
   genres?: unknown;
 };
-
-function trimTrailingSlash(baseUrl: string) {
-  return baseUrl.replace(/\/+$/, "");
-}
-
-async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
-  const target = typeof input === "string" || input instanceof URL ? input : input.url;
-  return safeFetch(target, { ...init, timeoutMs: 5000 });
-}
 
 function normalizeTitle(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ");

@@ -1,4 +1,4 @@
-import { safeFetch } from "@/lib/security/safe-fetch";
+import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
 import { type LibraryManagerServiceType } from "@/modules/service-connections/adapters/add-library-item";
 
 export type SonarrLibrarySeasonSummary = {
@@ -49,13 +49,10 @@ type ConnectionInput = {
   apiKey: string;
 };
 
-function trimTrailingSlash(baseUrl: string) {
-  return baseUrl.replace(/\/+$/, "");
-}
+const LIBRARY_FETCH_TIMEOUT_MS = 10000;
 
-async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
-  const target = typeof input === "string" || input instanceof URL ? input : input.url;
-  return safeFetch(target, { ...init, timeoutMs: 10000 });
+async function fetchLibraryManager(input: RequestInfo | URL, init?: RequestInit) {
+  return fetchWithTimeout(input, init, LIBRARY_FETCH_TIMEOUT_MS);
 }
 
 async function extractErrorMessage(response: Response, serviceLabel: string) {
@@ -241,7 +238,7 @@ export async function listSonarrLibrarySeries(
   input: ConnectionInput,
 ): Promise<ListSonarrLibraryResult> {
   try {
-    const response = await fetchWithTimeout(
+    const response = await fetchLibraryManager(
       `${trimTrailingSlash(input.baseUrl)}/api/v3/series`,
       {
         headers: { "X-Api-Key": input.apiKey },
@@ -283,7 +280,7 @@ export async function listRadarrLibraryMovies(
   input: ConnectionInput,
 ): Promise<ListRadarrLibraryResult> {
   try {
-    const response = await fetchWithTimeout(
+    const response = await fetchLibraryManager(
       `${trimTrailingSlash(input.baseUrl)}/api/v3/movie`,
       {
         headers: { "X-Api-Key": input.apiKey },
@@ -340,7 +337,7 @@ export async function setSonarrSeriesSeasonMonitoring(
   try {
     const seriesUrl = `${trimTrailingSlash(input.baseUrl)}/api/v3/series/${input.seriesId}`;
 
-    const fetchResponse = await fetchWithTimeout(seriesUrl, {
+    const fetchResponse = await fetchLibraryManager(seriesUrl, {
       headers: { "X-Api-Key": input.apiKey },
       cache: "no-store",
     });
@@ -383,7 +380,7 @@ export async function setSonarrSeriesSeasonMonitoring(
       seasons: nextSeasons,
     };
 
-    const updateResponse = await fetchWithTimeout(seriesUrl, {
+    const updateResponse = await fetchLibraryManager(seriesUrl, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
