@@ -106,6 +106,14 @@ export function validateRecommendationLibrarySelection(
     ),
   );
 
+  if (mediaType !== "tv" && seasonSelectionMode !== "all") {
+    return {
+      ok: false,
+      message: "Season-based selection is only available for shows.",
+      field: "seasonNumbers",
+    };
+  }
+
   if (mediaType === "tv" && seasonSelectionMode === "custom") {
     if (availableSeasonNumbers.length === 0) {
       return {

@@ -11,13 +11,13 @@ type AddLibraryItemInput = {
   year: number | null;
   rootFolderPath: string;
   qualityProfileId: number;
-  seasonSelectionMode: "all" | "custom";
+  seasonSelectionMode: "all" | "custom" | "episode";
   seasonNumbers: number[];
   tagIds: number[];
 };
 
 type AddLibraryItemResult =
-  | { ok: true; message: string }
+  | { ok: true; message: string; sonarrSeriesId?: number }
   | { ok: false; message: string; field?: "seasonNumbers" };
 
 type LibraryLookupCandidate = Record<string, unknown> & {
@@ -609,6 +609,7 @@ function buildAddPayload(
   input: AddLibraryItemInput,
 ) {
   if (serviceType === "sonarr") {
+    const isEpisodeMode = input.seasonSelectionMode === "episode";
     const selectedSeasonNumbers =
       input.seasonSelectionMode === "custom" ? new Set(input.seasonNumbers) : null;
 
@@ -616,15 +617,16 @@ function buildAddPayload(
       ...candidate,
       rootFolderPath: input.rootFolderPath,
       qualityProfileId: input.qualityProfileId,
-      monitored: true,
+      monitored: !isEpisodeMode,
       tags: input.tagIds,
       seasons: Array.isArray(candidate.seasons)
         ? candidate.seasons.map((season) =>
             typeof season === "object" && season !== null
               ? {
                   ...(season as Record<string, unknown>),
-                  monitored:
-                    selectedSeasonNumbers === null
+                  monitored: isEpisodeMode
+                    ? false
+                    : selectedSeasonNumbers === null
                       ? true
                       : selectedSeasonNumbers.has(
                           typeof (season as { seasonNumber?: unknown }).seasonNumber === "number"
@@ -635,9 +637,15 @@ function buildAddPayload(
               : season,
           )
         : [],
-      addOptions: {
-        searchForMissingEpisodes: true,
-      },
+      addOptions: isEpisodeMode
+        ? {
+            monitor: "none",
+            searchForMissingEpisodes: false,
+            searchForCutoffUnmetEpisodes: false,
+          }
+        : {
+            searchForMissingEpisodes: true,
+          },
     } satisfies Record<string, unknown>;
   }
 
@@ -875,8 +883,27 @@ export async function addLibraryItem(input: AddLibraryItemInput): Promise<AddLib
     };
   }
 
+  let sonarrSeriesId: number | undefined;
+
+  if (input.serviceType === "sonarr") {
+    try {
+      const payload = (await response.json()) as unknown;
+
+      if (typeof payload === "object" && payload !== null) {
+        const id = (payload as { id?: unknown }).id;
+
+        if (typeof id === "number" && Number.isInteger(id) && id > 0) {
+          sonarrSeriesId = id;
+        }
+      }
+    } catch {
+      // Sonarr should return JSON on success; missing id is non-fatal.
+    }
+  }
+
   return {
     ok: true,
     message: `${input.title}${input.year ? ` (${input.year})` : ""} was added to ${input.serviceType === "sonarr" ? "Sonarr" : "Radarr"}.`,
+    ...(sonarrSeriesId !== undefined ? { sonarrSeriesId } : {}),
   };
 }

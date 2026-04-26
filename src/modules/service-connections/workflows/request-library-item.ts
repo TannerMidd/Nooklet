@@ -16,13 +16,13 @@ type RequestLibraryItemInput = {
   year: number | null;
   rootFolderPath: string;
   qualityProfileId: number;
-  seasonSelectionMode: "all" | "custom";
+  seasonSelectionMode: "all" | "custom" | "episode";
   seasonNumbers: number[];
   tagIds: number[];
 };
 
 export type RequestLibraryItemResult =
-  | { ok: true; message: string }
+  | { ok: true; message: string; sonarrSeriesId?: number }
   | {
       ok: false;
       message: string;
