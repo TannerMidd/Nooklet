@@ -10,10 +10,6 @@ import { updateSonarrSeriesSeasonMonitoringForUser } from "@/modules/service-con
 
 export type SonarrLibraryActionState = RecommendationLibraryActionState;
 
-export const initialSonarrLibraryActionState: SonarrLibraryActionState = {
-  status: "idle",
-};
-
 export async function submitSonarrSeriesSeasonMonitoringAction(
   _previousState: SonarrLibraryActionState,
   formData: FormData,

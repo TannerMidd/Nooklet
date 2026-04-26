@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState, useEffect, useId, useMemo, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
 import {
   initialSonarrLibraryActionState,
-  submitSonarrSeriesSeasonMonitoringAction,
-} from "@/app/(workspace)/sonarr-library-actions";
+} from "@/app/(workspace)/sonarr-library-action-state";
+import { submitSonarrSeriesSeasonMonitoringAction } from "@/app/(workspace)/sonarr-library-actions";
 import { Button } from "@/components/ui/button";
 import { type SonarrLibrarySeasonSummary } from "@/modules/service-connections/adapters/library-collections";
 
@@ -50,6 +51,11 @@ export function SonarrSeasonMonitorModal({
   );
 
   const [selectedSeasons, setSelectedSeasons] = useState<Set<number>>(initiallyMonitored);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     setSelectedSeasons(initiallyMonitored);
@@ -65,6 +71,10 @@ export function SonarrSeasonMonitorModal({
   }, [state]);
 
   if (!open) {
+    return null;
+  }
+
+  if (!mounted || typeof document === "undefined") {
     return null;
   }
 
@@ -103,7 +113,7 @@ export function SonarrSeasonMonitorModal({
 
   const monitoredCountLabel = `${selectedSeasons.size} of ${seasons.length} selected`;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -214,6 +224,7 @@ export function SonarrSeasonMonitorModal({
           </Button>
         </div>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }
