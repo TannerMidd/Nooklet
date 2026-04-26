@@ -9,7 +9,15 @@ import {
 import { requestLibraryItem } from "@/modules/service-connections/workflows/request-library-item";
 
 type AddRecommendationToLibraryResult =
-  | { ok: true; message: string; pendingEpisodeSelection?: boolean; redirectTo?: string }
+  | {
+      ok: true;
+      message: string;
+      pendingEpisodeSelection?: {
+        sonarrSeriesId: number;
+        seriesTitle: string;
+        recommendationItemId: string;
+      };
+    }
   | {
       ok: false;
       message: string;
@@ -89,8 +97,11 @@ export async function addRecommendationToLibrary(
     return {
       ok: true,
       message: `${item.title} was added to ${definition.displayName}. Choose episodes to monitor next.`,
-      pendingEpisodeSelection: true,
-      redirectTo: `/sonarr/episodes/${item.itemId}`,
+      pendingEpisodeSelection: {
+        sonarrSeriesId: result.sonarrSeriesId as number,
+        seriesTitle: item.title,
+        recommendationItemId: item.itemId,
+      },
     };
   }
 

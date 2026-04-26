@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { type RecommendationLibraryActionState } from "@/app/(workspace)/recommendation-action-state";
-import { safeRevalidatePath, safeReturnTo } from "@/app/(workspace)/recommendation-action-helpers";
+import { safeRevalidatePath } from "@/app/(workspace)/recommendation-action-helpers";
 import {
   parseLibrarySearchActionFormData,
   projectLibrarySearchFieldErrors,
@@ -53,7 +53,14 @@ export async function submitLibrarySearchRequestAction(
     parsedInput.data.seasonSelectionMode === "episode" &&
     typeof result.sonarrSeriesId === "number"
   ) {
-    redirect(`/sonarr?seriesId=${result.sonarrSeriesId}&mode=episode`);
+    return {
+      status: "success",
+      message: result.message,
+      pendingEpisodeSelection: {
+        sonarrSeriesId: result.sonarrSeriesId,
+        seriesTitle: parsedInput.data.title,
+      },
+    };
   }
 
   return {

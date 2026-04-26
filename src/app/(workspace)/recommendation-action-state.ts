@@ -28,6 +28,17 @@ export type RecommendationLibraryActionState = {
   fieldErrors?: Partial<
     Record<"rootFolderPath" | "qualityProfileId" | "seasonNumbers" | "tagIds", string>
   >;
+  /**
+   * When the Sonarr add succeeded with seasonSelectionMode="episode", the workflow
+   * leaves the series unmonitored and signals that the client should transition
+   * straight into the in-modal episode picker for this Sonarr series id.
+   */
+  pendingEpisodeSelection?: {
+    sonarrSeriesId: number;
+    seriesTitle: string;
+    /** Recommendation item id if this came from the recommendations add flow. */
+    recommendationItemId?: string;
+  };
 };
 
 export const initialRecommendationLibraryActionState: RecommendationLibraryActionState = {

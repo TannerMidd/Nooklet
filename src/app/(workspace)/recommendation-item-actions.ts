@@ -121,8 +121,12 @@ export async function submitRecommendationLibraryAction(
   revalidatePath("/history");
   revalidatePath(safeRevalidatePath(parsedInput.data.returnTo));
 
-  if (result.ok && "redirectTo" in result && result.redirectTo) {
-    redirect(safeReturnTo(result.redirectTo));
+  if (result.ok && result.pendingEpisodeSelection) {
+    return {
+      status: "success",
+      message: result.message,
+      pendingEpisodeSelection: result.pendingEpisodeSelection,
+    };
   }
 
   return {

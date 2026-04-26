@@ -33,6 +33,18 @@ type SonarrSeasonMonitorModalProps = {
   seasons: SonarrLibrarySeasonSummary[];
   returnTo: string;
   initialMode?: Mode;
+  /**
+   * Hide the "Whole seasons" tab. Useful for the post-add inline episode
+   * picker where season state was just configured during the add step.
+   */
+  hideSeasonTab?: boolean;
+  /** Override the picker submit action (e.g. recommendation finalize). */
+  submitActionOverride?: (
+    state: SonarrLibraryActionState,
+    formData: FormData,
+  ) => Promise<SonarrLibraryActionState>;
+  /** Extra hidden form fields to forward to the picker form. */
+  extraHiddenFields?: ReadonlyArray<{ name: string; value: string }>;
 };
 
 type Mode = "season" | "episode";
@@ -45,6 +57,9 @@ export function SonarrSeasonMonitorModal({
   seasons,
   returnTo,
   initialMode = "season",
+  hideSeasonTab = false,
+  submitActionOverride,
+  extraHiddenFields,
 }: SonarrSeasonMonitorModalProps) {
   const router = useRouter();
   const dialogTitleId = useId();
@@ -59,14 +74,14 @@ export function SonarrSeasonMonitorModal({
   // Reset state whenever the modal opens for a fresh series.
   useEffect(() => {
     if (open) {
-      setMode(initialMode);
+      setMode(hideSeasonTab ? "episode" : initialMode);
       reset();
-      if (initialMode === "episode") {
+      if (initialMode === "episode" || hideSeasonTab) {
         loadEpisodesIfNeeded();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, seriesId, initialMode]);
+  }, [open, seriesId, initialMode, hideSeasonTab]);
 
   function selectEpisodeMode() {
     setMode("episode");
@@ -117,7 +132,7 @@ export function SonarrSeasonMonitorModal({
         <div
           role="tablist"
           aria-label="Monitoring scope"
-          className="flex gap-2 border-b border-line/60 px-6 py-3"
+          className={`flex gap-2 border-b border-line/60 px-6 py-3 ${hideSeasonTab ? "hidden" : ""}`}
         >
           <ModeTab
             label="Whole seasons"
@@ -131,7 +146,7 @@ export function SonarrSeasonMonitorModal({
           />
         </div>
 
-        {mode === "season" ? (
+        {mode === "season" && !hideSeasonTab ? (
           <SeasonModeForm
             seriesId={seriesId}
             seasons={seasons}
@@ -156,6 +171,8 @@ export function SonarrSeasonMonitorModal({
               router.refresh();
               onClose();
             }}
+            submitAction={submitActionOverride}
+            extraHiddenFields={extraHiddenFields}
           />
         )}
       </div>

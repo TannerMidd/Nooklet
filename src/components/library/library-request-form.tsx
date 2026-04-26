@@ -15,6 +15,9 @@ import { type LibrarySelectionPreferenceService } from "@/modules/preferences/re
 import { resolveRecommendationLibrarySelectionDefaults } from "@/modules/recommendations/workflows/recommendation-library-selection";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
+import { submitRecommendationFinalizeEpisodeAction } from "@/app/(workspace)/recommendation-finalize-episode-actions";
+
+import { SonarrSeasonMonitorModal } from "./sonarr-season-monitor-modal";
 import { RadarrRecommendationAddModal } from "../recommendations/radarr-recommendation-add-modal";
 import { SonarrRecommendationAddModal } from "../recommendations/sonarr-recommendation-add-modal";
 import { type LibraryRequestHiddenField } from "../recommendations/recommendation-add-modal-primitives";
@@ -75,11 +78,31 @@ export function LibraryRequestForm({
     selectionDefaults.qualityProfileId,
   );
 
+  // Track the post-add episode-picker handoff so we can keep the user inside
+  // the modal flow without redirecting after the Sonarr add succeeds.
+  const [pendingEpisode, setPendingEpisode] = useState<
+    | {
+        sonarrSeriesId: number;
+        seriesTitle: string;
+        recommendationItemId?: string;
+      }
+    | null
+  >(null);
+
   useEffect(() => {
-    if (state.status === "success") {
+    if (state.status !== "success") {
+      return;
+    }
+
+    if (state.pendingEpisodeSelection) {
+      // Add succeeded but we still need the user to pick episodes — swap
+      // straight into the in-modal episode picker.
+      setPendingEpisode(state.pendingEpisodeSelection);
+      setIsOpen(false);
+    } else {
       setIsOpen(false);
     }
-  }, [state.status]);
+  }, [state]);
 
   useEffect(() => {
     if (isOpen) {
@@ -227,6 +250,36 @@ export function LibraryRequestForm({
           titleId={dialogTitleId}
         />
       )}
+
+      {pendingEpisode ? (
+        <SonarrSeasonMonitorModal
+          open={true}
+          onClose={() => {
+            setPendingEpisode(null);
+            router.refresh();
+          }}
+          seriesId={pendingEpisode.sonarrSeriesId}
+          seriesTitle={pendingEpisode.seriesTitle}
+          seasons={[]}
+          returnTo={
+            (hiddenFields.find((field) => field.name === "returnTo")?.value as
+              | string
+              | undefined) ?? "/"
+          }
+          initialMode="episode"
+          hideSeasonTab
+          submitActionOverride={
+            pendingEpisode.recommendationItemId
+              ? submitRecommendationFinalizeEpisodeAction
+              : undefined
+          }
+          extraHiddenFields={
+            pendingEpisode.recommendationItemId
+              ? [{ name: "itemId", value: pendingEpisode.recommendationItemId }]
+              : undefined
+          }
+        />
+      ) : null}
     </div>
   );
 }

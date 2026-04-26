@@ -80,11 +80,22 @@ export function useSonarrEpisodeLoader(seriesId: number) {
   const [loadState, setLoadState] = useState<EpisodeLoadState>({ status: "idle" });
 
   function loadEpisodesIfNeeded() {
+    let shouldFetch = false;
     setLoadState((current) => {
       if (current.status === "loading" || current.status === "loaded") {
         return current;
       }
+      shouldFetch = true;
+      return { status: "loading" };
+    });
 
+    if (!shouldFetch) {
+      return;
+    }
+
+    // Defer the server-action invocation out of the React commit phase so the
+    // implicit Router state update it triggers does not collide with our render.
+    queueMicrotask(() => {
       void loadSonarrSeriesEpisodesForLibraryAction(seriesId)
         .then((result) => {
           if (result.ok) {
@@ -102,8 +113,6 @@ export function useSonarrEpisodeLoader(seriesId: number) {
                 : "Failed to load episodes from Sonarr.",
           });
         });
-
-      return { status: "loading" };
     });
   }
 
@@ -125,6 +134,18 @@ type SonarrEpisodePickerFormProps = {
   submitLabel?: string;
   /** Optional intro shown above the picker (e.g. after-add helper text). */
   intro?: React.ReactNode;
+  /**
+   * Override the default submit action. Defaults to
+   * `submitSonarrSeriesEpisodeMonitoringAction` (library "Manage seasons" flow).
+   * For the recommendations post-add flow, pass the recommendation finalize action
+   * so item metadata is cleared on success.
+   */
+  submitAction?: (
+    state: SonarrLibraryActionState,
+    formData: FormData,
+  ) => Promise<SonarrLibraryActionState>;
+  /** Extra hidden form fields (e.g. `itemId` for the recommendations finalize action). */
+  extraHiddenFields?: ReadonlyArray<{ name: string; value: string }>;
 };
 
 export function SonarrEpisodePickerForm({
@@ -137,9 +158,11 @@ export function SonarrEpisodePickerForm({
   cancelLabel = "Cancel",
   submitLabel = "Save episode monitoring",
   intro,
+  submitAction = submitSonarrSeriesEpisodeMonitoringAction,
+  extraHiddenFields,
 }: SonarrEpisodePickerFormProps) {
   const [state, formAction] = useActionState<SonarrLibraryActionState, FormData>(
-    submitSonarrSeriesEpisodeMonitoringAction,
+    submitAction,
     initialSonarrLibraryActionState,
   );
   const [isPending, startTransition] = useTransition();
@@ -254,6 +277,14 @@ export function SonarrEpisodePickerForm({
     <form action={handleSubmit} className="flex min-h-0 flex-1 flex-col">
       <input type="hidden" name="seriesId" value={seriesId} />
       <input type="hidden" name="returnTo" value={returnTo} />
+      {extraHiddenFields?.map((field) => (
+        <input
+          key={field.name}
+          type="hidden"
+          name={field.name}
+          value={field.value}
+        />
+      ))}
 
       {intro ? <div className="px-6 pt-4">{intro}</div> : null}
 
