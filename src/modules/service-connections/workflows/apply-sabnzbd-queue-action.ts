@@ -32,17 +32,29 @@ async function getVerifiedSabnzbdContext(userId: string) {
   };
 }
 
-function getQueueMoveTargetPosition(input: {
+function getQueueItemIndexOrThrow(input: {
   itemId: string;
-  direction: "up" | "down";
   items: Array<{ id: string }>;
-  totalQueueCount: number;
 }) {
   const currentIndex = input.items.findIndex((item) => item.id === input.itemId);
 
   if (currentIndex === -1) {
     throw new Error("That SABnzbd queue item is no longer available.");
   }
+
+  return currentIndex;
+}
+
+function getQueueMoveTargetPosition(input: {
+  itemId: string;
+  direction: "up" | "down";
+  items: Array<{ id: string }>;
+  totalQueueCount: number;
+}) {
+  const currentIndex = getQueueItemIndexOrThrow({
+    itemId: input.itemId,
+    items: input.items,
+  });
 
   if (input.direction === "up") {
     if (currentIndex === 0) {
@@ -59,24 +71,63 @@ function getQueueMoveTargetPosition(input: {
   return currentIndex + 1;
 }
 
+function getQueueDirectTargetPosition(input: {
+  itemId: string;
+  targetIndex: number;
+  items: Array<{ id: string }>;
+  totalQueueCount: number;
+}) {
+  const currentIndex = getQueueItemIndexOrThrow({
+    itemId: input.itemId,
+    items: input.items,
+  });
+
+  if (input.targetIndex >= input.totalQueueCount) {
+    throw new Error("That SABnzbd queue position is no longer available.");
+  }
+
+  if (currentIndex === input.targetIndex) {
+    return null;
+  }
+
+  return input.targetIndex;
+}
+
 export async function applySabnzbdQueueAction(
   userId: string,
   action: SabnzbdQueueActionInput,
 ): Promise<ActiveSabnzbdQueueState> {
   const context = await getVerifiedSabnzbdContext(userId);
 
-  if (action.type === "move") {
+  if (action.type === "move" || action.type === "moveToIndex") {
     const snapshot = await listSabnzbdQueue({
       baseUrl: context.baseUrl,
       apiKey: context.apiKey,
       limit: sabnzbdQueuePageLimit,
     });
-    const position = getQueueMoveTargetPosition({
-      itemId: action.itemId,
-      direction: action.direction,
-      items: snapshot.items,
-      totalQueueCount: snapshot.totalQueueCount,
-    });
+
+    const position =
+      action.type === "move"
+        ? getQueueMoveTargetPosition({
+            itemId: action.itemId,
+            direction: action.direction,
+            items: snapshot.items,
+            totalQueueCount: snapshot.totalQueueCount,
+          })
+        : getQueueDirectTargetPosition({
+            itemId: action.itemId,
+            targetIndex: action.targetIndex,
+            items: snapshot.items,
+            totalQueueCount: snapshot.totalQueueCount,
+          });
+
+    if (position === null) {
+      return {
+        connectionStatus: "verified",
+        statusMessage: "Queue order unchanged.",
+        snapshot,
+      };
+    }
 
     await moveSabnzbdQueueItemToPosition({
       baseUrl: context.baseUrl,

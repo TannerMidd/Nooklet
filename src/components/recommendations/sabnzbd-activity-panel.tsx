@@ -44,6 +44,8 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
   const [isMutating, setIsMutating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingActionKey, setPendingActionKey] = useState<string | null>(null);
+  const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+  const [dragTargetItemId, setDragTargetItemId] = useState<string | null>(null);
 
   const refreshQueue = useEffectEvent(async () => {
     setIsRefreshing(true);
@@ -96,7 +98,53 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
     } finally {
       setIsMutating(false);
       setPendingActionKey(null);
+      setDraggedItemId(null);
+      setDragTargetItemId(null);
     }
+  });
+
+  const handleDragStart = useEffectEvent((event: React.DragEvent<HTMLElement>, itemId: string) => {
+    setDraggedItemId(itemId);
+    setDragTargetItemId(null);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", itemId);
+  });
+
+  const handleDragOver = useEffectEvent((event: React.DragEvent<HTMLElement>, itemId: string) => {
+    if (!draggedItemId || draggedItemId === itemId) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDragTargetItemId(itemId);
+  });
+
+  const handleDrop = useEffectEvent((event: React.DragEvent<HTMLElement>, itemId: string) => {
+    event.preventDefault();
+
+    if (!snapshot || !draggedItemId || draggedItemId === itemId) {
+      setDragTargetItemId(null);
+      return;
+    }
+
+    const targetIndex = snapshot.items.findIndex((queueItem) => queueItem.id === itemId);
+
+    if (targetIndex === -1) {
+      setDragTargetItemId(null);
+      return;
+    }
+
+    void submitQueueAction({
+      type: "moveToIndex",
+      itemId: draggedItemId,
+      targetIndex,
+    });
+  });
+
+  const handleDragEnd = useEffectEvent(() => {
+    setDraggedItemId(null);
+    setDragTargetItemId(null);
   });
 
   useEffect(() => {
@@ -192,7 +240,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
               <div>
                 <p className="text-sm font-medium text-foreground">Queue items</p>
                 <p className="text-sm text-muted">
-                  Scroll this list when the downloader backlog is long, then adjust ordering or pause/remove items without leaving the page.
+                  Scroll this list when the downloader backlog is long, then drag cards to reorder them or use the fallback queue controls.
                 </p>
               </div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted">
@@ -208,10 +256,34 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
                 return (
                 <article
                   key={item.id}
-                  className="rounded-2xl border border-line/70 bg-panel/90 px-4 py-4"
+                  draggable={!isRefreshing && !isMutating}
+                  aria-grabbed={draggedItemId === item.id}
+                  onDragStart={(event) => {
+                    handleDragStart(event, item.id);
+                  }}
+                  onDragOver={(event) => {
+                    handleDragOver(event, item.id);
+                  }}
+                  onDrop={(event) => {
+                    handleDrop(event, item.id);
+                  }}
+                  onDragEnd={handleDragEnd}
+                  className={`rounded-2xl border px-4 py-4 transition ${
+                    draggedItemId === item.id
+                      ? "border-accent/40 bg-panel shadow-soft opacity-70"
+                      : dragTargetItemId === item.id
+                        ? "border-accent bg-panel shadow-soft"
+                        : "border-line/70 bg-panel/90"
+                  }`}
                 >
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-muted">
+                        <span className="rounded-full border border-line/70 bg-panel-strong px-2 py-1">
+                          Drag to reorder
+                        </span>
+                        {dragTargetItemId === item.id ? <span>Drop here</span> : null}
+                      </div>
                       <p className="font-medium text-foreground">{item.title}</p>
                       <div className="flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
                         <span>{item.status}</span>

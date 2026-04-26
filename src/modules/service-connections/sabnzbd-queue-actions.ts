@@ -22,6 +22,11 @@ export const sabnzbdQueueActionSchema = z.discriminatedUnion("type", [
     itemId: sabnzbdQueueItemIdSchema,
     direction: sabnzbdQueueMoveDirectionSchema,
   }),
+  z.object({
+    type: z.literal("moveToIndex"),
+    itemId: sabnzbdQueueItemIdSchema,
+    targetIndex: z.number().int().nonnegative(),
+  }),
 ]);
 
 export type SabnzbdQueueMoveDirection = z.infer<typeof sabnzbdQueueMoveDirectionSchema>;
@@ -41,5 +46,7 @@ export function formatSabnzbdQueueActionMessage(action: SabnzbdQueueActionInput)
       return action.direction === "up"
         ? "Moved the SABnzbd queue item up."
         : "Moved the SABnzbd queue item down.";
+    case "moveToIndex":
+      return "Reordered the SABnzbd queue item.";
   }
 }
