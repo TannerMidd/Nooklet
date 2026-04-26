@@ -41,6 +41,11 @@ export const navigationGroups = [
         label: "History",
         description: "Review past recommendations, feedback, and library actions.",
       },
+      {
+        href: "/in-progress",
+        label: "In progress",
+        description: "Track active downloader work without stretching recommendation pages.",
+      },
     ],
   },
   {
