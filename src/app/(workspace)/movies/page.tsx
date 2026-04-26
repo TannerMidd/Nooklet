@@ -6,6 +6,7 @@ type MovieRecommendationsPageProps = {
   searchParams?: Promise<{
     run?: string;
     generated?: string;
+    details?: string;
   }>;
 };
 
@@ -21,6 +22,7 @@ export default async function MovieRecommendationsPage({
       title="Movie recommendations"
       activeRunId={resolvedSearchParams?.run ?? null}
       wasJustGenerated={resolvedSearchParams?.generated === "1"}
+      detailsItemId={resolvedSearchParams?.details ?? null}
     />
   );
 }

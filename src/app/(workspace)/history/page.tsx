@@ -3,10 +3,12 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { RecommendationHistoryItemActions } from "@/components/recommendations/recommendation-history-item-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
+import { RecommendationTitleOverviewDialog } from "@/components/recommendations/recommendation-title-overview-dialog";
 import { Panel } from "@/components/ui/panel";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import { listRecommendationHistory } from "@/modules/recommendations/queries/list-recommendation-history";
+import { getRecommendationTitleOverview } from "@/modules/recommendations/workflows/get-recommendation-title-overview";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +17,7 @@ type HistoryPageProps = {
   searchParams?: Promise<{
     view?: string;
     page?: string;
+    details?: string;
   }>;
 };
 
@@ -40,6 +43,15 @@ function parsePage(value: string | undefined) {
   const parsed = Number.parseInt(value ?? "", 10);
 
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function appendDetailsParam(href: string, itemId: string) {
+  const [pathname, query = ""] = href.split("?");
+  const searchParams = new URLSearchParams(query);
+
+  searchParams.set("details", itemId);
+
+  return `${pathname}?${searchParams.toString()}`;
 }
 
 export default async function HistoryPage({ searchParams }: HistoryPageProps) {
@@ -69,6 +81,9 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
     pageSize: HISTORY_PAGE_SIZE,
   });
   const returnTo = buildHistoryHref(currentView, history.currentPage);
+  const selectedOverview = resolvedSearchParams?.details
+    ? await getRecommendationTitleOverview(session.user.id, resolvedSearchParams.details)
+    : null;
   const sonarrSummary = connectionSummaries.find((summary) => summary.serviceType === "sonarr") ?? null;
   const radarrSummary = connectionSummaries.find((summary) => summary.serviceType === "radarr") ?? null;
   const sonarrDefaults = getLibrarySelectionDefaults(preferences, "sonarr");
@@ -175,7 +190,8 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 className="rounded-[24px] border border-line/70 bg-panel-strong/70 p-5"
               >
                 <Link
-                  href={`/recommendations/${item.itemId}?returnTo=${encodeURIComponent(returnTo)}`}
+                  href={appendDetailsParam(returnTo, item.itemId)}
+                  scroll={false}
                   className="flex min-w-0 flex-col gap-4 rounded-[20px] outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent/50 sm:flex-row sm:items-start"
                 >
                   <RecommendationPoster
@@ -280,6 +296,16 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
           </div>
         ) : null}
       </Panel>
+
+      {selectedOverview ? (
+        <RecommendationTitleOverviewDialog
+          overview={selectedOverview}
+          preferences={preferences}
+          connectionSummaries={connectionSummaries}
+          closeHref={returnTo}
+          actionReturnHref={appendDetailsParam(returnTo, selectedOverview.item.itemId)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { RecommendationFeedbackActions } from "@/components/recommendations/reco
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationRequestForm } from "@/components/recommendations/recommendation-request-form";
 import { RecommendationRetryForm } from "@/components/recommendations/recommendation-retry-form";
+import { RecommendationTitleOverviewDialog } from "@/components/recommendations/recommendation-title-overview-dialog";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { type RecommendationMediaType } from "@/lib/database/schema";
@@ -21,6 +22,7 @@ import {
   formatRecommendationGenres,
   type RecommendationGenre,
 } from "@/modules/recommendations/recommendation-genres";
+import { getRecommendationTitleOverview } from "@/modules/recommendations/workflows/get-recommendation-title-overview";
 import { listRecentRecommendationRuns } from "@/modules/recommendations/queries/list-recent-recommendation-runs";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
@@ -33,6 +35,7 @@ type RecommendationWorkspaceProps = {
   title: string;
   activeRunId?: string | null;
   wasJustGenerated?: boolean;
+  detailsItemId?: string | null;
 };
 
 function formatDate(value: Date | null) {
@@ -68,12 +71,42 @@ function formatPromptLabel(value: string, selectedGenres: readonly Recommendatio
   return genreSummary ? `Genre-led request: ${genreSummary}` : "Taste-based automatic request";
 }
 
+function buildWorkspaceHref(
+  routePath: "/tv" | "/movies",
+  activeRunId: string | null | undefined,
+  wasJustGenerated: boolean,
+) {
+  const searchParams = new URLSearchParams();
+
+  if (activeRunId) {
+    searchParams.set("run", activeRunId);
+  }
+
+  if (wasJustGenerated) {
+    searchParams.set("generated", "1");
+  }
+
+  const query = searchParams.toString();
+
+  return query ? `${routePath}?${query}` : routePath;
+}
+
+function appendDetailsParam(href: string, itemId: string) {
+  const [pathname, query = ""] = href.split("?");
+  const searchParams = new URLSearchParams(query);
+
+  searchParams.set("details", itemId);
+
+  return `${pathname}?${searchParams.toString()}`;
+}
+
 export async function RecommendationWorkspace({
   mediaType,
   routePath,
   title,
   activeRunId,
   wasJustGenerated = false,
+  detailsItemId = null,
 }: RecommendationWorkspaceProps) {
   const session = await auth();
 
@@ -82,7 +115,13 @@ export async function RecommendationWorkspace({
   }
 
   const preferences = await getUserPreferences(session.user.id);
-  const [connectionSummaries, recentRuns, watchHistoryOverview, selectedWatchHistoryContext] = await Promise.all([
+  const [
+    connectionSummaries,
+    recentRuns,
+    watchHistoryOverview,
+    selectedWatchHistoryContext,
+    selectedOverview,
+  ] = await Promise.all([
     listConnectionSummaries(session.user.id),
     listRecentRecommendationRuns(session.user.id, mediaType),
     getWatchHistoryOverview(session.user.id),
@@ -92,6 +131,9 @@ export async function RecommendationWorkspace({
       6,
       preferences.watchHistorySourceTypes,
     ),
+    detailsItemId
+      ? getRecommendationTitleOverview(session.user.id, detailsItemId)
+      : Promise.resolve(null),
   ]);
 
   const aiProvider = connectionSummaries.find((summary) => summary.serviceType === "ai-provider");
@@ -132,6 +174,8 @@ export async function RecommendationWorkspace({
   const featuredRunGenreSummary = featuredRun
     ? formatGenreSummary(featuredRun.selectedGenres)
     : null;
+  const currentWorkspaceHref = buildWorkspaceHref(routePath, activeRunId, wasJustGenerated);
+  const overviewForModal = selectedOverview?.item.mediaType === mediaType ? selectedOverview : null;
 
   return (
     <div className="space-y-6">
@@ -335,6 +379,7 @@ export async function RecommendationWorkspace({
                 existingInLibrary={item.existingInLibrary}
                 providerMetadata={item.providerMetadata}
                 routePath={routePath}
+                overviewHref={appendDetailsParam(currentWorkspaceHref, item.id)}
                 libraryConnection={relevantLibraryManager ?? null}
                 savedRootFolderPath={librarySelectionDefaults.rootFolderPath}
                 savedQualityProfileId={librarySelectionDefaults.qualityProfileId}
@@ -456,6 +501,16 @@ export async function RecommendationWorkspace({
           </div>
         )}
       </Panel>
+
+      {overviewForModal ? (
+        <RecommendationTitleOverviewDialog
+          overview={overviewForModal}
+          preferences={preferences}
+          connectionSummaries={connectionSummaries}
+          closeHref={currentWorkspaceHref}
+          actionReturnHref={appendDetailsParam(currentWorkspaceHref, overviewForModal.item.itemId)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -29,6 +29,7 @@ type RecommendationFeaturedCardProps = {
   libraryConnection: ServiceConnectionSummary | null;
   savedRootFolderPath?: string | null;
   savedQualityProfileId?: number | null;
+  overviewHref?: string;
   animationDelayMs?: number;
 };
 
@@ -50,9 +51,10 @@ export function RecommendationFeaturedCard({
   libraryConnection,
   savedRootFolderPath,
   savedQualityProfileId,
+  overviewHref,
   animationDelayMs = 0,
 }: RecommendationFeaturedCardProps) {
-  const overviewHref = `/recommendations/${itemId}?returnTo=${encodeURIComponent(routePath)}`;
+  const resolvedOverviewHref = overviewHref ?? `/recommendations/${itemId}?returnTo=${encodeURIComponent(routePath)}`;
 
   return (
     <article
@@ -60,7 +62,8 @@ export function RecommendationFeaturedCard({
       style={{ animationDelay: `${animationDelayMs}ms` }}
     >
       <Link
-        href={overviewHref}
+        href={resolvedOverviewHref}
+        scroll={false}
         className="block space-y-5 rounded-[24px] outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent/50"
       >
         <div className="grid gap-4 sm:grid-cols-[6.25rem_minmax(0,1fr)] sm:items-start">
