@@ -1,1 +1,1 @@
-ALTER TABLE `recommendation_runs` ADD `selected_genres_json` text DEFAULT '[]' NOT NULL;--> statement-breakpoint
+ALTER TABLE `recommendation_runs` ADD `selected_genres_json` text DEFAULT '[]' NOT NULL;
