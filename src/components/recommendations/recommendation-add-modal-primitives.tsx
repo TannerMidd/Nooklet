@@ -10,6 +10,10 @@ import { cn } from "@/lib/utils";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 export type RecommendationModalFormAction = (formData: FormData) => void;
+export type LibraryRequestHiddenField = {
+  name: string;
+  value: string | number;
+};
 
 type RecommendationAddModalShellProps = {
   open: boolean;

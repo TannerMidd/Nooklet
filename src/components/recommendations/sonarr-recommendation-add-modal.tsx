@@ -1,11 +1,11 @@
 "use client";
 
 import { type RecommendationLibraryActionState } from "@/app/(workspace)/recommendation-action-state";
-import { type RecommendationProviderSeason } from "@/modules/recommendations/provider-metadata";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 import {
   CancelButton,
+  type LibraryRequestHiddenField,
   RecommendationAddMessage,
   RecommendationAddModalShell,
   RecommendationAddSummaryCard,
@@ -18,12 +18,11 @@ import {
 type SonarrRecommendationAddModalProps = {
   open: boolean;
   onClose: () => void;
-  itemId: string;
-  returnTo: string;
+  hiddenFields: readonly LibraryRequestHiddenField[];
   connectionSummary: ServiceConnectionSummary;
   state: RecommendationLibraryActionState;
   formAction: RecommendationModalFormAction;
-  availableSeasons: RecommendationProviderSeason[];
+  availableSeasons: Array<{ seasonNumber: number; label: string }>;
   seasonSelectionMode: "all" | "custom";
   onSeasonSelectionModeChange: (mode: "all" | "custom") => void;
   selectedRootFolderPath: string;
@@ -37,8 +36,7 @@ type SonarrRecommendationAddModalProps = {
 export function SonarrRecommendationAddModal({
   open,
   onClose,
-  itemId,
-  returnTo,
+  hiddenFields,
   connectionSummary,
   state,
   formAction,
@@ -64,8 +62,14 @@ export function SonarrRecommendationAddModal({
       closeButtonLabel={isSavingDefaults ? "Saving..." : "Close"}
     >
       <form action={formAction} className="flex min-h-0 flex-1 flex-col">
-        <input type="hidden" name="itemId" value={itemId} />
-        <input type="hidden" name="returnTo" value={returnTo} />
+        {hiddenFields.map((field, index) => (
+          <input
+            key={`${field.name}-${String(field.value)}-${index}`}
+            type="hidden"
+            name={field.name}
+            value={String(field.value)}
+          />
+        ))}
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 md:px-8 md:py-7">
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)]">

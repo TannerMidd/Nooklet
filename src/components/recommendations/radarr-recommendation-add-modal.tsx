@@ -5,6 +5,7 @@ import { type ServiceConnectionSummary } from "@/modules/service-connections/wor
 
 import {
   CancelButton,
+  type LibraryRequestHiddenField,
   RecommendationAddMessage,
   RecommendationAddModalShell,
   RecommendationAddSummaryCard,
@@ -17,8 +18,7 @@ import {
 type RadarrRecommendationAddModalProps = {
   open: boolean;
   onClose: () => void;
-  itemId: string;
-  returnTo: string;
+  hiddenFields: readonly LibraryRequestHiddenField[];
   connectionSummary: ServiceConnectionSummary;
   state: RecommendationLibraryActionState;
   formAction: RecommendationModalFormAction;
@@ -33,8 +33,7 @@ type RadarrRecommendationAddModalProps = {
 export function RadarrRecommendationAddModal({
   open,
   onClose,
-  itemId,
-  returnTo,
+  hiddenFields,
   connectionSummary,
   state,
   formAction,
@@ -57,8 +56,14 @@ export function RadarrRecommendationAddModal({
       closeButtonLabel={isSavingDefaults ? "Saving..." : "Close"}
     >
       <form action={formAction} className="flex min-h-0 flex-1 flex-col">
-        <input type="hidden" name="itemId" value={itemId} />
-        <input type="hidden" name="returnTo" value={returnTo} />
+        {hiddenFields.map((field, index) => (
+          <input
+            key={`${field.name}-${String(field.value)}-${index}`}
+            type="hidden"
+            name={field.name}
+            value={String(field.value)}
+          />
+        ))}
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 md:px-8 md:py-7">
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)]">
