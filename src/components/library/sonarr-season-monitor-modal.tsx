@@ -22,6 +22,11 @@ import { LibraryItemActions } from "@/components/library/library-item-actions";
 import { Button } from "@/components/ui/button";
 import { type SonarrLibrarySeasonSummary } from "@/modules/service-connections/types/library-manager";
 
+type QualityProfileOption = {
+  id: number;
+  name: string;
+};
+
 import {
   formatSeasonLabel,
   SonarrEpisodePickerForm,
@@ -36,6 +41,9 @@ type SonarrSeasonMonitorModalProps = {
   seasons: SonarrLibrarySeasonSummary[];
   returnTo: string;
   seriesMonitored?: boolean;
+  qualityProfiles?: ReadonlyArray<QualityProfileOption>;
+  qualityProfileId?: number | null;
+  qualityProfileName?: string | null;
   initialMode?: Mode;
   hideSeasonTab?: boolean;
   submitActionOverride?: (
@@ -63,6 +71,9 @@ export function SonarrSeasonMonitorModal({
   seasons,
   returnTo,
   seriesMonitored,
+  qualityProfiles = [],
+  qualityProfileId,
+  qualityProfileName,
   initialMode = "season",
   hideSeasonTab = false,
   submitActionOverride,
@@ -153,6 +164,9 @@ export function SonarrSeasonMonitorModal({
             seriesId={seriesId}
             seriesTitle={seriesTitle}
             seriesMonitored={seriesMonitored ?? false}
+            qualityProfiles={qualityProfiles}
+            qualityProfileId={qualityProfileId}
+            qualityProfileName={qualityProfileName}
             returnTo={returnTo}
             onAfterAction={() => router.refresh()}
           />
@@ -378,12 +392,18 @@ function SonarrSeriesControls({
   seriesId,
   seriesTitle,
   seriesMonitored,
+  qualityProfiles,
+  qualityProfileId,
+  qualityProfileName,
   returnTo,
   onAfterAction,
 }: {
   seriesId: number;
   seriesTitle: string;
   seriesMonitored: boolean;
+  qualityProfiles: ReadonlyArray<QualityProfileOption>;
+  qualityProfileId?: number | null;
+  qualityProfileName?: string | null;
   returnTo: string;
   onAfterAction: () => void;
 }) {
@@ -423,10 +443,15 @@ function SonarrSeriesControls({
           </span>
         </div>
         <LibraryItemActions
+          key={`sonarr-${seriesId}-${qualityProfileId ?? "none"}`}
           target={{ serviceType: "sonarr", seriesId }}
           monitored={seriesMonitored}
           itemTitle={seriesTitle}
           returnTo={returnTo}
+          qualityProfiles={qualityProfiles}
+          qualityProfileId={qualityProfileId}
+          qualityProfileName={qualityProfileName}
+          enableSearch
           size="sm"
         />
       </div>

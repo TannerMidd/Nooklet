@@ -11,12 +11,21 @@ import {
 import {
   submitSonarrSeriesDeleteAction,
   submitSonarrSeriesMonitoringAction,
+  submitSonarrSeriesQualityProfileAction,
+  submitSonarrSeriesSearchAction,
 } from "@/app/(workspace)/sonarr-library-actions";
 import {
   submitRadarrMovieDeleteAction,
   submitRadarrMovieMonitoringAction,
+  submitRadarrMovieQualityProfileAction,
+  submitRadarrMovieSearchAction,
 } from "@/app/(workspace)/radarr-library-actions";
 import { Button } from "@/components/ui/button";
+
+type QualityProfileOption = {
+  id: number;
+  name: string;
+};
 
 type SonarrTarget = {
   serviceType: "sonarr";
@@ -36,6 +45,10 @@ type LibraryItemActionsProps = {
   monitored: boolean;
   itemTitle: string;
   returnTo: string;
+  qualityProfiles?: ReadonlyArray<QualityProfileOption>;
+  qualityProfileId?: number | null;
+  qualityProfileName?: string | null;
+  enableSearch?: boolean;
   size?: "default" | "sm";
   className?: string;
 };
@@ -54,8 +67,45 @@ function getDeleteAction(target: LibraryItemTarget) {
   return submitRadarrMovieDeleteAction;
 }
 
+function getQualityProfileAction(target: LibraryItemTarget) {
+  if (target.serviceType === "sonarr") {
+    return submitSonarrSeriesQualityProfileAction;
+  }
+  return submitRadarrMovieQualityProfileAction;
+}
+
+function getSearchAction(target: LibraryItemTarget) {
+  if (target.serviceType === "sonarr") {
+    return submitSonarrSeriesSearchAction;
+  }
+  return submitRadarrMovieSearchAction;
+}
+
 function getServiceLabel(target: LibraryItemTarget) {
   return target.serviceType === "sonarr" ? "Sonarr" : "Radarr";
+}
+
+function setTargetFormFields(formData: FormData, target: LibraryItemTarget) {
+  if (target.serviceType === "sonarr") {
+    formData.set("seriesId", String(target.seriesId));
+    if (target.applyToAllSeasons) {
+      formData.set("applyToAllSeasons", "true");
+    }
+    return;
+  }
+
+  formData.set("movieId", String(target.movieId));
+}
+
+function resolveInitialQualityProfileId(
+  qualityProfiles: ReadonlyArray<QualityProfileOption>,
+  qualityProfileId: number | null | undefined,
+) {
+  if (qualityProfileId !== null && qualityProfileId !== undefined) {
+    return qualityProfileId;
+  }
+
+  return qualityProfiles[0]?.id ?? null;
 }
 
 export function LibraryItemActions({
@@ -63,30 +113,46 @@ export function LibraryItemActions({
   monitored,
   itemTitle,
   returnTo,
+  qualityProfiles,
+  qualityProfileId,
+  qualityProfileName,
+  enableSearch = false,
   size = "default",
   className,
 }: LibraryItemActionsProps) {
   const router = useRouter();
   const [isMonitorPending, startMonitorTransition] = useTransition();
+  const [isQualityPending, startQualityTransition] = useTransition();
+  const [isSearchPending, startSearchTransition] = useTransition();
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [selectedQualityProfileId, setSelectedQualityProfileId] = useState<number | null>(() =>
+    resolveInitialQualityProfileId(qualityProfiles ?? [], qualityProfileId),
+  );
+  const [qualityMessage, setQualityMessage] = useState<{
+    tone: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [searchMessage, setSearchMessage] = useState<{
+    tone: "success" | "error";
+    text: string;
+  } | null>(null);
   const buttonClass =
     size === "sm"
       ? "min-h-9 px-3 py-1.5 text-xs"
       : undefined;
+  const serviceLabel = getServiceLabel(target);
+  const hasQualityProfiles = qualityProfiles !== undefined;
+  const resolvedQualityProfileName =
+    qualityProfileName ??
+    qualityProfiles?.find((profile) => profile.id === selectedQualityProfileId)?.name ??
+    null;
 
   function handleToggleMonitor(event: React.MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
 
     const formData = new FormData();
-    if (target.serviceType === "sonarr") {
-      formData.set("seriesId", String(target.seriesId));
-      if (target.applyToAllSeasons) {
-        formData.set("applyToAllSeasons", "true");
-      }
-    } else {
-      formData.set("movieId", String(target.movieId));
-    }
+    setTargetFormFields(formData, target);
     formData.set("monitored", monitored ? "false" : "true");
     formData.set("returnTo", returnTo);
 
@@ -103,6 +169,77 @@ export function LibraryItemActions({
     event.preventDefault();
     event.stopPropagation();
     setIsDeleteOpen(true);
+  }
+
+  function handleSaveQualityProfile(event: React.MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (selectedQualityProfileId === null) {
+      setQualityMessage({
+        tone: "error",
+        text: `Re-run ${serviceLabel} verification to load quality profiles.`,
+      });
+      return;
+    }
+
+    const formData = new FormData();
+    setTargetFormFields(formData, target);
+    formData.set("qualityProfileId", String(selectedQualityProfileId));
+    formData.set("returnTo", returnTo);
+    setQualityMessage(null);
+
+    startQualityTransition(async () => {
+      const result = await getQualityProfileAction(target)(
+        initialRecommendationLibraryActionState,
+        formData,
+      );
+
+      if (result.status === "error") {
+        setQualityMessage({
+          tone: "error",
+          text: result.message ?? `Failed to update ${serviceLabel} quality profile.`,
+        });
+        return;
+      }
+
+      setQualityMessage({
+        tone: "success",
+        text: result.message ?? `${serviceLabel} quality profile updated.`,
+      });
+      router.refresh();
+    });
+  }
+
+  function handleTriggerSearch(event: React.MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const formData = new FormData();
+    setTargetFormFields(formData, target);
+    formData.set("returnTo", returnTo);
+    setSearchMessage(null);
+
+    startSearchTransition(async () => {
+      const result = await getSearchAction(target)(
+        initialRecommendationLibraryActionState,
+        formData,
+      );
+
+      if (result.status === "error") {
+        setSearchMessage({
+          tone: "error",
+          text: result.message ?? `Failed to trigger ${serviceLabel} search.`,
+        });
+        return;
+      }
+
+      setSearchMessage({
+        tone: "success",
+        text: result.message ?? `${serviceLabel} search queued.`,
+      });
+      router.refresh();
+    });
   }
 
   return (
@@ -145,6 +282,89 @@ export function LibraryItemActions({
           onClose={() => setIsDeleteOpen(false)}
         />
       ) : null}
+
+      {hasQualityProfiles || enableSearch ? (
+        <div className="grid w-full gap-3 pt-2 text-sm">
+          {hasQualityProfiles ? (
+            <div className="grid gap-2 rounded-2xl border border-line/70 bg-panel-strong/70 p-3">
+              <label className="grid gap-1.5">
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
+                  Quality profile
+                </span>
+                <select
+                  value={selectedQualityProfileId === null ? "" : String(selectedQualityProfileId)}
+                  onChange={(event) => {
+                    const nextValue = Number.parseInt(event.target.value, 10);
+                    setSelectedQualityProfileId(Number.isNaN(nextValue) ? null : nextValue);
+                    setQualityMessage(null);
+                  }}
+                  disabled={(qualityProfiles?.length ?? 0) === 0 || isQualityPending}
+                  className="min-h-10 w-full rounded-2xl border border-line bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
+                >
+                  {(qualityProfiles?.length ?? 0) === 0 ? (
+                    <option value="">No profiles loaded</option>
+                  ) : null}
+                  {qualityProfiles?.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="min-h-9 px-3 py-1.5 text-xs"
+                  onClick={handleSaveQualityProfile}
+                  disabled={isQualityPending || selectedQualityProfileId === null}
+                >
+                  {isQualityPending ? "Saving…" : "Save quality"}
+                </Button>
+                {resolvedQualityProfileName ? (
+                  <span className="text-xs text-muted">Current: {resolvedQualityProfileName}</span>
+                ) : null}
+              </div>
+              {qualityMessage ? (
+                <p
+                  className={
+                    qualityMessage.tone === "success"
+                      ? "rounded-2xl border border-accent/20 bg-accent/10 px-3 py-2 text-xs text-foreground"
+                      : "rounded-2xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200"
+                  }
+                >
+                  {qualityMessage.text}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {enableSearch ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line/70 bg-panel-strong/70 p-3">
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-h-9 px-3 py-1.5 text-xs"
+                onClick={handleTriggerSearch}
+                disabled={isSearchPending}
+              >
+                {isSearchPending ? "Searching…" : "Search now"}
+              </Button>
+              {searchMessage ? (
+                <span
+                  className={
+                    searchMessage.tone === "success"
+                      ? "text-xs text-foreground"
+                      : "text-xs text-red-200"
+                  }
+                >
+                  {searchMessage.text}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -177,11 +397,7 @@ function DeleteLibraryItemDialog({
 
   function handleConfirm() {
     const formData = new FormData();
-    if (target.serviceType === "sonarr") {
-      formData.set("seriesId", String(target.seriesId));
-    } else {
-      formData.set("movieId", String(target.movieId));
-    }
+    setTargetFormFields(formData, target);
     formData.set("deleteFiles", deleteFiles ? "true" : "false");
     formData.set("returnTo", returnTo);
 

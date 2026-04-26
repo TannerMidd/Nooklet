@@ -7,14 +7,26 @@ import { LibraryItemActions } from "@/components/library/library-item-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { type RadarrLibraryMovie } from "@/modules/service-connections/types/library-manager";
 
+type QualityProfileOption = {
+  id: number;
+  name: string;
+};
+
 type RadarrMovieModalProps = {
   open: boolean;
   movie: RadarrLibraryMovie;
+  qualityProfiles: ReadonlyArray<QualityProfileOption>;
   returnTo: string;
   onClose: () => void;
 };
 
-export function RadarrMovieModal({ open, movie, returnTo, onClose }: RadarrMovieModalProps) {
+export function RadarrMovieModal({
+  open,
+  movie,
+  qualityProfiles,
+  returnTo,
+  onClose,
+}: RadarrMovieModalProps) {
   const dialogTitleId = useId();
 
   if (!open || typeof document === "undefined") {
@@ -86,19 +98,32 @@ export function RadarrMovieModal({ open, movie, returnTo, onClose }: RadarrMovie
                   <dd className="mt-1 text-foreground">{movie.status}</dd>
                 </div>
               ) : null}
+              <div className="col-span-2">
+                <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted">
+                  Quality profile
+                </dt>
+                <dd className="mt-1 text-foreground">
+                  {movie.qualityProfileName ?? movie.qualityProfileId ?? "Unknown"}
+                </dd>
+              </div>
             </dl>
           </div>
 
           <section className="space-y-3 rounded-2xl border border-line/70 bg-panel-strong/70 p-4">
             <h3 className="text-sm font-medium text-foreground">Movie actions</h3>
             <p className="text-sm leading-6 text-muted">
-              Toggle Radarr monitoring, or remove the movie from Radarr (with or without deleting files).
+              Toggle Radarr monitoring, change quality, search for the movie, or remove it from Radarr.
             </p>
             <LibraryItemActions
+              key={`radarr-${movie.id}-${movie.qualityProfileId ?? "none"}`}
               target={{ serviceType: "radarr", movieId: movie.id }}
               monitored={movie.monitored}
               itemTitle={titleLabel}
               returnTo={returnTo}
+              qualityProfiles={qualityProfiles}
+              qualityProfileId={movie.qualityProfileId}
+              qualityProfileName={movie.qualityProfileName}
+              enableSearch
             />
           </section>
         </div>

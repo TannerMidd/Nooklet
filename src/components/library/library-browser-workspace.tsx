@@ -82,6 +82,7 @@ export async function LibraryBrowserWorkspace({
             serviceType="sonarr"
             items={libraryResult.items}
             returnTo={routePath}
+            qualityProfiles={connectionSummary?.qualityProfiles ?? []}
             autoOpenSeriesId={autoOpenSeriesId ?? null}
             autoOpenMode={autoOpenMode ?? "season"}
           />
@@ -90,6 +91,7 @@ export async function LibraryBrowserWorkspace({
             serviceType="radarr"
             items={libraryResult.items}
             returnTo={routePath}
+            qualityProfiles={connectionSummary?.qualityProfiles ?? []}
           />
         )}
       </Panel>

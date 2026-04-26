@@ -11,10 +11,16 @@ import {
   type SonarrLibrarySeries,
 } from "@/modules/service-connections/types/library-manager";
 
+type QualityProfileOption = {
+  id: number;
+  name: string;
+};
+
 type SonarrLibraryBrowserGridProps = {
   serviceType: "sonarr";
   items: SonarrLibrarySeries[];
   returnTo: string;
+  qualityProfiles: ReadonlyArray<QualityProfileOption>;
   autoOpenSeriesId?: number | null;
   autoOpenMode?: "season" | "episode";
 };
@@ -23,6 +29,7 @@ type RadarrLibraryBrowserGridProps = {
   serviceType: "radarr";
   items: RadarrLibraryMovie[];
   returnTo: string;
+  qualityProfiles: ReadonlyArray<QualityProfileOption>;
 };
 
 type LibraryBrowserGridProps =
@@ -46,7 +53,7 @@ function matchesFilter(
 }
 
 export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
-  const { serviceType, items, returnTo } = props;
+  const { serviceType, items, returnTo, qualityProfiles } = props;
   const [filter, setFilter] = useState("");
   const deferredFilter = useDeferredValue(filter);
   const needle = normalizeFilterToken(deferredFilter);
@@ -181,6 +188,9 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
           }
           seasons={selectedSeries.seasons}
           seriesMonitored={selectedSeries.monitored}
+          qualityProfiles={qualityProfiles}
+          qualityProfileId={selectedSeries.qualityProfileId}
+          qualityProfileName={selectedSeries.qualityProfileName}
           returnTo={returnTo}
           initialMode={modalInitialMode}
         />
@@ -197,6 +207,7 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
             <RadarrMovieModal
               open
               movie={movie}
+              qualityProfiles={qualityProfiles}
               returnTo={returnTo}
               onClose={() => setSelectedRadarrMovieId(null)}
             />
