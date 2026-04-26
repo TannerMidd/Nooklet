@@ -41,11 +41,18 @@ function createPendingItem(overrides: Partial<{ providerMetadataJson: string | n
     mediaType: "tv" as const,
     title: "Severance",
     year: 2022,
+    rationale: "Workplace mystery.",
+    confidenceLabel: "high",
     existingInLibrary: false,
     providerMetadataJson: JSON.stringify({
       pendingEpisodeSelection: true,
       sonarrSeriesId: 42,
     }),
+    runStatus: "succeeded" as const,
+    requestPrompt: "Prestige sci-fi",
+    runCreatedAt: new Date(),
+    feedback: null,
+    isHidden: null,
     ...overrides,
   };
 }

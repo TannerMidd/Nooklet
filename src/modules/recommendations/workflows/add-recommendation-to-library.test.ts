@@ -90,8 +90,15 @@ describe("addRecommendationToLibrary", () => {
       mediaType: "movie",
       title: "Arrival",
       year: 2016,
+      rationale: "Thoughtful sci-fi.",
+      confidenceLabel: "high",
       existingInLibrary: false,
       providerMetadataJson: null,
+      runStatus: "succeeded",
+      requestPrompt: "Cerebral sci-fi",
+      runCreatedAt: new Date(),
+      feedback: null,
+      isHidden: null,
     });
     mockedFindServiceConnectionByType.mockResolvedValue(createVerifiedConnectionRecord("radarr"));
     mockedAddLibraryItem.mockResolvedValue({

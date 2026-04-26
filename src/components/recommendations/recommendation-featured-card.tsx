@@ -1,4 +1,5 @@
 import { type CSSProperties } from "react";
+import Link from "next/link";
 
 import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
 import { RecommendationFeedbackActions } from "@/components/recommendations/recommendation-feedback-actions";
@@ -51,12 +52,17 @@ export function RecommendationFeaturedCard({
   savedQualityProfileId,
   animationDelayMs = 0,
 }: RecommendationFeaturedCardProps) {
+  const overviewHref = `/recommendations/${itemId}?returnTo=${encodeURIComponent(routePath)}`;
+
   return (
     <article
       className="recommendation-featured-card flex h-full flex-col rounded-[30px] border border-line/70 bg-[linear-gradient(180deg,rgba(33,39,49,0.96),rgba(24,29,37,0.98))] p-5 shadow-soft"
       style={{ animationDelay: `${animationDelayMs}ms` }}
     >
-      <div className="space-y-5">
+      <Link
+        href={overviewHref}
+        className="block space-y-5 rounded-[24px] outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent/50"
+      >
         <div className="grid gap-4 sm:grid-cols-[6.25rem_minmax(0,1fr)] sm:items-start">
           <div className="mx-auto sm:mx-0">
             <RecommendationPoster title={title} posterUrl={providerMetadata?.posterUrl} />
@@ -86,7 +92,7 @@ export function RecommendationFeaturedCard({
         <p className="min-h-[7.5rem] text-sm leading-7 text-muted" style={rationaleClampStyle}>
           {rationale}
         </p>
-      </div>
+      </Link>
 
       <div className="mt-auto pt-5">
         <div className="flex flex-col gap-3 border-t border-line/70 pt-4">

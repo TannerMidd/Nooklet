@@ -292,11 +292,32 @@ export async function findRecommendationItemForUser(userId: string, itemId: stri
         mediaType: recommendationItems.mediaType,
         title: recommendationItems.title,
         year: recommendationItems.year,
+        rationale: recommendationItems.rationale,
+        confidenceLabel: recommendationItems.confidenceLabel,
         existingInLibrary: recommendationItems.existingInLibrary,
         providerMetadataJson: recommendationItems.providerMetadataJson,
+        runStatus: recommendationRuns.status,
+        requestPrompt: recommendationRuns.requestPrompt,
+        runCreatedAt: recommendationRuns.createdAt,
+        feedback: recommendationFeedback.feedback,
+        isHidden: recommendationItemStates.isHidden,
       })
       .from(recommendationItems)
       .innerJoin(recommendationRuns, eq(recommendationRuns.id, recommendationItems.runId))
+      .leftJoin(
+        recommendationFeedback,
+        and(
+          eq(recommendationFeedback.itemId, recommendationItems.id),
+          eq(recommendationFeedback.userId, userId),
+        ),
+      )
+      .leftJoin(
+        recommendationItemStates,
+        and(
+          eq(recommendationItemStates.itemId, recommendationItems.id),
+          eq(recommendationItemStates.userId, userId),
+        ),
+      )
       .where(and(eq(recommendationItems.id, itemId), eq(recommendationRuns.userId, userId)))
       .get() ?? null
   );

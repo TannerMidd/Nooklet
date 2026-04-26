@@ -174,7 +174,10 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 key={item.itemId}
                 className="rounded-[24px] border border-line/70 bg-panel-strong/70 p-5"
               >
-                <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start">
+                <Link
+                  href={`/recommendations/${item.itemId}?returnTo=${encodeURIComponent(returnTo)}`}
+                  className="flex min-w-0 flex-col gap-4 rounded-[20px] outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent/50 sm:flex-row sm:items-start"
+                >
                   <RecommendationPoster
                     title={item.title}
                     posterUrl={item.providerMetadata?.posterUrl}
@@ -209,29 +212,29 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                       {item.isHidden ? <span>hidden</span> : null}
                       {item.existingInLibrary ? <span>existing in library</span> : null}
                     </div>
-
-                    <RecommendationHistoryItemActions
-                      itemId={item.itemId}
-                      mediaType={item.mediaType}
-                      feedback={item.feedback}
-                      existingInLibrary={item.existingInLibrary}
-                      isHidden={item.isHidden}
-                      returnTo={returnTo}
-                      libraryConnection={item.mediaType === "tv" ? sonarrSummary : radarrSummary}
-                      providerMetadata={item.providerMetadata}
-                      savedRootFolderPath={
-                        item.mediaType === "tv"
-                          ? sonarrDefaults.rootFolderPath
-                          : radarrDefaults.rootFolderPath
-                      }
-                      savedQualityProfileId={
-                        item.mediaType === "tv"
-                          ? sonarrDefaults.qualityProfileId
-                          : radarrDefaults.qualityProfileId
-                      }
-                    />
                   </div>
-                </div>
+                </Link>
+
+                <RecommendationHistoryItemActions
+                  itemId={item.itemId}
+                  mediaType={item.mediaType}
+                  feedback={item.feedback}
+                  existingInLibrary={item.existingInLibrary}
+                  isHidden={item.isHidden}
+                  returnTo={returnTo}
+                  libraryConnection={item.mediaType === "tv" ? sonarrSummary : radarrSummary}
+                  providerMetadata={item.providerMetadata}
+                  savedRootFolderPath={
+                    item.mediaType === "tv"
+                      ? sonarrDefaults.rootFolderPath
+                      : radarrDefaults.rootFolderPath
+                  }
+                  savedQualityProfileId={
+                    item.mediaType === "tv"
+                      ? sonarrDefaults.qualityProfileId
+                      : radarrDefaults.qualityProfileId
+                  }
+                />
               </article>
             ))}
           </div>
