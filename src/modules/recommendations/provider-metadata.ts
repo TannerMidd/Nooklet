@@ -10,6 +10,9 @@ export type RecommendationProviderMetadata = {
   posterUrl?: string;
   posterLookupService?: "sonarr" | "radarr";
   availableSeasons?: RecommendationProviderSeason[];
+  sonarrSeriesId?: number;
+  pendingEpisodeSelection?: boolean;
+  pendingEpisodeReturnTo?: string;
 };
 
 function buildSeasonLabel(seasonNumber: number, label: unknown) {
@@ -76,6 +79,18 @@ export function parseRecommendationProviderMetadata(
         ? metadata.posterLookupService
         : undefined;
     const availableSeasons = parseRecommendationProviderSeasons(metadata.availableSeasons);
+    const sonarrSeriesId =
+      typeof metadata.sonarrSeriesId === "number" &&
+      Number.isInteger(metadata.sonarrSeriesId) &&
+      metadata.sonarrSeriesId > 0
+        ? metadata.sonarrSeriesId
+        : undefined;
+    const pendingEpisodeSelection = metadata.pendingEpisodeSelection === true ? true : undefined;
+    const pendingEpisodeReturnTo =
+      typeof metadata.pendingEpisodeReturnTo === "string" &&
+      metadata.pendingEpisodeReturnTo.trim().length > 0
+        ? metadata.pendingEpisodeReturnTo
+        : undefined;
 
     return {
       source: typeof metadata.source === "string" ? metadata.source : undefined,
@@ -90,6 +105,9 @@ export function parseRecommendationProviderMetadata(
           : undefined,
       posterLookupService,
       availableSeasons,
+      sonarrSeriesId,
+      pendingEpisodeSelection,
+      pendingEpisodeReturnTo,
     } satisfies RecommendationProviderMetadata;
   } catch {
     return null;

@@ -4,11 +4,12 @@ import { type AddRecommendationToLibraryInput } from "@/modules/recommendations/
 import {
   findRecommendationItemForUser,
   markRecommendationItemExistingInLibrary,
+  updateRecommendationItemProviderMetadata,
 } from "@/modules/recommendations/repositories/recommendation-repository";
 import { requestLibraryItem } from "@/modules/service-connections/workflows/request-library-item";
 
 type AddRecommendationToLibraryResult =
-  | { ok: true; message: string }
+  | { ok: true; message: string; pendingEpisodeSelection?: boolean; redirectTo?: string }
   | {
       ok: false;
       message: string;
@@ -65,6 +66,32 @@ export async function addRecommendationToLibrary(
 
   if (!result.ok) {
     return result;
+  }
+
+  const isEpisodeFlow =
+    serviceType === "sonarr" &&
+    input.seasonSelectionMode === "episode" &&
+    typeof result.sonarrSeriesId === "number";
+
+  if (isEpisodeFlow) {
+    const nextMetadata = {
+      ...(itemProviderMetadata ?? {}),
+      sonarrSeriesId: result.sonarrSeriesId,
+      pendingEpisodeSelection: true,
+      pendingEpisodeReturnTo: input.returnTo,
+    };
+
+    await updateRecommendationItemProviderMetadata(
+      item.itemId,
+      JSON.stringify(nextMetadata),
+    );
+
+    return {
+      ok: true,
+      message: `${item.title} was added to ${definition.displayName}. Choose episodes to monitor next.`,
+      pendingEpisodeSelection: true,
+      redirectTo: `/sonarr/episodes/${item.itemId}`,
+    };
   }
 
   await markRecommendationItemExistingInLibrary(item.itemId, true);

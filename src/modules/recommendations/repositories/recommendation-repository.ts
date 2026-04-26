@@ -317,6 +317,21 @@ export async function markRecommendationItemExistingInLibrary(
     .run();
 }
 
+export async function updateRecommendationItemProviderMetadata(
+  itemId: string,
+  providerMetadataJson: string | null,
+) {
+  const database = ensureDatabaseReady();
+
+  database
+    .update(recommendationItems)
+    .set({
+      providerMetadataJson,
+    })
+    .where(eq(recommendationItems.id, itemId))
+    .run();
+}
+
 export async function upsertRecommendationFeedback(
   userId: string,
   itemId: string,

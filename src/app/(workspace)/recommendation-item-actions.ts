@@ -121,6 +121,10 @@ export async function submitRecommendationLibraryAction(
   revalidatePath("/history");
   revalidatePath(safeRevalidatePath(parsedInput.data.returnTo));
 
+  if (result.ok && "redirectTo" in result && result.redirectTo) {
+    redirect(safeReturnTo(result.redirectTo));
+  }
+
   return {
     status: result.ok ? "success" : "error",
     message: result.message,
