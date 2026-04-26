@@ -234,6 +234,8 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 <RecommendationHistoryItemActions
                   itemId={item.itemId}
                   mediaType={item.mediaType}
+                  title={item.title}
+                  year={item.year}
                   feedback={item.feedback}
                   existingInLibrary={item.existingInLibrary}
                   isHidden={item.isHidden}

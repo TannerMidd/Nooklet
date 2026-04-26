@@ -177,6 +177,8 @@ export default async function RecommendationOverviewPage({
             <RecommendationHistoryItemActions
               itemId={item.itemId}
               mediaType={item.mediaType}
+              title={item.title}
+              year={titleYear}
               feedback={item.feedback}
               existingInLibrary={item.existingInLibrary}
               isHidden={item.isHidden}

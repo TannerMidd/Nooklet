@@ -4,6 +4,7 @@ import Link from "next/link";
 import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
 import { RecommendationFeedbackActions } from "@/components/recommendations/recommendation-feedback-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
+import { RecommendationSabnzbdStatus } from "@/components/recommendations/recommendation-sabnzbd-status";
 import { type RecommendationMediaType, type RecommendationFeedbackValue } from "@/lib/database/schema";
 import { type RecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
@@ -96,6 +97,14 @@ export function RecommendationFeaturedCard({
           {rationale}
         </p>
       </Link>
+
+      <RecommendationSabnzbdStatus
+        title={title}
+        year={year}
+        mediaType={mediaType}
+        providerMetadata={providerMetadata}
+        className="mt-4"
+      />
 
       <div className="mt-auto pt-5">
         <div className="flex flex-col gap-3 border-t border-line/70 pt-4">

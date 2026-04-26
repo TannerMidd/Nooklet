@@ -3,6 +3,7 @@ import {
 } from "@/app/(workspace)/recommendation-item-actions";
 import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
 import { RecommendationFeedbackActions } from "@/components/recommendations/recommendation-feedback-actions";
+import { RecommendationSabnzbdStatus } from "@/components/recommendations/recommendation-sabnzbd-status";
 import { Button } from "@/components/ui/button";
 import {
   type RecommendationFeedbackValue,
@@ -14,6 +15,8 @@ import { type ServiceConnectionSummary } from "@/modules/service-connections/wor
 type RecommendationHistoryItemActionsProps = {
   itemId: string;
   mediaType: RecommendationMediaType;
+  title: string;
+  year?: number | null;
   feedback?: RecommendationFeedbackValue | null;
   existingInLibrary?: boolean;
   isHidden?: boolean | null;
@@ -27,6 +30,8 @@ type RecommendationHistoryItemActionsProps = {
 export function RecommendationHistoryItemActions({
   itemId,
   mediaType,
+  title,
+  year,
   feedback,
   existingInLibrary,
   isHidden,
@@ -38,6 +43,15 @@ export function RecommendationHistoryItemActions({
 }: RecommendationHistoryItemActionsProps) {
   return (
     <div className="mt-4">
+      <RecommendationSabnzbdStatus
+        title={title}
+        year={year}
+        mediaType={mediaType}
+        providerMetadata={providerMetadata}
+        variant="panel"
+        className="mb-4"
+      />
+
       <div className="flex flex-wrap gap-3">
         <RecommendationFeedbackActions itemId={itemId} feedback={feedback} returnTo={returnTo} />
 

@@ -9,6 +9,7 @@ import { RecommendationPoster } from "@/components/recommendations/recommendatio
 import { RecommendationRequestForm } from "@/components/recommendations/recommendation-request-form";
 import { RecommendationRetryForm } from "@/components/recommendations/recommendation-retry-form";
 import { RecommendationRunAutoRefresh } from "@/components/recommendations/recommendation-run-auto-refresh";
+import { RecommendationSabnzbdStatus } from "@/components/recommendations/recommendation-sabnzbd-status";
 import { RecommendationTitleOverviewDialog } from "@/components/recommendations/recommendation-title-overview-dialog";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -351,7 +352,7 @@ export async function RecommendationWorkspace({
                 </h2>
                 <p className="max-w-4xl text-base leading-7 text-muted">
                   {featuredRunIsPending
-                    ? "The background worker is generating this batch. This page refreshes automatically while it is pending."
+                    ? "The background worker is generating this batch. Results update automatically while it is pending."
                     : formatPromptLabel(featuredRun.requestPrompt, featuredRun.selectedGenres)}
                 </p>
                 {featuredRunGenreSummary ? (
@@ -497,6 +498,13 @@ export async function RecommendationWorkspace({
                               {item.confidenceLabel ? <span>{item.confidenceLabel}</span> : null}
                               {item.existingInLibrary ? <span>existing in library</span> : null}
                             </div>
+                            <RecommendationSabnzbdStatus
+                              title={item.title}
+                              year={item.year}
+                              mediaType={item.mediaType}
+                              providerMetadata={item.providerMetadata}
+                              className="mt-4"
+                            />
                           </div>
                         </div>
 
