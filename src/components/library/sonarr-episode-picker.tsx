@@ -4,6 +4,7 @@ import {
   useActionState,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
 } from "react";
@@ -78,20 +79,20 @@ function buildSeasonGroups(episodes: SonarrEpisode[]) {
  */
 export function useSonarrEpisodeLoader(seriesId: number) {
   const [loadState, setLoadState] = useState<EpisodeLoadState>({ status: "idle" });
+  // Mirror loadState in a ref so the imperative loader can read the latest
+  // status synchronously without relying on the queued setState updater
+  // (which only runs during the next render).
+  const loadStateRef = useRef(loadState);
+  loadStateRef.current = loadState;
 
   function loadEpisodesIfNeeded() {
-    let shouldFetch = false;
-    setLoadState((current) => {
-      if (current.status === "loading" || current.status === "loaded") {
-        return current;
-      }
-      shouldFetch = true;
-      return { status: "loading" };
-    });
-
-    if (!shouldFetch) {
+    const current = loadStateRef.current;
+    if (current.status === "loading" || current.status === "loaded") {
       return;
     }
+
+    loadStateRef.current = { status: "loading" };
+    setLoadState({ status: "loading" });
 
     // Defer the server-action invocation out of the React commit phase so the
     // implicit Router state update it triggers does not collide with our render.
@@ -117,6 +118,7 @@ export function useSonarrEpisodeLoader(seriesId: number) {
   }
 
   function reset() {
+    loadStateRef.current = { status: "idle" };
     setLoadState({ status: "idle" });
   }
 
