@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { type RecommendationLibraryActionState } from "@/app/(workspace)/recommendation-action-state";
-import { safeRevalidatePath } from "@/app/(workspace)/recommendation-action-helpers";
+import { safeRevalidatePath, safeReturnTo } from "@/app/(workspace)/recommendation-action-helpers";
 import {
   parseLibrarySearchActionFormData,
   projectLibrarySearchFieldErrors,
@@ -46,6 +46,24 @@ export async function submitLibrarySearchRequestAction(
           }
         : undefined,
     };
+  }
+
+  if (
+    parsedInput.data.serviceType === "sonarr" &&
+    parsedInput.data.seasonSelectionMode === "episode" &&
+    typeof result.sonarrSeriesId === "number"
+  ) {
+    const episodeReturnTo = safeReturnTo(parsedInput.data.returnTo);
+    const queryParams = new URLSearchParams({
+      returnTo: episodeReturnTo,
+      title: parsedInput.data.title,
+    });
+
+    if (parsedInput.data.year !== null && parsedInput.data.year !== undefined) {
+      queryParams.set("year", String(parsedInput.data.year));
+    }
+
+    redirect(`/sonarr/episodes/series/${result.sonarrSeriesId}?${queryParams.toString()}`);
   }
 
   return {

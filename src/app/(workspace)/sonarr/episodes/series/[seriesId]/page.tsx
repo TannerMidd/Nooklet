@@ -2,50 +2,49 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
+import { submitSonarrEpisodeSelectionBySeriesAction } from "@/app/(workspace)/sonarr-episode-selection-actions";
 import { RecommendationEpisodePicker } from "@/components/recommendations/recommendation-episode-picker";
-import { submitRecommendationEpisodeSelectionAction } from "@/app/(workspace)/recommendation-episode-actions";
 import { Panel } from "@/components/ui/panel";
 import { decryptSecret } from "@/lib/security/secret-box";
-import { parseRecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
-import { findRecommendationItemForUser } from "@/modules/recommendations/repositories/recommendation-repository";
 import { listSonarrEpisodes } from "@/modules/service-connections/adapters/sonarr-episodes";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 
 export const dynamic = "force-dynamic";
 
-type SonarrEpisodesPageProps = {
-  params: Promise<{ itemId: string }>;
-  searchParams?: Promise<{ returnTo?: string }>;
+type SonarrEpisodesBySeriesPageProps = {
+  params: Promise<{ seriesId: string }>;
+  searchParams?: Promise<{ returnTo?: string; title?: string; year?: string }>;
 };
 
-export default async function SonarrEpisodesPage({
+function safeReturnTo(value: string | undefined) {
+  return value && value.startsWith("/") ? value : "/sonarr";
+}
+
+export default async function SonarrEpisodesBySeriesPage({
   params,
   searchParams,
-}: SonarrEpisodesPageProps) {
+}: SonarrEpisodesBySeriesPageProps) {
   const session = await auth();
 
   if (!session?.user?.id) {
     redirect("/login");
   }
 
-  const { itemId } = await params;
+  const { seriesId: rawSeriesId } = await params;
+  const seriesId = Number.parseInt(rawSeriesId, 10);
+
+  if (!Number.isInteger(seriesId) || seriesId <= 0) {
+    redirect("/sonarr");
+  }
+
   const resolvedSearchParams = await searchParams;
-  const item = await findRecommendationItemForUser(session.user.id, itemId);
-
-  if (!item || item.mediaType !== "tv") {
-    redirect("/history");
-  }
-
-  const itemMetadata = parseRecommendationProviderMetadata(item.providerMetadataJson);
-
-  if (!itemMetadata?.pendingEpisodeSelection || !itemMetadata.sonarrSeriesId) {
-    redirect("/history");
-  }
-
-  const returnTo =
-    resolvedSearchParams?.returnTo && resolvedSearchParams.returnTo.startsWith("/")
-      ? resolvedSearchParams.returnTo
-      : itemMetadata.pendingEpisodeReturnTo ?? "/history";
+  const returnTo = safeReturnTo(resolvedSearchParams?.returnTo);
+  const titleFromQuery = resolvedSearchParams?.title?.trim() ?? "";
+  const yearFromQuery = resolvedSearchParams?.year?.trim() ?? "";
+  const titleSuffix = yearFromQuery ? ` (${yearFromQuery})` : "";
+  const headerTitle = titleFromQuery
+    ? `Choose episodes for ${titleFromQuery}${titleSuffix}`
+    : "Choose episodes for the new series";
 
   const connection = await findServiceConnectionByType(session.user.id, "sonarr");
 
@@ -54,7 +53,7 @@ export default async function SonarrEpisodesPage({
       <div className="space-y-5">
         <Panel
           eyebrow="Sonarr"
-          title={`Choose episodes for ${item.title}`}
+          title={headerTitle}
           description="Sonarr verification is required before episodes can be loaded."
         >
           <p className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
@@ -76,14 +75,14 @@ export default async function SonarrEpisodesPage({
   const episodesResult = await listSonarrEpisodes({
     baseUrl: connection.connection.baseUrl ?? "",
     apiKey: decryptSecret(connection.secret.encryptedValue),
-    seriesId: itemMetadata.sonarrSeriesId,
+    seriesId,
   });
 
   return (
     <div className="space-y-5">
       <Panel
         eyebrow="Sonarr"
-        title={`Choose episodes for ${item.title}${item.year ? ` (${item.year})` : ""}`}
+        title={headerTitle}
         description="The series was added to Sonarr without monitoring. Pick the episodes you want monitored and Sonarr will queue searches for them."
       >
         <div className="flex flex-wrap gap-3 text-sm">
@@ -97,9 +96,9 @@ export default async function SonarrEpisodesPage({
         episodesResult.episodes.length > 0 ? (
           <RecommendationEpisodePicker
             episodes={episodesResult.episodes}
-            action={submitRecommendationEpisodeSelectionAction}
+            action={submitSonarrEpisodeSelectionBySeriesAction}
             hiddenFields={[
-              { name: "itemId", value: item.itemId },
+              { name: "seriesId", value: seriesId },
               { name: "returnTo", value: returnTo },
             ]}
           />

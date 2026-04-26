@@ -2,7 +2,6 @@
 
 import { useActionState, useMemo, useState } from "react";
 
-import { submitRecommendationEpisodeSelectionAction } from "@/app/(workspace)/recommendation-episode-actions";
 import {
   initialRecommendationEpisodeSelectionActionState,
   type RecommendationEpisodeSelectionActionState,
@@ -10,10 +9,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { type SonarrEpisode } from "@/modules/service-connections/adapters/sonarr-episodes";
 
+type RecommendationEpisodePickerHiddenField = {
+  name: string;
+  value: string | number;
+};
+
 type RecommendationEpisodePickerProps = {
-  itemId: string;
-  returnTo: string;
   episodes: SonarrEpisode[];
+  hiddenFields: readonly RecommendationEpisodePickerHiddenField[];
+  action: (
+    state: RecommendationEpisodeSelectionActionState,
+    formData: FormData,
+  ) => Promise<RecommendationEpisodeSelectionActionState>;
 };
 
 function buildSeasonGroups(episodes: SonarrEpisode[]) {
@@ -57,14 +64,14 @@ function formatAirDate(airDate: string | null) {
 }
 
 export function RecommendationEpisodePicker({
-  itemId,
-  returnTo,
   episodes,
+  hiddenFields,
+  action,
 }: RecommendationEpisodePickerProps) {
   const [state, formAction] = useActionState<
     RecommendationEpisodeSelectionActionState,
     FormData
-  >(submitRecommendationEpisodeSelectionAction, initialRecommendationEpisodeSelectionActionState);
+  >(action, initialRecommendationEpisodeSelectionActionState);
 
   const seasonGroups = useMemo(() => buildSeasonGroups(episodes), [episodes]);
   const initialSelection = useMemo(
@@ -106,8 +113,14 @@ export function RecommendationEpisodePicker({
 
   return (
     <form action={formAction} className="space-y-6">
-      <input type="hidden" name="itemId" value={itemId} />
-      <input type="hidden" name="returnTo" value={returnTo} />
+      {hiddenFields.map((field, index) => (
+        <input
+          key={`${field.name}-${String(field.value)}-${index}`}
+          type="hidden"
+          name={field.name}
+          value={String(field.value)}
+        />
+      ))}
       {Array.from(selectedIds).map((episodeId) => (
         <input key={episodeId} type="hidden" name="episodeIds" value={episodeId} />
       ))}
