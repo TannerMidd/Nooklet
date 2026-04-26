@@ -28,6 +28,10 @@ export type SearchSonarrEpisodesResult =
   | { ok: true }
   | { ok: false; message: string };
 
+export type EnsureSonarrSeasonsMonitoredResult =
+  | { ok: true }
+  | { ok: false; message: string };
+
 function trimTrailingSlash(baseUrl: string) {
   return baseUrl.replace(/\/+$/, "");
 }
@@ -241,6 +245,80 @@ export async function searchSonarrEpisodes(
         error instanceof Error
           ? error.message
           : "Sonarr episode search command failed unexpectedly.",
+    };
+  }
+}
+
+export async function ensureSonarrSeasonsMonitored(
+  input: SonarrEpisodeRequest & { seriesId: number; seasonNumbers: number[] },
+): Promise<EnsureSonarrSeasonsMonitoredResult> {
+  if (input.seasonNumbers.length === 0) {
+    return { ok: true };
+  }
+
+  try {
+    const seriesUrl = `${trimTrailingSlash(input.baseUrl)}/api/v3/series/${input.seriesId}`;
+
+    const fetchResponse = await fetchWithTimeout(seriesUrl, {
+      headers: { "X-Api-Key": input.apiKey },
+      cache: "no-store",
+    });
+
+    if (!fetchResponse.ok) {
+      return {
+        ok: false,
+        message: await extractErrorMessage(fetchResponse),
+      };
+    }
+
+    const series = (await fetchResponse.json()) as Record<string, unknown>;
+    const seasonNumberSet = new Set(input.seasonNumbers);
+    const existingSeasons = Array.isArray(series.seasons) ? series.seasons : [];
+
+    const updatedSeries = {
+      ...series,
+      monitored: true,
+      seasons: existingSeasons.map((season) => {
+        if (typeof season !== "object" || season === null) {
+          return season;
+        }
+
+        const record = season as Record<string, unknown>;
+        const seasonNumber = record.seasonNumber;
+
+        if (typeof seasonNumber === "number" && seasonNumberSet.has(seasonNumber)) {
+          return { ...record, monitored: true };
+        }
+
+        return record;
+      }),
+    };
+
+    const updateResponse = await fetchWithTimeout(seriesUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Api-Key": input.apiKey,
+      },
+      cache: "no-store",
+      body: JSON.stringify(updatedSeries),
+    });
+
+    if (!updateResponse.ok) {
+      return {
+        ok: false,
+        message: await extractErrorMessage(updateResponse),
+      };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Sonarr series update failed unexpectedly.",
     };
   }
 }

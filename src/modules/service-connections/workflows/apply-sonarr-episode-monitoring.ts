@@ -1,4 +1,5 @@
 import {
+  ensureSonarrSeasonsMonitored,
   listSonarrEpisodes,
   searchSonarrEpisodes,
   setSonarrEpisodesMonitored,
@@ -8,6 +9,7 @@ export type ApplySonarrEpisodeMonitoringDependencies = {
   listEpisodes?: typeof listSonarrEpisodes;
   setMonitored?: typeof setSonarrEpisodesMonitored;
   searchEpisodes?: typeof searchSonarrEpisodes;
+  ensureSeasonsMonitored?: typeof ensureSonarrSeasonsMonitored;
 };
 
 export type ApplySonarrEpisodeMonitoringInput = {
@@ -27,7 +29,7 @@ export type ApplySonarrEpisodeMonitoringResult =
     }
   | {
       ok: false;
-      stage: "list" | "monitor" | "unmonitor";
+      stage: "list" | "monitor" | "unmonitor" | "ensure-seasons";
       message: string;
       field?: "episodeIds";
     };
@@ -39,6 +41,8 @@ export async function applySonarrEpisodeMonitoring(
   const listEpisodes = dependencies.listEpisodes ?? listSonarrEpisodes;
   const setMonitored = dependencies.setMonitored ?? setSonarrEpisodesMonitored;
   const searchEpisodes = dependencies.searchEpisodes ?? searchSonarrEpisodes;
+  const ensureSeasonsMonitored =
+    dependencies.ensureSeasonsMonitored ?? ensureSonarrSeasonsMonitored;
 
   const listResult = await listEpisodes({
     baseUrl: input.baseUrl,
@@ -65,6 +69,27 @@ export async function applySonarrEpisodeMonitoring(
   const monitoredIdsToDisable = listResult.episodes
     .filter((episode) => episode.monitored && !requestedIds.includes(episode.id))
     .map((episode) => episode.id);
+
+  const requestedSeasonNumbers = Array.from(
+    new Set(
+      listResult.episodes
+        .filter((episode) => requestedIds.includes(episode.id))
+        .map((episode) => episode.seasonNumber),
+    ),
+  );
+
+  if (requestedSeasonNumbers.length > 0) {
+    const ensureResult = await ensureSeasonsMonitored({
+      baseUrl: input.baseUrl,
+      apiKey: input.apiKey,
+      seriesId: input.seriesId,
+      seasonNumbers: requestedSeasonNumbers,
+    });
+
+    if (!ensureResult.ok) {
+      return { ok: false, stage: "ensure-seasons", message: ensureResult.message };
+    }
+  }
 
   if (monitoredIdsToDisable.length > 0) {
     const disableResult = await setMonitored({

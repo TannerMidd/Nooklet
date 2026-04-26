@@ -143,6 +143,7 @@ describe("finalizeRecommendationEpisodeSelection", () => {
 
     const setMonitored = vi.fn().mockResolvedValue({ ok: true });
     const searchEpisodes = vi.fn().mockResolvedValue({ ok: true });
+    const ensureSeasonsMonitored = vi.fn().mockResolvedValue({ ok: true });
 
     const result = await finalizeRecommendationEpisodeSelection(
       "user-1",
@@ -185,10 +186,14 @@ describe("finalizeRecommendationEpisodeSelection", () => {
         }),
         setMonitored,
         searchEpisodes,
+        ensureSeasonsMonitored,
       },
     );
 
     expect(result.ok).toBe(true);
+    expect(ensureSeasonsMonitored).toHaveBeenCalledWith(
+      expect.objectContaining({ seasonNumbers: [1] }),
+    );
     expect(setMonitored).toHaveBeenCalledWith(
       expect.objectContaining({ episodeIds: [103], monitored: false }),
     );
@@ -232,6 +237,7 @@ describe("finalizeRecommendationEpisodeSelection", () => {
         }),
         setMonitored: vi.fn().mockResolvedValue({ ok: true }),
         searchEpisodes: vi.fn().mockResolvedValue({ ok: false, message: "Sonarr is busy." }),
+        ensureSeasonsMonitored: vi.fn().mockResolvedValue({ ok: true }),
       },
     );
 

@@ -148,7 +148,7 @@ async function emitFailureAudit(
   userId: string,
   itemId: string,
   input: FinalizeRecommendationEpisodeSelectionInput,
-  failure: { stage: "list" | "monitor" | "unmonitor"; message: string },
+  failure: { stage: "list" | "monitor" | "unmonitor" | "ensure-seasons"; message: string },
 ) {
   await createAuditEvent({
     actorUserId: userId,
