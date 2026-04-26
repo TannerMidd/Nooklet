@@ -5,11 +5,14 @@ import {
   type StoredJob,
 } from "@/modules/jobs/repositories/job-repository";
 import { parsePlexWatchHistorySourceMetadata } from "@/modules/watch-history/plex-watch-history-source-metadata";
+import { executeQueuedRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
 import { parseWatchHistorySourceMetadataJson } from "@/modules/watch-history/source-metadata";
 import { findWatchHistorySourceByType } from "@/modules/watch-history/repositories/watch-history-repository";
 import { syncPlexWatchHistory } from "@/modules/watch-history/workflows/sync-plex-watch-history";
 import { parseTautulliWatchHistorySourceMetadata } from "@/modules/watch-history/tautulli-watch-history-source-metadata";
 import { syncTautulliWatchHistory } from "@/modules/watch-history/workflows/sync-tautulli-watch-history";
+import { parseTraktWatchHistorySourceMetadata } from "@/modules/watch-history/trakt-watch-history-source-metadata";
+import { syncTraktWatchHistory } from "@/modules/watch-history/workflows/sync-trakt-watch-history";
 
 type WorkerState = {
   started?: boolean;
@@ -88,7 +91,52 @@ async function runTautulliJob(job: StoredJob) {
   }
 }
 
+async function runTraktJob(job: StoredJob) {
+  const source = await findWatchHistorySourceByType(job.userId, "trakt");
+  const metadata = parseTraktWatchHistorySourceMetadata(
+    parseWatchHistorySourceMetadataJson(source?.metadataJson),
+  );
+
+  if (!source || !metadata) {
+    throw new Error("Trakt auto-sync requires an existing synced source with a saved import limit.");
+  }
+
+  const tvResult = await syncTraktWatchHistory(job.userId, {
+    mediaType: "tv",
+    importLimit: metadata.importLimit,
+  });
+
+  if (!tvResult.ok) {
+    throw new Error(tvResult.message);
+  }
+
+  const movieResult = await syncTraktWatchHistory(job.userId, {
+    mediaType: "movie",
+    importLimit: metadata.importLimit,
+  });
+
+  if (!movieResult.ok) {
+    throw new Error(movieResult.message);
+  }
+}
+
+async function runRecommendationJob(job: StoredJob) {
+  if (job.targetType !== "recommendation-run") {
+    throw new Error(`Unsupported recommendation job target type: ${job.targetType}.`);
+  }
+
+  const result = await executeQueuedRecommendationRunWorkflow(job.userId, job.targetKey);
+
+  if (!result.ok) {
+    throw new Error(result.message);
+  }
+}
+
 async function executeJob(job: StoredJob) {
+  if (job.jobType === "recommendation-run") {
+    return runRecommendationJob(job);
+  }
+
   if (job.targetType !== "watch-history-source") {
     throw new Error(`Unsupported job target type: ${job.targetType}.`);
   }
@@ -98,6 +146,8 @@ async function executeJob(job: StoredJob) {
       return runPlexJob(job);
     case "tautulli":
       return runTautulliJob(job);
+    case "trakt":
+      return runTraktJob(job);
     default:
       throw new Error(`Unsupported watch-history source: ${job.targetKey}.`);
   }
@@ -111,7 +161,10 @@ async function runDueJobs() {
   sharedWorkerState.running = true;
 
   try {
-    const dueJobs = await claimDueJobs("watch-history-sync", new Date(), 4);
+    const dueJobs = [
+      ...(await claimDueJobs("watch-history-sync", new Date(), 4)),
+      ...(await claimDueJobs("recommendation-run", new Date(), 2)),
+    ];
 
     for (const job of dueJobs) {
       try {
