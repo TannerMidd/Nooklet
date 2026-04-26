@@ -7,11 +7,9 @@ import {
 } from "@/modules/recommendations/repositories/recommendation-repository";
 import { type FinalizeRecommendationEpisodeSelectionInput } from "@/modules/recommendations/schemas/finalize-episode-selection";
 import {
-  listSonarrEpisodes,
-  searchSonarrEpisodes,
-  setSonarrEpisodesMonitored,
-  type SonarrEpisode,
-} from "@/modules/service-connections/adapters/sonarr-episodes";
+  applySonarrEpisodeMonitoring,
+  type ApplySonarrEpisodeMonitoringDependencies,
+} from "@/modules/service-connections/workflows/apply-sonarr-episode-monitoring";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import { getServiceConnectionDefinition } from "@/modules/service-connections/service-definitions";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
@@ -30,21 +28,13 @@ export type FinalizeRecommendationEpisodeSelectionResult =
       field?: "episodeIds";
     };
 
-type Dependencies = {
-  listEpisodes?: typeof listSonarrEpisodes;
-  setMonitored?: typeof setSonarrEpisodesMonitored;
-  searchEpisodes?: typeof searchSonarrEpisodes;
-};
+type Dependencies = ApplySonarrEpisodeMonitoringDependencies;
 
 export async function finalizeRecommendationEpisodeSelection(
   userId: string,
   input: FinalizeRecommendationEpisodeSelectionInput,
   dependencies: Dependencies = {},
 ): Promise<FinalizeRecommendationEpisodeSelectionResult> {
-  const listEpisodes = dependencies.listEpisodes ?? listSonarrEpisodes;
-  const setMonitored = dependencies.setMonitored ?? setSonarrEpisodesMonitored;
-  const searchEpisodes = dependencies.searchEpisodes ?? searchSonarrEpisodes;
-
   const definition = getServiceConnectionDefinition("sonarr");
   const item = await findRecommendationItemForUser(userId, input.itemId);
 
@@ -81,81 +71,44 @@ export async function finalizeRecommendationEpisodeSelection(
   const baseUrl = connection.connection.baseUrl ?? "";
   const apiKey = decryptSecret(connection.secret.encryptedValue);
 
-  const listResult = await listEpisodes({
-    baseUrl,
-    apiKey,
-    seriesId: itemMetadata.sonarrSeriesId,
-  });
-
-  if (!listResult.ok) {
-    await emitFailureAudit(userId, item.itemId, input, {
-      stage: "list",
-      message: listResult.message,
-    });
-    return {
-      ok: false,
-      message: `Failed to load episodes from ${definition.displayName}: ${listResult.message}`,
-    };
-  }
-
-  const availableIds = new Set(listResult.episodes.map((episode: SonarrEpisode) => episode.id));
-  const requestedIds = Array.from(new Set(input.episodeIds));
-
-  if (requestedIds.some((episodeId) => !availableIds.has(episodeId))) {
-    return {
-      ok: false,
-      message: "Select only episodes returned by Sonarr for this series.",
-      field: "episodeIds",
-    };
-  }
-
-  const monitoredIdsToDisable = listResult.episodes
-    .filter((episode) => episode.monitored && !requestedIds.includes(episode.id))
-    .map((episode) => episode.id);
-
-  if (monitoredIdsToDisable.length > 0) {
-    const disableResult = await setMonitored({
+  const applyResult = await applySonarrEpisodeMonitoring(
+    {
       baseUrl,
       apiKey,
-      episodeIds: monitoredIdsToDisable,
-      monitored: false,
+      seriesId: itemMetadata.sonarrSeriesId,
+      requestedEpisodeIds: input.episodeIds,
+    },
+    dependencies,
+  );
+
+  if (!applyResult.ok) {
+    await emitFailureAudit(userId, item.itemId, input, {
+      stage: applyResult.stage,
+      message: applyResult.message,
     });
 
-    if (!disableResult.ok) {
-      await emitFailureAudit(userId, item.itemId, input, {
-        stage: "unmonitor",
-        message: disableResult.message,
-      });
+    if (applyResult.stage === "list") {
       return {
         ok: false,
-        message: `Failed to update ${definition.displayName} monitoring: ${disableResult.message}`,
+        message: `Failed to load episodes from ${definition.displayName}: ${applyResult.message}`,
       };
     }
-  }
 
-  const enableResult = await setMonitored({
-    baseUrl,
-    apiKey,
-    episodeIds: requestedIds,
-    monitored: true,
-  });
+    if (applyResult.field) {
+      return {
+        ok: false,
+        message: applyResult.message,
+        field: applyResult.field,
+      };
+    }
 
-  if (!enableResult.ok) {
-    await emitFailureAudit(userId, item.itemId, input, {
-      stage: "monitor",
-      message: enableResult.message,
-    });
     return {
       ok: false,
-      message: `Failed to update ${definition.displayName} monitoring: ${enableResult.message}`,
+      message: `Failed to update ${definition.displayName} monitoring: ${applyResult.message}`,
     };
   }
 
-  const searchResult = await searchEpisodes({
-    baseUrl,
-    apiKey,
-    episodeIds: requestedIds,
-  });
+  const requestedIds = Array.from(new Set(input.episodeIds));
 
   const nextMetadata: Record<string, unknown> = { ...itemMetadata };
   delete nextMetadata.pendingEpisodeSelection;
@@ -176,9 +129,9 @@ export async function finalizeRecommendationEpisodeSelection(
     payloadJson: JSON.stringify({
       sonarrSeriesId: itemMetadata.sonarrSeriesId,
       monitoredEpisodeCount: requestedIds.length,
-      unmonitoredEpisodeCount: monitoredIdsToDisable.length,
-      searchTriggered: searchResult.ok,
-      searchWarning: searchResult.ok ? undefined : searchResult.message,
+      unmonitoredEpisodeCount: applyResult.unmonitoredEpisodeCount,
+      searchTriggered: applyResult.searchTriggered,
+      searchWarning: applyResult.searchWarning,
     }),
   });
 
@@ -186,8 +139,8 @@ export async function finalizeRecommendationEpisodeSelection(
     ok: true,
     message: `Updated ${definition.displayName}: monitoring ${requestedIds.length} ${requestedIds.length === 1 ? "episode" : "episodes"}.`,
     monitoredEpisodeCount: requestedIds.length,
-    searchTriggered: searchResult.ok,
-    searchWarning: searchResult.ok ? undefined : searchResult.message,
+    searchTriggered: applyResult.searchTriggered,
+    searchWarning: applyResult.searchWarning,
   };
 }
 
