@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -49,8 +49,9 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
   const [pendingActionKey, setPendingActionKey] = useState<string | null>(null);
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const [dragTargetItemId, setDragTargetItemId] = useState<string | null>(null);
+  const snapshot = queueState.snapshot;
 
-  const refreshQueue = useEffectEvent(async () => {
+  const refreshQueue = useCallback(async () => {
     setIsRefreshing(true);
 
     try {
@@ -67,9 +68,9 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
     } finally {
       setIsRefreshing(false);
     }
-  });
+  }, []);
 
-  const submitQueueAction = useEffectEvent(async (action: SabnzbdQueueActionInput) => {
+  const submitQueueAction = useCallback(async (action: SabnzbdQueueActionInput) => {
     if (
       action.type === "remove" &&
       !window.confirm("Remove this queue item from SABnzbd? Already downloaded files will be kept.")
@@ -79,7 +80,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
 
     setActionError(null);
     setIsMutating(true);
-  setPendingActionKey(getSabnzbdQueueActionKey(action));
+    setPendingActionKey(getSabnzbdQueueActionKey(action));
 
     try {
       const response = await fetch("/api/service-connections/sabnzbd/queue", {
@@ -104,16 +105,16 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
       setDraggedItemId(null);
       setDragTargetItemId(null);
     }
-  });
+  }, []);
 
-  const handleDragStart = useEffectEvent((event: React.DragEvent<HTMLElement>, itemId: string) => {
+  const handleDragStart = useCallback((event: React.DragEvent<HTMLElement>, itemId: string) => {
     setDraggedItemId(itemId);
     setDragTargetItemId(null);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", itemId);
-  });
+  }, []);
 
-  const handleDragOver = useEffectEvent((event: React.DragEvent<HTMLElement>, itemId: string) => {
+  const handleDragOver = useCallback((event: React.DragEvent<HTMLElement>, itemId: string) => {
     if (!draggedItemId || draggedItemId === itemId) {
       return;
     }
@@ -121,9 +122,9 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
     setDragTargetItemId(itemId);
-  });
+  }, [draggedItemId]);
 
-  const handleDrop = useEffectEvent((event: React.DragEvent<HTMLElement>, itemId: string) => {
+  const handleDrop = useCallback((event: React.DragEvent<HTMLElement>, itemId: string) => {
     event.preventDefault();
 
     if (!snapshot || !draggedItemId || draggedItemId === itemId) {
@@ -143,12 +144,12 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
       itemId: draggedItemId,
       targetIndex,
     });
-  });
+  }, [draggedItemId, snapshot, submitQueueAction]);
 
-  const handleDragEnd = useEffectEvent(() => {
+  const handleDragEnd = useCallback(() => {
     setDraggedItemId(null);
     setDragTargetItemId(null);
-  });
+  }, []);
 
   useEffect(() => {
     if (queueState.connectionStatus !== "verified") {
@@ -164,7 +165,6 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
     };
   }, [queueState.connectionStatus, refreshQueue]);
 
-  const snapshot = queueState.snapshot;
   const summaryItems = snapshot
     ? [
         {

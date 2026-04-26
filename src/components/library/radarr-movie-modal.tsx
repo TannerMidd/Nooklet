@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useId } from "react";
 import { createPortal } from "react-dom";
 
 import { LibraryItemActions } from "@/components/library/library-item-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
-import { type RadarrLibraryMovie } from "@/modules/service-connections/adapters/library-collections";
+import { type RadarrLibraryMovie } from "@/modules/service-connections/types/library-manager";
 
 type RadarrMovieModalProps = {
   open: boolean;
@@ -16,13 +16,8 @@ type RadarrMovieModalProps = {
 
 export function RadarrMovieModal({ open, movie, returnTo, onClose }: RadarrMovieModalProps) {
   const dialogTitleId = useId();
-  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!open || !mounted || typeof document === "undefined") {
+  if (!open || typeof document === "undefined") {
     return null;
   }
 

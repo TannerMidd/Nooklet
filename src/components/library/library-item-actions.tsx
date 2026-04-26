@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
@@ -167,16 +167,11 @@ function DeleteLibraryItemDialog({
   const router = useRouter();
   const dialogTitleId = useId();
   const checkboxId = useId();
-  const [mounted, setMounted] = useState(false);
   const [deleteFiles, setDeleteFiles] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted || typeof document === "undefined") {
+  if (typeof document === "undefined") {
     return null;
   }
 

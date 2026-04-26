@@ -96,16 +96,19 @@ function SubmitButton({ canSubmit }: { canSubmit: boolean }) {
 function RequestProgressPanel() {
   const { pending } = useFormStatus();
   const [elapsedMs, setElapsedMs] = useState(0);
+  const startedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!pending) {
-      setElapsedMs(0);
+      startedAtRef.current = null;
       return;
     }
 
-    const startedAt = Date.now();
+    startedAtRef.current = Date.now();
     const intervalId = window.setInterval(() => {
-      setElapsedMs(Date.now() - startedAt);
+      if (startedAtRef.current !== null) {
+        setElapsedMs(Date.now() - startedAtRef.current);
+      }
     }, 700);
 
     return () => {

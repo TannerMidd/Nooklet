@@ -2,6 +2,7 @@
 
 import {
   useActionState,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -18,7 +19,7 @@ import {
   submitSonarrSeriesEpisodeMonitoringAction,
 } from "@/app/(workspace)/sonarr-library-actions";
 import { Button } from "@/components/ui/button";
-import { type SonarrEpisode } from "@/modules/service-connections/adapters/sonarr-episodes";
+import { type SonarrEpisode } from "@/modules/service-connections/types/sonarr-episodes";
 
 export type EpisodeLoadState =
   | { status: "idle" }
@@ -72,20 +73,47 @@ function buildSeasonGroups(episodes: SonarrEpisode[]) {
     .sort((left, right) => left.seasonNumber - right.seasonNumber);
 }
 
+function buildInitialEpisodeSelection(episodes: SonarrEpisode[]) {
+  return new Set(episodes.filter((episode) => episode.monitored).map((episode) => episode.id));
+}
+
+function buildInitialExpandedSeasons(
+  seasonGroups: ReturnType<typeof buildSeasonGroups>,
+  selectedIds: Set<number>,
+) {
+  const expanded = new Set<number>();
+
+  for (const group of seasonGroups) {
+    if (group.episodes.some((episode) => selectedIds.has(episode.id))) {
+      expanded.add(group.seasonNumber);
+    }
+  }
+
+  return expanded;
+}
+
+function buildEpisodesStateKey(episodes: SonarrEpisode[]) {
+  return episodes.map((episode) => `${episode.id}:${episode.monitored}`).join("|");
+}
+
 /**
  * Loads Sonarr episodes for a series via a server action with a guarded state machine.
  * Use the returned `loadEpisodesIfNeeded` from a click handler or effect to kick off
  * the fetch; the returned `loadState` reflects the lifecycle.
  */
 export function useSonarrEpisodeLoader(seriesId: number) {
-  const [loadState, setLoadState] = useState<EpisodeLoadState>({ status: "idle" });
+  const [loadState, setLoadStateValue] = useState<EpisodeLoadState>({ status: "idle" });
   // Mirror loadState in a ref so the imperative loader can read the latest
   // status synchronously without relying on the queued setState updater
   // (which only runs during the next render).
-  const loadStateRef = useRef(loadState);
-  loadStateRef.current = loadState;
+  const loadStateRef = useRef<EpisodeLoadState>({ status: "idle" });
 
-  function loadEpisodesIfNeeded() {
+  const setLoadState = useCallback((nextLoadState: EpisodeLoadState) => {
+    loadStateRef.current = nextLoadState;
+    setLoadStateValue(nextLoadState);
+  }, []);
+
+  const loadEpisodesIfNeeded = useCallback(() => {
     const current = loadStateRef.current;
     if (current.status === "loading" || current.status === "loaded") {
       return;
@@ -115,12 +143,11 @@ export function useSonarrEpisodeLoader(seriesId: number) {
           });
         });
     });
-  }
+  }, [seriesId, setLoadState]);
 
-  function reset() {
-    loadStateRef.current = { status: "idle" };
+  const reset = useCallback(() => {
     setLoadState({ status: "idle" });
-  }
+  }, [setLoadState]);
 
   return { loadState, loadEpisodesIfNeeded, reset };
 }
@@ -150,6 +177,15 @@ type SonarrEpisodePickerFormProps = {
   extraHiddenFields?: ReadonlyArray<{ name: string; value: string }>;
 };
 
+type LoadedSonarrEpisodePickerFormProps = Omit<
+  SonarrEpisodePickerFormProps,
+  "loadState" | "onRetry" | "onSuccess"
+> & {
+  episodes: SonarrEpisode[];
+  state: SonarrLibraryActionState;
+  formAction: (formData: FormData) => void;
+};
+
 export function SonarrEpisodePickerForm({
   seriesId,
   returnTo,
@@ -167,34 +203,6 @@ export function SonarrEpisodePickerForm({
     submitAction,
     initialSonarrLibraryActionState,
   );
-  const [isPending, startTransition] = useTransition();
-
-  const episodes = loadState.status === "loaded" ? loadState.episodes : [];
-  const seasonGroups = useMemo(() => buildSeasonGroups(episodes), [episodes]);
-
-  const initialSelection = useMemo(
-    () =>
-      new Set(
-        episodes.filter((episode) => episode.monitored).map((episode) => episode.id),
-      ),
-    [episodes],
-  );
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [expandedSeasons, setExpandedSeasons] = useState<Set<number>>(new Set());
-
-  // Reset selection to current Sonarr state whenever a new episode list arrives.
-  useEffect(() => {
-    if (loadState.status === "loaded") {
-      setSelectedIds(new Set(initialSelection));
-      const expanded = new Set<number>();
-      for (const group of seasonGroups) {
-        if (group.episodes.some((episode) => initialSelection.has(episode.id))) {
-          expanded.add(group.seasonNumber);
-        }
-      }
-      setExpandedSeasons(expanded);
-    }
-  }, [loadState.status, initialSelection, seasonGroups]);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -202,6 +210,65 @@ export function SonarrEpisodePickerForm({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
+
+  if (loadState.status === "loading" || loadState.status === "idle") {
+    return (
+      <div className="flex flex-1 items-center justify-center px-6 py-10 text-sm text-muted">
+        Loading episodes from Sonarr…
+      </div>
+    );
+  }
+
+  if (loadState.status === "error") {
+    return (
+      <div className="flex flex-1 flex-col items-start gap-3 px-6 py-8">
+        <p className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          {loadState.message}
+        </p>
+        <Button type="button" variant="secondary" onClick={onRetry}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <LoadedSonarrEpisodePickerForm
+      key={buildEpisodesStateKey(loadState.episodes)}
+      seriesId={seriesId}
+      returnTo={returnTo}
+      episodes={loadState.episodes}
+      onCancel={onCancel}
+      cancelLabel={cancelLabel}
+      submitLabel={submitLabel}
+      intro={intro}
+      extraHiddenFields={extraHiddenFields}
+      state={state}
+      formAction={formAction}
+    />
+  );
+}
+
+function LoadedSonarrEpisodePickerForm({
+  seriesId,
+  returnTo,
+  episodes,
+  onCancel,
+  cancelLabel = "Cancel",
+  submitLabel = "Save episode monitoring",
+  intro,
+  extraHiddenFields,
+  state,
+  formAction,
+}: LoadedSonarrEpisodePickerFormProps) {
+  const [isPending, startTransition] = useTransition();
+  const seasonGroups = useMemo(() => buildSeasonGroups(episodes), [episodes]);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() =>
+    buildInitialEpisodeSelection(episodes),
+  );
+  const [expandedSeasons, setExpandedSeasons] = useState<Set<number>>(() =>
+    buildInitialExpandedSeasons(seasonGroups, buildInitialEpisodeSelection(episodes)),
+  );
 
   function toggleEpisode(episodeId: number) {
     setSelectedIds((previous) => {
@@ -252,27 +319,6 @@ export function SonarrEpisodePickerForm({
     startTransition(() => {
       formAction(formData);
     });
-  }
-
-  if (loadState.status === "loading" || loadState.status === "idle") {
-    return (
-      <div className="flex flex-1 items-center justify-center px-6 py-10 text-sm text-muted">
-        Loading episodes from Sonarr…
-      </div>
-    );
-  }
-
-  if (loadState.status === "error") {
-    return (
-      <div className="flex flex-1 flex-col items-start gap-3 px-6 py-8">
-        <p className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-          {loadState.message}
-        </p>
-        <Button type="button" variant="secondary" onClick={onRetry}>
-          Try again
-        </Button>
-      </div>
-    );
   }
 
   return (

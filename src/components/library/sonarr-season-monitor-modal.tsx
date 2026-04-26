@@ -4,7 +4,6 @@ import {
   useActionState,
   useEffect,
   useId,
-  useMemo,
   useState,
   useTransition,
 } from "react";
@@ -21,7 +20,7 @@ import {
 } from "@/app/(workspace)/sonarr-library-actions";
 import { LibraryItemActions } from "@/components/library/library-item-actions";
 import { Button } from "@/components/ui/button";
-import { type SonarrLibrarySeasonSummary } from "@/modules/service-connections/adapters/library-collections";
+import { type SonarrLibrarySeasonSummary } from "@/modules/service-connections/types/library-manager";
 
 import {
   formatSeasonLabel,
@@ -36,24 +35,25 @@ type SonarrSeasonMonitorModalProps = {
   seriesTitle: string;
   seasons: SonarrLibrarySeasonSummary[];
   returnTo: string;
-  /** Whether the series itself is monitored at the top level. */
   seriesMonitored?: boolean;
   initialMode?: Mode;
-  /**
-   * Hide the "Whole seasons" tab. Useful for the post-add inline episode
-   * picker where season state was just configured during the add step.
-   */
   hideSeasonTab?: boolean;
-  /** Override the picker submit action (e.g. recommendation finalize). */
   submitActionOverride?: (
     state: SonarrLibraryActionState,
     formData: FormData,
   ) => Promise<SonarrLibraryActionState>;
-  /** Extra hidden form fields to forward to the picker form. */
   extraHiddenFields?: ReadonlyArray<{ name: string; value: string }>;
 };
 
 type Mode = "season" | "episode";
+
+function buildSeasonStateKey(seasons: SonarrLibrarySeasonSummary[]) {
+  return seasons.map((season) => `${season.seasonNumber}:${season.monitored}`).join("|");
+}
+
+function buildInitialSeasonSelection(seasons: SonarrLibrarySeasonSummary[]) {
+  return new Set(seasons.filter((season) => season.monitored).map((season) => season.seasonNumber));
+}
 
 export function SonarrSeasonMonitorModal({
   open,
@@ -70,32 +70,22 @@ export function SonarrSeasonMonitorModal({
 }: SonarrSeasonMonitorModalProps) {
   const router = useRouter();
   const dialogTitleId = useId();
-  const [mode, setMode] = useState<Mode>(initialMode);
-  const [mounted, setMounted] = useState(false);
+  const [mode, setMode] = useState<Mode>(() => (hideSeasonTab ? "episode" : initialMode));
   const { loadState, loadEpisodesIfNeeded, reset } = useSonarrEpisodeLoader(seriesId);
+  const shouldAutoLoadEpisodes = initialMode === "episode" || hideSeasonTab;
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Reset state whenever the modal opens for a fresh series.
-  useEffect(() => {
-    if (open) {
-      setMode(hideSeasonTab ? "episode" : initialMode);
-      reset();
-      if (initialMode === "episode" || hideSeasonTab) {
-        loadEpisodesIfNeeded();
-      }
+    if (open && shouldAutoLoadEpisodes) {
+      loadEpisodesIfNeeded();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, seriesId, initialMode, hideSeasonTab]);
+  }, [loadEpisodesIfNeeded, open, shouldAutoLoadEpisodes]);
 
   function selectEpisodeMode() {
     setMode("episode");
     loadEpisodesIfNeeded();
   }
 
-  if (!open || !mounted || typeof document === "undefined") {
+  if (!open || typeof document === "undefined") {
     return null;
   }
 
@@ -165,6 +155,7 @@ export function SonarrSeasonMonitorModal({
 
         {mode === "season" && !hideSeasonTab ? (
           <SeasonModeForm
+            key={buildSeasonStateKey(seasons)}
             seriesId={seriesId}
             seasons={seasons}
             returnTo={returnTo}
@@ -242,20 +233,9 @@ function SeasonModeForm({
     initialSonarrLibraryActionState,
   );
   const [isPending, startTransition] = useTransition();
-
-  const initiallyMonitored = useMemo(
-    () =>
-      new Set(
-        seasons.filter((season) => season.monitored).map((season) => season.seasonNumber),
-      ),
-    [seasons],
+  const [selectedSeasons, setSelectedSeasons] = useState<Set<number>>(() =>
+    buildInitialSeasonSelection(seasons),
   );
-
-  const [selectedSeasons, setSelectedSeasons] = useState<Set<number>>(initiallyMonitored);
-
-  useEffect(() => {
-    setSelectedSeasons(initiallyMonitored);
-  }, [initiallyMonitored]);
 
   useEffect(() => {
     if (state.status === "success") {
@@ -365,7 +345,7 @@ function SeasonModeForm({
           Cancel
         </Button>
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Saving…" : "Save monitoring"}
+          {isPending ? "Saving..." : "Save monitoring"}
         </Button>
       </div>
     </form>
@@ -437,7 +417,7 @@ function SonarrSeriesControls({
           onClick={() => applyAllSeasons(true)}
           disabled={isApplying}
         >
-          {isApplying ? "Saving\u2026" : "Monitor all seasons"}
+          {isApplying ? "Saving..." : "Monitor all seasons"}
         </Button>
         <Button
           type="button"
@@ -446,7 +426,7 @@ function SonarrSeriesControls({
           onClick={() => applyAllSeasons(false)}
           disabled={isApplying}
         >
-          {isApplying ? "Saving\u2026" : "Unmonitor all seasons"}
+          {isApplying ? "Saving..." : "Unmonitor all seasons"}
         </Button>
       </div>
       {errorMessage ? (

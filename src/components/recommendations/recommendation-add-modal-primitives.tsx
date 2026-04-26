@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useFormStatus } from "react-dom";
 
@@ -215,16 +215,6 @@ export function RecommendationAddModalShell({
   closeDisabled = false,
   closeButtonLabel = "Close",
 }: RecommendationAddModalShellProps) {
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-
-    return () => {
-      setIsMounted(false);
-    };
-  }, []);
-
   useEffect(() => {
     if (!open) {
       return;
@@ -244,9 +234,9 @@ export function RecommendationAddModalShell({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose, open]);
+  }, [closeDisabled, onClose, open]);
 
-  if (!isMounted || !open) {
+  if (!open || typeof document === "undefined") {
     return null;
   }
 

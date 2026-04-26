@@ -183,10 +183,10 @@ export async function safeFetch(
   const {
     timeoutMs = DEFAULT_TIMEOUT_MS,
     maxBytes = DEFAULT_MAX_BYTES,
-    allowPrivateHosts: _allowPrivateHosts,
     signal: callerSignal,
     ...rest
   } = options;
+  delete (rest as { allowPrivateHosts?: boolean }).allowPrivateHosts;
 
   const controller = new AbortController();
   let timedOut = false;

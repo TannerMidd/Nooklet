@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
 import {
-  initialSonarrLibraryActionState,
   type SonarrLibraryActionState,
 } from "@/app/(workspace)/sonarr-library-action-state";
 import { safeRevalidatePath } from "@/app/(workspace)/recommendation-action-helpers";
