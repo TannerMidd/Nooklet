@@ -15,7 +15,11 @@ import {
   initialSonarrLibraryActionState,
   type SonarrLibraryActionState,
 } from "@/app/(workspace)/sonarr-library-action-state";
-import { submitSonarrSeriesSeasonMonitoringAction } from "@/app/(workspace)/sonarr-library-actions";
+import {
+  submitSonarrSeriesMonitoringAction,
+  submitSonarrSeriesSeasonMonitoringAction,
+} from "@/app/(workspace)/sonarr-library-actions";
+import { LibraryItemActions } from "@/components/library/library-item-actions";
 import { Button } from "@/components/ui/button";
 import { type SonarrLibrarySeasonSummary } from "@/modules/service-connections/adapters/library-collections";
 
@@ -32,6 +36,8 @@ type SonarrSeasonMonitorModalProps = {
   seriesTitle: string;
   seasons: SonarrLibrarySeasonSummary[];
   returnTo: string;
+  /** Whether the series itself is monitored at the top level. */
+  seriesMonitored?: boolean;
   initialMode?: Mode;
   /**
    * Hide the "Whole seasons" tab. Useful for the post-add inline episode
@@ -56,6 +62,7 @@ export function SonarrSeasonMonitorModal({
   seriesTitle,
   seasons,
   returnTo,
+  seriesMonitored,
   initialMode = "season",
   hideSeasonTab = false,
   submitActionOverride,
@@ -128,6 +135,16 @@ export function SonarrSeasonMonitorModal({
             Close
           </button>
         </header>
+
+        {!hideSeasonTab ? (
+          <SonarrSeriesControls
+            seriesId={seriesId}
+            seriesTitle={seriesTitle}
+            seriesMonitored={seriesMonitored ?? false}
+            returnTo={returnTo}
+            onAfterAction={() => router.refresh()}
+          />
+        ) : null}
 
         <div
           role="tablist"
@@ -352,5 +369,91 @@ function SeasonModeForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+function SonarrSeriesControls({
+  seriesId,
+  seriesTitle,
+  seriesMonitored,
+  returnTo,
+  onAfterAction,
+}: {
+  seriesId: number;
+  seriesTitle: string;
+  seriesMonitored: boolean;
+  returnTo: string;
+  onAfterAction: () => void;
+}) {
+  const [isApplying, startTransition] = useTransition();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  function applyAllSeasons(monitored: boolean) {
+    setErrorMessage(null);
+    const formData = new FormData();
+    formData.set("seriesId", String(seriesId));
+    formData.set("monitored", monitored ? "true" : "false");
+    formData.set("applyToAllSeasons", "true");
+    formData.set("returnTo", returnTo);
+
+    startTransition(async () => {
+      const result = await submitSonarrSeriesMonitoringAction(
+        initialSonarrLibraryActionState,
+        formData,
+      );
+      if (result.status === "error") {
+        setErrorMessage(result.message ?? "Failed to update Sonarr monitoring.");
+        return;
+      }
+      onAfterAction();
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-3 border-b border-line/60 px-6 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
+            Series
+          </span>
+          <span className="text-foreground">
+            Currently {seriesMonitored ? "monitored" : "unmonitored"}
+          </span>
+        </div>
+        <LibraryItemActions
+          target={{ serviceType: "sonarr", seriesId }}
+          monitored={seriesMonitored}
+          itemTitle={seriesTitle}
+          returnTo={returnTo}
+          size="sm"
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-muted">All seasons:</span>
+        <Button
+          type="button"
+          variant="secondary"
+          className="min-h-9 px-3 py-1.5 text-xs"
+          onClick={() => applyAllSeasons(true)}
+          disabled={isApplying}
+        >
+          {isApplying ? "Saving\u2026" : "Monitor all seasons"}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          className="min-h-9 px-3 py-1.5 text-xs"
+          onClick={() => applyAllSeasons(false)}
+          disabled={isApplying}
+        >
+          {isApplying ? "Saving\u2026" : "Unmonitor all seasons"}
+        </Button>
+      </div>
+      {errorMessage ? (
+        <p className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-200">
+          {errorMessage}
+        </p>
+      ) : null}
+    </div>
   );
 }

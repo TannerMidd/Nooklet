@@ -2,6 +2,8 @@
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
+import { LibraryItemActions } from "@/components/library/library-item-actions";
+import { RadarrMovieModal } from "@/components/library/radarr-movie-modal";
 import { SonarrSeasonMonitorModal } from "@/components/library/sonarr-season-monitor-modal";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import {
@@ -51,6 +53,7 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
 
   const [selectedSonarrSeriesId, setSelectedSonarrSeriesId] = useState<number | null>(null);
   const [modalInitialMode, setModalInitialMode] = useState<"season" | "episode">("season");
+  const [selectedRadarrMovieId, setSelectedRadarrMovieId] = useState<number | null>(null);
 
   // When the page is opened with ?seriesId=...&mode=episode (e.g. after a direct-search add),
   // auto-open the modal in episode mode for that series.
@@ -147,6 +150,7 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
                 <SonarrLibraryCard
                   key={series.id}
                   series={series}
+                  returnTo={returnTo}
                   onClick={() => {
                     setModalInitialMode("season");
                     setSelectedSonarrSeriesId(series.id);
@@ -154,7 +158,12 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
                 />
               ))
             : (filteredItems as RadarrLibraryMovie[]).map((movie) => (
-                <RadarrLibraryCard key={movie.id} movie={movie} />
+                <RadarrLibraryCard
+                  key={movie.id}
+                  movie={movie}
+                  returnTo={returnTo}
+                  onClick={() => setSelectedRadarrMovieId(movie.id)}
+                />
               ))}
         </ul>
       )}
@@ -170,9 +179,28 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
               : selectedSeries.title
           }
           seasons={selectedSeries.seasons}
+          seriesMonitored={selectedSeries.monitored}
           returnTo={returnTo}
           initialMode={modalInitialMode}
         />
+      ) : null}
+      {serviceType === "radarr" && selectedRadarrMovieId !== null ? (
+        (() => {
+          const movie = (items as RadarrLibraryMovie[]).find(
+            (entry) => entry.id === selectedRadarrMovieId,
+          );
+          if (!movie) {
+            return null;
+          }
+          return (
+            <RadarrMovieModal
+              open
+              movie={movie}
+              returnTo={returnTo}
+              onClose={() => setSelectedRadarrMovieId(null)}
+            />
+          );
+        })()
       ) : null}
     </div>
   );
@@ -194,9 +222,11 @@ function MonitoredBadge({ monitored }: { monitored: boolean }) {
 
 function SonarrLibraryCard({
   series,
+  returnTo,
   onClick,
 }: {
   series: SonarrLibrarySeries;
+  returnTo: string;
   onClick: () => void;
 }) {
   const titleLabel = series.year ? `${series.title} (${series.year})` : series.title;
@@ -205,12 +235,24 @@ function SonarrLibraryCard({
       ? `${series.episodeFileCount}/${series.episodeCount} episodes`
       : null;
 
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onClick();
+    }
+  }
+
   return (
     <li>
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onClick}
-        className="group flex h-full w-full flex-col gap-3 rounded-[24px] border border-line/80 bg-panel/90 p-3 text-left shadow-soft backdrop-blur transition hover:border-accent/40 hover:bg-panel"
+        onKeyDown={handleKeyDown}
+        className="group flex h-full w-full flex-col gap-3 rounded-[24px] border border-line/80 bg-panel/90 p-3 text-left shadow-soft backdrop-blur transition hover:border-accent/40 hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
       >
         <div className="flex items-start gap-3">
           <RecommendationPoster title={series.title} posterUrl={series.posterUrl} />
@@ -238,20 +280,51 @@ function SonarrLibraryCard({
             <dd className="text-foreground">{fileCoverage ?? "—"}</dd>
           </div>
         </dl>
+        <LibraryItemActions
+          target={{ serviceType: "sonarr", seriesId: series.id }}
+          monitored={series.monitored}
+          itemTitle={titleLabel}
+          returnTo={returnTo}
+          size="sm"
+        />
         <span className="mt-auto text-xs font-semibold text-accent opacity-80 group-hover:opacity-100">
           Manage seasons →
         </span>
-      </button>
+      </div>
     </li>
   );
 }
 
-function RadarrLibraryCard({ movie }: { movie: RadarrLibraryMovie }) {
+function RadarrLibraryCard({
+  movie,
+  returnTo,
+  onClick,
+}: {
+  movie: RadarrLibraryMovie;
+  returnTo: string;
+  onClick: () => void;
+}) {
   const titleLabel = movie.year ? `${movie.title} (${movie.year})` : movie.title;
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onClick();
+    }
+  }
 
   return (
     <li>
-      <div className="flex h-full w-full flex-col gap-3 rounded-[24px] border border-line/80 bg-panel/90 p-3 shadow-soft backdrop-blur">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={handleKeyDown}
+        className="group flex h-full w-full flex-col gap-3 rounded-[24px] border border-line/80 bg-panel/90 p-3 text-left shadow-soft backdrop-blur transition hover:border-accent/40 hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      >
         <div className="flex items-start gap-3">
           <RecommendationPoster title={movie.title} posterUrl={movie.posterUrl} />
           <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -283,6 +356,13 @@ function RadarrLibraryCard({ movie }: { movie: RadarrLibraryMovie }) {
             <span className="text-foreground">{movie.status}</span>
           </p>
         ) : null}
+        <LibraryItemActions
+          target={{ serviceType: "radarr", movieId: movie.id }}
+          monitored={movie.monitored}
+          itemTitle={titleLabel}
+          returnTo={returnTo}
+          size="sm"
+        />
       </div>
     </li>
   );
