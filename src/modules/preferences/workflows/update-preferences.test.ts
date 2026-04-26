@@ -19,6 +19,7 @@ const baseInput = {
   defaultMediaMode: "tv" as const,
   defaultResultCount: 10,
   defaultTemperature: 0.9,
+  languagePreference: "en" as const,
   watchHistoryOnly: false,
   watchHistorySourceTypes: ["plex"] as ("manual" | "tautulli" | "plex")[],
   historyHideExisting: false,
@@ -60,6 +61,7 @@ describe("updatePreferences", () => {
       defaultMediaMode: "tv",
       defaultResultCount: 10,
       defaultTemperature: 0.9,
+      languagePreference: "en",
       watchHistoryOnly: false,
       watchHistorySourceTypes: ["plex"],
     });

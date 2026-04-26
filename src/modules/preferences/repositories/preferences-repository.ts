@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
   preferences,
+  type PreferenceLanguageCode,
   type PreferenceMediaMode,
   type WatchHistorySourceType,
   watchHistorySourceTypes,
@@ -66,6 +67,7 @@ export const defaultPreferenceValues: Omit<PreferenceRecord, "userId" | "updated
   defaultResultCount: 10,
   defaultTemperature: 0.9,
   defaultAiModel: null,
+  languagePreference: "any",
   defaultSonarrRootFolderPath: null,
   defaultSonarrQualityProfileId: null,
   defaultRadarrRootFolderPath: null,
@@ -130,6 +132,7 @@ type UpsertPreferencesInput = {
   defaultMediaMode: PreferenceMediaMode;
   defaultResultCount: number;
   defaultTemperature: number;
+  languagePreference: PreferenceLanguageCode;
   watchHistoryOnly: boolean;
   watchHistorySourceTypes: WatchHistorySourceType[];
   historyHideExisting: boolean;
@@ -148,6 +151,7 @@ export async function upsertPreferences(input: UpsertPreferencesInput) {
       defaultMediaMode: input.defaultMediaMode,
       defaultResultCount: input.defaultResultCount,
       defaultTemperature: input.defaultTemperature,
+      languagePreference: input.languagePreference,
       watchHistoryOnly: input.watchHistoryOnly,
       watchHistorySourceTypesJson: serializeWatchHistorySourceTypes(input.watchHistorySourceTypes),
       historyHideExisting: input.historyHideExisting,
@@ -162,6 +166,7 @@ export async function upsertPreferences(input: UpsertPreferencesInput) {
         defaultMediaMode: input.defaultMediaMode,
         defaultResultCount: input.defaultResultCount,
         defaultTemperature: input.defaultTemperature,
+        languagePreference: input.languagePreference,
         watchHistoryOnly: input.watchHistoryOnly,
         watchHistorySourceTypesJson: serializeWatchHistorySourceTypes(input.watchHistorySourceTypes),
         historyHideExisting: input.historyHideExisting,

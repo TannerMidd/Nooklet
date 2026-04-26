@@ -1,8 +1,10 @@
 import { z } from "zod";
 
 import { watchHistorySourceTypes } from "@/lib/database/schema";
+import { languagePreferenceCodes } from "@/modules/preferences/language-preferences";
 
 export const preferenceMediaModeSchema = z.enum(["tv", "movies", "both"]);
+export const languagePreferenceSchema = z.enum(languagePreferenceCodes);
 export const watchHistorySourceTypeSchema = z.enum(watchHistorySourceTypes);
 
 export const updatePreferencesInputSchema = z.object({
@@ -16,6 +18,7 @@ export const updatePreferencesInputSchema = z.object({
     .number()
     .min(0, "Temperature must be at least 0.")
     .max(2, "Temperature must stay at 2 or below."),
+  languagePreference: languagePreferenceSchema,
   watchHistoryOnly: z.boolean(),
   watchHistorySourceTypes: z
     .array(watchHistorySourceTypeSchema)

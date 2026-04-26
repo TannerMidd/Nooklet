@@ -40,6 +40,26 @@ export const auditEvents = sqliteTable("audit_events", {
 });
 
 export const preferenceMediaModes = ["tv", "movies", "both"] as const;
+export const preferenceLanguageCodes = [
+  "any",
+  "ar",
+  "da",
+  "de",
+  "en",
+  "es",
+  "fr",
+  "hi",
+  "it",
+  "ja",
+  "ko",
+  "nl",
+  "no",
+  "pl",
+  "pt",
+  "sv",
+  "tr",
+  "zh",
+] as const;
 
 export const preferences = sqliteTable("preferences", {
   userId: text("user_id")
@@ -51,6 +71,9 @@ export const preferences = sqliteTable("preferences", {
   defaultResultCount: integer("default_result_count").notNull().default(10),
   defaultTemperature: real("default_temperature").notNull().default(0.9),
   defaultAiModel: text("default_ai_model"),
+  languagePreference: text("language_preference", { enum: preferenceLanguageCodes })
+    .notNull()
+    .default("any"),
   defaultSonarrRootFolderPath: text("default_sonarr_root_folder_path"),
   defaultSonarrQualityProfileId: integer("default_sonarr_quality_profile_id"),
   defaultRadarrRootFolderPath: text("default_radarr_root_folder_path"),
@@ -341,6 +364,7 @@ export const rateLimits = sqliteTable("rate_limits", {
 
 export type UserRole = (typeof userRoles)[number];
 export type PreferenceMediaMode = (typeof preferenceMediaModes)[number];
+export type PreferenceLanguageCode = (typeof preferenceLanguageCodes)[number];
 export type ServiceConnectionType = (typeof serviceConnectionTypes)[number];
 export type ServiceConnectionStatus = (typeof serviceConnectionStatuses)[number];
 export type WatchHistorySourceType = (typeof watchHistorySourceTypes)[number];

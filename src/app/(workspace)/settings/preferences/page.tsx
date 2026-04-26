@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { Panel } from "@/components/ui/panel";
+import { formatLanguagePreference } from "@/modules/preferences/language-preferences";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import {
@@ -111,6 +112,9 @@ export default async function PreferencesSettingsPage({
               </div>
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
                 <span className="font-medium">Default result count:</span> {preferences.defaultResultCount}
+              </div>
+              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                <span className="font-medium">Language preference:</span> {formatLanguagePreference(preferences.languagePreference)}
               </div>
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
                 <span className="font-medium">Watch-history only:</span> {preferences.watchHistoryOnly ? "Enabled" : "Disabled"}

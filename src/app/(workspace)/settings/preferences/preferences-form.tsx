@@ -6,6 +6,7 @@ import { useFormStatus } from "react-dom";
 import { initialUpdatePreferencesActionState } from "@/app/(workspace)/settings/preferences/action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { languagePreferenceOptions } from "@/modules/preferences/language-preferences";
 import { type PreferenceRecord } from "@/modules/preferences/queries/get-user-preferences";
 
 import {
@@ -74,6 +75,7 @@ export function PreferencesForm({
     preferences.defaultMediaMode,
     preferences.defaultResultCount,
     preferences.defaultTemperature.toFixed(1),
+    preferences.languagePreference,
     Number(preferences.watchHistoryOnly),
     preferences.watchHistorySourceTypes.join(","),
     Number(preferences.historyHideExisting),
@@ -84,7 +86,7 @@ export function PreferencesForm({
 
   return (
     <form key={formResetKey} action={formAction} className="space-y-6">
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         <label className="space-y-2">
           <span className="text-sm font-medium text-foreground">Default media mode</span>
           <select
@@ -130,6 +132,25 @@ export function PreferencesForm({
           />
           {state.fieldErrors?.defaultTemperature ? (
             <p className="text-sm text-highlight">{state.fieldErrors.defaultTemperature}</p>
+          ) : null}
+        </label>
+
+        <label className="space-y-2">
+          <span className="text-sm font-medium text-foreground">Language preference</span>
+          <select
+            name="languagePreference"
+            defaultValue={preferences.languagePreference}
+            className="min-h-11 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
+            aria-invalid={Boolean(state.fieldErrors?.languagePreference)}
+          >
+            {languagePreferenceOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {state.fieldErrors?.languagePreference ? (
+            <p className="text-sm text-highlight">{state.fieldErrors.languagePreference}</p>
           ) : null}
         </label>
       </div>

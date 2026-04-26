@@ -119,6 +119,7 @@ describe("createRecommendationRunWorkflow", () => {
       defaultResultCount: 10,
       defaultTemperature: 0.8,
       defaultAiModel: null,
+      languagePreference: "any",
       defaultSonarrRootFolderPath: null,
       defaultSonarrQualityProfileId: null,
       defaultRadarrRootFolderPath: null,

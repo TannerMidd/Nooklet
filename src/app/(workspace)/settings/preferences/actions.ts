@@ -29,6 +29,7 @@ export async function submitUpdatePreferencesAction(
     defaultMediaMode: formData.get("defaultMediaMode"),
     defaultResultCount: formData.get("defaultResultCount"),
     defaultTemperature: formData.get("defaultTemperature"),
+    languagePreference: formData.get("languagePreference"),
     watchHistoryOnly: checkboxValue(formData, "watchHistoryOnly"),
     watchHistorySourceTypes: formData.getAll("watchHistorySourceTypes"),
     historyHideExisting: checkboxValue(formData, "historyHideExisting"),
@@ -47,6 +48,7 @@ export async function submitUpdatePreferencesAction(
         defaultMediaMode: flattenedErrors.defaultMediaMode?.[0],
         defaultResultCount: flattenedErrors.defaultResultCount?.[0],
         defaultTemperature: flattenedErrors.defaultTemperature?.[0],
+        languagePreference: flattenedErrors.languagePreference?.[0],
         watchHistorySourceTypes: flattenedErrors.watchHistorySourceTypes?.[0],
       },
     };
