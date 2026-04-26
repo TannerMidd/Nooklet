@@ -52,6 +52,7 @@ See [`.env.example`](.env.example) for the canonical environment list.
 | --- | --- | --- |
 | `APP_URL` | Yes | Public app origin, such as `https://recommendarr.example.com`. |
 | `DATABASE_URL` | Yes | SQLite URL. Local default: `file:./data/recommendarr.db`. |
+| `APP_PORT` | No | Docker host port to publish. Defaults to `3000`. |
 | `AUTH_SECRET` | Yes | Auth.js signing secret. Must be at least 32 characters. |
 | `SECRET_BOX_KEY` | No | Separate encryption key for stored service secrets. Falls back to `AUTH_SECRET`. |
 | `ALLOW_PRIVATE_SERVICE_HOSTS` | No | Defaults to `true`. Set `false` for cloud deployments that must block private-network service URLs. |
@@ -60,13 +61,15 @@ See [`.env.example`](.env.example) for the canonical environment list.
 
 ```bash
 cp .env.example .env
-# set AUTH_SECRET and APP_URL
+# set AUTH_SECRET and APP_URL; optionally set APP_PORT
 docker compose up -d --build
 ```
 
 Docker Compose persists SQLite data in the `recommendarr-data` volume and forces
 `DATABASE_URL=file:/app/data/recommendarr.db` inside the container. The app
-exposes `/api/health`; put TLS in front of any internet-exposed deployment.
+publishes on `APP_PORT`; if you change it, keep `APP_URL` aligned with the URL
+users open. The container also exposes `/api/health`; put TLS in front of any
+internet-exposed deployment.
 
 ## Development
 
