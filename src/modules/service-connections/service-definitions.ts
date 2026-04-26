@@ -51,6 +51,14 @@ export const serviceConnectionDefinitions = [
     secretLabel: "X-Plex-Token",
     defaultBaseUrl: "http://localhost:32400",
   },
+  {
+    serviceType: "sabnzbd",
+    displayName: "SABnzbd",
+    description:
+      "Connect SABnzbd so Recommendarr can surface active download queue progress while requests are in flight.",
+    secretLabel: "API key",
+    defaultBaseUrl: "http://localhost:8080",
+  },
 ] as const satisfies readonly ServiceConnectionDefinition[];
 
 export function getServiceConnectionDefinition(

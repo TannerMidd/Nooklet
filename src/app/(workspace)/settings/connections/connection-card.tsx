@@ -77,6 +77,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
   const definition = getServiceConnectionDefinition(summary.serviceType);
   const showsModel = Boolean(definition.modelLabel);
   const showsAvailableUsers = summary.serviceType === "tautulli" || summary.serviceType === "plex";
+  const showsSabnzbdFacts = summary.serviceType === "sabnzbd";
   const availableModels = summary.availableModels ?? [];
   const [state, formAction] = useActionState(
     submitConnectionAction,
@@ -144,7 +145,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
 
       <div
         className={`mt-5 grid gap-3 text-sm leading-6 text-foreground ${
-          showsModel || showsAvailableUsers ? "md:grid-cols-3" : "md:grid-cols-2"
+          showsModel || showsAvailableUsers || showsSabnzbdFacts ? "md:grid-cols-3" : "md:grid-cols-2"
         }`}
       >
         <div className="min-w-0 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
@@ -167,6 +168,19 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
           <div className="min-w-0 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
             <span className="font-medium">Available users:</span>{" "}
             {summary.availableUsers.length > 0 ? summary.availableUsers.length : "Run verify"}
+          </div>
+        ) : null}
+        {showsSabnzbdFacts ? (
+          <div className="min-w-0 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+            <span className="font-medium">Queue:</span>{" "}
+            {summary.queueStatus ?? "Run verify"}
+            {summary.status === "verified" ? ` (${summary.activeQueueCount} active)` : ""}
+          </div>
+        ) : null}
+        {showsSabnzbdFacts ? (
+          <div className="min-w-0 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+            <span className="font-medium">Version:</span>{" "}
+            {summary.sabnzbdVersion ?? "Run verify"}
           </div>
         ) : null}
         <div className="min-w-0 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">

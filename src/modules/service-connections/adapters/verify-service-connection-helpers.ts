@@ -1,4 +1,5 @@
 import { type LibraryManagerMetadata } from "@/modules/service-connections/library-manager-metadata";
+import { type SabnzbdMetadata } from "@/modules/service-connections/sabnzbd-metadata";
 import { type AiProviderFlavor } from "@/modules/service-connections/ai-provider-endpoints";
 
 export type AiProviderModelEntry = {
@@ -174,6 +175,16 @@ export function buildLibraryManagerVerificationResult(metadata: LibraryManagerMe
   return {
     ok: true,
     message: `Connected. Loaded ${metadata.rootFolders.length} root folders, ${metadata.qualityProfiles.length} quality profiles, and ${metadata.tags.length} tags.`,
+    metadata,
+  };
+}
+
+export function buildSabnzbdVerificationResult(metadata: SabnzbdMetadata) {
+  return {
+    ok: true,
+    message: metadata.version
+      ? `Connected to SABnzbd ${metadata.version}. ${metadata.activeQueueCount} active queue item${metadata.activeQueueCount === 1 ? "" : "s"}.`
+      : `Connected to SABnzbd. ${metadata.activeQueueCount} active queue item${metadata.activeQueueCount === 1 ? "" : "s"}.`,
     metadata,
   };
 }

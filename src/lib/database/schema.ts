@@ -78,7 +78,7 @@ export const preferences = sqliteTable("preferences", {
     .default(sql`(unixepoch() * 1000)`),
 });
 
-export const serviceConnectionTypes = ["ai-provider", "sonarr", "radarr", "tautulli", "plex"] as const;
+export const serviceConnectionTypes = ["ai-provider", "sonarr", "radarr", "tautulli", "plex", "sabnzbd"] as const;
 export const serviceConnectionScopes = ["user", "shared"] as const;
 export const serviceConnectionStatuses = ["configured", "verified", "error"] as const;
 

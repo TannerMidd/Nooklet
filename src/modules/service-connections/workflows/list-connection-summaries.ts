@@ -1,6 +1,7 @@
 import { type ServiceConnectionType } from "@/lib/database/schema";
 import { parseLibraryManagerMetadata } from "@/modules/service-connections/library-manager-metadata";
 import { parsePlexMetadata } from "@/modules/service-connections/plex-metadata";
+import { parseSabnzbdMetadata } from "@/modules/service-connections/sabnzbd-metadata";
 import { serviceConnectionDefinitions } from "@/modules/service-connections/service-definitions";
 import { parseTautulliMetadata } from "@/modules/service-connections/tautulli-metadata";
 import { listServiceConnections } from "@/modules/service-connections/repositories/service-connection-repository";
@@ -25,6 +26,10 @@ export type ServiceConnectionSummary = {
   rootFolders: Array<{ path: string; label: string }>;
   qualityProfiles: Array<{ id: number; name: string }>;
   tags: Array<{ id: number; label: string }>;
+  sabnzbdVersion: string | null;
+  activeQueueCount: number;
+  queuePaused: boolean;
+  queueStatus: string | null;
   lastVerifiedAt: Date | null;
 };
 
@@ -61,12 +66,17 @@ export async function listConnectionSummaries(userId: string) {
         rootFolders: [],
         qualityProfiles: [],
         tags: [],
+        sabnzbdVersion: null,
+        activeQueueCount: 0,
+        queuePaused: false,
+        queueStatus: null,
         lastVerifiedAt: null,
       } satisfies ServiceConnectionSummary;
     }
 
     const libraryMetadata = parseLibraryManagerMetadata(record.metadata);
-  const plexMetadata = parsePlexMetadata(record.metadata);
+    const plexMetadata = parsePlexMetadata(record.metadata);
+    const sabnzbdMetadata = parseSabnzbdMetadata(record.metadata);
     const tautulliMetadata = parseTautulliMetadata(record.metadata);
 
     return {
@@ -85,6 +95,10 @@ export async function listConnectionSummaries(userId: string) {
       rootFolders: libraryMetadata?.rootFolders ?? [],
       qualityProfiles: libraryMetadata?.qualityProfiles ?? [],
       tags: libraryMetadata?.tags ?? [],
+      sabnzbdVersion: sabnzbdMetadata?.version ?? null,
+      activeQueueCount: sabnzbdMetadata?.activeQueueCount ?? 0,
+      queuePaused: sabnzbdMetadata?.queuePaused ?? false,
+      queueStatus: sabnzbdMetadata?.queueStatus ?? null,
       lastVerifiedAt: record.connection.lastVerifiedAt,
     } satisfies ServiceConnectionSummary;
   });

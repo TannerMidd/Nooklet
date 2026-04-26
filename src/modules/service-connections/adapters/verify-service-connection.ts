@@ -1,12 +1,15 @@
 import { verifyPlexConnection } from "@/lib/integrations/plex";
+import { verifySabnzbdConnection } from "@/lib/integrations/sabnzbd";
 import { verifyTautulliConnection } from "@/lib/integrations/tautulli";
 import { type ServiceConnectionType } from "@/lib/database/schema";
 import { safeFetch } from "@/lib/security/safe-fetch";
 import { type PlexMetadata } from "@/modules/service-connections/plex-metadata";
+import { type SabnzbdMetadata } from "@/modules/service-connections/sabnzbd-metadata";
 import { type TautulliMetadata } from "@/modules/service-connections/tautulli-metadata";
 import {
   buildAiProviderVerificationResult,
   buildLibraryManagerVerificationResult,
+  buildSabnzbdVerificationResult,
   normalizeAiProviderModelIds,
   normalizeLibraryManagerMetadata,
   type AiProviderModelPayload,
@@ -200,6 +203,32 @@ async function verifyPlex(
   }
 }
 
+async function verifySabnzbd(
+  input: VerifyServiceConnectionInput,
+): Promise<VerifyServiceConnectionResult> {
+  try {
+    const queueSnapshot = (await verifySabnzbdConnection({
+      baseUrl: input.baseUrl,
+      apiKey: input.secret,
+    })) satisfies SabnzbdMetadata;
+
+    return buildSabnzbdVerificationResult({
+      version: queueSnapshot.version,
+      queueStatus: queueSnapshot.queueStatus,
+      queuePaused: queueSnapshot.paused,
+      activeQueueCount: queueSnapshot.activeQueueCount,
+      speed: queueSnapshot.speed,
+      timeLeft: queueSnapshot.timeLeft,
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error ? error.message : "Connection verification failed unexpectedly.",
+    };
+  }
+}
+
 export async function verifyServiceConnection(
   input: VerifyServiceConnectionInput,
 ): Promise<VerifyServiceConnectionResult> {
@@ -214,6 +243,8 @@ export async function verifyServiceConnection(
         return await verifyTautulli(input);
       case "plex":
         return await verifyPlex(input);
+      case "sabnzbd":
+        return await verifySabnzbd(input);
       default:
         return {
           ok: false,
