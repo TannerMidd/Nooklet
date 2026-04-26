@@ -5,11 +5,46 @@ import {
   setSonarrEpisodesMonitored,
 } from "@/modules/service-connections/adapters/sonarr-episodes";
 
+type EpisodeMonitoringListItem = {
+  id: number;
+  seasonNumber: number;
+  monitored: boolean;
+};
+
+type ListEpisodesDependency = (input: {
+  baseUrl: string;
+  apiKey: string;
+  seriesId: number;
+}) => Promise<
+  | { ok: true; episodes: EpisodeMonitoringListItem[] }
+  | { ok: false; message: string }
+>;
+
+type SetMonitoredDependency = (input: {
+  baseUrl: string;
+  apiKey: string;
+  episodeIds: number[];
+  monitored: boolean;
+}) => Promise<{ ok: true } | { ok: false; message: string }>;
+
+type SearchEpisodesDependency = (input: {
+  baseUrl: string;
+  apiKey: string;
+  episodeIds: number[];
+}) => Promise<{ ok: true } | { ok: false; message: string }>;
+
+type EnsureSeasonsMonitoredDependency = (input: {
+  baseUrl: string;
+  apiKey: string;
+  seriesId: number;
+  seasonNumbers: number[];
+}) => Promise<{ ok: true } | { ok: false; message: string }>;
+
 export type ApplySonarrEpisodeMonitoringDependencies = {
-  listEpisodes?: typeof listSonarrEpisodes;
-  setMonitored?: typeof setSonarrEpisodesMonitored;
-  searchEpisodes?: typeof searchSonarrEpisodes;
-  ensureSeasonsMonitored?: typeof ensureSonarrSeasonsMonitored;
+  listEpisodes?: ListEpisodesDependency;
+  setMonitored?: SetMonitoredDependency;
+  searchEpisodes?: SearchEpisodesDependency;
+  ensureSeasonsMonitored?: EnsureSeasonsMonitoredDependency;
 };
 
 export type ApplySonarrEpisodeMonitoringInput = {

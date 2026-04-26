@@ -5,6 +5,11 @@ import { getServiceConnectionDefinition } from "@/modules/service-connections/se
 import { type UpdateSonarrSeriesSeasonMonitoringInput } from "@/modules/service-connections/schemas/update-sonarr-series-season-monitoring";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 
+type UpdateSonarrSeriesSeasonMonitoringWorkflowInput = Omit<
+  UpdateSonarrSeriesSeasonMonitoringInput,
+  "returnTo"
+>;
+
 export type UpdateSonarrSeriesSeasonMonitoringResult =
   | {
       ok: true;
@@ -18,7 +23,7 @@ export type UpdateSonarrSeriesSeasonMonitoringResult =
 
 export async function updateSonarrSeriesSeasonMonitoringForUser(
   userId: string,
-  input: UpdateSonarrSeriesSeasonMonitoringInput,
+  input: UpdateSonarrSeriesSeasonMonitoringWorkflowInput,
 ): Promise<UpdateSonarrSeriesSeasonMonitoringResult> {
   const definition = getServiceConnectionDefinition("sonarr");
   const connection = await findServiceConnectionByType(userId, "sonarr");

@@ -5,13 +5,18 @@ import { getServiceConnectionDefinition } from "@/modules/service-connections/se
 import { type UpdateRadarrMovieMonitoringInput } from "@/modules/service-connections/schemas/update-radarr-movie-monitoring";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 
+type UpdateRadarrMovieMonitoringWorkflowInput = Omit<
+  UpdateRadarrMovieMonitoringInput,
+  "returnTo"
+>;
+
 export type UpdateRadarrMovieMonitoringResult =
   | { ok: true; message: string; monitored: boolean }
   | { ok: false; message: string };
 
 export async function updateRadarrMovieMonitoringForUser(
   userId: string,
-  input: UpdateRadarrMovieMonitoringInput,
+  input: UpdateRadarrMovieMonitoringWorkflowInput,
 ): Promise<UpdateRadarrMovieMonitoringResult> {
   const definition = getServiceConnectionDefinition("radarr");
   const connection = await findServiceConnectionByType(userId, "radarr");

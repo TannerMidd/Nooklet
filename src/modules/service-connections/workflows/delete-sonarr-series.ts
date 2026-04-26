@@ -5,13 +5,15 @@ import { getServiceConnectionDefinition } from "@/modules/service-connections/se
 import { type DeleteSonarrSeriesInput } from "@/modules/service-connections/schemas/delete-sonarr-series";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 
+type DeleteSonarrSeriesWorkflowInput = Omit<DeleteSonarrSeriesInput, "returnTo">;
+
 export type DeleteSonarrSeriesResult =
   | { ok: true; message: string }
   | { ok: false; message: string };
 
 export async function deleteSonarrSeriesForUser(
   userId: string,
-  input: DeleteSonarrSeriesInput,
+  input: DeleteSonarrSeriesWorkflowInput,
 ): Promise<DeleteSonarrSeriesResult> {
   const definition = getServiceConnectionDefinition("sonarr");
   const connection = await findServiceConnectionByType(userId, "sonarr");

@@ -1,32 +1,55 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { applySonarrEpisodeMonitoring } from "./apply-sonarr-episode-monitoring";
+import {
+  applySonarrEpisodeMonitoring,
+  type ApplySonarrEpisodeMonitoringDependencies,
+} from "./apply-sonarr-episode-monitoring";
 
 type EpisodeFixture = { id: number; seasonNumber: number; monitored: boolean };
+type ListEpisodesDependency = NonNullable<
+  ApplySonarrEpisodeMonitoringDependencies["listEpisodes"]
+>;
+type SetMonitoredDependency = NonNullable<
+  ApplySonarrEpisodeMonitoringDependencies["setMonitored"]
+>;
+type SearchEpisodesDependency = NonNullable<
+  ApplySonarrEpisodeMonitoringDependencies["searchEpisodes"]
+>;
+type EnsureSeasonsMonitoredDependency = NonNullable<
+  ApplySonarrEpisodeMonitoringDependencies["ensureSeasonsMonitored"]
+>;
+type ListEpisodesInput = Parameters<ListEpisodesDependency>[0];
+type SetMonitoredInput = Parameters<SetMonitoredDependency>[0];
+type SearchEpisodesInput = Parameters<SearchEpisodesDependency>[0];
+type EnsureSeasonsMonitoredInput = Parameters<EnsureSeasonsMonitoredDependency>[0];
 
 function buildDeps(overrides: Partial<{
   episodes: EpisodeFixture[];
   listOk: boolean;
   listMessage: string;
-  setMonitoredImpl: ReturnType<typeof vi.fn>;
+  setMonitoredImpl: SetMonitoredDependency;
   searchOk: boolean;
   searchMessage: string;
   ensureOk: boolean;
   ensureMessage: string;
 }> = {}) {
-  const listEpisodes = vi.fn(async () =>
+  const listEpisodes = vi.fn<[ListEpisodesInput], ReturnType<ListEpisodesDependency>>(async () =>
     overrides.listOk === false
       ? { ok: false as const, message: overrides.listMessage ?? "list err" }
       : { ok: true as const, episodes: overrides.episodes ?? [] },
   );
   const setMonitored =
-    overrides.setMonitoredImpl ?? vi.fn(async () => ({ ok: true as const }));
-  const searchEpisodes = vi.fn(async () =>
+    overrides.setMonitoredImpl ??
+    vi.fn<[SetMonitoredInput], ReturnType<SetMonitoredDependency>>(async () => ({ ok: true as const }));
+  const searchEpisodes = vi.fn<[SearchEpisodesInput], ReturnType<SearchEpisodesDependency>>(async () =>
     overrides.searchOk === false
       ? { ok: false as const, message: overrides.searchMessage ?? "search err" }
       : { ok: true as const },
   );
-  const ensureSeasonsMonitored = vi.fn(async () =>
+  const ensureSeasonsMonitored = vi.fn<
+    [EnsureSeasonsMonitoredInput],
+    ReturnType<EnsureSeasonsMonitoredDependency>
+  >(async () =>
     overrides.ensureOk === false
       ? { ok: false as const, message: overrides.ensureMessage ?? "ensure err" }
       : { ok: true as const },
@@ -72,7 +95,10 @@ describe("applySonarrEpisodeMonitoring", () => {
   });
 
   it("on success: ensures season monitored, disables previously-monitored unselected episodes, enables requested, triggers search", async () => {
-    const setMonitoredImpl = vi.fn(async () => ({ ok: true as const }));
+    const setMonitoredImpl = vi.fn<
+      [SetMonitoredInput],
+      ReturnType<SetMonitoredDependency>
+    >(async () => ({ ok: true as const }));
     const deps = buildDeps({
       episodes: [
         { id: 1, seasonNumber: 1, monitored: false },
@@ -124,7 +150,10 @@ describe("applySonarrEpisodeMonitoring", () => {
   });
 
   it("skips ensure-seasons and the disable call when there is nothing to do for those steps", async () => {
-    const setMonitoredImpl = vi.fn(async () => ({ ok: true as const }));
+    const setMonitoredImpl = vi.fn<
+      [SetMonitoredInput],
+      ReturnType<SetMonitoredDependency>
+    >(async () => ({ ok: true as const }));
     const deps = buildDeps({
       episodes: [{ id: 1, seasonNumber: 1, monitored: false }],
       setMonitoredImpl,
@@ -173,7 +202,10 @@ describe("applySonarrEpisodeMonitoring", () => {
 
   it("returns stage=unmonitor when disabling previously-monitored episodes fails", async () => {
     let call = 0;
-    const setMonitoredImpl = vi.fn(async () => {
+    const setMonitoredImpl = vi.fn<
+      [SetMonitoredInput],
+      ReturnType<SetMonitoredDependency>
+    >(async () => {
       call += 1;
       return call === 1
         ? ({ ok: false as const, message: "disable failed" })
@@ -200,7 +232,10 @@ describe("applySonarrEpisodeMonitoring", () => {
   });
 
   it("returns stage=monitor when enabling requested episodes fails", async () => {
-    const setMonitoredImpl = vi.fn(async () => ({ ok: false as const, message: "enable failed" }));
+    const setMonitoredImpl = vi.fn<
+      [SetMonitoredInput],
+      ReturnType<SetMonitoredDependency>
+    >(async () => ({ ok: false as const, message: "enable failed" }));
     const deps = buildDeps({
       episodes: [{ id: 1, seasonNumber: 1, monitored: false }],
       setMonitoredImpl,

@@ -5,13 +5,15 @@ import { getServiceConnectionDefinition } from "@/modules/service-connections/se
 import { type DeleteRadarrMovieInput } from "@/modules/service-connections/schemas/delete-radarr-movie";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 
+type DeleteRadarrMovieWorkflowInput = Omit<DeleteRadarrMovieInput, "returnTo">;
+
 export type DeleteRadarrMovieResult =
   | { ok: true; message: string }
   | { ok: false; message: string };
 
 export async function deleteRadarrMovieForUser(
   userId: string,
-  input: DeleteRadarrMovieInput,
+  input: DeleteRadarrMovieWorkflowInput,
 ): Promise<DeleteRadarrMovieResult> {
   const definition = getServiceConnectionDefinition("radarr");
   const connection = await findServiceConnectionByType(userId, "radarr");
