@@ -21,7 +21,7 @@ import {
   updateRecommendationRequestDefaults,
   updateWatchHistoryOnly,
 } from "@/modules/preferences/repositories/preferences-repository";
-import { createRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
+import { enqueueRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
 
 export async function submitRecommendationRequestAction(
   _previousState: RecommendationActionState,
@@ -65,7 +65,7 @@ export async function submitRecommendationRequestAction(
     defaultAiModel: parsedInput.data.aiModel,
   });
 
-  const result = await createRecommendationRunWorkflow(session.user.id, parsedInput.data);
+  const result = await enqueueRecommendationRunWorkflow(session.user.id, parsedInput.data);
 
   if (!result.ok) {
     return {
@@ -172,7 +172,7 @@ export async function submitRecommendationRetryAction(
     };
   }
 
-  const result = await createRecommendationRunWorkflow(session.user.id, parsedInput.data);
+  const result = await enqueueRecommendationRunWorkflow(session.user.id, parsedInput.data);
 
   if (!result.ok) {
     return {

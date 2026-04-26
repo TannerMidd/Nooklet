@@ -16,6 +16,13 @@ type SaveRecurringJobInput = {
   isEnabled: boolean;
 };
 
+type CreateImmediateJobInput = {
+  userId: string;
+  jobType: JobType;
+  targetType: string;
+  targetKey: string;
+};
+
 function calculateNextRunAt(scheduleMinutes: number, referenceTime = new Date()) {
   return new Date(referenceTime.getTime() + scheduleMinutes * 60_000);
 }
@@ -103,6 +110,53 @@ export async function saveRecurringJob(input: SaveRecurringJobInput) {
   return findJobByTarget(input.userId, input.jobType, input.targetType, input.targetKey);
 }
 
+export async function createImmediateJob(input: CreateImmediateJobInput) {
+  const database = ensureDatabaseReady();
+  const existingJob = await findJobByTarget(
+    input.userId,
+    input.jobType,
+    input.targetType,
+    input.targetKey,
+  );
+
+  if (existingJob) {
+    database
+      .update(jobs)
+      .set({
+        scheduleMinutes: 0,
+        isEnabled: true,
+        nextRunAt: new Date(),
+        lastStatus: "idle",
+        lastStartedAt: null,
+        lastCompletedAt: null,
+        lastError: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(jobs.id, existingJob.id))
+      .run();
+
+    return findJobByTarget(input.userId, input.jobType, input.targetType, input.targetKey);
+  }
+
+  const jobId = randomUUID();
+
+  database
+    .insert(jobs)
+    .values({
+      id: jobId,
+      userId: input.userId,
+      jobType: input.jobType,
+      targetType: input.targetType,
+      targetKey: input.targetKey,
+      scheduleMinutes: 0,
+      isEnabled: true,
+      nextRunAt: new Date(),
+    })
+    .run();
+
+  return findJobByTarget(input.userId, input.jobType, input.targetType, input.targetKey);
+}
+
 export async function claimDueJobs(jobType: JobType, now: Date, limit = 5) {
   const database = ensureDatabaseReady();
   const candidates = database
@@ -157,13 +211,15 @@ export async function claimDueJobs(jobType: JobType, now: Date, limit = 5) {
 
 export async function completeJobRun(jobId: string, scheduleMinutes: number, completedAt = new Date()) {
   const database = ensureDatabaseReady();
+  const isOneOffJob = scheduleMinutes <= 0;
 
   database
     .update(jobs)
     .set({
       lastStatus: "succeeded",
       lastCompletedAt: completedAt,
-      nextRunAt: calculateNextRunAt(scheduleMinutes, completedAt),
+      nextRunAt: isOneOffJob ? null : calculateNextRunAt(scheduleMinutes, completedAt),
+      isEnabled: isOneOffJob ? false : true,
       lastError: null,
       updatedAt: completedAt,
     })
@@ -178,13 +234,15 @@ export async function failJobRun(
   completedAt = new Date(),
 ) {
   const database = ensureDatabaseReady();
+  const isOneOffJob = scheduleMinutes <= 0;
 
   database
     .update(jobs)
     .set({
       lastStatus: "failed",
       lastCompletedAt: completedAt,
-      nextRunAt: calculateNextRunAt(scheduleMinutes, completedAt),
+      nextRunAt: isOneOffJob ? null : calculateNextRunAt(scheduleMinutes, completedAt),
+      isEnabled: isOneOffJob ? false : true,
       lastError: errorMessage,
       updatedAt: completedAt,
     })

@@ -7,9 +7,13 @@ import {
   recommendationFeedback,
   recommendationItems,
   recommendationItemStates,
+  recommendationItemTimelineEvents,
+  recommendationRunMetrics,
   recommendationRuns,
   type RecommendationFeedbackValue,
   type RecommendationMediaType,
+  type RecommendationTimelineEventType,
+  type RecommendationTimelineStatus,
 } from "@/lib/database/schema";
 import {
   parseRecommendationGenresJson,
@@ -37,6 +41,31 @@ type CreateRecommendationItemInput = {
   confidenceLabel: string | null;
   providerMetadataJson: string | null;
 };
+
+type UpsertRecommendationRunMetricsInput = {
+  runId: string;
+  userId: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  durationMs: number;
+  generationAttemptCount: number;
+  excludedExistingItemCount: number;
+  excludedLanguageItemCount: number;
+  generatedItemCount: number;
+};
+
+type CreateRecommendationTimelineEventInput = {
+  userId: string;
+  itemId: string;
+  eventType: RecommendationTimelineEventType;
+  status: RecommendationTimelineStatus;
+  title: string;
+  message: string;
+  metadata?: Record<string, unknown> | null;
+};
+
+type RecommendationTimelineEventInsert = typeof recommendationItemTimelineEvents.$inferInsert;
 
 export async function createRecommendationRun(input: CreateRecommendationRunInput) {
   const database = ensureDatabaseReady();
@@ -80,6 +109,11 @@ export async function completeRecommendationRun(
   items: CreateRecommendationItemInput[],
 ) {
   const database = ensureDatabaseReady();
+  const run = database
+    .select({ userId: recommendationRuns.userId })
+    .from(recommendationRuns)
+    .where(eq(recommendationRuns.id, runId))
+    .get();
 
   const values = items.map((item) => ({
     id: randomUUID(),
@@ -96,6 +130,27 @@ export async function completeRecommendationRun(
   database.transaction(() => {
     if (values.length > 0) {
       database.insert(recommendationItems).values(values).run();
+
+      if (run) {
+        const timelineValues: RecommendationTimelineEventInsert[] = values.map((item) => ({
+          id: randomUUID(),
+          userId: run.userId,
+          itemId: item.id,
+          eventType: "generated",
+          status: "succeeded",
+          title: "Recommendation generated",
+          message: `${item.title}${item.year ? ` (${item.year})` : ""} was generated in this recommendation run.`,
+          metadataJson: JSON.stringify({
+            runId,
+            position: item.position,
+          }),
+        }));
+
+        database
+          .insert(recommendationItemTimelineEvents)
+          .values(timelineValues)
+          .run();
+      }
     }
 
     database
@@ -109,6 +164,74 @@ export async function completeRecommendationRun(
       .where(eq(recommendationRuns.id, runId))
       .run();
   });
+}
+
+export async function upsertRecommendationRunMetrics(
+  input: UpsertRecommendationRunMetricsInput,
+) {
+  const database = ensureDatabaseReady();
+
+  database
+    .insert(recommendationRunMetrics)
+    .values({
+      runId: input.runId,
+      userId: input.userId,
+      promptTokens: input.promptTokens,
+      completionTokens: input.completionTokens,
+      totalTokens: input.totalTokens,
+      durationMs: input.durationMs,
+      generationAttemptCount: input.generationAttemptCount,
+      excludedExistingItemCount: input.excludedExistingItemCount,
+      excludedLanguageItemCount: input.excludedLanguageItemCount,
+      generatedItemCount: input.generatedItemCount,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: recommendationRunMetrics.runId,
+      set: {
+        promptTokens: input.promptTokens,
+        completionTokens: input.completionTokens,
+        totalTokens: input.totalTokens,
+        durationMs: input.durationMs,
+        generationAttemptCount: input.generationAttemptCount,
+        excludedExistingItemCount: input.excludedExistingItemCount,
+        excludedLanguageItemCount: input.excludedLanguageItemCount,
+        generatedItemCount: input.generatedItemCount,
+        updatedAt: new Date(),
+      },
+    })
+    .run();
+}
+
+export async function listRecommendationRunMetrics(userId: string, limit = 50) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({
+      runId: recommendationRunMetrics.runId,
+      mediaType: recommendationRuns.mediaType,
+      status: recommendationRuns.status,
+      requestPrompt: recommendationRuns.requestPrompt,
+      requestedCount: recommendationRuns.requestedCount,
+      aiModel: recommendationRuns.aiModel,
+      aiTemperature: recommendationRuns.aiTemperature,
+      promptTokens: recommendationRunMetrics.promptTokens,
+      completionTokens: recommendationRunMetrics.completionTokens,
+      totalTokens: recommendationRunMetrics.totalTokens,
+      durationMs: recommendationRunMetrics.durationMs,
+      generationAttemptCount: recommendationRunMetrics.generationAttemptCount,
+      excludedExistingItemCount: recommendationRunMetrics.excludedExistingItemCount,
+      excludedLanguageItemCount: recommendationRunMetrics.excludedLanguageItemCount,
+      generatedItemCount: recommendationRunMetrics.generatedItemCount,
+      createdAt: recommendationRuns.createdAt,
+      completedAt: recommendationRuns.completedAt,
+    })
+    .from(recommendationRunMetrics)
+    .innerJoin(recommendationRuns, eq(recommendationRuns.id, recommendationRunMetrics.runId))
+    .where(eq(recommendationRunMetrics.userId, userId))
+    .orderBy(desc(recommendationRuns.createdAt))
+    .limit(limit)
+    .all();
 }
 
 export async function listRecommendationRuns(
@@ -154,6 +277,40 @@ export async function listRecommendationRuns(
     ...run,
     selectedGenres: parseRecommendationGenresJson(selectedGenresJson),
   }));
+}
+
+export async function findRecommendationRunForUser(userId: string, runId: string) {
+  const database = ensureDatabaseReady();
+  const row =
+    database
+      .select({
+        id: recommendationRuns.id,
+        userId: recommendationRuns.userId,
+        mediaType: recommendationRuns.mediaType,
+        status: recommendationRuns.status,
+        requestPrompt: recommendationRuns.requestPrompt,
+        selectedGenresJson: recommendationRuns.selectedGenresJson,
+        requestedCount: recommendationRuns.requestedCount,
+        aiModel: recommendationRuns.aiModel,
+        aiTemperature: recommendationRuns.aiTemperature,
+        watchHistoryOnly: recommendationRuns.watchHistoryOnly,
+        errorMessage: recommendationRuns.errorMessage,
+        createdAt: recommendationRuns.createdAt,
+        completedAt: recommendationRuns.completedAt,
+        updatedAt: recommendationRuns.updatedAt,
+      })
+      .from(recommendationRuns)
+      .where(and(eq(recommendationRuns.id, runId), eq(recommendationRuns.userId, userId)))
+      .get() ?? null;
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    ...row,
+    selectedGenres: parseRecommendationGenresJson(row.selectedGenresJson),
+  };
 }
 
 export async function listRecommendationItemsByRunIds(userId: string, runIds: string[]) {
@@ -321,6 +478,100 @@ export async function findRecommendationItemForUser(userId: string, itemId: stri
       .where(and(eq(recommendationItems.id, itemId), eq(recommendationRuns.userId, userId)))
       .get() ?? null
   );
+}
+
+export async function createRecommendationItemTimelineEvent(
+  input: CreateRecommendationTimelineEventInput,
+) {
+  const database = ensureDatabaseReady();
+
+  database
+    .insert(recommendationItemTimelineEvents)
+    .values({
+      id: randomUUID(),
+      userId: input.userId,
+      itemId: input.itemId,
+      eventType: input.eventType,
+      status: input.status,
+      title: input.title,
+      message: input.message,
+      metadataJson: input.metadata ? JSON.stringify(input.metadata) : null,
+    })
+    .run();
+}
+
+export async function listRecommendationItemTimelineEvents(
+  userId: string,
+  itemId: string,
+) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({
+      id: recommendationItemTimelineEvents.id,
+      itemId: recommendationItemTimelineEvents.itemId,
+      eventType: recommendationItemTimelineEvents.eventType,
+      status: recommendationItemTimelineEvents.status,
+      title: recommendationItemTimelineEvents.title,
+      message: recommendationItemTimelineEvents.message,
+      metadataJson: recommendationItemTimelineEvents.metadataJson,
+      createdAt: recommendationItemTimelineEvents.createdAt,
+    })
+    .from(recommendationItemTimelineEvents)
+    .where(
+      and(
+        eq(recommendationItemTimelineEvents.userId, userId),
+        eq(recommendationItemTimelineEvents.itemId, itemId),
+      ),
+    )
+    .orderBy(asc(recommendationItemTimelineEvents.createdAt))
+    .all();
+}
+
+export async function listRecommendationTasteProfileRows(
+  userId: string,
+  mediaType?: RecommendationMediaType,
+) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({
+      itemId: recommendationItems.id,
+      mediaType: recommendationItems.mediaType,
+      title: recommendationItems.title,
+      year: recommendationItems.year,
+      providerMetadataJson: recommendationItems.providerMetadataJson,
+      existingInLibrary: recommendationItems.existingInLibrary,
+      runCreatedAt: recommendationRuns.createdAt,
+      feedback: recommendationFeedback.feedback,
+      isHidden: recommendationItemStates.isHidden,
+    })
+    .from(recommendationItems)
+    .innerJoin(recommendationRuns, eq(recommendationRuns.id, recommendationItems.runId))
+    .leftJoin(
+      recommendationFeedback,
+      and(
+        eq(recommendationFeedback.itemId, recommendationItems.id),
+        eq(recommendationFeedback.userId, userId),
+      ),
+    )
+    .leftJoin(
+      recommendationItemStates,
+      and(
+        eq(recommendationItemStates.itemId, recommendationItems.id),
+        eq(recommendationItemStates.userId, userId),
+      ),
+    )
+    .where(
+      mediaType
+        ? and(
+            eq(recommendationRuns.userId, userId),
+            eq(recommendationItems.mediaType, mediaType),
+          )
+        : eq(recommendationRuns.userId, userId),
+    )
+    .orderBy(desc(recommendationRuns.createdAt), asc(recommendationItems.position))
+    .all();
 }
 
 export async function markRecommendationItemExistingInLibrary(

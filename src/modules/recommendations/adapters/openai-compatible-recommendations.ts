@@ -42,6 +42,13 @@ type GenerateRecommendationsInput = {
     genres: string[];
   }>;
   libraryTasteTotalCount: number;
+  tasteProfileContext?: {
+    likedItems: Array<{ title: string; year: number | null }>;
+    dislikedItems: Array<{ title: string; year: number | null }>;
+    addedItems: Array<{ title: string; year: number | null }>;
+    preferredGenres: string[];
+    avoidedGenres: string[];
+  };
 };
 
 type GeneratedRecommendation = {
@@ -50,6 +57,17 @@ type GeneratedRecommendation = {
   rationale: string;
   confidenceLabel: string | null;
   providerMetadata: Record<string, unknown>;
+};
+
+export type AiUsageMetrics = {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+};
+
+export type GeneratedRecommendationBatch = GeneratedRecommendation[] & {
+  usage?: AiUsageMetrics;
+  durationMs?: number;
 };
 
 const fallbackRationale = "Recommended by the AI provider, but no rationale was returned.";
@@ -113,6 +131,45 @@ function normalizeRecommendationItem(value: unknown) {
   } satisfies Omit<GeneratedRecommendation, "providerMetadata">;
 }
 
+function formatProfileItems(items: Array<{ title: string; year: number | null }>) {
+  return items.length > 0
+    ? items.map((item) => `- ${item.title}${item.year ? ` (${item.year})` : ""}`).join("\n")
+    : "None provided.";
+}
+
+function normalizeUsageMetrics(value: unknown): AiUsageMetrics | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+
+  const usage = value as Record<string, unknown>;
+  const promptTokens = typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : 0;
+  const completionTokens = typeof usage.completion_tokens === "number" ? usage.completion_tokens : 0;
+  const totalTokens = typeof usage.total_tokens === "number" ? usage.total_tokens : promptTokens + completionTokens;
+
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens,
+  };
+}
+
+function attachBatchMetrics(
+  items: GeneratedRecommendation[],
+  metrics: { usage?: AiUsageMetrics; durationMs: number },
+) {
+  Object.defineProperty(items, "usage", {
+    value: metrics.usage,
+    enumerable: false,
+  });
+  Object.defineProperty(items, "durationMs", {
+    value: metrics.durationMs,
+    enumerable: false,
+  });
+
+  return items as GeneratedRecommendationBatch;
+}
+
 export function buildRecommendationUserPrompt(input: GenerateRecommendationsInput) {
   const trimmedRequestPrompt = input.requestPrompt.trim();
   const selectedGenreLabels = formatRecommendationGenres(input.selectedGenres);
@@ -135,6 +192,18 @@ export function buildRecommendationUserPrompt(input: GenerateRecommendationsInpu
           .map((item) => `- ${item.title}${item.year ? ` (${item.year})` : ""}`)
           .join("\n")
       : "None provided.";
+  const tasteProfile = input.tasteProfileContext;
+  const tasteProfileBlock = tasteProfile
+    ? [
+        `Feedback taste profile:`,
+        `Liked titles:\n${formatProfileItems(tasteProfile.likedItems)}`,
+        `Titles added or already accepted into the library:\n${formatProfileItems(tasteProfile.addedItems)}`,
+        `Disliked titles:\n${formatProfileItems(tasteProfile.dislikedItems)}`,
+        `Preferred genres from feedback and accepted titles: ${tasteProfile.preferredGenres.length > 0 ? tasteProfile.preferredGenres.join(", ") : "None provided."}`,
+        `Avoided genres from dislikes and hidden titles: ${tasteProfile.avoidedGenres.length > 0 ? tasteProfile.avoidedGenres.join(", ") : "None provided."}`,
+        "Use liked and accepted titles as a positive taste signal. Avoid repeating disliked or hidden patterns unless the request explicitly asks for them.",
+      ].join("\n")
+    : "Feedback taste profile: None provided yet.";
   const genrePriorityBlock =
     selectedGenreLabels.length > 0
       ? `Priority genres: ${selectedGenreLabels.join(", ")}\.\nThese selected genres are the strongest instruction for this request. Every recommendation must align with at least one selected genre, and the full batch should include a mix across all selected genres when possible.\n`
@@ -168,13 +237,15 @@ export function buildRecommendationUserPrompt(input: GenerateRecommendationsInpu
     `Watch-history-only mode: ${input.watchHistoryOnly ? "enabled" : "disabled"}.\n` +
     `${input.watchHistoryOnly ? "Use the watched-title list below as the primary source context for these recommendations.\n" : "Use the watched-title list below as optional taste context when it is present.\n"}` +
     `Recent watched titles:\n${watchHistoryContextBlock}\n` +
+    `${tasteProfileBlock}\n` +
     "Prefer a diverse set of results with specific rationales."
   );
 }
 
 export async function generateOpenAiCompatibleRecommendations(
   input: GenerateRecommendationsInput,
-): Promise<GeneratedRecommendation[]> {
+): Promise<GeneratedRecommendationBatch> {
+  const startedAt = Date.now();
   const response = await safeFetch(
     resolveChatCompletionsUrl(input.baseUrl, input.flavor ?? "openai-compatible"),
     {
@@ -217,6 +288,7 @@ export async function generateOpenAiCompatibleRecommendations(
   }
 
   const payload = (await response.json()) as {
+    usage?: unknown;
     choices?: Array<{
       message?: {
         content?: string | Array<{ type?: string; text?: string }>;
@@ -251,7 +323,7 @@ export async function generateOpenAiCompatibleRecommendations(
     throw new Error("The AI provider returned no usable recommendations.");
   }
 
-  return normalizedItems.slice(0, input.requestedCount).map((item) => ({
+  const items = normalizedItems.slice(0, input.requestedCount).map((item) => ({
     title: item.title,
     year: item.year ?? null,
     rationale: item.rationale,
@@ -262,4 +334,9 @@ export async function generateOpenAiCompatibleRecommendations(
       temperature: input.temperature,
     },
   }));
+
+  return attachBatchMetrics(items, {
+    usage: normalizeUsageMetrics(payload.usage),
+    durationMs: Date.now() - startedAt,
+  });
 }
