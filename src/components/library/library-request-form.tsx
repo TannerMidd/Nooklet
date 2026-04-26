@@ -97,6 +97,7 @@ export function LibraryRequestForm({
     if (state.pendingEpisodeSelection) {
       // Add succeeded but we still need the user to pick episodes — swap
       // straight into the in-modal episode picker.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing modal handoff state from server-action result.
       setPendingEpisode(state.pendingEpisodeSelection);
       setIsOpen(false);
     } else {
@@ -109,6 +110,7 @@ export function LibraryRequestForm({
       return;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset selection back to saved defaults when modal closes.
     setSelectedRootFolderPath(selectionDefaults.rootFolderPath);
     setSelectedQualityProfileId(selectionDefaults.qualityProfileId);
   }, [isOpen, selectionDefaults.qualityProfileId, selectionDefaults.rootFolderPath]);

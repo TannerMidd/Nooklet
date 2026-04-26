@@ -80,6 +80,7 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
     }
 
     lastAutoOpenedRef.current = autoOpenSeriesId;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot auto-open driven by deep-link prop; ref guards re-entry.
     setModalInitialMode(autoOpenMode);
     setSelectedSonarrSeriesId(autoOpenSeriesId);
   }, [serviceType, autoOpenSeriesId, autoOpenMode, items]);
