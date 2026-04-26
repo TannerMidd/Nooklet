@@ -22,6 +22,11 @@ export const watchHistorySourceDefinitions = [
     displayName: "Tautulli sync",
     description: "Use a verified Tautulli connection to import recent Plex history through Tautulli.",
   },
+  {
+    sourceType: "trakt",
+    displayName: "Trakt sync",
+    description: "Use a verified Trakt connection to import watched shows and movies from your Trakt account.",
+  },
 ] as const satisfies readonly WatchHistorySourceDefinition[];
 
 export function getWatchHistorySourceDefinition(sourceType: WatchHistorySourceType) {

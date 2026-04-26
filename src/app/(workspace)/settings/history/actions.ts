@@ -6,6 +6,7 @@ import {
   type ManualWatchHistoryActionState,
   type PlexWatchHistoryActionState,
   type TautulliWatchHistoryActionState,
+  type TraktWatchHistoryActionState,
   type WatchHistoryScheduleActionState,
 } from "@/app/(workspace)/settings/history/action-state";
 import { auth } from "@/auth";
@@ -13,10 +14,12 @@ import { manualWatchHistorySyncInputSchema } from "@/modules/watch-history/schem
 import { plexWatchHistorySyncInputSchema } from "@/modules/watch-history/schemas/plex-watch-history-sync";
 import { watchHistoryScheduleInputSchema } from "@/modules/watch-history/schemas/watch-history-schedule";
 import { tautulliWatchHistorySyncInputSchema } from "@/modules/watch-history/schemas/tautulli-watch-history-sync";
+import { traktWatchHistorySyncInputSchema } from "@/modules/watch-history/schemas/trakt-watch-history-sync";
 import { configureWatchHistorySchedule } from "@/modules/watch-history/workflows/configure-watch-history-schedule";
 import { syncManualWatchHistory } from "@/modules/watch-history/workflows/sync-manual-watch-history";
 import { syncPlexWatchHistory } from "@/modules/watch-history/workflows/sync-plex-watch-history";
 import { syncTautulliWatchHistory } from "@/modules/watch-history/workflows/sync-tautulli-watch-history";
+import { syncTraktWatchHistory } from "@/modules/watch-history/workflows/sync-trakt-watch-history";
 
 export async function submitManualWatchHistorySyncAction(
   _previousState: ManualWatchHistoryActionState,
@@ -169,6 +172,50 @@ export async function submitPlexWatchHistorySyncAction(
             [result.field]: result.message,
           }
         : undefined,
+  };
+}
+
+export async function submitTraktWatchHistorySyncAction(
+  _previousState: TraktWatchHistoryActionState,
+  formData: FormData,
+): Promise<TraktWatchHistoryActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return {
+      status: "error",
+      message: "You need to sign in again.",
+    };
+  }
+
+  const parsedInput = traktWatchHistorySyncInputSchema.safeParse({
+    mediaType: formData.get("mediaType"),
+    importLimit: formData.get("importLimit"),
+  });
+
+  if (!parsedInput.success) {
+    const flattenedErrors = parsedInput.error.flatten().fieldErrors;
+
+    return {
+      status: "error",
+      message: "Review the Trakt sync fields and try again.",
+      fieldErrors: {
+        mediaType: flattenedErrors.mediaType?.[0],
+        importLimit: flattenedErrors.importLimit?.[0],
+      },
+    };
+  }
+
+  const result = await syncTraktWatchHistory(session.user.id, parsedInput.data);
+
+  revalidatePath("/settings/history");
+  revalidatePath("/settings/preferences");
+  revalidatePath("/tv");
+  revalidatePath("/movies");
+
+  return {
+    status: result.ok ? "success" : "error",
+    message: result.message,
   };
 }
 

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const schedulableWatchHistorySourceTypeSchema = z.enum(["plex", "tautulli"]);
+export const schedulableWatchHistorySourceTypeSchema = z.enum(["plex", "tautulli", "trakt"]);
 
 export const watchHistoryScheduleInputSchema = z.object({
   sourceType: schedulableWatchHistorySourceTypeSchema,

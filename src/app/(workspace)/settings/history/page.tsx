@@ -9,6 +9,7 @@ import { getWatchHistoryOverview } from "@/modules/watch-history/queries/get-wat
 import { ManualWatchHistoryForm } from "./manual-watch-history-form";
 import { PlexWatchHistoryForm } from "./plex-watch-history-form";
 import { TautulliWatchHistoryForm } from "./tautulli-watch-history-form";
+import { TraktWatchHistoryForm } from "./trakt-watch-history-form";
 import { WatchHistoryScheduleForm } from "./watch-history-schedule-form";
 
 export const dynamic = "force-dynamic";
@@ -84,6 +85,9 @@ export default async function WatchHistorySettingsPage() {
   const tautulliSummary =
     connectionSummaries.find((summary) => summary.serviceType === "tautulli") ?? null;
   const tautulliSchedule = scheduledJobBySourceType.get("tautulli") ?? null;
+  const traktSource = overview.sources.find((source) => source.sourceType === "trakt") ?? null;
+  const traktSummary = connectionSummaries.find((summary) => summary.serviceType === "trakt") ?? null;
+  const traktSchedule = scheduledJobBySourceType.get("trakt") ?? null;
   const hasRecentItems =
     overview.recentTvItems.length > 0 || overview.recentMovieItems.length > 0;
   const lastSyncedAt = overview.sources.reduce<Date | null>((latest, source) => {
@@ -224,6 +228,60 @@ export default async function WatchHistorySettingsPage() {
                     ? "Connect and verify Tautulli first. The verified connection loads remote Plex users and unlocks provider-backed history sync."
                     : tautulliSummary?.statusMessage ??
                       "Verify the saved Tautulli connection before syncing history."}
+                </p>
+                <Link
+                  href="/settings/connections"
+                  className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                >
+                  Open connections
+                </Link>
+              </div>
+            )}
+          </Panel>
+
+          <Panel
+            eyebrow="Trakt source"
+            title="Sync watched titles from Trakt"
+            description="Import watched TV or movie history from the verified Trakt account tied to your saved token."
+          >
+            {traktSummary?.status === "verified" ? (
+              <div className="space-y-6">
+                <div className="grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
+                  <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                    <span className="font-medium">Account:</span>{" "}
+                    {traktSummary.serverName ?? "Loaded via verify"}
+                  </div>
+                  <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                    <span className="font-medium">Last verified:</span>{" "}
+                    {traktSummary.lastVerifiedAt
+                      ? new Intl.DateTimeFormat("en", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        }).format(traktSummary.lastVerifiedAt)
+                      : "Never"}
+                  </div>
+                </div>
+                <TraktWatchHistoryForm defaultImportLimit={traktSource?.importLimit ?? 100} />
+                <WatchHistoryScheduleForm
+                  sourceType="trakt"
+                  defaultEnabled={traktSchedule?.isEnabled ?? false}
+                  defaultIntervalHours={Math.max(
+                    Math.round((traktSchedule?.scheduleMinutes ?? 720) / 60),
+                    1,
+                  )}
+                  lastRunAt={traktSchedule?.lastCompletedAt ?? null}
+                  lastStatus={traktSchedule?.lastStatus ?? null}
+                  lastError={traktSchedule?.lastError ?? null}
+                  helperText="Auto-sync refreshes both TV and movie Trakt history using the last saved import limit. Run one manual sync first so the schedule has a saved source to reuse."
+                />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+                  {traktSummary?.status === "disconnected"
+                    ? "Connect and verify Trakt first. Save credentials as client id::OAuth token or JSON with clientId and accessToken."
+                    : traktSummary?.statusMessage ??
+                      "Verify the saved Trakt connection before syncing history."}
                 </p>
                 <Link
                   href="/settings/connections"

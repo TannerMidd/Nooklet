@@ -78,6 +78,12 @@ export async function listConnectionSummaries(userId: string) {
     const plexMetadata = parsePlexMetadata(record.metadata);
     const sabnzbdMetadata = parseSabnzbdMetadata(record.metadata);
     const tautulliMetadata = parseTautulliMetadata(record.metadata);
+    const traktDisplayName =
+      typeof record.metadata?.displayName === "string"
+        ? record.metadata.displayName
+        : typeof record.metadata?.username === "string"
+          ? record.metadata.username
+          : null;
 
     return {
       serviceType: definition.serviceType,
@@ -90,7 +96,7 @@ export async function listConnectionSummaries(userId: string) {
       model:
         typeof record.metadata?.model === "string" ? (record.metadata.model as string) : null,
       availableModels: parseAvailableModels(record.metadata),
-      serverName: tautulliMetadata?.serverName ?? plexMetadata?.serverName ?? null,
+      serverName: tautulliMetadata?.serverName ?? plexMetadata?.serverName ?? traktDisplayName,
       availableUsers: tautulliMetadata?.availableUsers ?? plexMetadata?.availableUsers ?? [],
       rootFolders: libraryMetadata?.rootFolders ?? [],
       qualityProfiles: libraryMetadata?.qualityProfiles ?? [],

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const serviceConnectionTypeSchema = z.enum(["ai-provider", "sonarr", "radarr", "tautulli", "plex", "sabnzbd", "tmdb"]);
+export const serviceConnectionTypeSchema = z.enum(["ai-provider", "sonarr", "radarr", "tautulli", "plex", "sabnzbd", "tmdb", "trakt"]);
 export const serviceConnectionIntentSchema = z.enum(["save", "verify", "disconnect"]);
 
 const apiKeySchema = z.string().trim().max(1024).optional().transform((value) => value ?? "");
@@ -13,7 +13,7 @@ export const aiProviderConnectionSchema = z.object({
 });
 
 export const apiKeyServiceConnectionSchema = z.object({
-  serviceType: z.enum(["sonarr", "radarr", "tautulli", "plex", "sabnzbd", "tmdb"]),
+  serviceType: z.enum(["sonarr", "radarr", "tautulli", "plex", "sabnzbd", "tmdb", "trakt"]),
   baseUrl: z.string().trim().url("Enter a valid base URL."),
   apiKey: apiKeySchema,
 });

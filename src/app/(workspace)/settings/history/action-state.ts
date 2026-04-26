@@ -16,6 +16,12 @@ export type PlexWatchHistoryActionState = {
   fieldErrors?: Partial<Record<"mediaType" | "plexUserId" | "importLimit", string>>;
 };
 
+export type TraktWatchHistoryActionState = {
+  status: "idle" | "error" | "success";
+  message?: string;
+  fieldErrors?: Partial<Record<"mediaType" | "importLimit", string>>;
+};
+
 export type WatchHistoryScheduleActionState = {
   status: "idle" | "error" | "success";
   message?: string;
@@ -31,6 +37,10 @@ export const initialTautulliWatchHistoryActionState: TautulliWatchHistoryActionS
 };
 
 export const initialPlexWatchHistoryActionState: PlexWatchHistoryActionState = {
+  status: "idle",
+};
+
+export const initialTraktWatchHistoryActionState: TraktWatchHistoryActionState = {
   status: "idle",
 };
 

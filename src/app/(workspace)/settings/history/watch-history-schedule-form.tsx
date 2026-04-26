@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { submitWatchHistoryScheduleAction } from "./actions";
 
 type WatchHistoryScheduleFormProps = {
-  sourceType: "plex" | "tautulli";
+  sourceType: "plex" | "tautulli" | "trakt";
   defaultEnabled: boolean;
   defaultIntervalHours: number;
   lastRunAt: Date | null;

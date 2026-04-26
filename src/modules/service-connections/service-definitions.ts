@@ -67,6 +67,14 @@ export const serviceConnectionDefinitions = [
     secretLabel: "API key or read token",
     defaultBaseUrl: "https://api.themoviedb.org/3",
   },
+  {
+    serviceType: "trakt",
+    displayName: "Trakt",
+    description:
+      "Import watched TV and movies from Trakt using a client id plus OAuth access token.",
+    secretLabel: "Client ID::OAuth token",
+    defaultBaseUrl: "https://api.trakt.tv",
+  },
 ] as const satisfies readonly ServiceConnectionDefinition[];
 
 export function getServiceConnectionDefinition(

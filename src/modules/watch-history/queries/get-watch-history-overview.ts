@@ -8,6 +8,7 @@ import {
 import {
   parseTautulliWatchHistorySourceMetadata,
 } from "@/modules/watch-history/tautulli-watch-history-source-metadata";
+import { parseTraktWatchHistorySourceMetadata } from "@/modules/watch-history/trakt-watch-history-source-metadata";
 import { parseWatchHistorySourceMetadataJson } from "@/modules/watch-history/source-metadata";
 
 export async function getWatchHistoryOverview(userId: string) {
@@ -40,6 +41,10 @@ export async function getWatchHistoryOverview(userId: string) {
         source.sourceType === "plex"
           ? parsePlexWatchHistorySourceMetadata(sourceMetadata)
           : null;
+      const traktMetadata =
+        source.sourceType === "trakt"
+          ? parseTraktWatchHistorySourceMetadata(sourceMetadata)
+          : null;
       const selectedUserMetadata = tautulliMetadata ?? plexMetadata;
 
       return {
@@ -53,8 +58,8 @@ export async function getWatchHistoryOverview(userId: string) {
             : `Latest ${latestRun.mediaType === "tv" ? "TV" : "movie"} sync imported ${latestRun.itemCount} titles.`
           : "No watch-history sync has been run yet.",
         selectedUserId: selectedUserMetadata?.selectedUserId ?? null,
-        selectedUserName: selectedUserMetadata?.selectedUserName ?? null,
-        importLimit: selectedUserMetadata?.importLimit ?? null,
+        selectedUserName: selectedUserMetadata?.selectedUserName ?? traktMetadata?.displayName ?? null,
+        importLimit: selectedUserMetadata?.importLimit ?? traktMetadata?.importLimit ?? null,
         lastSyncedAt: latestRun?.completedAt ?? null,
         lastMediaType: latestRun?.mediaType ?? null,
         lastImportedCount: latestRun?.itemCount ?? 0,
