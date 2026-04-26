@@ -3,6 +3,9 @@ export async function register() {
     return;
   }
 
+  const { ensureDatabaseReady } = await import("@/lib/database/client");
+  ensureDatabaseReady();
+
   const { startBackgroundWorker } = await import("@/lib/jobs/worker");
 
   startBackgroundWorker();
