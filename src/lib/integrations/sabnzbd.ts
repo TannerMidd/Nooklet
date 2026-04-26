@@ -27,6 +27,18 @@ export type SabnzbdQueueSnapshot = {
   items: SabnzbdQueueItem[];
 };
 
+type SabnzbdStatusResponse = {
+  status?: unknown;
+  nzo_ids?: unknown;
+};
+
+type SabnzbdMoveResponse = {
+  result?: {
+    position?: unknown;
+    priority?: unknown;
+  };
+};
+
 type SabnzbdQueueResponse = {
   queue?: {
     version?: unknown;
@@ -55,6 +67,12 @@ function buildSabnzbdApiUrl(baseUrl: string, input: { mode: string; limit?: numb
   if (typeof input.limit === "number") {
     url.searchParams.set("limit", String(input.limit));
   }
+
+  return url;
+}
+
+function setSabnzbdApiKey(url: URL, apiKey: string) {
+  url.searchParams.set("apikey", apiKey);
 
   return url;
 }
@@ -135,6 +153,7 @@ function normalizeSabnzbdQueueSnapshot(payload: SabnzbdQueueResponse): SabnzbdQu
         .map((entry) => normalizeSabnzbdQueueItem(entry))
         .filter((entry): entry is SabnzbdQueueItem => entry !== null)
     : [];
+  const activeQueueCount = normalizeNumber(queue?.noofslots) ?? items.length;
 
   return {
     version: normalizeNullableString(queue?.version),
@@ -143,9 +162,9 @@ function normalizeSabnzbdQueueSnapshot(payload: SabnzbdQueueResponse): SabnzbdQu
     speed: normalizeNullableString(queue?.speed),
     kbPerSec: normalizeNumber(queue?.kbpersec),
     timeLeft: normalizeNullableString(queue?.timeleft),
-    activeQueueCount: items.length,
+    activeQueueCount,
     totalQueueCount:
-      normalizeNumber(queue?.noofslots_total) ?? normalizeNumber(queue?.noofslots) ?? items.length,
+      normalizeNumber(queue?.noofslots_total) ?? activeQueueCount,
     items,
   } satisfies SabnzbdQueueSnapshot;
 }
@@ -176,6 +195,14 @@ async function fetchSabnzbdJson<T>(url: URL) {
   return payload as T;
 }
 
+function assertSabnzbdStatus(payload: SabnzbdStatusResponse, actionLabel: string) {
+  if (payload.status === true || payload.status === "true") {
+    return;
+  }
+
+  throw new Error(`SABnzbd could not ${actionLabel}.`);
+}
+
 export async function listSabnzbdQueue(input: {
   baseUrl: string;
   apiKey: string;
@@ -186,11 +213,78 @@ export async function listSabnzbdQueue(input: {
     limit: input.limit,
   });
 
-  url.searchParams.set("apikey", input.apiKey);
+  setSabnzbdApiKey(url, input.apiKey);
 
   const payload = await fetchSabnzbdJson<SabnzbdQueueResponse>(url);
 
   return normalizeSabnzbdQueueSnapshot(payload);
+}
+
+export async function pauseSabnzbdQueueItem(input: {
+  baseUrl: string;
+  apiKey: string;
+  itemId: string;
+}) {
+  const url = buildSabnzbdApiUrl(input.baseUrl, { mode: "queue" });
+
+  url.searchParams.set("name", "pause");
+  url.searchParams.set("value", input.itemId);
+  setSabnzbdApiKey(url, input.apiKey);
+
+  const payload = await fetchSabnzbdJson<SabnzbdStatusResponse>(url);
+
+  assertSabnzbdStatus(payload, "pause the queue item");
+}
+
+export async function resumeSabnzbdQueueItem(input: {
+  baseUrl: string;
+  apiKey: string;
+  itemId: string;
+}) {
+  const url = buildSabnzbdApiUrl(input.baseUrl, { mode: "queue" });
+
+  url.searchParams.set("name", "resume");
+  url.searchParams.set("value", input.itemId);
+  setSabnzbdApiKey(url, input.apiKey);
+
+  const payload = await fetchSabnzbdJson<SabnzbdStatusResponse>(url);
+
+  assertSabnzbdStatus(payload, "resume the queue item");
+}
+
+export async function removeSabnzbdQueueItem(input: {
+  baseUrl: string;
+  apiKey: string;
+  itemId: string;
+}) {
+  const url = buildSabnzbdApiUrl(input.baseUrl, { mode: "queue" });
+
+  url.searchParams.set("name", "delete");
+  url.searchParams.set("value", input.itemId);
+  setSabnzbdApiKey(url, input.apiKey);
+
+  const payload = await fetchSabnzbdJson<SabnzbdStatusResponse>(url);
+
+  assertSabnzbdStatus(payload, "remove the queue item");
+}
+
+export async function moveSabnzbdQueueItemToPosition(input: {
+  baseUrl: string;
+  apiKey: string;
+  itemId: string;
+  position: number;
+}) {
+  const url = buildSabnzbdApiUrl(input.baseUrl, { mode: "switch" });
+
+  url.searchParams.set("value", input.itemId);
+  url.searchParams.set("value2", String(input.position));
+  setSabnzbdApiKey(url, input.apiKey);
+
+  const payload = await fetchSabnzbdJson<SabnzbdMoveResponse>(url);
+
+  if (typeof payload.result !== "object" || payload.result === null) {
+    throw new Error("SABnzbd could not reorder the queue item.");
+  }
 }
 
 export async function verifySabnzbdConnection(input: {

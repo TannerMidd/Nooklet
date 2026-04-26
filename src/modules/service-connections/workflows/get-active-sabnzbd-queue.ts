@@ -1,5 +1,6 @@
 import { decryptSecret } from "@/lib/security/secret-box";
 import { listSabnzbdQueue, type SabnzbdQueueSnapshot } from "@/lib/integrations/sabnzbd";
+import { sabnzbdQueuePageLimit } from "@/modules/service-connections/sabnzbd-queue-actions";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 
 export type ActiveSabnzbdQueueState = {
@@ -32,7 +33,7 @@ export async function getActiveSabnzbdQueue(userId: string): Promise<ActiveSabnz
     const snapshot = await listSabnzbdQueue({
       baseUrl: connection.connection.baseUrl,
       apiKey: decryptSecret(connection.secret.encryptedValue),
-      limit: 20,
+      limit: sabnzbdQueuePageLimit,
     });
 
     return {

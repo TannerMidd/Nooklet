@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useEffectEvent, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
+import { type SabnzbdQueueActionInput } from "@/modules/service-connections/sabnzbd-queue-actions";
 import { type ActiveSabnzbdQueueState } from "@/modules/service-connections/workflows/get-active-sabnzbd-queue";
 
 type SabnzbdActivityPanelProps = {
@@ -26,9 +28,22 @@ function ProgressBar({ progressPercent }: { progressPercent: number }) {
   );
 }
 
+function getSabnzbdActionErrorMessage(value: unknown) {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  return typeof (value as { message?: unknown }).message === "string"
+    ? (value as { message: string }).message
+    : null;
+}
+
 export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivityPanelProps) {
   const [queueState, setQueueState] = useState(initialState);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMutating, setIsMutating] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingActionKey, setPendingActionKey] = useState<string | null>(null);
 
   const refreshQueue = useEffectEvent(async () => {
     setIsRefreshing(true);
@@ -46,6 +61,41 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
       setQueueState(nextState);
     } finally {
       setIsRefreshing(false);
+    }
+  });
+
+  const submitQueueAction = useEffectEvent(async (action: SabnzbdQueueActionInput) => {
+    if (
+      action.type === "remove" &&
+      !window.confirm("Remove this queue item from SABnzbd? Already downloaded files will be kept.")
+    ) {
+      return;
+    }
+
+    setActionError(null);
+    setIsMutating(true);
+    setPendingActionKey(`${action.type}:${action.itemId}`);
+
+    try {
+      const response = await fetch("/api/service-connections/sabnzbd/queue", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(action),
+      });
+      const payload = (await response.json()) as ActiveSabnzbdQueueState | { message?: unknown };
+
+      if (!response.ok) {
+        setActionError(getSabnzbdActionErrorMessage(payload) ?? "Unable to update the SABnzbd queue right now.");
+
+        return;
+      }
+
+      setQueueState(payload as ActiveSabnzbdQueueState);
+    } finally {
+      setIsMutating(false);
+      setPendingActionKey(null);
     }
   });
 
@@ -100,8 +150,15 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
             {snapshot?.speed ? <span>{snapshot.speed}/s</span> : null}
             {snapshot?.timeLeft ? <span>{snapshot.timeLeft} left</span> : null}
             {isRefreshing ? <span>Refreshing</span> : null}
+            {isMutating ? <span>Updating queue</span> : null}
           </div>
         </div>
+
+        {actionError ? (
+          <div className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-highlight">
+            {actionError}
+          </div>
+        ) : null}
 
         {summaryItems.length > 0 ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -135,16 +192,20 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
               <div>
                 <p className="text-sm font-medium text-foreground">Queue items</p>
                 <p className="text-sm text-muted">
-                  Scroll this list when the downloader backlog is long.
+                  Scroll this list when the downloader backlog is long, then adjust ordering or pause/remove items without leaving the page.
                 </p>
               </div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted">
-                {snapshot.activeQueueCount} active / {snapshot.totalQueueCount} visible
+                Showing {snapshot.items.length} of {snapshot.totalQueueCount}
               </p>
             </div>
 
             <div className="mt-3 max-h-[68vh] space-y-3 overflow-y-auto pr-1 sm:pr-2">
-              {snapshot.items.map((item) => (
+              {snapshot.items.map((item, index) => {
+                const isPaused = item.status.toLowerCase() === "paused";
+                const currentActionKey = `${isPaused ? "resume" : "pause"}:${item.id}`;
+
+                return (
                 <article
                   key={item.id}
                   className="rounded-2xl border border-line/70 bg-panel/90 px-4 py-4"
@@ -175,8 +236,72 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
                       <span>{formatProgressPercent(item.progressPercent)} complete</span>
                     </div>
                   </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      variant="secondary"
+                      className="min-h-9 rounded-xl px-3 py-1.5 text-xs"
+                      disabled={isRefreshing || isMutating || index === 0}
+                      onClick={() => {
+                        void submitQueueAction({
+                          type: "move",
+                          itemId: item.id,
+                          direction: "up",
+                        });
+                      }}
+                    >
+                      Move up
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="min-h-9 rounded-xl px-3 py-1.5 text-xs"
+                      disabled={isRefreshing || isMutating || index >= snapshot.totalQueueCount - 1}
+                      onClick={() => {
+                        void submitQueueAction({
+                          type: "move",
+                          itemId: item.id,
+                          direction: "down",
+                        });
+                      }}
+                    >
+                      Move down
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="min-h-9 rounded-xl px-3 py-1.5 text-xs"
+                      disabled={isRefreshing || isMutating}
+                      onClick={() => {
+                        void submitQueueAction({
+                          type: isPaused ? "resume" : "pause",
+                          itemId: item.id,
+                        });
+                      }}
+                    >
+                      {pendingActionKey === currentActionKey
+                        ? isPaused
+                          ? "Resuming..."
+                          : "Pausing..."
+                        : isPaused
+                          ? "Resume"
+                          : "Pause"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="min-h-9 rounded-xl border-highlight/20 px-3 py-1.5 text-xs text-highlight hover:bg-highlight/10"
+                      disabled={isRefreshing || isMutating}
+                      onClick={() => {
+                        void submitQueueAction({
+                          type: "remove",
+                          itemId: item.id,
+                        });
+                      }}
+                    >
+                      {pendingActionKey === `remove:${item.id}` ? "Removing..." : "Remove"}
+                    </Button>
+                  </div>
                 </article>
-              ))}
+                );
+              })}
             </div>
           </div>
         ) : (

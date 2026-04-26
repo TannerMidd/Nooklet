@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/security/safe-fetch", () => ({
   safeFetch: vi.fn(),
@@ -6,11 +6,19 @@ vi.mock("@/lib/security/safe-fetch", () => ({
 
 import { safeFetch } from "@/lib/security/safe-fetch";
 
-import { listSabnzbdQueue } from "./sabnzbd";
+import {
+  listSabnzbdQueue,
+  moveSabnzbdQueueItemToPosition,
+  pauseSabnzbdQueueItem,
+} from "./sabnzbd";
 
 const mockedSafeFetch = vi.mocked(safeFetch);
 
 describe("listSabnzbdQueue", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("normalizes the SABnzbd queue snapshot and slot progress", async () => {
     mockedSafeFetch.mockResolvedValue(
       new Response(
@@ -97,5 +105,50 @@ describe("listSabnzbdQueue", () => {
         },
       ],
     });
+  });
+
+  it("sends a pause command for a queue item", async () => {
+    mockedSafeFetch.mockResolvedValue(
+      new Response(JSON.stringify({ status: true, nzo_ids: ["SABnzbd_nzo_1"] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await pauseSabnzbdQueueItem({
+      baseUrl: "http://localhost:8080",
+      apiKey: "secret",
+      itemId: "SABnzbd_nzo_1",
+    });
+
+    const requestUrl = mockedSafeFetch.mock.calls[0]?.[0];
+
+    expect(requestUrl).toBeInstanceOf(URL);
+    expect((requestUrl as URL).toString()).toBe(
+      "http://localhost:8080/api?mode=queue&output=json&name=pause&value=SABnzbd_nzo_1&apikey=secret",
+    );
+  });
+
+  it("moves a queue item to a specific position", async () => {
+    mockedSafeFetch.mockResolvedValue(
+      new Response(JSON.stringify({ result: { position: 2, priority: 0 } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await moveSabnzbdQueueItemToPosition({
+      baseUrl: "http://localhost:8080",
+      apiKey: "secret",
+      itemId: "SABnzbd_nzo_2",
+      position: 2,
+    });
+
+    const requestUrl = mockedSafeFetch.mock.calls[0]?.[0];
+
+    expect(requestUrl).toBeInstanceOf(URL);
+    expect((requestUrl as URL).toString()).toBe(
+      "http://localhost:8080/api?mode=switch&output=json&value=SABnzbd_nzo_2&value2=2&apikey=secret",
+    );
   });
 });
