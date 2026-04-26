@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/modules/recommendations/repositories/recommendation-repository", () => ({
   findRecommendationItemForUser: vi.fn(),
+  listRecommendationItemTimelineEvents: vi.fn(async () => []),
   updateRecommendationItemProviderMetadata: vi.fn(),
 }));
 vi.mock("@/modules/recommendations/workflows/create-recommendation-run-enrichment", () => ({

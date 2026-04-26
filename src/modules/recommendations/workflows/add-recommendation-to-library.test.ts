@@ -17,6 +17,7 @@ vi.mock("@/modules/service-connections/repositories/service-connection-repositor
 }));
 
 vi.mock("@/modules/recommendations/repositories/recommendation-repository", () => ({
+  createRecommendationItemTimelineEvent: vi.fn(async () => undefined),
   findRecommendationItemForUser: vi.fn(),
   markRecommendationItemExistingInLibrary: vi.fn(),
 }));

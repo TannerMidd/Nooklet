@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/modules/recommendations/repositories/recommendation-repository", () => ({
+  createRecommendationItemTimelineEvent: vi.fn(async () => undefined),
   findRecommendationItemForUser: vi.fn(),
   upsertRecommendationItemHiddenState: vi.fn(),
 }));

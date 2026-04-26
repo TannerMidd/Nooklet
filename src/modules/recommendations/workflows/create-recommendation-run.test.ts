@@ -25,6 +25,21 @@ vi.mock("@/modules/recommendations/repositories/recommendation-repository", () =
   createRecommendationRun: vi.fn(),
   listRecommendationExclusionItems: vi.fn(),
   markRecommendationRunFailed: vi.fn(),
+  upsertRecommendationRunMetrics: vi.fn(async () => undefined),
+}));
+
+vi.mock("@/modules/recommendations/queries/get-recommendation-taste-profile", () => ({
+  getRecommendationTasteProfile: vi.fn(async () => ({
+    likeCount: 0,
+    dislikeCount: 0,
+    hiddenCount: 0,
+    addedCount: 0,
+    likedItems: [],
+    dislikedItems: [],
+    addedItems: [],
+    preferredGenres: [],
+    avoidedGenres: [],
+  })),
 }));
 
 vi.mock("@/modules/recommendations/adapters/openai-compatible-recommendations", () => ({
@@ -260,7 +275,7 @@ describe("createRecommendationRunWorkflow", () => {
     ]);
   });
 
-  it("fails before generation when a saved library connection cannot be verified", async () => {
+  it("marks the run failed before generation when a saved library connection cannot be verified", async () => {
     const aiProviderConnection = createConnectionRecord("ai-provider", "verified");
     const configuredRadarrConnection = createConnectionRecord("radarr", "configured");
 
@@ -297,7 +312,8 @@ describe("createRecommendationRunWorkflow", () => {
 
     expect(result.message).toContain("cannot safely exclude titles that are already in your library");
     expect(mockedGenerateOpenAiCompatibleRecommendations).not.toHaveBeenCalled();
-    expect(mockedCreateRecommendationRun).not.toHaveBeenCalled();
+    expect(mockedCreateRecommendationRun).toHaveBeenCalledTimes(1);
+    expect(mockedMarkRecommendationRunFailed).toHaveBeenCalledWith("run-1", result.message);
   });
 
   it("succeeds with a partial batch when backfill attempts are exhausted", async () => {
@@ -396,7 +412,7 @@ describe("createRecommendationRunWorkflow", () => {
     );
   });
 
-  it("fails before creating a run when strict language preference has no verified TMDB connection", async () => {
+  it("marks the run failed when strict language preference has no verified TMDB connection", async () => {
     const aiProviderConnection = createConnectionRecord("ai-provider", "verified");
 
     mockedGetPreferencesByUserId.mockResolvedValue({
@@ -439,7 +455,13 @@ describe("createRecommendationRunWorkflow", () => {
       ok: false,
       message: "Verify TMDB before requesting German recommendations. TMDB is required to strictly confirm each title's original language.",
     });
-    expect(mockedCreateRecommendationRun).not.toHaveBeenCalled();
+
+    if (result.ok) {
+      throw new Error("Expected the workflow to fail when TMDB is unavailable.");
+    }
+
+    expect(mockedCreateRecommendationRun).toHaveBeenCalledTimes(1);
+    expect(mockedMarkRecommendationRunFailed).toHaveBeenCalledWith("run-1", result.message);
     expect(mockedGenerateOpenAiCompatibleRecommendations).not.toHaveBeenCalled();
   });
 

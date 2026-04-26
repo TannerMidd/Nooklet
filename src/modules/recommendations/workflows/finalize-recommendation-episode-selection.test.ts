@@ -5,6 +5,7 @@ vi.mock("@/lib/security/secret-box", () => ({
 }));
 
 vi.mock("@/modules/recommendations/repositories/recommendation-repository", () => ({
+  createRecommendationItemTimelineEvent: vi.fn(async () => undefined),
   findRecommendationItemForUser: vi.fn(),
   markRecommendationItemExistingInLibrary: vi.fn(),
   updateRecommendationItemProviderMetadata: vi.fn(),

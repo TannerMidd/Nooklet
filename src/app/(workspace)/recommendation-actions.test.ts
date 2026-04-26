@@ -23,6 +23,7 @@ vi.mock("@/modules/preferences/repositories/preferences-repository", () => ({
 }));
 vi.mock("@/modules/recommendations/workflows/create-recommendation-run", () => ({
   createRecommendationRunWorkflow: vi.fn(),
+  enqueueRecommendationRunWorkflow: vi.fn(),
 }));
 
 import { redirect } from "next/navigation";
@@ -34,7 +35,7 @@ import {
   updateRecommendationRequestDefaults,
   updateWatchHistoryOnly,
 } from "@/modules/preferences/repositories/preferences-repository";
-import { createRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
+import { enqueueRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
 
 import {
   submitRecommendationDefaultsAction,
@@ -47,7 +48,7 @@ const authMock = vi.mocked(auth);
 const rateLimitMock = vi.mocked(consumeRateLimit);
 const updateDefaultsMock = vi.mocked(updateRecommendationRequestDefaults);
 const updateWatchHistoryMock = vi.mocked(updateWatchHistoryOnly);
-const workflowMock = vi.mocked(createRecommendationRunWorkflow);
+const workflowMock = vi.mocked(enqueueRecommendationRunWorkflow);
 const redirectMock = vi.mocked(redirect);
 const revalidateMock = vi.mocked(revalidatePath);
 
