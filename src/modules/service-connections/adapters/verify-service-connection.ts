@@ -207,19 +207,21 @@ async function verifySabnzbd(
   input: VerifyServiceConnectionInput,
 ): Promise<VerifyServiceConnectionResult> {
   try {
-    const queueSnapshot = (await verifySabnzbdConnection({
+    const queueSnapshot = await verifySabnzbdConnection({
       baseUrl: input.baseUrl,
       apiKey: input.secret,
-    })) satisfies SabnzbdMetadata;
+    });
 
-    return buildSabnzbdVerificationResult({
+    const metadata = {
       version: queueSnapshot.version,
       queueStatus: queueSnapshot.queueStatus,
       queuePaused: queueSnapshot.paused,
       activeQueueCount: queueSnapshot.activeQueueCount,
       speed: queueSnapshot.speed,
       timeLeft: queueSnapshot.timeLeft,
-    });
+    } satisfies SabnzbdMetadata;
+
+    return buildSabnzbdVerificationResult(metadata);
   } catch (error) {
     return {
       ok: false,

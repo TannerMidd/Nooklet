@@ -3,12 +3,14 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { RecommendationHistoryItemActions } from "@/components/recommendations/recommendation-history-item-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
+import { SabnzbdActivityPanel } from "@/components/recommendations/sabnzbd-activity-panel";
 import { Panel } from "@/components/ui/panel";
 import {
   getLibrarySelectionDefaults,
   getPreferencesByUserId,
 } from "@/modules/preferences/repositories/preferences-repository";
 import { listRecommendationHistory } from "@/modules/recommendations/queries/list-recommendation-history";
+import { getActiveSabnzbdQueue } from "@/modules/service-connections/workflows/get-active-sabnzbd-queue";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 export const dynamic = "force-dynamic";
@@ -51,9 +53,10 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
     return null;
   }
 
-  const [preferences, connectionSummaries] = await Promise.all([
+  const [preferences, connectionSummaries, activeSabnzbdQueue] = await Promise.all([
     getPreferencesByUserId(session.user.id),
     listConnectionSummaries(session.user.id),
+    getActiveSabnzbdQueue(session.user.id),
   ]);
   const resolvedSearchParams = await searchParams;
   const currentView =
@@ -141,6 +144,8 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
           </div>
         </Panel>
       </div>
+
+      <SabnzbdActivityPanel initialState={activeSabnzbdQueue} />
 
       <Panel
         eyebrow="Recommendation items"

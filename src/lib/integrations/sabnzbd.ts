@@ -150,11 +150,8 @@ function normalizeSabnzbdQueueSnapshot(payload: SabnzbdQueueResponse): SabnzbdQu
   } satisfies SabnzbdQueueSnapshot;
 }
 
-async function fetchSabnzbdJson<T>(url: URL, apiKey: string) {
+async function fetchSabnzbdJson<T>(url: URL) {
   const response = await safeFetch(url, {
-    headers: {
-      Authorization: undefined,
-    },
     cache: "no-store",
     timeoutMs: 5000,
     maxBytes: 512 * 1024,
@@ -191,7 +188,7 @@ export async function listSabnzbdQueue(input: {
 
   url.searchParams.set("apikey", input.apiKey);
 
-  const payload = await fetchSabnzbdJson<SabnzbdQueueResponse>(url, input.apiKey);
+  const payload = await fetchSabnzbdJson<SabnzbdQueueResponse>(url);
 
   return normalizeSabnzbdQueueSnapshot(payload);
 }

@@ -8,6 +8,7 @@ import { RecommendationFeedbackActions } from "@/components/recommendations/reco
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationRequestForm } from "@/components/recommendations/recommendation-request-form";
 import { RecommendationRetryForm } from "@/components/recommendations/recommendation-retry-form";
+import { SabnzbdActivityPanel } from "@/components/recommendations/sabnzbd-activity-panel";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { type RecommendationMediaType } from "@/lib/database/schema";
@@ -19,6 +20,7 @@ import {
   formatRecommendationGenres,
   type RecommendationGenre,
 } from "@/modules/recommendations/recommendation-genres";
+import { getActiveSabnzbdQueue } from "@/modules/service-connections/workflows/get-active-sabnzbd-queue";
 import { listRecentRecommendationRuns } from "@/modules/recommendations/queries/list-recent-recommendation-runs";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
@@ -80,7 +82,13 @@ export async function RecommendationWorkspace({
   }
 
   const preferences = await getPreferencesByUserId(session.user.id);
-  const [connectionSummaries, recentRuns, watchHistoryOverview, selectedWatchHistoryContext] = await Promise.all([
+  const [
+    connectionSummaries,
+    recentRuns,
+    watchHistoryOverview,
+    selectedWatchHistoryContext,
+    activeSabnzbdQueue,
+  ] = await Promise.all([
     listConnectionSummaries(session.user.id),
     listRecentRecommendationRuns(session.user.id, mediaType),
     getWatchHistoryOverview(session.user.id),
@@ -90,12 +98,14 @@ export async function RecommendationWorkspace({
       6,
       preferences.watchHistorySourceTypes,
     ),
+    getActiveSabnzbdQueue(session.user.id),
   ]);
 
   const aiProvider = connectionSummaries.find((summary) => summary.serviceType === "ai-provider");
   const relevantLibraryManager = connectionSummaries.find((summary) =>
     mediaType === "tv" ? summary.serviceType === "sonarr" : summary.serviceType === "radarr",
   );
+  const sabnzbd = connectionSummaries.find((summary) => summary.serviceType === "sabnzbd") ?? null;
   const canRequest = Boolean(aiProvider && aiProvider.status !== "disconnected");
   const recommendationRequestBlockedMessage = canRequest
     ? null
@@ -172,6 +182,12 @@ export async function RecommendationWorkspace({
               </p>
             </div>
             <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <span className="font-medium">SABnzbd:</span> {sabnzbd?.status ?? "disconnected"}
+              <p className="mt-1 text-muted">
+                {sabnzbd?.statusMessage ?? "Optional, but required if you want Recommendarr to show active SABnzbd request progress."}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
               <span className="font-medium">Watch history:</span>{" "}
               {preferences.watchHistoryOnly
                 ? selectedWatchHistoryContext.length > 0
@@ -236,6 +252,8 @@ export async function RecommendationWorkspace({
           </div>
         </Panel>
       </div>
+
+      <SabnzbdActivityPanel initialState={activeSabnzbdQueue} />
 
       {featuredRun ? (
         <section
