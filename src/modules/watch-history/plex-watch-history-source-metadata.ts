@@ -1,10 +1,8 @@
 import { z } from "zod";
 
-const plexWatchHistorySourceMetadataSchema = z.object({
-  selectedUserId: z.string().trim().min(1),
-  selectedUserName: z.string().trim().min(1),
-  importLimit: z.number().int().min(1).max(500),
-});
+import { watchHistorySourceUserSelectionSchema } from "@/modules/watch-history/schemas/watch-history-source-user-selection";
+
+const plexWatchHistorySourceMetadataSchema = watchHistorySourceUserSelectionSchema;
 
 export type PlexWatchHistorySourceMetadata = z.infer<
   typeof plexWatchHistorySourceMetadataSchema

@@ -1,12 +1,8 @@
 import { z } from "zod";
 
-import { parseWatchHistorySourceMetadataJson } from "@/modules/watch-history/source-metadata";
+import { watchHistorySourceUserSelectionSchema } from "@/modules/watch-history/schemas/watch-history-source-user-selection";
 
-const tautulliWatchHistorySourceMetadataSchema = z.object({
-  selectedUserId: z.string().trim().min(1),
-  selectedUserName: z.string().trim().min(1),
-  importLimit: z.number().int().min(1).max(500),
-});
+const tautulliWatchHistorySourceMetadataSchema = watchHistorySourceUserSelectionSchema;
 
 export type TautulliWatchHistorySourceMetadata = z.infer<
   typeof tautulliWatchHistorySourceMetadataSchema
