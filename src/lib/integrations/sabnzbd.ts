@@ -1,4 +1,5 @@
 import { safeFetch } from "@/lib/security/safe-fetch";
+import { trimTrailingSlash } from "@/lib/integrations/http-helpers";
 
 export type SabnzbdQueueItem = {
   id: string;
@@ -53,10 +54,6 @@ type SabnzbdQueueResponse = {
     slots?: unknown;
   };
 };
-
-function trimTrailingSlash(baseUrl: string) {
-  return baseUrl.replace(/\/+$/, "");
-}
 
 function buildSabnzbdApiUrl(baseUrl: string, input: { mode: string; limit?: number }) {
   const url = new URL(`${trimTrailingSlash(baseUrl)}/api`);

@@ -1,4 +1,4 @@
-import { safeFetch } from "@/lib/security/safe-fetch";
+import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
 
 type TautulliCredentials = {
   baseUrl: string;
@@ -46,15 +46,6 @@ export type TautulliHistoryEntry = {
   year: number | null;
   watchedAt: Date;
 };
-
-function trimTrailingSlash(baseUrl: string) {
-  return baseUrl.replace(/\/+$/, "");
-}
-
-async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
-  const target = typeof input === "string" || input instanceof URL ? input : input.url;
-  return safeFetch(target, { ...init, timeoutMs: 5000 });
-}
 
 async function fetchTautulliCommand<T>(
   credentials: TautulliCredentials,

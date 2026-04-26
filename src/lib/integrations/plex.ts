@@ -1,4 +1,4 @@
-import { safeFetch } from "@/lib/security/safe-fetch";
+import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
 
 type PlexCredentials = {
   baseUrl: string;
@@ -53,15 +53,6 @@ export type PlexHistoryEntry = {
   year: number | null;
   watchedAt: Date;
 };
-
-function trimTrailingSlash(baseUrl: string) {
-  return baseUrl.replace(/\/+$/, "");
-}
-
-async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
-  const target = typeof input === "string" || input instanceof URL ? input : input.url;
-  return safeFetch(target, { ...init, timeoutMs: 5000 });
-}
 
 function buildPlexUrl(baseUrl: string, path: string, params: Record<string, string> = {}) {
   const url = new URL(`${trimTrailingSlash(baseUrl)}${path.startsWith("/") ? path : `/${path}`}`);
