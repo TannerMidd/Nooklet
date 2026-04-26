@@ -26,7 +26,8 @@ function parseMetadata(metadataJson: string | null) {
 
   try {
     return JSON.parse(metadataJson) as Record<string, unknown>;
-  } catch {
+  } catch (error) {
+    console.error("[service-connection-repository] failed to parse metadataJson", error);
     return null;
   }
 }

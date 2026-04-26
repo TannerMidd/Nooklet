@@ -80,7 +80,8 @@ export function parseRecommendationGenresJson(value: string | null | undefined) 
           parsed.filter((entry): entry is string => typeof entry === "string"),
         )
       : [];
-  } catch {
+  } catch (error) {
+    console.error("[recommendation-genres] failed to parse stored selectedGenresJson", error);
     return [] as RecommendationGenre[];
   }
 }

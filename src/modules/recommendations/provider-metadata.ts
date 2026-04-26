@@ -109,7 +109,8 @@ export function parseRecommendationProviderMetadata(
       pendingEpisodeSelection,
       pendingEpisodeReturnTo,
     } satisfies RecommendationProviderMetadata;
-  } catch {
+  } catch (error) {
+    console.error("[recommendations/provider-metadata] failed to parse providerMetadataJson", error);
     return null;
   }
 }

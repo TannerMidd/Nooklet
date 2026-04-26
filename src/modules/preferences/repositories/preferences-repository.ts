@@ -42,7 +42,8 @@ function parseWatchHistorySourceTypes(metadataJson: string | null | undefined) {
     return normalizedTypes.length > 0
       ? Array.from(new Set(normalizedTypes))
       : [...watchHistorySourceTypes];
-  } catch {
+  } catch (error) {
+    console.error("[preferences-repository] failed to parse watchHistorySourceTypesJson", error);
     return [...watchHistorySourceTypes];
   }
 }
