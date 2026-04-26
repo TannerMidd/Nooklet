@@ -108,6 +108,14 @@ function readBoolean(value: unknown): boolean {
   return value === true;
 }
 
+function readQualityProfileName(value: unknown): string | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  return readString((value as Record<string, unknown>).name);
+}
+
 function compareByTitle<T extends { sortTitle: string; title: string }>(left: T, right: T) {
   return (
     left.sortTitle.localeCompare(right.sortTitle, undefined, { sensitivity: "base" }) ||
@@ -170,6 +178,8 @@ function normalizeSonarrSeries(baseUrl: string, value: unknown): SonarrLibrarySe
     title,
     sortTitle,
     year: readInteger(record.year),
+    qualityProfileId: readInteger(record.qualityProfileId),
+    qualityProfileName: readQualityProfileName(record.qualityProfile),
     monitored: readBoolean(record.monitored),
     status: readString(record.status),
     network: readString(record.network),
@@ -203,6 +213,8 @@ function normalizeRadarrMovie(baseUrl: string, value: unknown): RadarrLibraryMov
     title,
     sortTitle,
     year: readInteger(record.year),
+    qualityProfileId: readInteger(record.qualityProfileId),
+    qualityProfileName: readQualityProfileName(record.qualityProfile),
     monitored: readBoolean(record.monitored),
     status: readString(record.status),
     hasFile: readBoolean(record.hasFile),
@@ -526,6 +538,105 @@ export async function deleteSonarrSeries(
   }
 }
 
+export type SetSonarrSeriesQualityProfileInput = ConnectionInput & {
+  seriesId: number;
+  qualityProfileId: number;
+};
+
+export type SetSonarrSeriesQualityProfileResult =
+  | { ok: true; qualityProfileId: number; qualityProfileName: string | null }
+  | { ok: false; message: string };
+
+export async function setSonarrSeriesQualityProfile(
+  input: SetSonarrSeriesQualityProfileInput,
+): Promise<SetSonarrSeriesQualityProfileResult> {
+  try {
+    const seriesUrl = `${trimTrailingSlash(input.baseUrl)}/api/v3/series/${input.seriesId}`;
+
+    const fetchResponse = await fetchLibraryManager(seriesUrl, {
+      headers: { "X-Api-Key": input.apiKey },
+      cache: "no-store",
+    });
+
+    if (!fetchResponse.ok) {
+      return { ok: false, message: await extractErrorMessage(fetchResponse, "Sonarr") };
+    }
+
+    const series = (await fetchResponse.json()) as Record<string, unknown>;
+    const updatedSeries = { ...series, qualityProfileId: input.qualityProfileId };
+
+    const updateResponse = await fetchLibraryManager(seriesUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Api-Key": input.apiKey,
+      },
+      cache: "no-store",
+      body: JSON.stringify(updatedSeries),
+    });
+
+    if (!updateResponse.ok) {
+      return { ok: false, message: await extractErrorMessage(updateResponse, "Sonarr") };
+    }
+
+    const refreshed = (await updateResponse.json()) as Record<string, unknown>;
+
+    return {
+      ok: true,
+      qualityProfileId: readInteger(refreshed.qualityProfileId) ?? input.qualityProfileId,
+      qualityProfileName: readQualityProfileName(refreshed.qualityProfile),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Sonarr series quality profile update failed unexpectedly.",
+    };
+  }
+}
+
+export type TriggerSonarrSeriesSearchInput = ConnectionInput & {
+  seriesId: number;
+};
+
+export type TriggerSonarrSeriesSearchResult = { ok: true } | { ok: false; message: string };
+
+export async function triggerSonarrSeriesSearch(
+  input: TriggerSonarrSeriesSearchInput,
+): Promise<TriggerSonarrSeriesSearchResult> {
+  try {
+    const response = await fetchLibraryManager(
+      `${trimTrailingSlash(input.baseUrl)}/api/v3/command`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": input.apiKey,
+        },
+        cache: "no-store",
+        body: JSON.stringify({
+          name: "SeriesSearch",
+          seriesId: input.seriesId,
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      return { ok: false, message: await extractErrorMessage(response, "Sonarr") };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error ? error.message : "Sonarr series search failed unexpectedly.",
+    };
+  }
+}
+
 export type SetRadarrMovieMonitoringInput = ConnectionInput & {
   movieId: number;
   monitored: boolean;
@@ -616,6 +727,105 @@ export async function deleteRadarrMovie(
         error instanceof Error
           ? error.message
           : "Radarr movie delete failed unexpectedly.",
+    };
+  }
+}
+
+export type SetRadarrMovieQualityProfileInput = ConnectionInput & {
+  movieId: number;
+  qualityProfileId: number;
+};
+
+export type SetRadarrMovieQualityProfileResult =
+  | { ok: true; qualityProfileId: number; qualityProfileName: string | null }
+  | { ok: false; message: string };
+
+export async function setRadarrMovieQualityProfile(
+  input: SetRadarrMovieQualityProfileInput,
+): Promise<SetRadarrMovieQualityProfileResult> {
+  try {
+    const movieUrl = `${trimTrailingSlash(input.baseUrl)}/api/v3/movie/${input.movieId}`;
+
+    const fetchResponse = await fetchLibraryManager(movieUrl, {
+      headers: { "X-Api-Key": input.apiKey },
+      cache: "no-store",
+    });
+
+    if (!fetchResponse.ok) {
+      return { ok: false, message: await extractErrorMessage(fetchResponse, "Radarr") };
+    }
+
+    const movie = (await fetchResponse.json()) as Record<string, unknown>;
+    const updatedMovie = { ...movie, qualityProfileId: input.qualityProfileId };
+
+    const updateResponse = await fetchLibraryManager(movieUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Api-Key": input.apiKey,
+      },
+      cache: "no-store",
+      body: JSON.stringify(updatedMovie),
+    });
+
+    if (!updateResponse.ok) {
+      return { ok: false, message: await extractErrorMessage(updateResponse, "Radarr") };
+    }
+
+    const refreshed = (await updateResponse.json()) as Record<string, unknown>;
+
+    return {
+      ok: true,
+      qualityProfileId: readInteger(refreshed.qualityProfileId) ?? input.qualityProfileId,
+      qualityProfileName: readQualityProfileName(refreshed.qualityProfile),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Radarr movie quality profile update failed unexpectedly.",
+    };
+  }
+}
+
+export type TriggerRadarrMovieSearchInput = ConnectionInput & {
+  movieId: number;
+};
+
+export type TriggerRadarrMovieSearchResult = { ok: true } | { ok: false; message: string };
+
+export async function triggerRadarrMovieSearch(
+  input: TriggerRadarrMovieSearchInput,
+): Promise<TriggerRadarrMovieSearchResult> {
+  try {
+    const response = await fetchLibraryManager(
+      `${trimTrailingSlash(input.baseUrl)}/api/v3/command`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": input.apiKey,
+        },
+        cache: "no-store",
+        body: JSON.stringify({
+          name: "MoviesSearch",
+          movieIds: [input.movieId],
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      return { ok: false, message: await extractErrorMessage(response, "Radarr") };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error ? error.message : "Radarr movie search failed unexpectedly.",
     };
   }
 }

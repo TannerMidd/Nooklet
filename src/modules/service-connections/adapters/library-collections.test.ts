@@ -9,7 +9,11 @@ import { safeFetch } from "@/lib/security/safe-fetch";
 import {
   listRadarrLibraryMovies,
   listSonarrLibrarySeries,
+  setRadarrMovieQualityProfile,
   setSonarrSeriesSeasonMonitoring,
+  setSonarrSeriesQualityProfile,
+  triggerRadarrMovieSearch,
+  triggerSonarrSeriesSearch,
 } from "./library-collections";
 
 const mockedSafeFetch = vi.mocked(safeFetch);
@@ -35,6 +39,8 @@ describe("listSonarrLibrarySeries", () => {
           title: "The Expanse",
           sortTitle: "expanse",
           year: 2015,
+          qualityProfileId: 3,
+          qualityProfile: { name: "HD - 1080p" },
           monitored: true,
           status: "ended",
           network: "Amazon",
@@ -67,6 +73,8 @@ describe("listSonarrLibrarySeries", () => {
       id: 12,
       title: "The Expanse",
       year: 2015,
+      qualityProfileId: 3,
+      qualityProfileName: "HD - 1080p",
       monitored: true,
       posterUrl: "http://sonarr.local/MediaCover/12/poster.jpg",
       totalSeasonCount: 2,
@@ -100,6 +108,8 @@ describe("listRadarrLibraryMovies", () => {
           title: "Arrival",
           sortTitle: "arrival",
           year: 2016,
+          qualityProfileId: 5,
+          qualityProfile: { name: "Ultra HD" },
           monitored: true,
           status: "released",
           hasFile: true,
@@ -126,6 +136,8 @@ describe("listRadarrLibraryMovies", () => {
         title: "Arrival",
         sortTitle: "arrival",
         year: 2016,
+        qualityProfileId: 5,
+        qualityProfileName: "Ultra HD",
         monitored: true,
         status: "released",
         hasFile: true,
@@ -133,6 +145,142 @@ describe("listRadarrLibraryMovies", () => {
         posterUrl: "https://image.tmdb.org/poster.jpg",
       },
     ]);
+  });
+});
+
+describe("setSonarrSeriesQualityProfile", () => {
+  it("fetches the series, changes qualityProfileId, and PUTs the merged payload", async () => {
+    const seriesPayload = {
+      id: 99,
+      title: "Sample",
+      qualityProfileId: 1,
+      monitored: true,
+    };
+
+    mockedSafeFetch
+      .mockResolvedValueOnce(jsonResponse(seriesPayload))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...seriesPayload,
+          qualityProfileId: 2,
+          qualityProfile: { name: "HD - 1080p" },
+        }),
+      );
+
+    const result = await setSonarrSeriesQualityProfile({
+      baseUrl: "http://sonarr.local",
+      apiKey: "secret",
+      seriesId: 99,
+      qualityProfileId: 2,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      qualityProfileId: 2,
+      qualityProfileName: "HD - 1080p",
+    });
+
+    expect(mockedSafeFetch).toHaveBeenCalledTimes(2);
+    expect(mockedSafeFetch.mock.calls[0]?.[0]).toBe("http://sonarr.local/api/v3/series/99");
+    expect(mockedSafeFetch.mock.calls[1]?.[0]).toBe("http://sonarr.local/api/v3/series/99");
+
+    const putInit = mockedSafeFetch.mock.calls[1]?.[1] as RequestInit;
+    expect(putInit.method).toBe("PUT");
+    expect(JSON.parse(String(putInit.body))).toMatchObject({
+      id: 99,
+      qualityProfileId: 2,
+      monitored: true,
+    });
+  });
+});
+
+describe("triggerSonarrSeriesSearch", () => {
+  it("posts a SeriesSearch command for the requested series", async () => {
+    mockedSafeFetch.mockResolvedValueOnce(jsonResponse({ id: 1 }));
+
+    const result = await triggerSonarrSeriesSearch({
+      baseUrl: "http://sonarr.local",
+      apiKey: "secret",
+      seriesId: 99,
+    });
+
+    expect(result).toEqual({ ok: true });
+
+    const [url, init] = mockedSafeFetch.mock.calls[0]!;
+    expect(url).toBe("http://sonarr.local/api/v3/command");
+    expect((init as RequestInit).method).toBe("POST");
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      name: "SeriesSearch",
+      seriesId: 99,
+    });
+  });
+});
+
+describe("setRadarrMovieQualityProfile", () => {
+  it("fetches the movie, changes qualityProfileId, and PUTs the merged payload", async () => {
+    const moviePayload = {
+      id: 7,
+      title: "Arrival",
+      qualityProfileId: 1,
+      monitored: true,
+    };
+
+    mockedSafeFetch
+      .mockResolvedValueOnce(jsonResponse(moviePayload))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...moviePayload,
+          qualityProfileId: 4,
+          qualityProfile: { name: "Ultra HD" },
+        }),
+      );
+
+    const result = await setRadarrMovieQualityProfile({
+      baseUrl: "http://radarr.local",
+      apiKey: "secret",
+      movieId: 7,
+      qualityProfileId: 4,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      qualityProfileId: 4,
+      qualityProfileName: "Ultra HD",
+    });
+
+    expect(mockedSafeFetch).toHaveBeenCalledTimes(2);
+    expect(mockedSafeFetch.mock.calls[0]?.[0]).toBe("http://radarr.local/api/v3/movie/7");
+    expect(mockedSafeFetch.mock.calls[1]?.[0]).toBe("http://radarr.local/api/v3/movie/7");
+
+    const putInit = mockedSafeFetch.mock.calls[1]?.[1] as RequestInit;
+    expect(putInit.method).toBe("PUT");
+    expect(JSON.parse(String(putInit.body))).toMatchObject({
+      id: 7,
+      qualityProfileId: 4,
+      monitored: true,
+    });
+  });
+});
+
+describe("triggerRadarrMovieSearch", () => {
+  it("posts a MoviesSearch command for the requested movie", async () => {
+    mockedSafeFetch.mockResolvedValueOnce(jsonResponse({ id: 1 }));
+
+    const result = await triggerRadarrMovieSearch({
+      baseUrl: "http://radarr.local",
+      apiKey: "secret",
+      movieId: 7,
+    });
+
+    expect(result).toEqual({ ok: true });
+
+    const [url, init] = mockedSafeFetch.mock.calls[0]!;
+    expect(url).toBe("http://radarr.local/api/v3/command");
+    expect((init as RequestInit).method).toBe("POST");
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      name: "MoviesSearch",
+      movieIds: [7],
+    });
   });
 });
 

@@ -12,6 +12,8 @@ export type SonarrLibrarySeries = {
   title: string;
   sortTitle: string;
   year: number | null;
+  qualityProfileId: number | null;
+  qualityProfileName: string | null;
   monitored: boolean;
   status: string | null;
   network: string | null;
@@ -28,6 +30,8 @@ export type RadarrLibraryMovie = {
   title: string;
   sortTitle: string;
   year: number | null;
+  qualityProfileId: number | null;
+  qualityProfileName: string | null;
   monitored: boolean;
   status: string | null;
   hasFile: boolean;
