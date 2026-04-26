@@ -50,7 +50,7 @@ describe("requireAdminSession", () => {
   });
 
   it("redirects to /login when there is no active session", async () => {
-    authMock.mockResolvedValue(null);
+    authMock.mockResolvedValue(null as never);
 
     await expect(requireAdminSession()).rejects.toThrow(/NEXT_REDIRECT:\/login/);
     expect(redirectMock).toHaveBeenCalledTimes(1);

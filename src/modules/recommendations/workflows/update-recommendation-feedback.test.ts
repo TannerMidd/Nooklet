@@ -30,7 +30,7 @@ describe("updateRecommendationFeedback", () => {
   it("returns false and writes nothing when the item is not owned by the user", async () => {
     findMock.mockResolvedValue(null);
 
-    const result = await updateRecommendationFeedback("user-1", "item-1", "up");
+    const result = await updateRecommendationFeedback("user-1", "item-1", "like");
 
     expect(result).toBe(false);
     expect(upsertMock).not.toHaveBeenCalled();
@@ -40,21 +40,21 @@ describe("updateRecommendationFeedback", () => {
   it("upserts the feedback and emits an audit event when the item is owned by the user", async () => {
     findMock.mockResolvedValue({ id: "item-1" } as never);
 
-    const result = await updateRecommendationFeedback("user-1", "item-1", "up");
+    const result = await updateRecommendationFeedback("user-1", "item-1", "like");
 
     expect(findMock).toHaveBeenCalledWith("user-1", "item-1");
-    expect(upsertMock).toHaveBeenCalledWith("user-1", "item-1", "up");
+    expect(upsertMock).toHaveBeenCalledWith("user-1", "item-1", "like");
     expect(auditMock).toHaveBeenCalledWith({
       actorUserId: "user-1",
       eventType: "recommendations.feedback.updated",
       subjectType: "recommendation-item",
       subjectId: "item-1",
-      payloadJson: JSON.stringify({ feedback: "up" }),
+      payloadJson: JSON.stringify({ feedback: "like" }),
     });
     expect(result).toBe(true);
   });
 
-  it.each(["up", "down", "neutral"] as const)(
+  it.each(["like", "dislike"] as const)(
     "forwards the %s feedback value to the repository and audit payload",
     async (feedback) => {
       findMock.mockResolvedValue({ id: "item-1" } as never);

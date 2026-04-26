@@ -108,14 +108,14 @@ describe("loadSampledLibraryTasteContext", () => {
       normalizedKeys: [],
     } as never);
 
-    await loadSampledLibraryTasteContext(USER_ID, "tv", ["Drama", "Sci-Fi"]);
+    await loadSampledLibraryTasteContext(USER_ID, "tv", ["drama", "science-fiction"]);
 
     expect(listSampledMock).toHaveBeenCalledWith({
       serviceType: "sonarr",
       baseUrl: "https://sonarr.test",
       apiKey: "dec(sonarr-enc)",
       sampleSize: 36,
-      selectedGenres: ["Drama", "Sci-Fi"],
+      selectedGenres: ["drama", "science-fiction"],
     });
   });
 

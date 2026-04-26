@@ -6,11 +6,11 @@ import { projectLibraryRequestFieldErrors } from "./library-request-action-helpe
 describe("library-request-action-helpers > projectLibraryRequestFieldErrors", () => {
   it("returns only the first message per field, mapping to the action state shape", () => {
     const error = new z.ZodError([
-      { code: "custom", path: ["rootFolderPath"], message: "Select a root folder.", input: undefined },
-      { code: "custom", path: ["rootFolderPath"], message: "second-error-ignored", input: undefined },
-      { code: "custom", path: ["qualityProfileId"], message: "Select a quality profile.", input: undefined },
-      { code: "custom", path: ["seasonNumbers"], message: "Select valid seasons.", input: undefined },
-      { code: "custom", path: ["tagIds"], message: "Select valid tags.", input: undefined },
+      { code: "custom", path: ["rootFolderPath"], message: "Select a root folder." },
+      { code: "custom", path: ["rootFolderPath"], message: "second-error-ignored" },
+      { code: "custom", path: ["qualityProfileId"], message: "Select a quality profile." },
+      { code: "custom", path: ["seasonNumbers"], message: "Select valid seasons." },
+      { code: "custom", path: ["tagIds"], message: "Select valid tags." },
     ]);
 
     const projected = projectLibraryRequestFieldErrors(error as never);
@@ -25,7 +25,7 @@ describe("library-request-action-helpers > projectLibraryRequestFieldErrors", ()
 
   it("returns undefined entries for fields without errors", () => {
     const error = new z.ZodError([
-      { code: "custom", path: ["rootFolderPath"], message: "needed", input: undefined },
+      { code: "custom", path: ["rootFolderPath"], message: "needed" },
     ]);
 
     const projected = projectLibraryRequestFieldErrors(error as never);
@@ -40,10 +40,10 @@ describe("library-request-action-helpers > projectLibraryRequestFieldErrors", ()
 
   it("surfaces an issue at a nested path under the top-level field name (zod flattens by first path segment)", () => {
     const error = new z.ZodError([
-      { code: "custom", path: ["seasonNumbers", 1], message: "Select valid seasons.", input: undefined },
+      { code: "custom", path: ["seasonNumbers", 1], message: "Select valid seasons." },
     ]);
 
-    expect(projectLibraryRequestFieldErrors(error as never).seasonNumbers).toBe(
+    expect(projectLibraryRequestFieldErrors(error as never)?.seasonNumbers).toBe(
       "Select valid seasons.",
     );
   });

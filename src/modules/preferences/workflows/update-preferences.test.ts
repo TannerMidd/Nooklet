@@ -20,7 +20,7 @@ const baseInput = {
   defaultResultCount: 10,
   defaultTemperature: 0.9,
   watchHistoryOnly: false,
-  watchHistorySourceTypes: ["plex"] as ("plex" | "jellyfin" | "tautulli" | "trakt" | "manual")[],
+  watchHistorySourceTypes: ["plex"] as ("manual" | "tautulli" | "plex")[],
   historyHideExisting: false,
   historyHideLiked: false,
   historyHideDisliked: false,
