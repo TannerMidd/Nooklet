@@ -37,6 +37,16 @@ export const navigationGroups = [
         description: "Get movie picks based on your taste and manage them in one place.",
       },
       {
+        href: "/sonarr",
+        label: "Sonarr search",
+        description: "Search Sonarr directly and request a show without starting a recommendation run.",
+      },
+      {
+        href: "/radarr",
+        label: "Radarr search",
+        description: "Search Radarr directly and request a movie without starting a recommendation run.",
+      },
+      {
         href: "/history",
         label: "History",
         description: "Review past recommendations, feedback, and library actions.",
