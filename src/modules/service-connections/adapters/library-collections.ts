@@ -419,4 +419,228 @@ export async function setSonarrSeriesSeasonMonitoring(
   }
 }
 
+export type SetSonarrSeriesMonitoringInput = ConnectionInput & {
+  seriesId: number;
+  monitored: boolean;
+  applyToAllSeasons?: boolean;
+};
+
+export type SetSonarrSeriesMonitoringResult =
+  | { ok: true; monitored: boolean; monitoredSeasonCount: number }
+  | { ok: false; message: string };
+
+export async function setSonarrSeriesMonitoring(
+  input: SetSonarrSeriesMonitoringInput,
+): Promise<SetSonarrSeriesMonitoringResult> {
+  try {
+    const seriesUrl = `${trimTrailingSlash(input.baseUrl)}/api/v3/series/${input.seriesId}`;
+
+    const fetchResponse = await fetchLibraryManager(seriesUrl, {
+      headers: { "X-Api-Key": input.apiKey },
+      cache: "no-store",
+    });
+
+    if (!fetchResponse.ok) {
+      return { ok: false, message: await extractErrorMessage(fetchResponse, "Sonarr") };
+    }
+
+    const series = (await fetchResponse.json()) as Record<string, unknown>;
+    const existingSeasons = Array.isArray(series.seasons) ? series.seasons : [];
+
+    const nextSeasons = input.applyToAllSeasons
+      ? existingSeasons.map((season) => {
+          if (typeof season !== "object" || season === null) {
+            return season;
+          }
+
+          const record = season as Record<string, unknown>;
+          const seasonNumber = record.seasonNumber;
+
+          // Preserve specials (season 0) when applying to "all" — Sonarr's
+          // monitor-all UI traditionally excludes specials.
+          if (seasonNumber === 0) {
+            return record;
+          }
+
+          return { ...record, monitored: input.monitored };
+        })
+      : existingSeasons;
+
+    const updatedSeries = {
+      ...series,
+      monitored: input.monitored,
+      seasons: nextSeasons,
+    };
+
+    const updateResponse = await fetchLibraryManager(seriesUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Api-Key": input.apiKey,
+      },
+      cache: "no-store",
+      body: JSON.stringify(updatedSeries),
+    });
+
+    if (!updateResponse.ok) {
+      return { ok: false, message: await extractErrorMessage(updateResponse, "Sonarr") };
+    }
+
+    const refreshed = (await updateResponse.json()) as Record<string, unknown>;
+    const refreshedSeasonsSource = Array.isArray(refreshed.seasons) ? refreshed.seasons : nextSeasons;
+    const updatedSeasons = refreshedSeasonsSource
+      .map(normalizeSonarrSeasonSummary)
+      .filter((season): season is SonarrLibrarySeasonSummary => season !== null);
+
+    return {
+      ok: true,
+      monitored: readBoolean(refreshed.monitored),
+      monitoredSeasonCount: updatedSeasons.filter(
+        (season) => season.seasonNumber > 0 && season.monitored,
+      ).length,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Sonarr series monitoring update failed unexpectedly.",
+    };
+  }
+}
+
+export type DeleteSonarrSeriesInput = ConnectionInput & {
+  seriesId: number;
+  deleteFiles: boolean;
+};
+
+export type DeleteSonarrSeriesResult = { ok: true } | { ok: false; message: string };
+
+export async function deleteSonarrSeries(
+  input: DeleteSonarrSeriesInput,
+): Promise<DeleteSonarrSeriesResult> {
+  try {
+    const url = new URL(
+      `${trimTrailingSlash(input.baseUrl)}/api/v3/series/${input.seriesId}`,
+    );
+    url.searchParams.set("deleteFiles", String(input.deleteFiles));
+    url.searchParams.set("addImportListExclusion", "false");
+
+    const response = await fetchLibraryManager(url, {
+      method: "DELETE",
+      headers: { "X-Api-Key": input.apiKey },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { ok: false, message: await extractErrorMessage(response, "Sonarr") };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Sonarr series delete failed unexpectedly.",
+    };
+  }
+}
+
+export type SetRadarrMovieMonitoringInput = ConnectionInput & {
+  movieId: number;
+  monitored: boolean;
+};
+
+export type SetRadarrMovieMonitoringResult =
+  | { ok: true; monitored: boolean }
+  | { ok: false; message: string };
+
+export async function setRadarrMovieMonitoring(
+  input: SetRadarrMovieMonitoringInput,
+): Promise<SetRadarrMovieMonitoringResult> {
+  try {
+    const movieUrl = `${trimTrailingSlash(input.baseUrl)}/api/v3/movie/${input.movieId}`;
+
+    const fetchResponse = await fetchLibraryManager(movieUrl, {
+      headers: { "X-Api-Key": input.apiKey },
+      cache: "no-store",
+    });
+
+    if (!fetchResponse.ok) {
+      return { ok: false, message: await extractErrorMessage(fetchResponse, "Radarr") };
+    }
+
+    const movie = (await fetchResponse.json()) as Record<string, unknown>;
+    const updatedMovie = { ...movie, monitored: input.monitored };
+
+    const updateResponse = await fetchLibraryManager(movieUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Api-Key": input.apiKey,
+      },
+      cache: "no-store",
+      body: JSON.stringify(updatedMovie),
+    });
+
+    if (!updateResponse.ok) {
+      return { ok: false, message: await extractErrorMessage(updateResponse, "Radarr") };
+    }
+
+    const refreshed = (await updateResponse.json()) as Record<string, unknown>;
+
+    return { ok: true, monitored: readBoolean(refreshed.monitored) };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Radarr movie monitoring update failed unexpectedly.",
+    };
+  }
+}
+
+export type DeleteRadarrMovieInput = ConnectionInput & {
+  movieId: number;
+  deleteFiles: boolean;
+};
+
+export type DeleteRadarrMovieResult = { ok: true } | { ok: false; message: string };
+
+export async function deleteRadarrMovie(
+  input: DeleteRadarrMovieInput,
+): Promise<DeleteRadarrMovieResult> {
+  try {
+    const url = new URL(
+      `${trimTrailingSlash(input.baseUrl)}/api/v3/movie/${input.movieId}`,
+    );
+    url.searchParams.set("deleteFiles", String(input.deleteFiles));
+    url.searchParams.set("addImportListExclusion", "false");
+
+    const response = await fetchLibraryManager(url, {
+      method: "DELETE",
+      headers: { "X-Api-Key": input.apiKey },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { ok: false, message: await extractErrorMessage(response, "Radarr") };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Radarr movie delete failed unexpectedly.",
+    };
+  }
+}
+
 export type LibraryCollectionServiceType = LibraryManagerServiceType;
