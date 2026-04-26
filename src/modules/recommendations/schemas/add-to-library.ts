@@ -1,13 +1,10 @@
 import { z } from "zod";
 
+import { libraryRequestSelectionFields } from "@/modules/service-connections/schemas/library-request-selection";
+
 export const addRecommendationToLibrarySchema = z.object({
   itemId: z.string().uuid(),
-  rootFolderPath: z.string().trim().min(1, "Select a root folder."),
-  qualityProfileId: z.coerce.number().int().nonnegative("Select a quality profile."),
-  seasonSelectionMode: z.enum(["all", "custom"]).default("all"),
-  seasonNumbers: z.array(z.coerce.number().int().nonnegative("Select valid seasons.")).default([]),
-  tagIds: z.array(z.coerce.number().int().nonnegative()).default([]),
-  returnTo: z.string().trim().min(1),
+  ...libraryRequestSelectionFields,
 });
 
 export type AddRecommendationToLibraryInput = z.infer<

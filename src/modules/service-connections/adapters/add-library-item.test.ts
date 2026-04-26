@@ -6,7 +6,11 @@ vi.mock("@/lib/security/safe-fetch", () => ({
 
 import { safeFetch } from "@/lib/security/safe-fetch";
 
-import { buildLibraryTasteItemKey, listSampledLibraryItems } from "./add-library-item";
+import {
+  buildLibraryTasteItemKey,
+  listSampledLibraryItems,
+  searchLibraryItems,
+} from "./add-library-item";
 
 const mockedSafeFetch = vi.mocked(safeFetch);
 
@@ -66,5 +70,59 @@ describe("listSampledLibraryItems", () => {
     expect(result.normalizedKeys).toContain(
       buildLibraryTasteItemKey({ title: "Spotlight", year: 2015 }),
     );
+  });
+});
+
+describe("searchLibraryItems", () => {
+  it("normalizes direct search results for Sonarr request cards", async () => {
+    mockedSafeFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          {
+            title: "Archive 81",
+            year: 2022,
+            tvdbId: 371437,
+            seasons: [{ seasonNumber: 0 }, { seasonNumber: 1 }, { seasonNumber: 2 }],
+            images: [{ coverType: "poster", url: "/MediaCover/1/poster.jpg" }],
+          },
+          {
+            title: "Archive 81",
+            year: 2022,
+            tvdbId: 371437,
+            seasons: [{ seasonNumber: 0 }, { seasonNumber: 1 }, { seasonNumber: 2 }],
+            images: [{ coverType: "poster", url: "/MediaCover/1/poster-alt.jpg" }],
+          },
+          {
+            title: " ",
+            year: 2020,
+          },
+        ]),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const result = await searchLibraryItems({
+      serviceType: "sonarr",
+      baseUrl: "http://sonarr.local",
+      apiKey: "secret",
+      query: "Archive",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      items: [
+        {
+          resultKey: "tvdb:371437",
+          title: "Archive 81",
+          year: 2022,
+          posterUrl: "http://sonarr.local/MediaCover/1/poster.jpg",
+          availableSeasons: [
+            { seasonNumber: 0, label: "Specials" },
+            { seasonNumber: 1, label: "Season 1" },
+            { seasonNumber: 2, label: "Season 2" },
+          ],
+        },
+      ],
+    });
   });
 });

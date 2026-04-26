@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { type RecommendationLibraryActionState } from "./recommendation-action-state";
+import { projectLibraryRequestFieldErrors } from "./library-request-action-helpers";
 import {
   addRecommendationToLibrarySchema,
   type AddRecommendationToLibraryInput,
@@ -39,12 +40,5 @@ export function parseRecommendationLibraryActionFormData(formData: FormData) {
 export function projectRecommendationLibraryFieldErrors(
   error: z.ZodError<AddRecommendationToLibraryInput>,
 ): RecommendationLibraryActionState["fieldErrors"] {
-  const flattenedErrors = error.flatten().fieldErrors;
-
-  return {
-    rootFolderPath: flattenedErrors.rootFolderPath?.[0],
-    qualityProfileId: flattenedErrors.qualityProfileId?.[0],
-    seasonNumbers: flattenedErrors.seasonNumbers?.[0],
-    tagIds: flattenedErrors.tagIds?.[0],
-  };
+  return projectLibraryRequestFieldErrors(error);
 }

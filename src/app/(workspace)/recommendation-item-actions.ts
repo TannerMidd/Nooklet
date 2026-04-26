@@ -89,6 +89,8 @@ export async function submitRecommendationLibraryDefaultsAction(input: {
   revalidatePath("/history");
   revalidatePath("/tv");
   revalidatePath("/movies");
+  revalidatePath("/sonarr");
+  revalidatePath("/radarr");
 }
 
 export async function submitRecommendationLibraryAction(
