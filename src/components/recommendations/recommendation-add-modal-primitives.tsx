@@ -222,17 +222,24 @@ export function RecommendationAddModalShell({
 
     const previousOverflow = document.body.style.overflow;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !closeDisabled) {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      if (!closeDisabled) {
         onClose();
       }
     };
 
     document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
 
     return () => {
       document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
     };
   }, [closeDisabled, onClose, open]);
 
@@ -242,7 +249,7 @@ export function RecommendationAddModalShell({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[120] bg-background/80 backdrop-blur-md"
+      className="fixed inset-0 z-[150] bg-background/80 backdrop-blur-md"
       onClick={() => {
         if (!closeDisabled) {
           onClose();

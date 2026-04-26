@@ -80,6 +80,28 @@ export function SonarrSeasonMonitorModal({
     }
   }, [loadEpisodesIfNeeded, open, shouldAutoLoadEpisodes]);
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      onClose();
+    };
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+    };
+  }, [onClose, open]);
+
   function selectEpisodeMode() {
     setMode("episode");
     loadEpisodesIfNeeded();
@@ -94,7 +116,7 @@ export function SonarrSeasonMonitorModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby={dialogTitleId}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur"
+      className="fixed inset-0 z-[150] flex items-center justify-center bg-foreground/40 p-4 backdrop-blur"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
