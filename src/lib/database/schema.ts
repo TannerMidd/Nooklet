@@ -83,7 +83,7 @@ export const preferences = sqliteTable("preferences", {
     .default(false),
   watchHistorySourceTypesJson: text("watch_history_source_types_json")
     .notNull()
-    .default('["manual","tautulli","plex"]'),
+    .default('["manual","tautulli","plex","trakt"]'),
   historyHideExisting: integer("history_hide_existing", { mode: "boolean" })
     .notNull()
     .default(false),
@@ -101,7 +101,7 @@ export const preferences = sqliteTable("preferences", {
     .default(sql`(unixepoch() * 1000)`),
 });
 
-export const serviceConnectionTypes = ["ai-provider", "sonarr", "radarr", "tautulli", "plex", "sabnzbd", "tmdb"] as const;
+export const serviceConnectionTypes = ["ai-provider", "sonarr", "radarr", "tautulli", "plex", "sabnzbd", "tmdb", "trakt"] as const;
 export const serviceConnectionScopes = ["user", "shared"] as const;
 export const serviceConnectionStatuses = ["configured", "verified", "error"] as const;
 
@@ -152,9 +152,9 @@ export const serviceSecrets = sqliteTable("service_secrets", {
 
   export const recommendationMediaTypes = ["tv", "movie"] as const;
 
-export const watchHistorySourceTypes = ["manual", "tautulli", "plex"] as const;
+export const watchHistorySourceTypes = ["manual", "tautulli", "plex", "trakt"] as const;
 export const watchHistorySyncStatuses = ["pending", "succeeded", "failed"] as const;
-export const jobTypes = ["watch-history-sync"] as const;
+export const jobTypes = ["watch-history-sync", "recommendation-run"] as const;
 export const jobStatuses = ["idle", "running", "succeeded", "failed"] as const;
 
 export const watchHistorySources = sqliteTable(
@@ -262,6 +262,15 @@ export const jobs = sqliteTable(
 );
 export const recommendationRunStatuses = ["pending", "succeeded", "failed"] as const;
 export const recommendationFeedbackValues = ["like", "dislike"] as const;
+export const recommendationTimelineEventTypes = [
+  "generated",
+  "feedback",
+  "hidden",
+  "unhidden",
+  "library-add",
+  "episode-selection",
+] as const;
+export const recommendationTimelineStatuses = ["info", "pending", "succeeded", "failed"] as const;
 
 export const recommendationRuns = sqliteTable("recommendation_runs", {
   id: text("id").primaryKey(),
@@ -305,6 +314,47 @@ export const recommendationItems = sqliteTable("recommendation_items", {
   existingInLibrary: integer("existing_in_library", { mode: "boolean" })
     .notNull()
     .default(false),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
+export const recommendationRunMetrics = sqliteTable("recommendation_run_metrics", {
+  runId: text("run_id")
+    .primaryKey()
+    .references(() => recommendationRuns.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  promptTokens: integer("prompt_tokens").notNull().default(0),
+  completionTokens: integer("completion_tokens").notNull().default(0),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  durationMs: integer("duration_ms").notNull().default(0),
+  generationAttemptCount: integer("generation_attempt_count").notNull().default(0),
+  excludedExistingItemCount: integer("excluded_existing_item_count").notNull().default(0),
+  excludedLanguageItemCount: integer("excluded_language_item_count").notNull().default(0),
+  generatedItemCount: integer("generated_item_count").notNull().default(0),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
+export const recommendationItemTimelineEvents = sqliteTable("recommendation_item_timeline_events", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  itemId: text("item_id")
+    .notNull()
+    .references(() => recommendationItems.id, { onDelete: "cascade" }),
+  eventType: text("event_type", { enum: recommendationTimelineEventTypes }).notNull(),
+  status: text("status", { enum: recommendationTimelineStatuses }).notNull().default("info"),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  metadataJson: text("metadata_json"),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .default(sql`(unixepoch() * 1000)`),
@@ -374,4 +424,6 @@ export type JobStatus = (typeof jobStatuses)[number];
 export type RecommendationMediaType = (typeof recommendationMediaTypes)[number];
 export type RecommendationRunStatus = (typeof recommendationRunStatuses)[number];
 export type RecommendationFeedbackValue = (typeof recommendationFeedbackValues)[number];
+export type RecommendationTimelineEventType = (typeof recommendationTimelineEventTypes)[number];
+export type RecommendationTimelineStatus = (typeof recommendationTimelineStatuses)[number];
 
