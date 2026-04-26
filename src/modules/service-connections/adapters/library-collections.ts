@@ -1,0 +1,425 @@
+import { safeFetch } from "@/lib/security/safe-fetch";
+import { type LibraryManagerServiceType } from "@/modules/service-connections/adapters/add-library-item";
+
+export type SonarrLibrarySeasonSummary = {
+  seasonNumber: number;
+  monitored: boolean;
+  episodeCount: number;
+  episodeFileCount: number;
+};
+
+export type SonarrLibrarySeries = {
+  id: number;
+  title: string;
+  sortTitle: string;
+  year: number | null;
+  monitored: boolean;
+  status: string | null;
+  network: string | null;
+  posterUrl: string | null;
+  totalSeasonCount: number;
+  monitoredSeasonCount: number;
+  episodeCount: number;
+  episodeFileCount: number;
+  seasons: SonarrLibrarySeasonSummary[];
+};
+
+export type RadarrLibraryMovie = {
+  id: number;
+  title: string;
+  sortTitle: string;
+  year: number | null;
+  monitored: boolean;
+  status: string | null;
+  hasFile: boolean;
+  posterUrl: string | null;
+  studio: string | null;
+};
+
+export type ListSonarrLibraryResult =
+  | { ok: true; items: SonarrLibrarySeries[] }
+  | { ok: false; message: string };
+
+export type ListRadarrLibraryResult =
+  | { ok: true; items: RadarrLibraryMovie[] }
+  | { ok: false; message: string };
+
+type ConnectionInput = {
+  baseUrl: string;
+  apiKey: string;
+};
+
+function trimTrailingSlash(baseUrl: string) {
+  return baseUrl.replace(/\/+$/, "");
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
+  const target = typeof input === "string" || input instanceof URL ? input : input.url;
+  return safeFetch(target, { ...init, timeoutMs: 10000 });
+}
+
+async function extractErrorMessage(response: Response, serviceLabel: string) {
+  try {
+    const payload = (await response.json()) as unknown;
+
+    if (typeof payload === "object" && payload !== null) {
+      const message = (payload as { message?: unknown }).message;
+      const errorMessage = (payload as { errorMessage?: unknown }).errorMessage;
+
+      if (typeof message === "string" && message.trim()) {
+        return message;
+      }
+
+      if (typeof errorMessage === "string" && errorMessage.trim()) {
+        return errorMessage;
+      }
+    }
+  } catch {
+    // Fall through to generic message.
+  }
+
+  return `${serviceLabel} request failed with status ${response.status}.`;
+}
+
+function resolveImageUrl(baseUrl: string, value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return null;
+  }
+
+  try {
+    return new URL(trimmedValue).toString();
+  } catch {
+    try {
+      return new URL(trimmedValue, `${trimTrailingSlash(baseUrl)}/`).toString();
+    } catch {
+      return null;
+    }
+  }
+}
+
+function extractPosterUrlFromImages(baseUrl: string, value: unknown) {
+  const images = Array.isArray(value) ? value : [];
+
+  const normalizedImages = images
+    .filter((image): image is Record<string, unknown> => typeof image === "object" && image !== null)
+    .map((image) => ({
+      coverType: typeof image.coverType === "string" ? image.coverType.trim().toLowerCase() : "",
+      url: resolveImageUrl(baseUrl, image.remoteUrl) ?? resolveImageUrl(baseUrl, image.url),
+    }))
+    .filter((image): image is { coverType: string; url: string } => Boolean(image.url));
+
+  return (
+    normalizedImages.find((image) => image.coverType === "poster")?.url ??
+    normalizedImages.find((image) => image.coverType === "cover")?.url ??
+    normalizedImages[0]?.url ??
+    null
+  );
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) ? value : null;
+}
+
+function readBoolean(value: unknown): boolean {
+  return value === true;
+}
+
+function compareByTitle<T extends { sortTitle: string; title: string }>(left: T, right: T) {
+  return (
+    left.sortTitle.localeCompare(right.sortTitle, undefined, { sensitivity: "base" }) ||
+    left.title.localeCompare(right.title, undefined, { sensitivity: "base" })
+  );
+}
+
+function normalizeSonarrSeasonSummary(value: unknown): SonarrLibrarySeasonSummary | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const seasonNumber = readInteger(record.seasonNumber);
+
+  if (seasonNumber === null || seasonNumber < 0) {
+    return null;
+  }
+
+  const statistics =
+    typeof record.statistics === "object" && record.statistics !== null
+      ? (record.statistics as Record<string, unknown>)
+      : null;
+
+  return {
+    seasonNumber,
+    monitored: readBoolean(record.monitored),
+    episodeCount: readInteger(statistics?.episodeCount) ?? 0,
+    episodeFileCount: readInteger(statistics?.episodeFileCount) ?? 0,
+  };
+}
+
+function normalizeSonarrSeries(baseUrl: string, value: unknown): SonarrLibrarySeries | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const id = readInteger(record.id);
+  const title = readString(record.title);
+
+  if (id === null || id <= 0 || !title) {
+    return null;
+  }
+
+  const sortTitle = readString(record.sortTitle) ?? title.toLowerCase();
+  const seasonsSource = Array.isArray(record.seasons) ? record.seasons : [];
+  const seasons = seasonsSource
+    .map(normalizeSonarrSeasonSummary)
+    .filter((season): season is SonarrLibrarySeasonSummary => season !== null)
+    .sort((left, right) => left.seasonNumber - right.seasonNumber);
+
+  const statistics =
+    typeof record.statistics === "object" && record.statistics !== null
+      ? (record.statistics as Record<string, unknown>)
+      : null;
+
+  return {
+    id,
+    title,
+    sortTitle,
+    year: readInteger(record.year),
+    monitored: readBoolean(record.monitored),
+    status: readString(record.status),
+    network: readString(record.network),
+    posterUrl: extractPosterUrlFromImages(baseUrl, record.images),
+    totalSeasonCount: seasons.filter((season) => season.seasonNumber > 0).length,
+    monitoredSeasonCount: seasons.filter((season) => season.seasonNumber > 0 && season.monitored)
+      .length,
+    episodeCount: readInteger(statistics?.episodeCount) ?? 0,
+    episodeFileCount: readInteger(statistics?.episodeFileCount) ?? 0,
+    seasons,
+  };
+}
+
+function normalizeRadarrMovie(baseUrl: string, value: unknown): RadarrLibraryMovie | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const id = readInteger(record.id);
+  const title = readString(record.title);
+
+  if (id === null || id <= 0 || !title) {
+    return null;
+  }
+
+  const sortTitle = readString(record.sortTitle) ?? title.toLowerCase();
+
+  return {
+    id,
+    title,
+    sortTitle,
+    year: readInteger(record.year),
+    monitored: readBoolean(record.monitored),
+    status: readString(record.status),
+    hasFile: readBoolean(record.hasFile),
+    posterUrl: extractPosterUrlFromImages(baseUrl, record.images),
+    studio: readString(record.studio),
+  };
+}
+
+export async function listSonarrLibrarySeries(
+  input: ConnectionInput,
+): Promise<ListSonarrLibraryResult> {
+  try {
+    const response = await fetchWithTimeout(
+      `${trimTrailingSlash(input.baseUrl)}/api/v3/series`,
+      {
+        headers: { "X-Api-Key": input.apiKey },
+        cache: "no-store",
+      },
+    );
+
+    if (!response.ok) {
+      return { ok: false, message: await extractErrorMessage(response, "Sonarr") };
+    }
+
+    const payload = (await response.json()) as unknown;
+
+    if (!Array.isArray(payload)) {
+      return {
+        ok: false,
+        message: "Sonarr returned an unexpected response when listing the library.",
+      };
+    }
+
+    const items = payload
+      .map((entry) => normalizeSonarrSeries(input.baseUrl, entry))
+      .filter((entry): entry is SonarrLibrarySeries => entry !== null)
+      .sort(compareByTitle);
+
+    return { ok: true, items };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Sonarr library listing failed unexpectedly.",
+    };
+  }
+}
+
+export async function listRadarrLibraryMovies(
+  input: ConnectionInput,
+): Promise<ListRadarrLibraryResult> {
+  try {
+    const response = await fetchWithTimeout(
+      `${trimTrailingSlash(input.baseUrl)}/api/v3/movie`,
+      {
+        headers: { "X-Api-Key": input.apiKey },
+        cache: "no-store",
+      },
+    );
+
+    if (!response.ok) {
+      return { ok: false, message: await extractErrorMessage(response, "Radarr") };
+    }
+
+    const payload = (await response.json()) as unknown;
+
+    if (!Array.isArray(payload)) {
+      return {
+        ok: false,
+        message: "Radarr returned an unexpected response when listing the library.",
+      };
+    }
+
+    const items = payload
+      .map((entry) => normalizeRadarrMovie(input.baseUrl, entry))
+      .filter((entry): entry is RadarrLibraryMovie => entry !== null)
+      .sort(compareByTitle);
+
+    return { ok: true, items };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Radarr library listing failed unexpectedly.",
+    };
+  }
+}
+
+export type SetSonarrSeriesSeasonMonitoringInput = ConnectionInput & {
+  seriesId: number;
+  monitoredSeasonNumbers: number[];
+};
+
+export type SetSonarrSeriesSeasonMonitoringResult =
+  | {
+      ok: true;
+      updatedSeasons: SonarrLibrarySeasonSummary[];
+      monitoredSeasonCount: number;
+    }
+  | { ok: false; message: string; field?: "monitoredSeasonNumbers" };
+
+export async function setSonarrSeriesSeasonMonitoring(
+  input: SetSonarrSeriesSeasonMonitoringInput,
+): Promise<SetSonarrSeriesSeasonMonitoringResult> {
+  try {
+    const seriesUrl = `${trimTrailingSlash(input.baseUrl)}/api/v3/series/${input.seriesId}`;
+
+    const fetchResponse = await fetchWithTimeout(seriesUrl, {
+      headers: { "X-Api-Key": input.apiKey },
+      cache: "no-store",
+    });
+
+    if (!fetchResponse.ok) {
+      return { ok: false, message: await extractErrorMessage(fetchResponse, "Sonarr") };
+    }
+
+    const series = (await fetchResponse.json()) as Record<string, unknown>;
+    const monitoredSet = new Set(input.monitoredSeasonNumbers);
+    const existingSeasons = Array.isArray(series.seasons) ? series.seasons : [];
+
+    const nextSeasons = existingSeasons.map((season) => {
+      if (typeof season !== "object" || season === null) {
+        return season;
+      }
+
+      const record = season as Record<string, unknown>;
+      const seasonNumber = record.seasonNumber;
+
+      if (typeof seasonNumber !== "number" || !Number.isInteger(seasonNumber)) {
+        return record;
+      }
+
+      // Specials (season 0) are preserved unless the caller explicitly toggles them.
+      if (seasonNumber === 0 && !monitoredSet.has(0)) {
+        return record;
+      }
+
+      return { ...record, monitored: monitoredSet.has(seasonNumber) };
+    });
+
+    const anySelected = input.monitoredSeasonNumbers.length > 0;
+
+    const updatedSeries = {
+      ...series,
+      // Keep series.monitored true when at least one season is selected so
+      // Sonarr's RSS/auto-grab loops continue to consider it.
+      monitored: anySelected ? true : readBoolean(series.monitored),
+      seasons: nextSeasons,
+    };
+
+    const updateResponse = await fetchWithTimeout(seriesUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Api-Key": input.apiKey,
+      },
+      cache: "no-store",
+      body: JSON.stringify(updatedSeries),
+    });
+
+    if (!updateResponse.ok) {
+      return { ok: false, message: await extractErrorMessage(updateResponse, "Sonarr") };
+    }
+
+    const refreshed = (await updateResponse.json()) as Record<string, unknown>;
+    const refreshedSeasonsSource = Array.isArray(refreshed.seasons) ? refreshed.seasons : nextSeasons;
+    const updatedSeasons = refreshedSeasonsSource
+      .map(normalizeSonarrSeasonSummary)
+      .filter((season): season is SonarrLibrarySeasonSummary => season !== null)
+      .sort((left, right) => left.seasonNumber - right.seasonNumber);
+
+    return {
+      ok: true,
+      updatedSeasons,
+      monitoredSeasonCount: updatedSeasons.filter(
+        (season) => season.seasonNumber > 0 && season.monitored,
+      ).length,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Sonarr series season update failed unexpectedly.",
+    };
+  }
+}
+
+export type LibraryCollectionServiceType = LibraryManagerServiceType;
