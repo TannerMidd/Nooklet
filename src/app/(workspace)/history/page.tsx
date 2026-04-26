@@ -183,7 +183,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="max-h-[72vh] space-y-4 overflow-y-auto pr-2">
             {history.items.map((item) => (
               <article
                 key={item.itemId}

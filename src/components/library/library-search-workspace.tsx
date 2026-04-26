@@ -234,7 +234,7 @@ export async function LibrarySearchWorkspace({
             No {resultLabel} matched “{normalizedQuery}”. Try a broader title or verify the spelling.
           </div>
         ) : (
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid max-h-[72vh] gap-4 overflow-y-auto pr-2 xl:grid-cols-2">
             {searchResult?.ok
               ? searchResult.items.map((item) => (
                   <article

@@ -393,7 +393,7 @@ export async function RecommendationWorkspace({
               The worker has not saved generated titles for this batch yet.
             </div>
           ) : (
-            <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-6 grid max-h-[72vh] gap-5 overflow-y-auto pr-2 md:grid-cols-2 xl:grid-cols-3">
               {featuredRun.items.map((item, index) => (
                 <RecommendationFeaturedCard
                   key={item.id}
@@ -431,7 +431,7 @@ export async function RecommendationWorkspace({
               : `No ${mediaType === "tv" ? "TV" : "movie"} recommendation runs yet.`}
           </p>
         ) : (
-          <div className="space-y-4">
+          <div className="max-h-[72vh] space-y-4 overflow-y-auto pr-2">
             {previousRuns.map((run) => (
               <article
                 key={run.id}
@@ -477,7 +477,7 @@ export async function RecommendationWorkspace({
                 />
 
                 {run.items.length > 0 ? (
-                  <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                  <div className="mt-4 grid max-h-[32rem] gap-4 overflow-y-auto pr-2 xl:grid-cols-2">
                     {run.items.map((item) => (
                       <div
                         key={item.id}

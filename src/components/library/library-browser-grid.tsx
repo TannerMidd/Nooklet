@@ -145,7 +145,7 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
           {emptyLabel}
         </div>
       ) : (
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-4">
+        <ul className="grid max-h-[72vh] grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-4 overflow-y-auto pr-2">
           {serviceType === "sonarr"
             ? (filteredItems as SonarrLibrarySeries[]).map((series) => (
                 <SonarrLibraryCard
