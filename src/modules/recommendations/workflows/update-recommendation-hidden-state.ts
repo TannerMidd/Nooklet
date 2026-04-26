@@ -1,4 +1,5 @@
 import {
+  createRecommendationItemTimelineEvent,
   findRecommendationItemForUser,
   upsertRecommendationItemHiddenState,
 } from "@/modules/recommendations/repositories/recommendation-repository";
@@ -16,6 +17,17 @@ export async function updateRecommendationHiddenState(
   }
 
   await upsertRecommendationItemHiddenState(userId, itemId, isHidden);
+  await createRecommendationItemTimelineEvent({
+    userId,
+    itemId,
+    eventType: isHidden ? "hidden" : "unhidden",
+    status: "info",
+    title: isHidden ? "Hidden from history" : "Restored to history",
+    message: isHidden
+      ? `${item.title} was hidden from default history views.`
+      : `${item.title} was restored to default history views.`,
+    metadata: { isHidden },
+  });
   await createAuditEvent({
     actorUserId: userId,
     eventType: isHidden

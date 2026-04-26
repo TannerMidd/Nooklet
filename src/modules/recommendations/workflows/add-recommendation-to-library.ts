@@ -2,6 +2,7 @@ import { parseRecommendationProviderMetadata } from "@/modules/recommendations/p
 import { getServiceConnectionDefinition } from "@/modules/service-connections/service-definitions";
 import { type AddRecommendationToLibraryInput } from "@/modules/recommendations/schemas/add-to-library";
 import {
+  createRecommendationItemTimelineEvent,
   findRecommendationItemForUser,
   markRecommendationItemExistingInLibrary,
   updateRecommendationItemProviderMetadata,
@@ -73,6 +74,19 @@ export async function addRecommendationToLibrary(
   });
 
   if (!result.ok) {
+    await createRecommendationItemTimelineEvent({
+      userId,
+      itemId: item.itemId,
+      eventType: "library-add",
+      status: "failed",
+      title: `Add to ${definition.displayName} failed`,
+      message: result.message,
+      metadata: {
+        serviceType,
+        field: result.field,
+      },
+    });
+
     return result;
   }
 
@@ -93,6 +107,19 @@ export async function addRecommendationToLibrary(
       item.itemId,
       JSON.stringify(nextMetadata),
     );
+    await createRecommendationItemTimelineEvent({
+      userId,
+      itemId: item.itemId,
+      eventType: "library-add",
+      status: "pending",
+      title: `Added to ${definition.displayName}`,
+      message: `${item.title} was added to ${definition.displayName}. Episode selection is waiting for your choices.`,
+      metadata: {
+        serviceType,
+        sonarrSeriesId: result.sonarrSeriesId,
+        seasonSelectionMode: input.seasonSelectionMode,
+      },
+    });
 
     return {
       ok: true,
@@ -106,6 +133,20 @@ export async function addRecommendationToLibrary(
   }
 
   await markRecommendationItemExistingInLibrary(item.itemId, true);
+  await createRecommendationItemTimelineEvent({
+    userId,
+    itemId: item.itemId,
+    eventType: "library-add",
+    status: "succeeded",
+    title: `Added to ${definition.displayName}`,
+    message: result.message,
+    metadata: {
+      serviceType,
+      seasonSelectionMode: input.seasonSelectionMode,
+      seasonNumbers: input.seasonNumbers,
+      tagIds: input.tagIds,
+    },
+  });
 
   return result;
 }

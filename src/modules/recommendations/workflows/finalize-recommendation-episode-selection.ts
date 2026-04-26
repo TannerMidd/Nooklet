@@ -1,6 +1,7 @@
 import { decryptSecret } from "@/lib/security/secret-box";
 import { parseRecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
 import {
+  createRecommendationItemTimelineEvent,
   findRecommendationItemForUser,
   markRecommendationItemExistingInLibrary,
   updateRecommendationItemProviderMetadata,
@@ -82,6 +83,18 @@ export async function finalizeRecommendationEpisodeSelection(
   );
 
   if (!applyResult.ok) {
+    await createRecommendationItemTimelineEvent({
+      userId,
+      itemId: item.itemId,
+      eventType: "episode-selection",
+      status: "failed",
+      title: "Episode selection failed",
+      message: applyResult.message,
+      metadata: {
+        stage: applyResult.stage,
+        requestedEpisodeIds: input.episodeIds,
+      },
+    });
     await emitFailureAudit(userId, item.itemId, input, {
       stage: applyResult.stage,
       message: applyResult.message,
@@ -120,6 +133,21 @@ export async function finalizeRecommendationEpisodeSelection(
   );
 
   await markRecommendationItemExistingInLibrary(item.itemId, true);
+  await createRecommendationItemTimelineEvent({
+    userId,
+    itemId: item.itemId,
+    eventType: "episode-selection",
+    status: "succeeded",
+    title: "Episodes selected",
+    message: `Monitoring ${requestedIds.length} ${requestedIds.length === 1 ? "episode" : "episodes"} in ${definition.displayName}.`,
+    metadata: {
+      sonarrSeriesId: itemMetadata.sonarrSeriesId,
+      monitoredEpisodeCount: requestedIds.length,
+      unmonitoredEpisodeCount: applyResult.unmonitoredEpisodeCount,
+      searchTriggered: applyResult.searchTriggered,
+      searchWarning: applyResult.searchWarning,
+    },
+  });
 
   await createAuditEvent({
     actorUserId: userId,

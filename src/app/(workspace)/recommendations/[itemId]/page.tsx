@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { RecommendationHistoryItemActions } from "@/components/recommendations/recommendation-history-item-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
+import { RecommendationTimeline } from "@/components/recommendations/recommendation-timeline";
 import { Panel } from "@/components/ui/panel";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
@@ -88,7 +89,7 @@ export default async function RecommendationOverviewPage({
     redirect(returnTo);
   }
 
-  const { item, providerMetadata, tmdbLookupMessage } = overview;
+  const { item, providerMetadata, timeline, tmdbLookupMessage } = overview;
   const details = providerMetadata?.tmdbDetails ?? null;
   const posterUrl = providerMetadata?.posterUrl ?? details?.posterUrl ?? null;
   const titleYear = details?.year ?? item.year;
@@ -200,6 +201,10 @@ export default async function RecommendationOverviewPage({
           <Fact label={item.mediaType === "tv" ? "TVDB ID" : "IMDb ID"} value={item.mediaType === "tv" ? details?.tvdbId : details?.imdbId} />
           <Fact label="Run status" value={item.runStatus} />
         </div>
+      </Panel>
+
+      <Panel eyebrow="Status timeline" title="Title activity">
+        <RecommendationTimeline events={timeline} />
       </Panel>
     </div>
   );

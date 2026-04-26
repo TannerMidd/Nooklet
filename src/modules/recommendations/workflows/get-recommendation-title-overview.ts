@@ -6,6 +6,7 @@ import {
   findRecommendationItemForUser,
   updateRecommendationItemProviderMetadata,
 } from "@/modules/recommendations/repositories/recommendation-repository";
+import { listRecommendationItemTimeline } from "@/modules/recommendations/queries/list-recommendation-item-timeline";
 import {
   loadVerifiedTmdbConnection,
 } from "@/modules/recommendations/workflows/create-recommendation-run-enrichment";
@@ -45,6 +46,7 @@ export async function getRecommendationTitleOverview(userId: string, itemId: str
     return {
       item,
       providerMetadata,
+      timeline: await listRecommendationItemTimeline(userId, itemId),
       tmdbLookupMessage: null,
     };
   }
@@ -55,6 +57,7 @@ export async function getRecommendationTitleOverview(userId: string, itemId: str
     return {
       item,
       providerMetadata,
+      timeline: await listRecommendationItemTimeline(userId, itemId),
       tmdbLookupMessage: "Verify TMDB to load richer title details for this recommendation.",
     };
   }
@@ -70,6 +73,7 @@ export async function getRecommendationTitleOverview(userId: string, itemId: str
     return {
       item,
       providerMetadata,
+      timeline: await listRecommendationItemTimeline(userId, itemId),
       tmdbLookupMessage: detailsResult.message,
     };
   }
@@ -92,6 +96,7 @@ export async function getRecommendationTitleOverview(userId: string, itemId: str
       providerMetadataJson: JSON.stringify(mergedMetadata),
     },
     providerMetadata: parseMergedMetadata(mergedMetadata) satisfies RecommendationProviderMetadata | null,
+    timeline: await listRecommendationItemTimeline(userId, itemId),
     tmdbLookupMessage: null,
   };
 }

@@ -1,6 +1,7 @@
 import { type RecommendationFeedbackValue } from "@/lib/database/schema";
 
 import {
+  createRecommendationItemTimelineEvent,
   findRecommendationItemForUser,
   upsertRecommendationFeedback,
 } from "@/modules/recommendations/repositories/recommendation-repository";
@@ -18,6 +19,15 @@ export async function updateRecommendationFeedback(
   }
 
   await upsertRecommendationFeedback(userId, itemId, feedback);
+  await createRecommendationItemTimelineEvent({
+    userId,
+    itemId,
+    eventType: "feedback",
+    status: "info",
+    title: feedback === "like" ? "Marked as liked" : "Marked as disliked",
+    message: `${item.title} was marked as ${feedback === "like" ? "liked" : "disliked"}. Future recommendations use this as taste feedback.`,
+    metadata: { feedback },
+  });
   await createAuditEvent({
     actorUserId: userId,
     eventType: "recommendations.feedback.updated",

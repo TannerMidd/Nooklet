@@ -3,6 +3,7 @@ import Image from "next/image";
 import { RecommendationHistoryItemActions } from "@/components/recommendations/recommendation-history-item-actions";
 import { RecommendationOverviewModalShell } from "@/components/recommendations/recommendation-overview-modal-shell";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
+import { RecommendationTimeline } from "@/components/recommendations/recommendation-timeline";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { type PreferenceRecord } from "@/modules/preferences/queries/get-user-preferences";
 import {
@@ -69,7 +70,7 @@ export function RecommendationTitleOverviewDialog({
   closeHref,
   actionReturnHref,
 }: RecommendationTitleOverviewDialogProps) {
-  const { item, providerMetadata, tmdbLookupMessage } = overview;
+  const { item, providerMetadata, timeline, tmdbLookupMessage } = overview;
   const details = providerMetadata?.tmdbDetails ?? null;
   const posterUrl = providerMetadata?.posterUrl ?? details?.posterUrl ?? null;
   const titleYear = details?.year ?? item.year;
@@ -177,6 +178,11 @@ export function RecommendationTitleOverviewDialog({
             <Fact label={item.mediaType === "tv" ? "TVDB ID" : "IMDb ID"} value={item.mediaType === "tv" ? details?.tvdbId : details?.imdbId} />
             <Fact label="Run status" value={item.runStatus} />
           </div>
+        </section>
+
+        <section className="space-y-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Status timeline</p>
+          <RecommendationTimeline events={timeline} />
         </section>
       </div>
     </RecommendationOverviewModalShell>
