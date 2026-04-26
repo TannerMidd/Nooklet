@@ -105,7 +105,6 @@ describe("verifyPlex", () => {
 
   it("translates a non-Error throw into a stable generic failure message", async () => {
     verifyPlexConnectionMock.mockImplementation(async () => {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentional non-Error throw
       throw { token: "plex-leak-token" };
     });
 

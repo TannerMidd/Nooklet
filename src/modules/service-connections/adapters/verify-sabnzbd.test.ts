@@ -130,7 +130,6 @@ describe("verifySabnzbd", () => {
 
   it("translates a non-Error throw into a stable generic failure message", async () => {
     verifySabnzbdConnectionMock.mockImplementation(async () => {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentional non-Error throw
       throw { apiKey: "sab-leak-key" };
     });
 

@@ -108,7 +108,6 @@ describe("verifyTautulli", () => {
 
   it("translates a non-Error throw into a stable generic failure message", async () => {
     verifyTautulliConnectionMock.mockImplementation(async () => {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentional non-Error throw
       throw "raw string with apiKey=tautulli-leak-key";
     });
 

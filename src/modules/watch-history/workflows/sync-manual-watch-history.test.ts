@@ -160,7 +160,6 @@ describe("syncManualWatchHistory", () => {
   it("translates a non-Error throw into a stable generic message", async () => {
     parseMock.mockReturnValue([{ title: "X" }] as never);
     replaceItemsMock.mockImplementation(async () => {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentional non-Error throw
       throw "raw failure";
     });
 

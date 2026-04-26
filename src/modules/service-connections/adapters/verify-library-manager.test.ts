@@ -248,7 +248,6 @@ describe("verifyLibraryManager", () => {
 
   it("translates a non-Error throw into a stable generic failure message", async () => {
     fetchJsonMock.mockImplementation(async () => {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentional non-Error throw
       throw "plain string with key=lib-api-key";
     });
 

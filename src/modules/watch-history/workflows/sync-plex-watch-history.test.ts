@@ -235,7 +235,6 @@ describe("syncPlexWatchHistory", () => {
   it("translates a non-Error throw into a stable generic message and never leaks the secret", async () => {
     findMock.mockResolvedValue(buildVerifiedPlexConnection());
     listHistoryMock.mockImplementation(async () => {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- intentional non-Error throw
       throw "raw with apiKey=dec(plex-enc)";
     });
 

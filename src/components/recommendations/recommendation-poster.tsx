@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 type RecommendationPosterProps = {
   title: string;
   posterUrl?: string | null;
@@ -18,11 +20,13 @@ export function RecommendationPoster({ title, posterUrl }: RecommendationPosterP
   return (
     <div className="relative aspect-[2/3] w-24 shrink-0 overflow-hidden rounded-[22px] border border-line/70 bg-panel-strong/80 shadow-soft sm:w-28">
       {posterUrl ? (
-        <img
+        <Image
           src={posterUrl}
           alt={`${title} poster`}
-          loading="lazy"
-          className="h-full w-full object-cover"
+          fill
+          unoptimized
+          sizes="(min-width: 640px) 7rem, 6rem"
+          className="object-cover"
         />
       ) : (
         <div className="flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_top,_rgba(181,154,106,0.24),_transparent_58%),linear-gradient(180deg,_rgba(42,50,63,0.95),_rgba(18,22,29,0.98))] p-3 text-foreground">
