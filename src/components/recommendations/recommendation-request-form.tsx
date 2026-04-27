@@ -40,33 +40,27 @@ type RecommendationRequestFormProps = {
 
 const requestProgressStages = [
   {
-    label: "Starting the request",
-    description: "Saving the request and preparing a run for this batch.",
+    label: "Starting request",
     minElapsedMs: 0,
   },
   {
-    label: "Checking connections",
-    description: "Rechecking the configured AI provider and library connection before generation starts.",
+    label: "Checking settings",
     minElapsedMs: 1500,
   },
   {
-    label: "Loading taste context",
-    description: "Pulling watch history and sampled library context for this request.",
+    label: "Reading your taste profile",
     minElapsedMs: 4000,
   },
   {
-    label: "Waiting on the AI provider",
-    description: "Generating fresh recommendation candidates. Slower models can take a minute here.",
+    label: "Finding recommendations",
     minElapsedMs: 9000,
   },
   {
-    label: "Backfilling after filtering",
-    description: "If duplicates or library matches are removed, Recommendarr asks for more titles automatically.",
+    label: "Filtering matches",
     minElapsedMs: 20000,
   },
   {
-    label: "Finalizing the batch",
-    description: "Saving the results and preparing the page refresh.",
+    label: "Saving results",
     minElapsedMs: 35000,
   },
 ] as const;
@@ -121,48 +115,15 @@ function RequestProgressPanel() {
   }
 
   const activeStageIndex = resolveActiveProgressStage(elapsedMs);
+  const activeStage = requestProgressStages[activeStageIndex];
 
   return (
-    <div className="rounded-[28px] border border-accent/20 bg-accent/5 px-4 py-4" role="status">
-      <div className="flex items-start gap-3">
+    <div className="rounded-2xl border border-accent/20 bg-accent/5 px-4 py-3" role="status">
+      <div className="flex items-center gap-3">
         <div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-accent animate-pulse" />
-        <div className="min-w-0 space-y-4">
-          <div className="space-y-1">
-            <p className="text-sm font-semibold text-foreground">Recommendation request in progress</p>
-            <p className="text-sm leading-6 text-muted">
-              The request is being saved and queued for the background worker. The run will keep refreshing while it is pending.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            {requestProgressStages.map((stage, index) => {
-              const isComplete = index < activeStageIndex;
-              const isActive = index === activeStageIndex;
-
-              return (
-                <div
-                  key={stage.label}
-                  className="flex items-start gap-3 rounded-2xl border border-line/60 bg-panel/70 px-3 py-3"
-                >
-                  <div
-                    className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
-                      isComplete || isActive ? "bg-accent" : "bg-line"
-                    } ${isActive ? "animate-pulse" : ""}`}
-                  />
-                  <div className="min-w-0">
-                    <p
-                      className={`text-sm font-medium ${
-                        isComplete || isActive ? "text-foreground" : "text-muted"
-                      }`}
-                    >
-                      {stage.label}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-muted">{stage.description}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground">Working on your recommendations</p>
+          <p className="text-sm leading-6 text-muted">{activeStage.label}</p>
         </div>
       </div>
     </div>
@@ -331,9 +292,6 @@ export function RecommendationRequestForm({
           className="min-h-32 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
           aria-invalid={Boolean(state.fieldErrors?.requestPrompt)}
         />
-        <p className="text-sm text-muted">
-          Leave this empty when you want the app to infer taste from your synced watch history and sampled library.
-        </p>
         {state.fieldErrors?.requestPrompt ? (
           <p className="text-sm text-highlight">{state.fieldErrors.requestPrompt}</p>
         ) : null}
@@ -341,12 +299,7 @@ export function RecommendationRequestForm({
 
       <div className="space-y-3">
         <div className="space-y-1">
-          <p className="text-sm font-medium text-foreground">Quick genre selectors</p>
-          <p className="text-sm leading-6 text-muted">
-            Selected genres are weighted heavily in the AI prompt. When you choose any,
-            the sampled library context narrows to matching titles and keeps a mix across
-            the selected genres.
-          </p>
+          <p className="text-sm font-medium text-foreground">Genres</p>
         </div>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Quick genre selectors">
           {genreOptions.map((option) => {
@@ -392,11 +345,6 @@ export function RecommendationRequestForm({
             emptyLabel="Available model IDs will appear after the next successful provider check."
             ariaInvalid={Boolean(state.fieldErrors?.aiModel)}
           />
-          {availableModels.length > 0 ? (
-            <p className="text-sm text-muted">Pick any discovered provider model without leaving this page.</p>
-          ) : (
-            <p className="text-sm text-muted">Available model IDs will appear after the next successful provider check.</p>
-          )}
           {state.fieldErrors?.aiModel ? (
             <p className="text-sm text-highlight">{state.fieldErrors.aiModel}</p>
           ) : null}
@@ -415,7 +363,6 @@ export function RecommendationRequestForm({
             onMouseLeave={saveDefaultsOnFieldExit}
             aria-invalid={Boolean(state.fieldErrors?.temperature)}
           />
-          <p className="text-sm text-muted">Lower is steadier. Higher is broader and less predictable.</p>
           {state.fieldErrors?.temperature ? (
             <p className="text-sm text-highlight">{state.fieldErrors.temperature}</p>
           ) : null}
@@ -463,9 +410,6 @@ export function RecommendationRequestForm({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <SubmitButton canSubmit={canSubmit} />
-        <p className="text-sm leading-6 text-muted">
-          Requests run in the background and appear here first as pending runs.
-        </p>
       </div>
     </form>
   );

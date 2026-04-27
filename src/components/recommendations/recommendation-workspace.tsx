@@ -1,7 +1,4 @@
-import Link from "next/link";
-
 import { auth } from "@/auth";
-import { submitRecommendationWatchHistoryModeAction } from "@/app/(workspace)/recommendation-actions";
 import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
 import { RecommendationFeaturedCard } from "@/components/recommendations/recommendation-featured-card";
 import { RecommendationFeedbackActions } from "@/components/recommendations/recommendation-feedback-actions";
@@ -11,7 +8,6 @@ import { RecommendationRetryForm } from "@/components/recommendations/recommenda
 import { RecommendationRunAutoRefresh } from "@/components/recommendations/recommendation-run-auto-refresh";
 import { RecommendationSabnzbdStatus } from "@/components/recommendations/recommendation-sabnzbd-status";
 import { RecommendationTitleOverviewDialog } from "@/components/recommendations/recommendation-title-overview-dialog";
-import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
@@ -25,12 +21,8 @@ import {
   type RecommendationGenre,
 } from "@/modules/recommendations/recommendation-genres";
 import { getRecommendationTitleOverview } from "@/modules/recommendations/workflows/get-recommendation-title-overview";
-import { getRecommendationTasteProfile } from "@/modules/recommendations/queries/get-recommendation-taste-profile";
 import { listRecentRecommendationRuns } from "@/modules/recommendations/queries/list-recent-recommendation-runs";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
-import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
-import { getWatchHistorySourceDefinition } from "@/modules/watch-history/source-definitions";
-import { getWatchHistoryOverview } from "@/modules/watch-history/queries/get-watch-history-overview";
 
 type RecommendationWorkspaceProps = {
   mediaType: RecommendationMediaType;
@@ -121,21 +113,10 @@ export async function RecommendationWorkspace({
   const [
     connectionSummaries,
     recentRuns,
-    watchHistoryOverview,
-    selectedWatchHistoryContext,
-    tasteProfile,
     selectedOverview,
   ] = await Promise.all([
     listConnectionSummaries(session.user.id),
     listRecentRecommendationRuns(session.user.id, mediaType),
-    getWatchHistoryOverview(session.user.id),
-    listWatchHistoryContext(
-      session.user.id,
-      mediaType,
-      6,
-      preferences.watchHistorySourceTypes,
-    ),
-    getRecommendationTasteProfile(session.user.id, mediaType),
     detailsItemId
       ? getRecommendationTitleOverview(session.user.id, detailsItemId)
       : Promise.resolve(null),
@@ -146,7 +127,6 @@ export async function RecommendationWorkspace({
   const relevantLibraryManager = connectionSummaries.find((summary) =>
     mediaType === "tv" ? summary.serviceType === "sonarr" : summary.serviceType === "radarr",
   );
-  const sabnzbd = connectionSummaries.find((summary) => summary.serviceType === "sabnzbd") ?? null;
   const hasStrictLanguagePreference = preferences.languagePreference !== languagePreferenceAny;
   const hasVerifiedTmdbForLanguage = !hasStrictLanguagePreference || tmdb?.status === "verified";
   const canRequest = Boolean(
@@ -164,9 +144,6 @@ export async function RecommendationWorkspace({
       ? preferences.defaultAiModel
       : aiProvider?.model ?? "gpt-4.1-mini";
   const availableModels = aiProvider?.availableModels ?? [];
-  const selectedWatchHistorySourceNames = preferences.watchHistorySourceTypes
-    .map((sourceType) => getWatchHistorySourceDefinition(sourceType).displayName)
-    .join(", ");
   const librarySelectionDefaults = getLibrarySelectionDefaults(
     preferences,
     mediaType === "tv" ? "sonarr" : "radarr",
@@ -197,11 +174,11 @@ export async function RecommendationWorkspace({
         </div>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(22rem,0.92fr)] 2xl:grid-cols-[minmax(0,1.14fr)_minmax(24rem,0.86fr)]">
+      <div>
         <Panel
-          eyebrow="Request run"
-          title="Start a recommendation run"
-          description="Generate a saved batch of recommendations that you can review here, refine later, and revisit from history."
+          eyebrow="New request"
+          title="Get recommendations"
+          description="Choose what you want next. Leave the focus blank for taste-based picks."
         >
           <RecommendationRequestForm
             mediaType={mediaType}
@@ -213,123 +190,6 @@ export async function RecommendationWorkspace({
             canSubmit={Boolean(canRequest)}
             submitBlockedMessage={recommendationRequestBlockedMessage}
           />
-        </Panel>
-
-        <Panel
-          eyebrow="Prerequisites"
-          title="Current service readiness"
-          description="A saved AI provider connection is required before you can request results, and the app will recheck it automatically when needed. Sonarr or Radarr becomes important when you want to add a recommendation straight to your library."
-        >
-          <div className="space-y-3 text-sm leading-6 text-foreground">
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">AI provider:</span> {aiProvider?.status ?? "disconnected"}
-              <p className="mt-1 text-muted">{aiProvider?.statusMessage ?? "Configure and verify the AI provider connection."}</p>
-            </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">
-                {mediaType === "tv" ? "Sonarr" : "Radarr"}:
-              </span>{" "}
-              {relevantLibraryManager?.status ?? "disconnected"}
-              <p className="mt-1 text-muted">
-                {relevantLibraryManager?.statusMessage ?? "Optional for requesting results, but required to add titles directly from recommendation cards."}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">SABnzbd:</span> {sabnzbd?.status ?? "disconnected"}
-              <p className="mt-1 text-muted">
-                {sabnzbd?.statusMessage ?? "Optional, but required if you want Recommendarr to show active SABnzbd request progress."}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">Language:</span> {formatLanguagePreference(preferences.languagePreference)}
-              <p className="mt-1 text-muted">
-                {hasStrictLanguagePreference
-                  ? tmdb?.status === "verified"
-                    ? "TMDB is verified and will confirm original language before titles are saved."
-                    : tmdb?.statusMessage ?? "Verify TMDB to enforce this language preference on new recommendation runs."
-                  : "Any original language is allowed for new recommendation runs."}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">Watch history:</span>{" "}
-              {preferences.watchHistoryOnly
-                ? selectedWatchHistoryContext.length > 0
-                  ? "ready"
-                  : "empty"
-                : watchHistoryOverview.sources.length > 0
-                  ? "available"
-                  : "not-synced"}
-              <p className="mt-1 text-muted">
-                {preferences.watchHistoryOnly
-                  ? selectedWatchHistoryContext.length > 0
-                    ? `Watch-history-only mode is enabled. ${selectedWatchHistoryContext.length} recent ${mediaType === "tv" ? "TV" : "movie"} titles are available from ${selectedWatchHistorySourceNames}.`
-                    : `Watch-history-only mode is enabled, but no synced ${mediaType === "tv" ? "TV" : "movie"} history is available from ${selectedWatchHistorySourceNames}. Import titles on the history settings route or adjust selected sources in preferences.`
-                  : `Selected sources: ${selectedWatchHistorySourceNames}. Syncing watch history is optional unless watch-history-only mode is enabled.`}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Recommendation context mode</p>
-                  <p className="mt-1 text-sm leading-6 text-muted">
-                    {preferences.watchHistoryOnly
-                      ? "Using only the selected watch-history sources for taste context on new requests."
-                      : "Using sampled library context alongside the selected watch-history sources for new requests."}
-                  </p>
-                </div>
-                <form action={submitRecommendationWatchHistoryModeAction}>
-                  <input type="hidden" name="redirectPath" value={routePath} />
-                  <input
-                    type="hidden"
-                    name="watchHistoryOnly"
-                    value={preferences.watchHistoryOnly ? "false" : "true"}
-                  />
-                  <Button type="submit" variant="secondary" className="w-full md:w-auto">
-                    {preferences.watchHistoryOnly
-                      ? "Use library and history"
-                      : "Use watch history only"}
-                  </Button>
-                </form>
-              </div>
-            </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">Taste profile:</span>{" "}
-              {tasteProfile.likeCount + tasteProfile.addedCount > 0
-                ? `${tasteProfile.likeCount} liked, ${tasteProfile.addedCount} accepted/library, ${tasteProfile.dislikeCount} disliked`
-                : "No feedback signal yet"}
-              <p className="mt-1 text-muted">
-                {tasteProfile.preferredGenres.length > 0
-                  ? `Preferred genres: ${tasteProfile.preferredGenres.join(", ")}.`
-                  : "Like, dislike, hide, or add titles to strengthen future recommendations."}
-              </p>
-            </div>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Link
-              href="/settings/connections"
-              className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
-            >
-              Manage connections
-            </Link>
-            <Link
-              href="/settings/history"
-              className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
-            >
-              Manage watch history
-            </Link>
-            <Link
-              href="/history"
-              className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
-            >
-              Open history
-            </Link>
-            <Link
-              href="/in-progress"
-              className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
-            >
-              Open in progress
-            </Link>
-          </div>
         </Panel>
       </div>
 
