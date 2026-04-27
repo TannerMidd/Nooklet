@@ -103,8 +103,8 @@ export default async function PreferencesSettingsPage({
 
         <div className="space-y-6">
           <Panel
-            eyebrow="Current values"
-            title="Stored preference snapshot"
+            eyebrow="Current settings"
+            title="Saved values"
           >
             <div className="space-y-3 text-sm leading-6 text-foreground">
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">

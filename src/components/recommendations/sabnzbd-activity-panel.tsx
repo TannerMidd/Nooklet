@@ -188,9 +188,8 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
 
   return (
     <Panel
-      eyebrow="Downloader activity"
-      title="Active request progress"
-      description="Recommendarr reads the live SABnzbd queue here so busy downloader backlogs stay contained to one page."
+      eyebrow="Downloads"
+      title="SABnzbd queue"
       className={className}
     >
       <div className="space-y-4 text-sm leading-6 text-foreground">

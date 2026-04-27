@@ -46,39 +46,14 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </div>
       </header>
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr,0.95fr]">
+      <div>
         <Panel
           eyebrow="Account access"
           title="Local sign in"
-          description="Sign in with the account created during bootstrap or by an administrator."
+          description="Use your Recommendarr account."
         >
           <LoginForm showBootstrapSuccess={resolvedSearchParams?.bootstrapped === "1"} />
         </Panel>
-
-        <div className="space-y-6">
-          <Panel
-            eyebrow="Security"
-            title="What happens here"
-          >
-            <ul className="space-y-3 text-sm leading-6 text-foreground">
-              <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                This screen only handles sign-in and session creation.
-              </li>
-              <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Protected workspace routes reject unauthenticated access cleanly.
-              </li>
-              <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Password verification happens on the server and never leaves the login flow.
-              </li>
-            </ul>
-          </Panel>
-
-          <Panel
-            eyebrow="Workspace access"
-            title="After you sign in"
-            description="The authenticated workspace gives you recommendation flows, history browsing, account settings, connections, and admin tools when your role allows it."
-          />
-        </div>
       </div>
     </div>
   );

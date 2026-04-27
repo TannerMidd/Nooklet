@@ -59,7 +59,7 @@ export default async function HealthPage() {
         </div>
       </header>
 
-      <Panel eyebrow="Readiness" title="System snapshot">
+      <Panel eyebrow="Overview" title="System snapshot">
         <div className="grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
             <span className="font-medium">Verified services:</span> {verifiedConnections}/{connections.length}

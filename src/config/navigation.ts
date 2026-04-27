@@ -54,7 +54,7 @@ export const navigationGroups = [
       {
         href: "/in-progress",
         label: "In progress",
-        description: "Track active downloader work without stretching recommendation pages.",
+        description: "Track active downloads.",
       },
       {
         href: "/analytics",
@@ -89,7 +89,7 @@ export const navigationGroups = [
       {
         href: "/health",
         label: "Health",
-        description: "Check service readiness, sync schedules, and queued recommendation work.",
+        description: "View service status, sync jobs, and queued work.",
       },
     ],
   },

@@ -305,7 +305,7 @@ export default async function WatchHistorySettingsPage() {
         <div className="space-y-6">
           <Panel
             eyebrow="Current status"
-            title="Stored history snapshot"
+            title="History summary"
           >
             <div className="space-y-3 text-sm leading-6 text-foreground">
               {overview.sources.length > 0 ? (

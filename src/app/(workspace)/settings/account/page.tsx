@@ -25,9 +25,6 @@ export default async function AccountSettingsPage() {
           <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
             Account
           </h1>
-          <p className="text-base leading-7 text-muted">
-            Manage the signed-in account without mixing in admin-only user management.
-          </p>
         </div>
       </header>
 
@@ -44,7 +41,6 @@ export default async function AccountSettingsPage() {
           <Panel
             eyebrow="Signed-in account"
             title={user?.displayName ?? session.user.name ?? "Account"}
-            description="This page shows the current account identity and access state."
           >
             <div className="space-y-3 text-sm leading-6 text-foreground">
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
@@ -57,23 +53,6 @@ export default async function AccountSettingsPage() {
                 <span className="font-medium">Status:</span> {user?.isDisabled ? "Disabled" : "Active"}
               </div>
             </div>
-          </Panel>
-
-          <Panel
-            eyebrow="Managed elsewhere"
-            title="Not on this page"
-          >
-            <ul className="space-y-3 text-sm leading-6 text-foreground">
-              <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Admin-only role changes and user lifecycle controls.
-              </li>
-              <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Service setup and provider credentials.
-              </li>
-              <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                Preference and history-filter management.
-              </li>
-            </ul>
           </Panel>
         </div>
       </div>
