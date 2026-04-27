@@ -3,6 +3,7 @@ import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-hel
 type TautulliCredentials = {
   baseUrl: string;
   apiKey: string;
+  timeoutMs?: number;
 };
 
 type RawTautulliEnvelope<T> = {
@@ -64,7 +65,7 @@ async function fetchTautulliCommand<T>(
 
   const response = await fetchWithTimeout(url, {
     cache: "no-store",
-  });
+  }, credentials.timeoutMs);
 
   if (!response.ok) {
     throw new Error(`Tautulli request failed with status ${response.status}.`);

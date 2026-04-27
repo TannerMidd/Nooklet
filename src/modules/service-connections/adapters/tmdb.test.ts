@@ -8,6 +8,7 @@ vi.mock("@/lib/integrations/http-helpers", () => ({
 import { fetchWithTimeout } from "@/lib/integrations/http-helpers";
 
 import { lookupTmdbTitleDetails, verifyTmdbConnection } from "./tmdb";
+import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 
 const fetchWithTimeoutMock = vi.mocked(fetchWithTimeout);
 
@@ -50,7 +51,7 @@ describe("verifyTmdbConnection", () => {
       headers: { Accept: "application/json" },
     });
     expect(calledInit?.headers).not.toHaveProperty("Authorization");
-    expect(calledTimeout).toBe(10000);
+    expect(calledTimeout).toBe(SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS);
   });
 
   it("uses bearer auth for TMDB read tokens", async () => {

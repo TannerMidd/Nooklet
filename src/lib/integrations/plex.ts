@@ -3,6 +3,7 @@ import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-hel
 type PlexCredentials = {
   baseUrl: string;
   apiKey: string;
+  timeoutMs?: number;
 };
 
 type RawPlexEnvelope<T> = {
@@ -81,7 +82,7 @@ async function fetchPlexContainer<T>(
   const response = await fetchWithTimeout(buildPlexUrl(credentials.baseUrl, path, params), {
     headers: buildPlexHeaders(credentials.apiKey),
     cache: "no-store",
-  });
+  }, credentials.timeoutMs);
 
   if (!response.ok) {
     throw new Error(`Plex request failed with status ${response.status}.`);
@@ -104,7 +105,7 @@ async function fetchOptionalPlexContainer<T>(
   const response = await fetchWithTimeout(buildPlexUrl(credentials.baseUrl, path, params), {
     headers: buildPlexHeaders(credentials.apiKey),
     cache: "no-store",
-  });
+  }, credentials.timeoutMs);
 
   if (!response.ok) {
     return null;

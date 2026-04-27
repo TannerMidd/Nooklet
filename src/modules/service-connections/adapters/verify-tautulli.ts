@@ -5,6 +5,7 @@ import type {
   VerifyServiceConnectionInput,
   VerifyServiceConnectionResult,
 } from "./verify-service-connection-types";
+import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 
 export async function verifyTautulli(
   input: VerifyServiceConnectionInput,
@@ -13,6 +14,7 @@ export async function verifyTautulli(
     const metadata = (await verifyTautulliConnection({
       baseUrl: input.baseUrl,
       apiKey: input.secret,
+      timeoutMs: SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
     })) satisfies TautulliMetadata;
 
     if (metadata.availableUsers.length === 0) {

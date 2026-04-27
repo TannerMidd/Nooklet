@@ -8,6 +8,7 @@ import type {
   VerifyServiceConnectionInput,
   VerifyServiceConnectionResult,
 } from "./verify-service-connection-types";
+import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 
 export async function verifySabnzbd(
   input: VerifyServiceConnectionInput,
@@ -16,6 +17,7 @@ export async function verifySabnzbd(
     const queueSnapshot = await verifySabnzbdConnection({
       baseUrl: input.baseUrl,
       apiKey: input.secret,
+      timeoutMs: SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
     });
 
     const metadata = {

@@ -18,6 +18,9 @@ vi.mock("./verify-tautulli", () => ({
 vi.mock("./verify-tmdb", () => ({
   verifyTmdb: vi.fn(),
 }));
+vi.mock("./verify-trakt", () => ({
+  verifyTrakt: vi.fn(),
+}));
 
 import { verifyAiProvider } from "./verify-ai-provider";
 import { verifyLibraryManager } from "./verify-library-manager";
@@ -30,6 +33,7 @@ import type {
 } from "./verify-service-connection-types";
 import { verifyTautulli } from "./verify-tautulli";
 import { verifyTmdb } from "./verify-tmdb";
+import { verifyTrakt } from "./verify-trakt";
 
 const verifyAiProviderMock = vi.mocked(verifyAiProvider);
 const verifyLibraryManagerMock = vi.mocked(verifyLibraryManager);
@@ -37,6 +41,7 @@ const verifyPlexMock = vi.mocked(verifyPlex);
 const verifySabnzbdMock = vi.mocked(verifySabnzbd);
 const verifyTautulliMock = vi.mocked(verifyTautulli);
 const verifyTmdbMock = vi.mocked(verifyTmdb);
+const verifyTraktMock = vi.mocked(verifyTrakt);
 
 const allMocks = [
   verifyAiProviderMock,
@@ -45,6 +50,7 @@ const allMocks = [
   verifySabnzbdMock,
   verifyTautulliMock,
   verifyTmdbMock,
+  verifyTraktMock,
 ];
 
 function buildInput(
@@ -78,6 +84,7 @@ describe("verifyServiceConnection dispatcher", () => {
     ["plex" as const, () => verifyPlexMock],
     ["sabnzbd" as const, () => verifySabnzbdMock],
     ["tmdb" as const, () => verifyTmdbMock],
+    ["trakt" as const, () => verifyTraktMock],
   ])("routes %s to the correct verifier and returns its result verbatim", async (serviceType, getMock) => {
     const expectedMock = getMock();
     expectedMock.mockResolvedValue({ ...okResult, message: `${serviceType} ok` });

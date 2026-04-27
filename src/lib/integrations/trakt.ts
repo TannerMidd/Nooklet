@@ -8,6 +8,7 @@ type TraktCredentials = {
   baseUrl: string;
   clientId: string;
   accessToken: string;
+  timeoutMs?: number;
 };
 
 type RawTraktUserSettings = {
@@ -133,7 +134,7 @@ async function fetchTraktJson<T>(credentials: TraktCredentials, path: string) {
   const response = await fetchWithTimeout(buildTraktUrl(credentials.baseUrl, path), {
     headers: buildTraktHeaders(credentials),
     cache: "no-store",
-  }, 10_000);
+  }, credentials.timeoutMs ?? 10_000);
 
   if (!response.ok) {
     throw new Error(`Trakt request failed with status ${response.status}.`);

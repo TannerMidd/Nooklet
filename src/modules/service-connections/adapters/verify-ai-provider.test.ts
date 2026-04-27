@@ -8,6 +8,7 @@ vi.mock("@/lib/integrations/http-helpers", () => ({
 import { fetchWithTimeout } from "@/lib/integrations/http-helpers";
 
 import { verifyAiProvider } from "./verify-ai-provider";
+import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 import type { VerifyServiceConnectionInput } from "./verify-service-connection-types";
 
 const fetchWithTimeoutMock = vi.mocked(fetchWithTimeout);
@@ -42,12 +43,13 @@ describe("verifyAiProvider", () => {
     await verifyAiProvider(buildInput());
 
     expect(fetchWithTimeoutMock).toHaveBeenCalledTimes(1);
-    const [calledUrl, calledInit] = fetchWithTimeoutMock.mock.calls[0]!;
+    const [calledUrl, calledInit, calledTimeout] = fetchWithTimeoutMock.mock.calls[0]!;
     expect(calledUrl).toBe("https://api.openai.test/v1/models");
     expect(calledInit).toMatchObject({
       cache: "no-store",
       headers: { Authorization: "Bearer sk-test-token" },
     });
+    expect(calledTimeout).toBe(SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS);
   });
 
   it("strips a trailing slash from the configured base URL when building the /models URL", async () => {

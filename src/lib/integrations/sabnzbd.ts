@@ -166,10 +166,10 @@ function normalizeSabnzbdQueueSnapshot(payload: SabnzbdQueueResponse): SabnzbdQu
   } satisfies SabnzbdQueueSnapshot;
 }
 
-async function fetchSabnzbdJson<T>(url: URL) {
+async function fetchSabnzbdJson<T>(url: URL, options: { timeoutMs?: number } = {}) {
   const response = await safeFetch(url, {
     cache: "no-store",
-    timeoutMs: 5000,
+    timeoutMs: options.timeoutMs ?? 5000,
     maxBytes: 512 * 1024,
   });
 
@@ -204,6 +204,7 @@ export async function listSabnzbdQueue(input: {
   baseUrl: string;
   apiKey: string;
   limit?: number;
+  timeoutMs?: number;
 }) {
   const url = buildSabnzbdApiUrl(input.baseUrl, {
     mode: "queue",
@@ -212,7 +213,9 @@ export async function listSabnzbdQueue(input: {
 
   setSabnzbdApiKey(url, input.apiKey);
 
-  const payload = await fetchSabnzbdJson<SabnzbdQueueResponse>(url);
+  const payload = await fetchSabnzbdJson<SabnzbdQueueResponse>(url, {
+    timeoutMs: input.timeoutMs,
+  });
 
   return normalizeSabnzbdQueueSnapshot(payload);
 }
@@ -313,10 +316,12 @@ export async function moveSabnzbdQueueItemToPosition(input: {
 export async function verifySabnzbdConnection(input: {
   baseUrl: string;
   apiKey: string;
+  timeoutMs?: number;
 }) {
   return listSabnzbdQueue({
     baseUrl: input.baseUrl,
     apiKey: input.apiKey,
     limit: 20,
+    timeoutMs: input.timeoutMs,
   });
 }

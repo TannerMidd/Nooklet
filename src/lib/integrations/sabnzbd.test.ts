@@ -107,6 +107,24 @@ describe("listSabnzbdQueue", () => {
         },
       ],
     });
+    expect(mockedSafeFetch.mock.calls[0]?.[1]).toMatchObject({ timeoutMs: 5000 });
+  });
+
+  it("uses a caller-supplied timeout when provided", async () => {
+    mockedSafeFetch.mockResolvedValue(
+      new Response(JSON.stringify({ queue: { slots: [] } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await listSabnzbdQueue({
+      baseUrl: "http://localhost:8080",
+      apiKey: "secret",
+      timeoutMs: 20000,
+    });
+
+    expect(mockedSafeFetch.mock.calls[0]?.[1]).toMatchObject({ timeoutMs: 20000 });
   });
 
   it("sends a pause command for a queue item", async () => {

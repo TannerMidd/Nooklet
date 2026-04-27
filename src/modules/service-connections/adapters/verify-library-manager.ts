@@ -11,6 +11,7 @@ import type {
   VerifyServiceConnectionInput,
   VerifyServiceConnectionResult,
 } from "./verify-service-connection-types";
+import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 
 export async function verifyLibraryManager(
   input: VerifyServiceConnectionInput,
@@ -26,6 +27,7 @@ export async function verifyLibraryManager(
         headers,
         cache: "no-store",
       },
+      SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
     );
 
     const [rootFolders, qualityProfiles, tags] = await Promise.all([
@@ -35,6 +37,7 @@ export async function verifyLibraryManager(
           headers,
           cache: "no-store",
         },
+        SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
       ),
       fetchJsonWithTimeout<LibraryManagerQualityProfileResponse>(
         `${trimTrailingSlash(input.baseUrl)}/api/v3/qualityprofile`,
@@ -42,6 +45,7 @@ export async function verifyLibraryManager(
           headers,
           cache: "no-store",
         },
+        SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
       ),
       fetchJsonWithTimeout<LibraryManagerTagResponse>(
         `${trimTrailingSlash(input.baseUrl)}/api/v3/tag`,
@@ -49,6 +53,7 @@ export async function verifyLibraryManager(
           headers,
           cache: "no-store",
         },
+        SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
       ),
     ]);
     const metadata = normalizeLibraryManagerMetadata({

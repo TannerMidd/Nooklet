@@ -8,6 +8,7 @@ import { verifyPlexConnection } from "@/lib/integrations/plex";
 import type { PlexMetadata } from "@/modules/service-connections/plex-metadata";
 
 import { verifyPlex } from "./verify-plex";
+import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 import type { VerifyServiceConnectionInput } from "./verify-service-connection-types";
 
 const verifyPlexConnectionMock = vi.mocked(verifyPlexConnection);
@@ -46,6 +47,7 @@ describe("verifyPlex", () => {
     expect(verifyPlexConnectionMock).toHaveBeenCalledWith({
       baseUrl: "https://plex.test:32400",
       apiKey: "plex-token",
+      timeoutMs: SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
     });
   });
 

@@ -7,6 +7,7 @@ import type {
   VerifyServiceConnectionInput,
   VerifyServiceConnectionResult,
 } from "./verify-service-connection-types";
+import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 
 export async function verifyTrakt(
   input: VerifyServiceConnectionInput,
@@ -24,6 +25,7 @@ export async function verifyTrakt(
     baseUrl: input.baseUrl,
     clientId: parsedSecret.clientId,
     accessToken: parsedSecret.accessToken,
+    timeoutMs: SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
   });
 
   return {

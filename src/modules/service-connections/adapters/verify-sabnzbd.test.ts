@@ -7,6 +7,7 @@ vi.mock("@/lib/integrations/sabnzbd", () => ({
 import { verifySabnzbdConnection } from "@/lib/integrations/sabnzbd";
 
 import { verifySabnzbd } from "./verify-sabnzbd";
+import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 import type { VerifyServiceConnectionInput } from "./verify-service-connection-types";
 
 const verifySabnzbdConnectionMock = vi.mocked(verifySabnzbdConnection);
@@ -49,6 +50,7 @@ describe("verifySabnzbd", () => {
     expect(verifySabnzbdConnectionMock).toHaveBeenCalledWith({
       baseUrl: "https://nzb.test",
       apiKey: "sab-api-key",
+      timeoutMs: SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
     });
   });
 

@@ -8,6 +8,7 @@ import { verifyTautulliConnection } from "@/lib/integrations/tautulli";
 import type { TautulliMetadata } from "@/modules/service-connections/tautulli-metadata";
 
 import { verifyTautulli } from "./verify-tautulli";
+import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 import type { VerifyServiceConnectionInput } from "./verify-service-connection-types";
 
 const verifyTautulliConnectionMock = vi.mocked(verifyTautulliConnection);
@@ -44,6 +45,7 @@ describe("verifyTautulli", () => {
     expect(verifyTautulliConnectionMock).toHaveBeenCalledWith({
       baseUrl: "https://tautulli.test",
       apiKey: "tautulli-api-key",
+      timeoutMs: SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
     });
   });
 

@@ -1,6 +1,7 @@
 import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { normalizeTitle } from "@/modules/service-connections/adapters/add-library-item-helpers";
+import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 
 type TmdbConnectionInput = {
   baseUrl: string;
@@ -11,6 +12,7 @@ type TmdbConnectionInput = {
 type TmdbRequestInput = TmdbConnectionInput & {
   path: string;
   searchParams?: Record<string, string | number | boolean | null | undefined>;
+  timeoutMs?: number;
 };
 
 type TmdbConfigurationPayload = {
@@ -141,7 +143,7 @@ function buildTmdbRequest(input: TmdbRequestInput) {
 
 async function fetchTmdbJson<T>(input: TmdbRequestInput) {
   const request = buildTmdbRequest(input);
-  const response = await fetchWithTimeout(request.url, request.init, 10_000);
+  const response = await fetchWithTimeout(request.url, request.init, input.timeoutMs ?? 10_000);
 
   if (!response.ok) {
     return {
@@ -362,6 +364,7 @@ export async function verifyTmdbConnection(input: TmdbConnectionInput) {
   const result = await fetchTmdbJson<TmdbConfigurationPayload>({
     ...input,
     path: "configuration",
+    timeoutMs: SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
   });
 
   if (!result.ok) {

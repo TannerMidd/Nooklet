@@ -9,6 +9,7 @@ import {
   resolveListModelsUrl,
 } from "@/modules/service-connections/ai-provider-endpoints";
 
+import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 import type {
   VerifyServiceConnectionInput,
   VerifyServiceConnectionResult,
@@ -22,7 +23,7 @@ export async function verifyAiProvider(
       Authorization: `Bearer ${input.secret}`,
     },
     cache: "no-store",
-  });
+  }, SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS);
 
   if (!response.ok) {
     return {

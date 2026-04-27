@@ -8,6 +8,7 @@ vi.mock("@/lib/integrations/http-helpers", () => ({
 import { fetchJsonWithTimeout } from "@/lib/integrations/http-helpers";
 
 import { verifyLibraryManager } from "./verify-library-manager";
+import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 import type { VerifyServiceConnectionInput } from "./verify-service-connection-types";
 
 const fetchJsonMock = vi.mocked(fetchJsonWithTimeout);
@@ -65,11 +66,12 @@ describe("verifyLibraryManager", () => {
       "https://sonarr.test/api/v3/tag",
     ]);
 
-    for (const [, init] of fetchJsonMock.mock.calls) {
+    for (const [, init, timeout] of fetchJsonMock.mock.calls) {
       expect(init).toMatchObject({
         cache: "no-store",
         headers: { "X-Api-Key": "lib-api-key" },
       });
+      expect(timeout).toBe(SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS);
     }
   });
 
