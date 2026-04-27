@@ -7,7 +7,7 @@ services:
     container_name: recommendarr-next
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "${APP_PORT:-42021}:42021"
     env_file:
       - .env
     environment:

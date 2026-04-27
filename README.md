@@ -40,7 +40,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Open <http://localhost:3000>, create the first admin account, then configure
+Open <http://localhost:42021>, create the first admin account, then configure
 services under Settings -> Connections. Request recommendations from `/tv` or
 `/movies`.
 
@@ -52,7 +52,7 @@ See [`.env.example`](.env.example) for the canonical environment list.
 | --- | --- | --- |
 | `APP_URL` | Yes | Public app origin, such as `https://recommendarr.example.com`. |
 | `DATABASE_URL` | Yes | SQLite URL. Local default: `file:./data/recommendarr.db`. |
-| `APP_PORT` | No | Docker host port to publish. Defaults to `3000`. |
+| `APP_PORT` | No | Docker host port to publish. Defaults to `42021`. |
 | `AUTH_SECRET` | Yes | Auth.js signing secret. Must be at least 32 characters. |
 | `SECRET_BOX_KEY` | No | Separate encryption key for stored service secrets. Falls back to `AUTH_SECRET`. |
 | `ALLOW_PRIVATE_SERVICE_HOSTS` | No | Defaults to `true`. Set `false` for cloud deployments that must block private-network service URLs. |
