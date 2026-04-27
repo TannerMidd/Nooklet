@@ -20,17 +20,6 @@ type LibrarySearchWorkspaceProps = {
   omitHeader?: boolean;
 };
 
-function formatDate(value: Date | null) {
-  if (!value) {
-    return "Not checked yet";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(value);
-}
-
 function buildReturnToPath(routePath: string, searchQuery: string) {
   if (searchQuery.length === 0) {
     return routePath;
@@ -67,7 +56,6 @@ export async function LibrarySearchWorkspace({
   const serviceLabel = serviceType === "sonarr" ? "Sonarr" : "Radarr";
   const resultLabel = serviceType === "sonarr" ? "series" : "movies";
   const queryLabel = serviceType === "sonarr" ? "Series title" : "Movie title";
-  const recommendationsPath = serviceType === "sonarr" ? "/tv" : "/movies";
   const libraryDefaults = getLibrarySelectionDefaults(preferences, serviceType);
   const canSearch = connectionSummary?.status === "verified";
   const searchResult =
@@ -95,11 +83,11 @@ export async function LibrarySearchWorkspace({
         </header>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)]">
+      <div>
         <Panel
-          eyebrow={`${serviceLabel} lookup`}
-          title={`Search ${serviceLabel} and request immediately`}
-          description={`Search the verified ${serviceLabel} lookup index, review a clean result card, and open the same request modal used from recommendation cards.`}
+          eyebrow={`${serviceLabel} search`}
+          title={`Find ${resultLabel}`}
+          description={`Search ${serviceLabel}, then add the match you want.`}
         >
           <form action={routePath} className="space-y-4">
             <div className="space-y-2">
@@ -134,17 +122,7 @@ export async function LibrarySearchWorkspace({
           <div className="mt-4 space-y-3 text-sm leading-6 text-foreground">
             {!canSearch ? (
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3 text-muted">
-                Verify {serviceLabel} on the connections page before using direct search here.
-              </div>
-            ) : null}
-            {normalizedQuery.length === 0 ? (
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3 text-muted">
-                Search returns the live {serviceLabel} lookup set for {resultLabel} and lets you request the match without leaving this page.
-              </div>
-            ) : null}
-            {normalizedQuery.length === 1 ? (
-              <div className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-highlight">
-                Enter at least two characters before searching.
+                Verify {serviceLabel} before searching.
               </div>
             ) : null}
             {searchResult?.ok ? (
@@ -159,63 +137,11 @@ export async function LibrarySearchWorkspace({
             ) : null}
           </div>
         </Panel>
-
-        <Panel
-          eyebrow="Readiness"
-          title={`${serviceLabel} request context`}
-          description="This page depends on the saved connection metadata loaded during verification, so folder/profile defaults stay aligned with the rest of the app."
-        >
-          <div className="space-y-3 text-sm leading-6 text-foreground">
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">Status:</span> {connectionSummary?.status ?? "disconnected"}
-              <p className="mt-1 text-muted">
-                {connectionSummary?.statusMessage ?? `Configure and verify ${serviceLabel} before requesting titles from this page.`}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">Root folders:</span> {connectionSummary?.rootFolders.length ?? 0}
-              <p className="mt-1 text-muted">
-                Saved default: {libraryDefaults.rootFolderPath ?? "No default root folder saved yet."}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">Quality profiles:</span> {connectionSummary?.qualityProfiles.length ?? 0}
-              <p className="mt-1 text-muted">
-                Saved default: {libraryDefaults.qualityProfileId ?? "No default quality profile saved yet."}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">Tags available:</span> {connectionSummary?.tags.length ?? 0}
-              <p className="mt-1 text-muted">Last verified: {formatDate(connectionSummary?.lastVerifiedAt ?? null)}</p>
-            </div>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Link
-              href="/settings/connections"
-              className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
-            >
-              Manage connections
-            </Link>
-            <Link
-              href={recommendationsPath}
-              className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
-            >
-              Open recommendations
-            </Link>
-            <Link
-              href="/in-progress"
-              className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
-            >
-              Open in progress
-            </Link>
-          </div>
-        </Panel>
       </div>
 
       <Panel
         eyebrow="Results"
-        title={`${serviceLabel} search results`}
-        description={`Open a request modal from any match below. The page stays capped and the cards remain compact even when ${serviceLabel} returns a long lookup list.`}
+        title="Matches"
       >
         {normalizedQuery.length === 0 ? (
           <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">

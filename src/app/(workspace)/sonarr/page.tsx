@@ -23,9 +23,9 @@ export default async function SonarrPage({ searchParams }: SonarrPageProps) {
       serviceType="sonarr"
       routePath="/sonarr"
       title="Sonarr library"
-      description="Browse the series Sonarr is tracking, filter in real time, and toggle which seasons should be monitored. Use the direct search tab to add new shows."
-      directSearchTitle="Sonarr direct search"
-      directSearchDescription="Search live Sonarr lookup results and open the standard request modal without waiting for a recommendation run first."
+      description="Browse Sonarr series, adjust monitoring, and add new shows."
+      directSearchTitle="Search Sonarr"
+      directSearchDescription="Find a show and add it to Sonarr."
       searchQuery={resolvedSearchParams?.query}
       autoOpenSeriesId={autoOpenSeriesId}
       autoOpenMode={autoOpenMode}

@@ -16,9 +16,9 @@ export default async function RadarrPage({ searchParams }: RadarrPageProps) {
       serviceType="radarr"
       routePath="/radarr"
       title="Radarr library"
-      description="Browse the movies Radarr is tracking and filter in real time. Use the direct search tab to add new movies."
-      directSearchTitle="Radarr direct search"
-      directSearchDescription="Search live Radarr lookup results and open the standard request modal without waiting for a recommendation run first."
+      description="Browse Radarr movies, manage titles, and add new movies."
+      directSearchTitle="Search Radarr"
+      directSearchDescription="Find a movie and add it to Radarr."
       searchQuery={resolvedSearchParams?.query}
     />
   );

@@ -73,8 +73,8 @@ export async function LibraryBrowserWorkspace({
         title={`Browse your ${serviceLabel} ${collectionLabel}`}
         description={
           serviceType === "sonarr"
-            ? "Filter the full series list, then open a series to toggle which seasons Sonarr should monitor."
-            : "Filter the full movie list to confirm coverage; per-item Radarr controls land in a follow-up."
+            ? "Filter your series and open a show to adjust monitoring."
+            : "Filter your movies and open a title for library actions."
         }
       >
         {libraryResult.serviceType === "sonarr" ? (
