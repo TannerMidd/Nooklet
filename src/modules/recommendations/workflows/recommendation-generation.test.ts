@@ -4,7 +4,6 @@ import {
   buildBackfillRequestPrompt,
   dedupeRecommendationItems,
   filterRecommendationItemsAgainstExclusions,
-  filterRecommendationItemsAgainstLibrary,
   generateBackfilledRecommendationItems,
 } from "./recommendation-generation";
 import { buildLibraryTasteItemKey } from "../../service-connections/adapters/add-library-item";
@@ -41,7 +40,7 @@ describe("recommendation-generation", () => {
   });
 
   it("filters exact library matches and yearless title matches against the library", () => {
-    const filtered = filterRecommendationItemsAgainstLibrary(
+    const filtered = filterRecommendationItemsAgainstExclusions(
       [
         { title: "Arrival", year: 2016 },
         { title: "Arrival", year: null },

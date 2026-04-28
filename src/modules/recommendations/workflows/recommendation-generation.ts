@@ -155,13 +155,6 @@ export function filterRecommendationItemsAgainstExclusions<T extends Recommendat
   };
 }
 
-export function filterRecommendationItemsAgainstLibrary<T extends RecommendationIdentity>(
-  items: T[],
-  libraryNormalizedKeys: string[],
-) {
-  return filterRecommendationItemsAgainstExclusions(items, libraryNormalizedKeys);
-}
-
 type GenerateBackfilledRecommendationItemsInput<T extends RecommendationIdentity> = {
   requestPrompt: string;
   requestedCount: number;
