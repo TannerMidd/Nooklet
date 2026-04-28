@@ -127,8 +127,6 @@ describe("verifyLibraryManager", () => {
         {
           path: "/tv",
           label: "TV",
-          freeSpaceBytes: 750_000_000_000,
-          totalSpaceBytes: 2_000_000_000_000,
         },
         {
           path: "/anime",

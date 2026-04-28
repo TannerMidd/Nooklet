@@ -137,7 +137,7 @@ function findDiskSpaceForRootFolder(
     .map((entry) => {
       const diskPath = typeof entry.path === "string" ? normalizeRemotePath(entry.path) : "";
 
-      if (!diskPath) {
+      if (!diskPath || diskPath === "/") {
         return null;
       }
 
@@ -153,6 +153,63 @@ function findDiskSpaceForRootFolder(
     .sort((left, right) => right.pathLength - left.pathLength)[0]?.entry;
 }
 
+function findRemoteRootFolder(
+  rootFolderPath: string,
+  rootFolders: LibraryManagerRootFolderResponse,
+) {
+  const normalizedRootFolderPath = normalizeRemotePath(rootFolderPath);
+
+  return rootFolders.find((entry) => {
+    const remotePath = typeof entry.path === "string" ? normalizeRemotePath(entry.path) : "";
+
+    return remotePath === normalizedRootFolderPath;
+  });
+}
+
+export function mergeLibraryManagerRootFolderFreeSpace(
+  rootFolders: LibraryManagerMetadata["rootFolders"],
+  remoteRootFolders: LibraryManagerRootFolderResponse,
+): LibraryManagerMetadata["rootFolders"] {
+  return rootFolders.map((rootFolder) => {
+    const remoteRootFolder = findRemoteRootFolder(rootFolder.path, remoteRootFolders);
+
+    if (!remoteRootFolder) {
+      return rootFolder;
+    }
+
+    const freeSpaceBytes = normalizeByteCount(remoteRootFolder.freeSpace);
+    const totalSpaceBytes = normalizeByteCount(remoteRootFolder.totalSpace);
+    const baseRootFolder = { ...rootFolder };
+
+    delete baseRootFolder.freeSpaceBytes;
+    delete baseRootFolder.totalSpaceBytes;
+
+    return {
+      ...baseRootFolder,
+      ...(freeSpaceBytes !== null ? { freeSpaceBytes } : {}),
+      ...(totalSpaceBytes !== null ? { totalSpaceBytes } : {}),
+    };
+  });
+}
+
+export function mergeLibraryManagerRootFolderDiskSpace(
+  rootFolders: LibraryManagerMetadata["rootFolders"],
+  diskSpaces: LibraryManagerDiskSpaceResponse,
+): LibraryManagerMetadata["rootFolders"] {
+  return rootFolders.map((rootFolder) => {
+    const diskSpace = findDiskSpaceForRootFolder(rootFolder.path, diskSpaces);
+    const freeSpaceBytes =
+      rootFolder.freeSpaceBytes ?? normalizeByteCount(diskSpace?.freeSpace);
+    const totalSpaceBytes = normalizeByteCount(diskSpace?.totalSpace);
+
+    return {
+      ...rootFolder,
+      ...(freeSpaceBytes !== null ? { freeSpaceBytes } : {}),
+      ...(totalSpaceBytes !== null ? { totalSpaceBytes } : {}),
+    };
+  });
+}
+
 export function normalizeLibraryManagerMetadata(input: {
   rootFolders: LibraryManagerRootFolderResponse;
   diskSpaces?: LibraryManagerDiskSpaceResponse;
@@ -162,7 +219,8 @@ export function normalizeLibraryManagerMetadata(input: {
   const diskSpaces = input.diskSpaces ?? [];
 
   return {
-    rootFolders: input.rootFolders
+    rootFolders: mergeLibraryManagerRootFolderDiskSpace(
+      input.rootFolders
       .map((entry) => {
         const path = typeof entry.path === "string" ? entry.path.trim() : "";
         const label = typeof entry.name === "string" ? entry.name.trim() : path;
@@ -171,9 +229,8 @@ export function normalizeLibraryManagerMetadata(input: {
           return null;
         }
 
-        const diskSpace = findDiskSpaceForRootFolder(path, diskSpaces);
-        const freeSpaceBytes = normalizeByteCount(entry.freeSpace ?? diskSpace?.freeSpace);
-        const totalSpaceBytes = normalizeByteCount(entry.totalSpace ?? diskSpace?.totalSpace);
+        const freeSpaceBytes = normalizeByteCount(entry.freeSpace);
+        const totalSpaceBytes = normalizeByteCount(entry.totalSpace);
 
         return {
           path,
@@ -183,6 +240,8 @@ export function normalizeLibraryManagerMetadata(input: {
         };
       })
       .filter((entry): entry is LibraryManagerMetadata["rootFolders"][number] => entry !== null),
+      diskSpaces,
+    ),
     qualityProfiles: input.qualityProfiles
       .map((entry) => {
         if (typeof entry.id !== "number" || typeof entry.name !== "string") {

@@ -160,6 +160,26 @@ describe("verify-service-connection-helpers", () => {
     });
   });
 
+  it("does not apply a generic root diskspace entry to every library root folder", () => {
+    expect(
+      normalizeLibraryManagerMetadata({
+        rootFolders: [
+          { path: "/dmedia/Movies", name: "/dmedia/Movies" },
+          { path: "/emedia/Movies", name: "/emedia/Movies" },
+        ],
+        diskSpaces: [
+          { path: "/", freeSpace: 36_000_000_000, totalSpace: 102_000_000_000 },
+          { path: "/config", freeSpace: 36_000_000_000, totalSpace: 102_000_000_000 },
+        ],
+        qualityProfiles: [{ id: 7, name: "HD-1080p" }],
+        tags: [],
+      }).rootFolders,
+    ).toEqual([
+      { path: "/dmedia/Movies", label: "/dmedia/Movies" },
+      { path: "/emedia/Movies", label: "/emedia/Movies" },
+    ]);
+  });
+
   it("fails library manager verification when required metadata is missing", () => {
     expect(
       buildLibraryManagerVerificationResult({
