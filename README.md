@@ -99,7 +99,8 @@ docs/             ADRs, architecture notes, and product behavior matrix
 For architectural context, see
 [docs/adr/ADR-0001-rewrite-principles.md](docs/adr/ADR-0001-rewrite-principles.md),
 [docs/architecture/project-structure.md](docs/architecture/project-structure.md),
-and [docs/product/behavior-matrix.md](docs/product/behavior-matrix.md).
+[docs/product/behavior-matrix.md](docs/product/behavior-matrix.md), and
+[docs/api.md](docs/api.md).
 
 ## Security
 
