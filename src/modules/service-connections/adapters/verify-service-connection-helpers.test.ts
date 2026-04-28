@@ -125,6 +125,41 @@ describe("verify-service-connection-helpers", () => {
     });
   });
 
+  it("adds matching disk space metadata to library root folders", () => {
+    expect(
+      normalizeLibraryManagerMetadata({
+        rootFolders: [
+          { path: "D:\\Media\\TV", name: "TV" },
+          { path: "/mnt/library/movies", name: "Movies", freeSpace: 125_000_000_000 },
+        ],
+        diskSpaces: [
+          { path: "D:\\", freeSpace: 600_000_000_000, totalSpace: 1_000_000_000_000 },
+          { path: "/mnt", freeSpace: 450_000_000_000, totalSpace: 2_000_000_000_000 },
+          { path: "/mnt/library", freeSpace: 80_000_000_000, totalSpace: 500_000_000_000 },
+        ],
+        qualityProfiles: [{ id: 7, name: "HD-1080p" }],
+        tags: [],
+      }),
+    ).toEqual({
+      rootFolders: [
+        {
+          path: "D:\\Media\\TV",
+          label: "TV",
+          freeSpaceBytes: 600_000_000_000,
+          totalSpaceBytes: 1_000_000_000_000,
+        },
+        {
+          path: "/mnt/library/movies",
+          label: "Movies",
+          freeSpaceBytes: 125_000_000_000,
+          totalSpaceBytes: 500_000_000_000,
+        },
+      ],
+      qualityProfiles: [{ id: 7, name: "HD-1080p" }],
+      tags: [],
+    });
+  });
+
   it("fails library manager verification when required metadata is missing", () => {
     expect(
       buildLibraryManagerVerificationResult({

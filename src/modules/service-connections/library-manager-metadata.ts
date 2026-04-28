@@ -1,8 +1,18 @@
 import { z } from "zod";
 
+const optionalByteCountSchema = z.preprocess(
+  (value) =>
+    typeof value === "number" && Number.isFinite(value) && value >= 0
+      ? Math.trunc(value)
+      : undefined,
+  z.number().int().nonnegative().optional(),
+);
+
 const libraryManagerRootFolderSchema = z.object({
   path: z.string().trim().min(1),
   label: z.string().trim().min(1),
+  freeSpaceBytes: optionalByteCountSchema,
+  totalSpaceBytes: optionalByteCountSchema,
 });
 
 const libraryManagerQualityProfileSchema = z.object({

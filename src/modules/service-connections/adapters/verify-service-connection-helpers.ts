@@ -85,6 +85,14 @@ export function buildAiProviderVerificationResult(input: {
 export type LibraryManagerRootFolderResponse = Array<{
   path?: string;
   name?: string;
+  freeSpace?: number;
+  totalSpace?: number;
+}>;
+
+export type LibraryManagerDiskSpaceResponse = Array<{
+  path?: string;
+  freeSpace?: number;
+  totalSpace?: number;
 }>;
 
 export type LibraryManagerQualityProfileResponse = Array<{
@@ -97,11 +105,62 @@ export type LibraryManagerTagResponse = Array<{
   label?: string;
 }>;
 
+function normalizeRemotePath(value: string) {
+  const normalized = value.trim().replace(/\\/g, "/").toLowerCase();
+
+  if (normalized === "/") {
+    return normalized;
+  }
+
+  return normalized.replace(/\/+$/, "");
+}
+
+function pathWithTrailingSeparator(value: string) {
+  return value.endsWith("/") ? value : `${value}/`;
+}
+
+function isNonnegativeByteCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function normalizeByteCount(value: unknown) {
+  return isNonnegativeByteCount(value) ? Math.trunc(value) : null;
+}
+
+function findDiskSpaceForRootFolder(
+  rootFolderPath: string,
+  diskSpaces: LibraryManagerDiskSpaceResponse,
+) {
+  const normalizedRootFolderPath = normalizeRemotePath(rootFolderPath);
+
+  return diskSpaces
+    .map((entry) => {
+      const diskPath = typeof entry.path === "string" ? normalizeRemotePath(entry.path) : "";
+
+      if (!diskPath) {
+        return null;
+      }
+
+      const matches =
+        normalizedRootFolderPath === diskPath ||
+        normalizedRootFolderPath.startsWith(pathWithTrailingSeparator(diskPath));
+
+      return matches ? { entry, pathLength: diskPath.length } : null;
+    })
+    .filter((entry): entry is { entry: LibraryManagerDiskSpaceResponse[number]; pathLength: number } =>
+      entry !== null,
+    )
+    .sort((left, right) => right.pathLength - left.pathLength)[0]?.entry;
+}
+
 export function normalizeLibraryManagerMetadata(input: {
   rootFolders: LibraryManagerRootFolderResponse;
+  diskSpaces?: LibraryManagerDiskSpaceResponse;
   qualityProfiles: LibraryManagerQualityProfileResponse;
   tags: LibraryManagerTagResponse;
 }): LibraryManagerMetadata {
+  const diskSpaces = input.diskSpaces ?? [];
+
   return {
     rootFolders: input.rootFolders
       .map((entry) => {
@@ -112,9 +171,15 @@ export function normalizeLibraryManagerMetadata(input: {
           return null;
         }
 
+        const diskSpace = findDiskSpaceForRootFolder(path, diskSpaces);
+        const freeSpaceBytes = normalizeByteCount(entry.freeSpace ?? diskSpace?.freeSpace);
+        const totalSpaceBytes = normalizeByteCount(entry.totalSpace ?? diskSpace?.totalSpace);
+
         return {
           path,
           label,
+          ...(freeSpaceBytes !== null ? { freeSpaceBytes } : {}),
+          ...(totalSpaceBytes !== null ? { totalSpaceBytes } : {}),
         };
       })
       .filter((entry): entry is LibraryManagerMetadata["rootFolders"][number] => entry !== null),
