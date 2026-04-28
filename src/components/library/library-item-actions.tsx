@@ -2,6 +2,7 @@
 
 import { useId, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
+import { Eye, EyeOff, LoaderCircle, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -30,7 +31,6 @@ type QualityProfileOption = {
 type SonarrTarget = {
   serviceType: "sonarr";
   seriesId: number;
-  applyToAllSeasons?: boolean;
 };
 
 type RadarrTarget = {
@@ -49,7 +49,6 @@ type LibraryItemActionsProps = {
   qualityProfileId?: number | null;
   qualityProfileName?: string | null;
   enableSearch?: boolean;
-  size?: "default" | "sm";
   className?: string;
 };
 
@@ -88,9 +87,6 @@ function getServiceLabel(target: LibraryItemTarget) {
 function setTargetFormFields(formData: FormData, target: LibraryItemTarget) {
   if (target.serviceType === "sonarr") {
     formData.set("seriesId", String(target.seriesId));
-    if (target.applyToAllSeasons) {
-      formData.set("applyToAllSeasons", "true");
-    }
     return;
   }
 
@@ -117,7 +113,6 @@ export function LibraryItemActions({
   qualityProfileId,
   qualityProfileName,
   enableSearch = false,
-  size = "default",
   className,
 }: LibraryItemActionsProps) {
   const router = useRouter();
@@ -136,11 +131,9 @@ export function LibraryItemActions({
     tone: "success" | "error";
     text: string;
   } | null>(null);
-  const buttonClass =
-    size === "sm"
-      ? "min-h-9 px-3 py-1.5 text-xs"
-      : undefined;
   const serviceLabel = getServiceLabel(target);
+  const MonitorIcon = monitored ? EyeOff : Eye;
+  const monitorActionLabel = monitored ? "Unmonitor" : "Monitor";
   const hasQualityProfiles = qualityProfiles !== undefined;
   const resolvedQualityProfileName =
     qualityProfileName ??
@@ -250,27 +243,28 @@ export function LibraryItemActions({
       <Button
         type="button"
         variant="secondary"
-        className={buttonClass}
+        size="icon"
+        aria-label={`${monitorActionLabel} ${itemTitle}`}
+        title={`${monitorActionLabel} ${itemTitle}`}
         onClick={handleToggleMonitor}
         disabled={isMonitorPending}
       >
-        {isMonitorPending
-          ? "Saving…"
-          : monitored
-            ? "Unmonitor"
-            : "Monitor"}
+        {isMonitorPending ? (
+          <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
+        ) : (
+          <MonitorIcon aria-hidden="true" className="h-4 w-4" />
+        )}
       </Button>
       <Button
         type="button"
         variant="secondary"
-        className={
-          buttonClass
-            ? `${buttonClass} border-rose-500/40 text-rose-200 hover:bg-rose-500/10`
-            : "border-rose-500/40 text-rose-200 hover:bg-rose-500/10"
-        }
+        size="icon"
+        className="border-rose-500/40 text-rose-200 hover:bg-rose-500/10"
+        aria-label={`Delete ${itemTitle} from ${serviceLabel}`}
+        title={`Delete ${itemTitle} from ${serviceLabel}`}
         onClick={handleOpenDelete}
       >
-        Delete
+        <Trash2 aria-hidden="true" className="h-4 w-4" />
       </Button>
 
       {isDeleteOpen ? (

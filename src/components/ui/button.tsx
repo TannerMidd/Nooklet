@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "ghost" | "danger";
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "icon";
 };
 
 const buttonVariants = {
@@ -15,6 +15,7 @@ const buttonVariants = {
 } satisfies Record<NonNullable<ButtonProps["variant"]>, string>;
 
 const buttonSizes = {
+  icon: "h-9 min-h-9 w-9 px-0 py-0 text-xs",
   sm: "min-h-10 px-3 py-2 text-xs",
   md: "min-h-11 px-4 py-2 text-sm",
 } satisfies Record<NonNullable<ButtonProps["size"]>, string>;

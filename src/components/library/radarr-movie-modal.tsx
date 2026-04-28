@@ -4,6 +4,7 @@ import { useId } from "react";
 import { createPortal } from "react-dom";
 
 import { LibraryItemActions } from "@/components/library/library-item-actions";
+import { MonitoringStatusIcon } from "@/components/library/monitoring-status-icon";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { type RadarrLibraryMovie } from "@/modules/service-connections/types/library-manager";
 
@@ -80,8 +81,8 @@ export function RadarrMovieModal({
                 <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted">
                   Monitoring
                 </dt>
-                <dd className="mt-1 text-foreground">
-                  {movie.monitored ? "Monitored" : "Unmonitored"}
+                <dd className="mt-1">
+                  <MonitoringStatusIcon monitored={movie.monitored} />
                 </dd>
               </div>
               <div>
@@ -112,7 +113,7 @@ export function RadarrMovieModal({
           <section className="space-y-3 rounded-2xl border border-line/70 bg-panel-strong/70 p-4">
             <h3 className="text-sm font-medium text-foreground">Movie actions</h3>
             <p className="text-sm leading-6 text-muted">
-              Toggle Radarr monitoring, change quality, search for the movie, or remove it from Radarr.
+              Change quality, search for the movie, or remove it from Radarr.
             </p>
             <LibraryItemActions
               key={`radarr-${movie.id}-${movie.qualityProfileId ?? "none"}`}

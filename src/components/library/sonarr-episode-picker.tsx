@@ -18,6 +18,7 @@ import {
   loadSonarrSeriesEpisodesForLibraryAction,
   submitSonarrSeriesEpisodeMonitoringAction,
 } from "@/app/(workspace)/sonarr-library-actions";
+import { MonitoringStatusIcon } from "@/components/library/monitoring-status-icon";
 import { Button } from "@/components/ui/button";
 import { type SonarrEpisode } from "@/modules/service-connections/types/sonarr-episodes";
 
@@ -424,9 +425,7 @@ function LoadedSonarrEpisodePickerForm({
                                   </span>
                                 ) : null}
                                 {episode.monitored ? (
-                                  <span className="rounded-full border border-accent/40 px-2 py-0.5 text-accent">
-                                    Monitored
-                                  </span>
+                                  <MonitoringStatusIcon monitored className="h-6 w-6" />
                                 ) : null}
                               </span>
                             </span>

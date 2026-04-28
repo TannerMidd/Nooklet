@@ -8,6 +8,7 @@ import {
   useTransition,
 } from "react";
 import { createPortal } from "react-dom";
+import { Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -19,6 +20,7 @@ import {
   submitSonarrSeriesSeasonMonitoringAction,
 } from "@/app/(workspace)/sonarr-library-actions";
 import { LibraryItemActions } from "@/components/library/library-item-actions";
+import { MonitoringStatusIcon } from "@/components/library/monitoring-status-icon";
 import { Button } from "@/components/ui/button";
 import { type SonarrLibrarySeasonSummary } from "@/modules/service-connections/types/library-manager";
 
@@ -438,9 +440,7 @@ function SonarrSeriesControls({
           <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
             Series
           </span>
-          <span className="text-foreground">
-            Currently {seriesMonitored ? "monitored" : "unmonitored"}
-          </span>
+          <MonitoringStatusIcon monitored={seriesMonitored} />
         </div>
         <LibraryItemActions
           key={`sonarr-${seriesId}-${qualityProfileId ?? "none"}`}
@@ -452,7 +452,6 @@ function SonarrSeriesControls({
           qualityProfileId={qualityProfileId}
           qualityProfileName={qualityProfileName}
           enableSearch
-          size="sm"
         />
       </div>
       <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -460,20 +459,32 @@ function SonarrSeriesControls({
         <Button
           type="button"
           variant="secondary"
-          className="min-h-9 px-3 py-1.5 text-xs"
+          size="icon"
+          aria-label="Monitor all seasons"
+          title="Monitor all seasons"
           onClick={() => applyAllSeasons(true)}
           disabled={isApplying}
         >
-          {isApplying ? "Saving..." : "Monitor all seasons"}
+          {isApplying ? (
+            <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
+          ) : (
+            <Eye aria-hidden="true" className="h-4 w-4" />
+          )}
         </Button>
         <Button
           type="button"
           variant="secondary"
-          className="min-h-9 px-3 py-1.5 text-xs"
+          size="icon"
+          aria-label="Unmonitor all seasons"
+          title="Unmonitor all seasons"
           onClick={() => applyAllSeasons(false)}
           disabled={isApplying}
         >
-          {isApplying ? "Saving..." : "Unmonitor all seasons"}
+          {isApplying ? (
+            <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
+          ) : (
+            <EyeOff aria-hidden="true" className="h-4 w-4" />
+          )}
         </Button>
       </div>
       {errorMessage ? (

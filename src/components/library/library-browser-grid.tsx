@@ -3,6 +3,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { LibraryItemActions } from "@/components/library/library-item-actions";
+import { MonitoringStatusIcon } from "@/components/library/monitoring-status-icon";
 import { RadarrMovieModal } from "@/components/library/radarr-movie-modal";
 import { SonarrSeasonMonitorModal } from "@/components/library/sonarr-season-monitor-modal";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
@@ -218,20 +219,6 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
   );
 }
 
-function MonitoredBadge({ monitored }: { monitored: boolean }) {
-  return (
-    <span
-      className={
-        monitored
-          ? "inline-flex items-center rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-emerald-200"
-          : "inline-flex items-center rounded-full border border-line/70 bg-panel-strong/70 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted"
-      }
-    >
-      {monitored ? "Monitored" : "Unmonitored"}
-    </span>
-  );
-}
-
 function SonarrLibraryCard({
   series,
   returnTo,
@@ -277,7 +264,7 @@ function SonarrLibraryCard({
                 <p className="text-xs text-muted line-clamp-1">{series.network}</p>
               ) : null}
             </div>
-            <MonitoredBadge monitored={series.monitored} />
+            <MonitoringStatusIcon monitored={series.monitored} />
           </div>
         </div>
         <dl className="grid grid-cols-2 gap-2 text-xs text-muted">
@@ -297,7 +284,6 @@ function SonarrLibraryCard({
           monitored={series.monitored}
           itemTitle={titleLabel}
           returnTo={returnTo}
-          size="sm"
         />
         <span className="mt-auto text-xs font-semibold text-accent opacity-80 group-hover:opacity-100">
           Manage seasons →
@@ -349,7 +335,7 @@ function RadarrLibraryCard({
               ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
-              <MonitoredBadge monitored={movie.monitored} />
+              <MonitoringStatusIcon monitored={movie.monitored} />
               <span
                 className={
                   movie.hasFile
@@ -373,7 +359,6 @@ function RadarrLibraryCard({
           monitored={movie.monitored}
           itemTitle={titleLabel}
           returnTo={returnTo}
-          size="sm"
         />
       </div>
     </li>
