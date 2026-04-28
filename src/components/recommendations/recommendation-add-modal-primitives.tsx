@@ -9,6 +9,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
+import {
+  formatDriveSpaceBytes,
+  getDriveSpaceUsagePercent,
+  isLowDriveSpace,
+} from "./recommendation-drive-space";
+
 export type RecommendationModalFormAction = (formData: FormData) => void;
 export type LibraryRequestHiddenField = {
   name: string;
@@ -98,52 +104,127 @@ export function RecommendationDestinationFields({
   onQualityProfileIdChange: (value: number) => void;
   disabled?: boolean;
 }) {
+  const selectedRootFolder = connectionSummary.rootFolders.find(
+    (entry) => entry.path === selectedRootFolderPath,
+  );
+
   return (
     <section className="rounded-[28px] border border-line/70 bg-panel-strong/70 p-5 md:p-6">
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-foreground">Root folder</span>
-          <select
-            name="rootFolderPath"
-            value={selectedRootFolderPath}
-            onChange={(event) => onRootFolderPathChange(event.target.value)}
-            disabled={disabled}
-            className="min-h-11 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
-            aria-invalid={Boolean(fieldErrors?.rootFolderPath)}
-          >
-            {connectionSummary.rootFolders.map((entry) => (
-              <option key={entry.path} value={entry.path}>
-                {entry.label}
-              </option>
-            ))}
-          </select>
-          {fieldErrors?.rootFolderPath ? (
-            <p className="text-sm text-highlight">{fieldErrors.rootFolderPath}</p>
-          ) : null}
-        </label>
+      <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="space-y-2">
+            <span className="text-sm font-medium text-foreground">Root folder</span>
+            <select
+              name="rootFolderPath"
+              value={selectedRootFolderPath}
+              onChange={(event) => onRootFolderPathChange(event.target.value)}
+              disabled={disabled}
+              className="min-h-11 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
+              aria-invalid={Boolean(fieldErrors?.rootFolderPath)}
+            >
+              {connectionSummary.rootFolders.map((entry) => (
+                <option key={entry.path} value={entry.path}>
+                  {formatRootFolderOptionLabel(entry)}
+                </option>
+              ))}
+            </select>
+            {fieldErrors?.rootFolderPath ? (
+              <p className="text-sm text-highlight">{fieldErrors.rootFolderPath}</p>
+            ) : null}
+          </label>
 
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-foreground">Quality profile</span>
-          <select
-            name="qualityProfileId"
-            value={String(selectedQualityProfileId ?? "")}
-            onChange={(event) => onQualityProfileIdChange(Number.parseInt(event.target.value, 10))}
-            disabled={disabled}
-            className="min-h-11 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
-            aria-invalid={Boolean(fieldErrors?.qualityProfileId)}
-          >
-            {connectionSummary.qualityProfiles.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.name}
-              </option>
-            ))}
-          </select>
-          {fieldErrors?.qualityProfileId ? (
-            <p className="text-sm text-highlight">{fieldErrors.qualityProfileId}</p>
-          ) : null}
-        </label>
+          <label className="space-y-2">
+            <span className="text-sm font-medium text-foreground">Quality profile</span>
+            <select
+              name="qualityProfileId"
+              value={String(selectedQualityProfileId ?? "")}
+              onChange={(event) => onQualityProfileIdChange(Number.parseInt(event.target.value, 10))}
+              disabled={disabled}
+              className="min-h-11 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
+              aria-invalid={Boolean(fieldErrors?.qualityProfileId)}
+            >
+              {connectionSummary.qualityProfiles.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.name}
+                </option>
+              ))}
+            </select>
+            {fieldErrors?.qualityProfileId ? (
+              <p className="text-sm text-highlight">{fieldErrors.qualityProfileId}</p>
+            ) : null}
+          </label>
+        </div>
+
+        <RecommendationDriveSpaceStatus rootFolder={selectedRootFolder} />
       </div>
     </section>
+  );
+}
+
+function formatRootFolderOptionLabel(rootFolder: ServiceConnectionSummary["rootFolders"][number]) {
+  const freeSpaceLabel = formatDriveSpaceBytes(rootFolder.freeSpaceBytes);
+
+  return freeSpaceLabel ? `${rootFolder.label} (${freeSpaceLabel} free)` : rootFolder.label;
+}
+
+function RecommendationDriveSpaceStatus({
+  rootFolder,
+}: {
+  rootFolder: ServiceConnectionSummary["rootFolders"][number] | undefined;
+}) {
+  if (!rootFolder) {
+    return null;
+  }
+
+  const freeSpaceLabel = formatDriveSpaceBytes(rootFolder.freeSpaceBytes);
+  const totalSpaceLabel = formatDriveSpaceBytes(rootFolder.totalSpaceBytes);
+  const usagePercent = getDriveSpaceUsagePercent(rootFolder);
+  const hasLowDriveSpace = isLowDriveSpace(rootFolder);
+
+  return (
+    <div
+      className={cn(
+        "space-y-3 rounded-2xl border px-4 py-3 text-sm",
+        hasLowDriveSpace
+          ? "border-highlight/30 bg-highlight/10"
+          : "border-line/70 bg-panel",
+      )}
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <p className="font-medium text-foreground">Drive space</p>
+          <p className="break-words text-muted">{rootFolder.path}</p>
+        </div>
+        <p
+          className={cn(
+            "shrink-0 font-medium",
+            hasLowDriveSpace ? "text-highlight" : "text-foreground",
+          )}
+        >
+          {freeSpaceLabel
+            ? `${freeSpaceLabel} free${totalSpaceLabel ? ` of ${totalSpaceLabel}` : ""}`
+            : "Drive space unavailable"}
+        </p>
+      </div>
+
+      {usagePercent !== null ? (
+        <div
+          className="h-2 overflow-hidden rounded-full bg-line/70"
+          aria-label={`Drive space ${usagePercent}% used`}
+        >
+          <div
+            className={cn("h-full rounded-full", hasLowDriveSpace ? "bg-highlight" : "bg-accent")}
+            style={{ width: `${usagePercent}%` }}
+          />
+        </div>
+      ) : null}
+
+      {hasLowDriveSpace ? (
+        <p className="leading-6 text-highlight">
+          Warning: this selected drive has less than 100 GB free.
+        </p>
+      ) : null}
+    </div>
   );
 }
 

@@ -1,5 +1,8 @@
 import { type ServiceConnectionType } from "@/lib/database/schema";
-import { parseLibraryManagerMetadata } from "@/modules/service-connections/library-manager-metadata";
+import {
+  parseLibraryManagerMetadata,
+  type LibraryManagerRootFolder,
+} from "@/modules/service-connections/library-manager-metadata";
 import { parsePlexMetadata } from "@/modules/service-connections/plex-metadata";
 import { parseSabnzbdMetadata } from "@/modules/service-connections/sabnzbd-metadata";
 import { serviceConnectionDefinitions } from "@/modules/service-connections/service-definitions";
@@ -23,7 +26,7 @@ export type ServiceConnectionSummary = {
   availableModels: string[];
   serverName: string | null;
   availableUsers: RemoteUserOption[];
-  rootFolders: Array<{ path: string; label: string }>;
+  rootFolders: LibraryManagerRootFolder[];
   qualityProfiles: Array<{ id: number; name: string }>;
   tags: Array<{ id: number; label: string }>;
   sabnzbdVersion: string | null;
