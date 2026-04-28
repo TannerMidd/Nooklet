@@ -1,4 +1,5 @@
 import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
+import { readString } from "@/modules/service-connections/adapters/arr-response-helpers";
 
 type TraktSecret =
   | { ok: true; clientId: string; accessToken: string }
@@ -36,10 +37,6 @@ export type TraktHistoryEntry = {
   year: number | null;
   watchedAt: Date;
 };
-
-function readString(value: unknown) {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
-}
 
 function readYear(value: unknown) {
   if (typeof value === "number" && Number.isInteger(value) && value >= 1900 && value <= 2100) {

@@ -1,4 +1,9 @@
 import { type TmdbTitleDetails } from "@/modules/service-connections/adapters/tmdb";
+import {
+  readInteger,
+  readNumber,
+  readString,
+} from "@/modules/service-connections/adapters/arr-response-helpers";
 
 export type RecommendationProviderSeason = {
   seasonNumber: number;
@@ -17,18 +22,6 @@ export type RecommendationProviderMetadata = {
   pendingEpisodeSelection?: boolean;
   pendingEpisodeReturnTo?: string;
 };
-
-function readString(value: unknown) {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
-}
-
-function readInteger(value: unknown) {
-  return typeof value === "number" && Number.isInteger(value) ? value : null;
-}
-
-function readNumber(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
 
 function buildSeasonLabel(seasonNumber: number, label: unknown) {
   if (typeof label === "string" && label.trim().length > 0) {

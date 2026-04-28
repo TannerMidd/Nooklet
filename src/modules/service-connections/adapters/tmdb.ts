@@ -1,6 +1,11 @@
 import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { normalizeTitle } from "@/modules/service-connections/adapters/add-library-item-helpers";
+import {
+  readInteger,
+  readNumber,
+  readString,
+} from "@/modules/service-connections/adapters/arr-response-helpers";
 import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 
 type TmdbConnectionInput = {
@@ -80,18 +85,6 @@ export type TmdbTitleDetails = {
 export type LookupTmdbTitleDetailsResult =
   | { ok: true; details: TmdbTitleDetails }
   | { ok: false; message: string };
-
-function readString(value: unknown) {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
-}
-
-function readInteger(value: unknown) {
-  return typeof value === "number" && Number.isInteger(value) ? value : null;
-}
-
-function readNumber(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
 
 function isTmdbSearchResult(value: unknown): value is TmdbSearchResult {
   return typeof value === "object" && value !== null;
