@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { getAccountUser } from "@/modules/users/queries/get-account-user";
 
@@ -17,16 +18,7 @@ export default async function AccountSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <header className="rounded-[32px] border border-line/80 bg-panel/90 px-6 py-8 shadow-soft backdrop-blur md:px-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">
-          User settings
-        </p>
-        <div className="mt-4 max-w-3xl space-y-3">
-          <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
-            Account
-          </h1>
-        </div>
-      </header>
+      <PageHeader eyebrow="User settings" title="Account" />
 
       <div className="grid gap-6 xl:grid-cols-[1.05fr,0.95fr]">
         <Panel

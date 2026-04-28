@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { getDomainModule, type DomainModuleKey } from "@/modules/registry";
 
@@ -32,17 +33,7 @@ export function PlaceholderPage({
 
   return (
     <div className="space-y-6">
-      <header className="rounded-[32px] border border-line/80 bg-panel/90 px-6 py-8 shadow-soft backdrop-blur">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">
-          {eyebrow}
-        </p>
-        <div className="mt-4 max-w-3xl space-y-3">
-          <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
-            {title}
-          </h1>
-          <p className="text-base leading-7 text-muted">{description}</p>
-        </div>
-      </header>
+      <PageHeader eyebrow={eyebrow} title={title} description={description} />
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr,0.95fr]">
         <Panel

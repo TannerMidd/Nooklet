@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { LibraryBrowserGrid } from "@/components/library/library-browser-grid";
 import { LibrarySearchWorkspace } from "@/components/library/library-search-workspace";
 import { LibraryTabs, type LibraryTabsTab } from "@/components/library/library-tabs";
+import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { type LibraryManagerServiceType } from "@/modules/service-connections/types/library-manager";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
@@ -127,22 +128,13 @@ export async function LibraryBrowserWorkspace({
 
   return (
     <div className="space-y-6">
-      <header className="rounded-[32px] border border-line/80 bg-panel/90 px-6 py-8 shadow-soft backdrop-blur md:px-8 xl:px-10">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">
-          {serviceLabel} workspace
-        </p>
-        <div className="mt-4 max-w-4xl space-y-3">
-          <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
-            {title}
-          </h1>
-          <p className="max-w-3xl text-base leading-7 text-muted">{description}</p>
-        </div>
+      <PageHeader eyebrow={`${serviceLabel} workspace`} title={title} description={description}>
         {connectionSummary?.status === "verified" ? null : (
           <p className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
             {connectionSummary?.statusMessage ?? `Configure ${serviceLabel} from the connections page to use this workspace.`}
           </p>
         )}
-      </header>
+      </PageHeader>
 
       <LibraryTabs tabs={tabs} defaultTabId={resolvedDefaultTabId} />
     </div>

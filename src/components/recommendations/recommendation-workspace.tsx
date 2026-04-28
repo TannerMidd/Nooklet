@@ -8,6 +8,7 @@ import { RecommendationRetryForm } from "@/components/recommendations/recommenda
 import { RecommendationRunAutoRefresh } from "@/components/recommendations/recommendation-run-auto-refresh";
 import { RecommendationSabnzbdStatus } from "@/components/recommendations/recommendation-sabnzbd-status";
 import { RecommendationTitleOverviewDialog } from "@/components/recommendations/recommendation-title-overview-dialog";
+import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
@@ -163,16 +164,7 @@ export async function RecommendationWorkspace({
   return (
     <div className="space-y-6">
       <RecommendationRunAutoRefresh enabled={Boolean(featuredRunIsPending)} />
-      <header className="rounded-[32px] border border-line/80 bg-panel/90 px-6 py-8 shadow-soft backdrop-blur md:px-8 xl:px-10">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">
-          Recommendation mode
-        </p>
-        <div className="mt-4 max-w-4xl">
-          <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
-            {title}
-          </h1>
-        </div>
-      </header>
+      <PageHeader eyebrow="Recommendation mode" title={title} />
 
       <div>
         <Panel

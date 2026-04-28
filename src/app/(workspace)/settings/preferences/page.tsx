@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { formatLanguagePreference } from "@/modules/preferences/language-preferences";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
@@ -72,16 +73,7 @@ export default async function PreferencesSettingsPage({
 
   return (
     <div className="space-y-6">
-      <header className="rounded-[32px] border border-line/80 bg-panel/90 px-6 py-8 shadow-soft backdrop-blur md:px-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">
-          User preferences
-        </p>
-        <div className="mt-4 max-w-3xl space-y-3">
-          <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
-            Preferences
-          </h1>
-        </div>
-      </header>
+      <PageHeader eyebrow="User preferences" title="Preferences" />
 
       {wasUpdated ? (
         <p className="rounded-[24px] border border-accent/20 bg-accent/10 px-5 py-4 text-sm leading-6 text-foreground">

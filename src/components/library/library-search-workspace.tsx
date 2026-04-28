@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { LibrarySearchRequestForm } from "@/components/library/library-search-request-form";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
@@ -70,17 +71,7 @@ export async function LibrarySearchWorkspace({
   return (
     <div className="space-y-6">
       {omitHeader ? null : (
-        <header className="rounded-[32px] border border-line/80 bg-panel/90 px-6 py-8 shadow-soft backdrop-blur md:px-8 xl:px-10">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">
-            Direct library request
-          </p>
-          <div className="mt-4 max-w-4xl space-y-3">
-            <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
-              {title}
-            </h1>
-            <p className="max-w-3xl text-base leading-7 text-muted">{description}</p>
-          </div>
-        </header>
+        <PageHeader eyebrow="Direct library request" title={title} description={description} />
       )}
 
       <div>
