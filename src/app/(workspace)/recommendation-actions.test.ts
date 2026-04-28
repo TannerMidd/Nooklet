@@ -186,6 +186,18 @@ describe("submitRecommendationWatchHistoryModeAction", () => {
     );
     expect(updateWatchHistoryMock).toHaveBeenCalledWith("u1", true);
   });
+
+  it("persists watchHistoryOnly=false from the quick toggle", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    const formData = new FormData();
+    formData.set("watchHistoryOnly", "false");
+    formData.set("redirectPath", "/tv");
+
+    await expect(submitRecommendationWatchHistoryModeAction(formData)).rejects.toThrow(
+      /NEXT_REDIRECT:\/tv/,
+    );
+    expect(updateWatchHistoryMock).toHaveBeenCalledWith("u1", false);
+  });
 });
 
 describe("submitRecommendationDefaultsAction", () => {

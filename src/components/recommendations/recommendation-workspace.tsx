@@ -8,6 +8,7 @@ import { RecommendationRetryForm } from "@/components/recommendations/recommenda
 import { RecommendationRunAutoRefresh } from "@/components/recommendations/recommendation-run-auto-refresh";
 import { RecommendationSabnzbdStatus } from "@/components/recommendations/recommendation-sabnzbd-status";
 import { RecommendationTitleOverviewDialog } from "@/components/recommendations/recommendation-title-overview-dialog";
+import { RecommendationWatchHistoryModeToggle } from "@/components/recommendations/recommendation-watch-history-mode-toggle";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { type RecommendationMediaType } from "@/lib/database/schema";
@@ -172,6 +173,10 @@ export async function RecommendationWorkspace({
           title="Get recommendations"
           description="Choose what you want next. Leave the focus blank for taste-based picks."
         >
+          <RecommendationWatchHistoryModeToggle
+            enabled={preferences.watchHistoryOnly}
+            redirectPath={routePath}
+          />
           <RecommendationRequestForm
             mediaType={mediaType}
             redirectPath={routePath}
