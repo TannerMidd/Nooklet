@@ -20,7 +20,7 @@ export function Panel({
   return (
     <section
       className={cn(
-        "min-w-0 rounded-[28px] border border-line/80 bg-panel/90 p-5 shadow-soft backdrop-blur sm:p-6",
+        "min-w-0 rounded-3xl border border-line/70 bg-panel/90 p-5 shadow-soft ring-1 ring-white/[0.03] backdrop-blur sm:p-6",
         className,
       )}
     >
@@ -30,7 +30,7 @@ export function Panel({
             {eyebrow}
           </p>
         ) : null}
-        <h2 className="max-w-[20ch] font-heading text-[1.55rem] leading-[1.12] text-foreground sm:max-w-none sm:text-2xl">
+        <h2 className="max-w-[22ch] font-heading text-[1.45rem] leading-[1.15] tracking-normal text-foreground sm:max-w-none sm:text-2xl">
           {title}
         </h2>
         {description ? <p className="max-w-2xl text-sm leading-6 text-muted">{description}</p> : null}

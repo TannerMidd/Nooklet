@@ -167,7 +167,7 @@ export function SearchableSelect({
           }
         }}
         className={cn(
-          "flex min-h-11 w-full items-center justify-between gap-2 rounded-2xl border border-line bg-panel px-4 py-3 text-left text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-60",
+          "flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border border-line/80 bg-panel-strong/75 px-4 py-3 text-left text-sm text-foreground outline-none transition focus:border-accent/50 focus:bg-panel focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-60",
           triggerClassName,
         )}
       >
@@ -180,8 +180,8 @@ export function SearchableSelect({
       </button>
 
       {open ? (
-        <div className="absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-2xl border border-line bg-panel shadow-lg">
-          <div className="border-b border-line p-2">
+        <div className="absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-2xl border border-line/80 bg-panel shadow-soft ring-1 ring-white/[0.03]">
+          <div className="border-b border-line/70 p-2">
             <input
               ref={searchRef}
               type="text"
@@ -194,7 +194,7 @@ export function SearchableSelect({
               placeholder={searchPlaceholder}
               autoComplete="off"
               spellCheck={false}
-              className="min-h-10 w-full rounded-xl border border-line bg-panel-strong px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
+              className="min-h-10 w-full rounded-xl border border-line/80 bg-panel-strong/80 px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
             />
           </div>
           <ul

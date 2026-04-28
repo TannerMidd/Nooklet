@@ -12,19 +12,19 @@
   --color-highlight: rgb(var(--highlight));
   --font-heading: var(--app-font-heading), sans-serif;
   --font-body: var(--app-font-body), sans-serif;
-  --shadow-soft: 0 20px 70px rgba(3, 8, 16, 0.42);
+  --shadow-soft: 0 18px 55px rgba(3, 8, 16, 0.34);
 }
 
 :root {
-  --background: 18 22 29;
-  --foreground: 236 233 226;
-  --panel: 26 31 40;
-  --panel-strong: 34 40 50;
-  --muted: 159 166 176;
-  --line: 78 88 102;
-  --accent: 90 181 173;
-  --accent-foreground: 12 17 22;
-  --highlight: 216 137 105;
+  --background: 13 17 22;
+  --foreground: 240 238 232;
+  --panel: 23 28 35;
+  --panel-strong: 31 38 47;
+  --muted: 169 176 186;
+  --line: 71 82 96;
+  --accent: 91 202 183;
+  --accent-foreground: 5 18 17;
+  --highlight: 239 147 102;
 }
 
 * {
@@ -40,12 +40,19 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(circle at top left, rgba(90, 181, 173, 0.16), transparent 30%),
-    radial-gradient(circle at top right, rgba(216, 137, 105, 0.14), transparent 28%),
-    radial-gradient(circle at bottom center, rgba(92, 112, 166, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0) 18rem),
+    linear-gradient(135deg, rgba(91, 202, 183, 0.08), rgba(91, 202, 183, 0) 28rem),
+    linear-gradient(315deg, rgba(239, 147, 102, 0.07), rgba(239, 147, 102, 0) 26rem),
     rgb(var(--background));
   color: rgb(var(--foreground));
   font-family: var(--app-font-body), sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 a {
@@ -60,7 +67,7 @@ h4,
 h5,
 h6 {
   font-family: var(--app-font-heading), sans-serif;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   margin: 0;
 }
 
@@ -71,7 +78,31 @@ ol {
 }
 
 ::selection {
-  background: rgba(90, 181, 173, 0.28);
+  background: rgba(91, 202, 183, 0.28);
+}
+
+* {
+  scrollbar-color: rgba(91, 202, 183, 0.45) rgba(31, 38, 47, 0.65);
+}
+
+::-webkit-scrollbar {
+  height: 0.75rem;
+  width: 0.75rem;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(31, 38, 47, 0.65);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(91, 202, 183, 0.45);
+  border: 3px solid rgba(31, 38, 47, 0.65);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(91, 202, 183, 0.62);
 }
 
 @keyframes recommendation-featured-enter {
@@ -108,8 +139,8 @@ ol {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at top left, rgba(90, 181, 173, 0.16), transparent 34%),
-    radial-gradient(circle at bottom right, rgba(216, 137, 105, 0.14), transparent 28%);
+    linear-gradient(135deg, rgba(91, 202, 183, 0.12), transparent 38%),
+    linear-gradient(315deg, rgba(239, 147, 102, 0.12), transparent 32%);
   pointer-events: none;
 }
 

@@ -3,11 +3,24 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "ghost" | "danger";
+  size?: "sm" | "md";
 };
 
+const buttonVariants = {
+  primary: "border border-accent/20 bg-accent text-accent-foreground shadow-[0_10px_28px_rgba(91,202,183,0.18)] hover:bg-accent/90",
+  secondary: "border border-line/80 bg-panel-strong/80 text-foreground hover:border-accent/35 hover:bg-panel",
+  ghost: "border border-transparent bg-transparent text-muted hover:border-line/70 hover:bg-panel-strong/70 hover:text-foreground",
+  danger: "border border-highlight/25 bg-highlight/10 text-highlight hover:bg-highlight/20",
+} satisfies Record<NonNullable<ButtonProps["variant"]>, string>;
+
+const buttonSizes = {
+  sm: "min-h-10 px-3 py-2 text-xs",
+  md: "min-h-11 px-4 py-2 text-sm",
+} satisfies Record<NonNullable<ButtonProps["size"]>, string>;
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { className, type = "button", variant = "primary", ...props },
+  { className, type = "button", variant = "primary", size = "md", ...props },
   ref,
 ) {
   return (
@@ -15,10 +28,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       type={type}
       className={cn(
-        "inline-flex min-h-11 items-center justify-center rounded-2xl px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-60",
-        variant === "primary"
-          ? "bg-accent text-accent-foreground hover:bg-accent/90"
-          : "border border-line bg-panel-strong text-foreground hover:bg-panel",
+        "inline-flex items-center justify-center rounded-xl font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-55",
+        buttonSizes[size],
+        buttonVariants[variant],
         className,
       )}
       {...props}
