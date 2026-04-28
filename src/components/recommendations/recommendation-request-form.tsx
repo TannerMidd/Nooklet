@@ -120,7 +120,7 @@ function RequestProgressPanel() {
   return (
     <div className="rounded-2xl border border-accent/20 bg-accent/5 px-4 py-3" role="status">
       <div className="flex items-center gap-3">
-        <div className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-accent animate-pulse" />
+        <div className="mt-1 h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-accent" />
         <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground">Working on your recommendations</p>
           <p className="text-sm leading-6 text-muted">{activeStage.label}</p>
@@ -289,7 +289,7 @@ export function RecommendationRequestForm({
               ? "Leave blank to use your library and watch history, or add guidance like slow-burn sci-fi with emotional stakes."
               : "Leave blank to use your library and watch history, or add guidance like tense modern thrillers with sharp pacing."
           }
-          className="min-h-32 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
+          className="min-h-32 w-full rounded-xl border border-line/80 bg-panel-strong/75 px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted focus:border-accent/50 focus:bg-panel focus:ring-2 focus:ring-accent/20"
           aria-invalid={Boolean(state.fieldErrors?.requestPrompt)}
         />
         {state.fieldErrors?.requestPrompt ? (
@@ -313,8 +313,8 @@ export function RecommendationRequestForm({
                 onClick={() => toggleSelectedGenre(option.value)}
                 className={`inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
                   isSelected
-                    ? "border-accent/40 bg-accent/10 text-foreground"
-                    : "border-line bg-panel text-muted hover:border-accent/30 hover:text-foreground"
+                    ? "border-accent/40 bg-accent/10 text-foreground shadow-[0_8px_22px_rgba(91,202,183,0.1)]"
+                    : "border-line/80 bg-panel-strong/65 text-muted hover:border-accent/30 hover:bg-panel hover:text-foreground"
                 }`}
               >
                 {option.label}
@@ -332,7 +332,7 @@ export function RecommendationRequestForm({
         ) : null}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),180px,180px]">
+      <div className="grid gap-4 rounded-2xl border border-line/60 bg-panel-strong/35 p-4 lg:grid-cols-[minmax(0,1fr),180px,180px]">
         <label className="space-y-2">
           <span className="text-sm font-medium text-foreground">Model</span>
           <SearchableSelect
@@ -387,7 +387,7 @@ export function RecommendationRequestForm({
       </div>
 
       {state.message ? (
-        <p className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
+        <p className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm leading-6 text-highlight">
           {state.message}
         </p>
       ) : null}
