@@ -1,4 +1,5 @@
 import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
+import { extractArrErrorMessage } from "@/modules/service-connections/adapters/arr-response-helpers";
 import { type SonarrEpisode } from "@/modules/service-connections/types/sonarr-episodes";
 
 export type { SonarrEpisode } from "@/modules/service-connections/types/sonarr-episodes";
@@ -25,26 +26,7 @@ export type EnsureSonarrSeasonsMonitoredResult =
   | { ok: false; message: string };
 
 async function extractErrorMessage(response: Response) {
-  try {
-    const payload = (await response.json()) as unknown;
-
-    if (typeof payload === "object" && payload !== null) {
-      const message = (payload as { message?: unknown }).message;
-      const errorMessage = (payload as { errorMessage?: unknown }).errorMessage;
-
-      if (typeof message === "string" && message.trim()) {
-        return message;
-      }
-
-      if (typeof errorMessage === "string" && errorMessage.trim()) {
-        return errorMessage;
-      }
-    }
-  } catch {
-    // Ignore parse errors and fall through to a generic message.
-  }
-
-  return `Sonarr request failed with status ${response.status}.`;
+  return extractArrErrorMessage(response, "Sonarr");
 }
 
 function normalizeEpisode(value: unknown): SonarrEpisode | null {
