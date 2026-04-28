@@ -1,5 +1,12 @@
 import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
 import {
+  extractArrErrorMessage,
+  extractArrPosterUrl,
+  readBoolean,
+  readInteger,
+  readString,
+} from "@/modules/service-connections/adapters/arr-response-helpers";
+import {
   type LibraryManagerServiceType,
   type RadarrLibraryMovie,
   type SonarrLibrarySeasonSummary,
@@ -33,79 +40,7 @@ async function fetchLibraryManager(input: RequestInfo | URL, init?: RequestInit)
 }
 
 async function extractErrorMessage(response: Response, serviceLabel: string) {
-  try {
-    const payload = (await response.json()) as unknown;
-
-    if (typeof payload === "object" && payload !== null) {
-      const message = (payload as { message?: unknown }).message;
-      const errorMessage = (payload as { errorMessage?: unknown }).errorMessage;
-
-      if (typeof message === "string" && message.trim()) {
-        return message;
-      }
-
-      if (typeof errorMessage === "string" && errorMessage.trim()) {
-        return errorMessage;
-      }
-    }
-  } catch {
-    // Fall through to generic message.
-  }
-
-  return `${serviceLabel} request failed with status ${response.status}.`;
-}
-
-function resolveImageUrl(baseUrl: string, value: unknown) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const trimmedValue = value.trim();
-
-  if (!trimmedValue) {
-    return null;
-  }
-
-  try {
-    return new URL(trimmedValue).toString();
-  } catch {
-    try {
-      return new URL(trimmedValue, `${trimTrailingSlash(baseUrl)}/`).toString();
-    } catch {
-      return null;
-    }
-  }
-}
-
-function extractPosterUrlFromImages(baseUrl: string, value: unknown) {
-  const images = Array.isArray(value) ? value : [];
-
-  const normalizedImages = images
-    .filter((image): image is Record<string, unknown> => typeof image === "object" && image !== null)
-    .map((image) => ({
-      coverType: typeof image.coverType === "string" ? image.coverType.trim().toLowerCase() : "",
-      url: resolveImageUrl(baseUrl, image.remoteUrl) ?? resolveImageUrl(baseUrl, image.url),
-    }))
-    .filter((image): image is { coverType: string; url: string } => Boolean(image.url));
-
-  return (
-    normalizedImages.find((image) => image.coverType === "poster")?.url ??
-    normalizedImages.find((image) => image.coverType === "cover")?.url ??
-    normalizedImages[0]?.url ??
-    null
-  );
-}
-
-function readString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function readInteger(value: unknown): number | null {
-  return typeof value === "number" && Number.isInteger(value) ? value : null;
-}
-
-function readBoolean(value: unknown): boolean {
-  return value === true;
+  return extractArrErrorMessage(response, serviceLabel);
 }
 
 function readQualityProfileName(value: unknown): string | null {
@@ -183,7 +118,7 @@ function normalizeSonarrSeries(baseUrl: string, value: unknown): SonarrLibrarySe
     monitored: readBoolean(record.monitored),
     status: readString(record.status),
     network: readString(record.network),
-    posterUrl: extractPosterUrlFromImages(baseUrl, record.images),
+    posterUrl: extractArrPosterUrl(baseUrl, record.images),
     totalSeasonCount: seasons.filter((season) => season.seasonNumber > 0).length,
     monitoredSeasonCount: seasons.filter((season) => season.seasonNumber > 0 && season.monitored)
       .length,
@@ -218,7 +153,7 @@ function normalizeRadarrMovie(baseUrl: string, value: unknown): RadarrLibraryMov
     monitored: readBoolean(record.monitored),
     status: readString(record.status),
     hasFile: readBoolean(record.hasFile),
-    posterUrl: extractPosterUrlFromImages(baseUrl, record.images),
+    posterUrl: extractArrPosterUrl(baseUrl, record.images),
     studio: readString(record.studio),
   };
 }
