@@ -1,6 +1,9 @@
-import { trimTrailingSlash } from "@/lib/integrations/http-helpers";
 import { type RecommendationGenre } from "@/modules/recommendations/recommendation-genres";
 import { maximumLibraryTasteSampleSize } from "@/modules/recommendations/library-taste-sample-size";
+import {
+  extractArrErrorMessage,
+  extractArrPosterUrl,
+} from "@/modules/service-connections/adapters/arr-response-helpers";
 import {
   type LibraryManagerServiceType,
   type LibrarySearchResult,
@@ -12,6 +15,12 @@ export type {
   LibrarySearchResult,
   SampledLibraryTasteItem,
 } from "@/modules/service-connections/types/library-manager";
+
+/**
+ * Re-exported for backwards compatibility with existing imports. Prefer
+ * importing `extractArrErrorMessage` directly from `arr-response-helpers`.
+ */
+export const extractErrorMessage = extractArrErrorMessage;
 
 export type LibraryLookupCandidate = Record<string, unknown> & {
   title?: string;
@@ -270,44 +279,8 @@ export function sampleLibraryTasteItems(
   return sampleMixedLibraryTasteItemsByGenres(items, boundedSampleSize, selectedGenres);
 }
 
-function resolveImageUrl(baseUrl: string, value: unknown) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const trimmedValue = value.trim();
-
-  if (!trimmedValue) {
-    return null;
-  }
-
-  try {
-    return new URL(trimmedValue).toString();
-  } catch {
-    try {
-      return new URL(trimmedValue, `${trimTrailingSlash(baseUrl)}/`).toString();
-    } catch {
-      return null;
-    }
-  }
-}
-
 export function extractPosterUrl(baseUrl: string, candidate: LibraryLookupCandidate) {
-  const images = Array.isArray(candidate.images) ? candidate.images : [];
-  const normalizedImages = images
-    .filter((image): image is Record<string, unknown> => typeof image === "object" && image !== null)
-    .map((image) => ({
-      coverType: typeof image.coverType === "string" ? image.coverType.trim().toLowerCase() : "",
-      url: resolveImageUrl(baseUrl, image.remoteUrl) ?? resolveImageUrl(baseUrl, image.url),
-    }))
-    .filter((image): image is { coverType: string; url: string } => Boolean(image.url));
-
-  return (
-    normalizedImages.find((image) => image.coverType === "poster")?.url ??
-    normalizedImages.find((image) => image.coverType === "cover")?.url ??
-    normalizedImages[0]?.url ??
-    null
-  );
+  return extractArrPosterUrl(baseUrl, candidate.images);
 }
 
 function formatSeasonLabel(seasonNumber: number) {
@@ -410,62 +383,6 @@ export function compareLibrarySearchResults(left: LibrarySearchResult, right: Li
     left.title.localeCompare(right.title, undefined, { sensitivity: "base" }) ||
     (left.year ?? 0) - (right.year ?? 0)
   );
-}
-
-export async function extractErrorMessage(response: Response) {
-  try {
-    const payload = (await response.json()) as unknown;
-
-    if (typeof payload === "string" && payload.trim()) {
-      return payload;
-    }
-
-    if (Array.isArray(payload)) {
-      const messages = payload
-        .map((entry) => {
-          if (typeof entry === "string") {
-            return entry;
-          }
-
-          if (typeof entry === "object" && entry !== null) {
-            const errorMessage = (entry as { errorMessage?: unknown }).errorMessage;
-            const message = (entry as { message?: unknown }).message;
-
-            if (typeof errorMessage === "string" && errorMessage.trim()) {
-              return errorMessage;
-            }
-
-            if (typeof message === "string" && message.trim()) {
-              return message;
-            }
-          }
-
-          return null;
-        })
-        .filter((entry): entry is string => Boolean(entry));
-
-      if (messages.length > 0) {
-        return messages.join(" ");
-      }
-    }
-
-    if (typeof payload === "object" && payload !== null) {
-      const message = (payload as { message?: unknown }).message;
-      const errorMessage = (payload as { errorMessage?: unknown }).errorMessage;
-
-      if (typeof message === "string" && message.trim()) {
-        return message;
-      }
-
-      if (typeof errorMessage === "string" && errorMessage.trim()) {
-        return errorMessage;
-      }
-    }
-  } catch {
-    // Ignore JSON parsing errors and fall through to the generic message.
-  }
-
-  return `Library manager request failed with status ${response.status}.`;
 }
 
 export function buildLookupEndpoint(serviceType: LibraryManagerServiceType) {
