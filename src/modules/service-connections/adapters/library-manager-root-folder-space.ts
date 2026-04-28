@@ -6,14 +6,14 @@ import {
 } from "./verify-service-connection-helpers";
 import { type LibraryManagerMetadata } from "../library-manager-metadata";
 
-type RefreshLibraryManagerRootFolderDiskSpaceInput = {
+type RefreshLibraryManagerRootFolderFreeSpaceInput = {
   baseUrl: string;
   apiKey: string;
   rootFolders: LibraryManagerMetadata["rootFolders"];
 };
 
-export async function refreshLibraryManagerRootFolderDiskSpace(
-  input: RefreshLibraryManagerRootFolderDiskSpaceInput,
+export async function refreshLibraryManagerRootFolderFreeSpace(
+  input: RefreshLibraryManagerRootFolderFreeSpaceInput,
 ) {
   try {
     const rootFolders = await fetchJsonWithTimeout<LibraryManagerRootFolderResponse>(

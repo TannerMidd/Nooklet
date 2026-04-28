@@ -4,8 +4,8 @@ vi.mock("@/lib/security/secret-box", () => ({
   decryptSecret: vi.fn((value: string) => `decrypted:${value}`),
 }));
 
-vi.mock("@/modules/service-connections/adapters/library-manager-drive-space", () => ({
-  refreshLibraryManagerRootFolderDiskSpace: vi.fn(),
+vi.mock("@/modules/service-connections/adapters/library-manager-root-folder-space", () => ({
+  refreshLibraryManagerRootFolderFreeSpace: vi.fn(),
 }));
 
 vi.mock("@/modules/service-connections/repositories/service-connection-repository", () => ({
@@ -23,14 +23,14 @@ vi.mock("@/modules/service-connections/service-definitions", () => ({
   ],
 }));
 
-import { refreshLibraryManagerRootFolderDiskSpace } from "@/modules/service-connections/adapters/library-manager-drive-space";
+import { refreshLibraryManagerRootFolderFreeSpace } from "@/modules/service-connections/adapters/library-manager-root-folder-space";
 import { listServiceConnections } from "@/modules/service-connections/repositories/service-connection-repository";
 
 import { listConnectionSummaries } from "./list-connection-summaries";
 
 const mockedListServiceConnections = vi.mocked(listServiceConnections);
-const mockedRefreshLibraryManagerRootFolderDiskSpace = vi.mocked(
-  refreshLibraryManagerRootFolderDiskSpace,
+const mockedRefreshLibraryManagerRootFolderFreeSpace = vi.mocked(
+  refreshLibraryManagerRootFolderFreeSpace,
 );
 
 function createVerifiedSonarrRecord() {
@@ -80,7 +80,7 @@ describe("listConnectionSummaries", () => {
 
   it("refreshes drive space for verified Sonarr root folders at summary read time", async () => {
     mockedListServiceConnections.mockResolvedValue([createVerifiedSonarrRecord()]);
-    mockedRefreshLibraryManagerRootFolderDiskSpace.mockResolvedValue([
+    mockedRefreshLibraryManagerRootFolderFreeSpace.mockResolvedValue([
       {
         path: "/dmedia/TV Shows",
         label: "/dmedia/TV Shows",
@@ -91,7 +91,7 @@ describe("listConnectionSummaries", () => {
 
     const summaries = await listConnectionSummaries("user-1");
 
-    expect(mockedRefreshLibraryManagerRootFolderDiskSpace).toHaveBeenCalledWith({
+    expect(mockedRefreshLibraryManagerRootFolderFreeSpace).toHaveBeenCalledWith({
       baseUrl: "http://sonarr.example",
       apiKey: "decrypted:encrypted-sonarr-key",
       rootFolders: [
@@ -113,7 +113,7 @@ describe("listConnectionSummaries", () => {
 
   it("falls back to stored root-folder metadata when drive-space refresh fails", async () => {
     mockedListServiceConnections.mockResolvedValue([createVerifiedSonarrRecord()]);
-    mockedRefreshLibraryManagerRootFolderDiskSpace.mockRejectedValue(new Error("offline"));
+    mockedRefreshLibraryManagerRootFolderFreeSpace.mockRejectedValue(new Error("offline"));
 
     const summaries = await listConnectionSummaries("user-1");
 

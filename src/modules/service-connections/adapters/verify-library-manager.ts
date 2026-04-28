@@ -2,7 +2,6 @@ import { fetchJsonWithTimeout, trimTrailingSlash } from "@/lib/integrations/http
 import {
   buildLibraryManagerVerificationResult,
   normalizeLibraryManagerMetadata,
-  type LibraryManagerDiskSpaceResponse,
   type LibraryManagerQualityProfileResponse,
   type LibraryManagerRootFolderResponse,
   type LibraryManagerTagResponse,
@@ -31,17 +30,9 @@ export async function verifyLibraryManager(
       SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
     );
 
-    const [rootFolders, diskSpaces, qualityProfiles, tags] = await Promise.all([
+    const [rootFolders, qualityProfiles, tags] = await Promise.all([
       fetchJsonWithTimeout<LibraryManagerRootFolderResponse>(
         `${trimTrailingSlash(input.baseUrl)}/api/v3/rootfolder`,
-        {
-          headers,
-          cache: "no-store",
-        },
-        SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
-      ),
-      fetchJsonWithTimeout<LibraryManagerDiskSpaceResponse>(
-        `${trimTrailingSlash(input.baseUrl)}/api/v3/diskspace`,
         {
           headers,
           cache: "no-store",
@@ -67,7 +58,6 @@ export async function verifyLibraryManager(
     ]);
     const metadata = normalizeLibraryManagerMetadata({
       rootFolders,
-      diskSpaces,
       qualityProfiles,
       tags,
     });

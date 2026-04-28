@@ -4,6 +4,7 @@ import {
   buildAiProviderVerificationResult,
   buildLibraryManagerVerificationResult,
   buildSabnzbdVerificationResult,
+  mergeLibraryManagerRootFolderFreeSpace,
   normalizeAiProviderModelIds,
   normalizeLibraryManagerMetadata,
 } from "./verify-service-connection-helpers";
@@ -125,17 +126,17 @@ describe("verify-service-connection-helpers", () => {
     });
   });
 
-  it("adds matching disk space metadata to library root folders", () => {
+  it("normalizes root folder free-space metadata returned by the library manager", () => {
     expect(
       normalizeLibraryManagerMetadata({
         rootFolders: [
-          { path: "D:\\Media\\TV", name: "TV" },
+          {
+            path: "D:\\Media\\TV",
+            name: "TV",
+            freeSpace: 600_000_000_000,
+            totalSpace: 1_000_000_000_000,
+          },
           { path: "/mnt/library/movies", name: "Movies", freeSpace: 125_000_000_000 },
-        ],
-        diskSpaces: [
-          { path: "D:\\", freeSpace: 600_000_000_000, totalSpace: 1_000_000_000_000 },
-          { path: "/mnt", freeSpace: 450_000_000_000, totalSpace: 2_000_000_000_000 },
-          { path: "/mnt/library", freeSpace: 80_000_000_000, totalSpace: 500_000_000_000 },
         ],
         qualityProfiles: [{ id: 7, name: "HD-1080p" }],
         tags: [],
@@ -152,7 +153,6 @@ describe("verify-service-connection-helpers", () => {
           path: "/mnt/library/movies",
           label: "Movies",
           freeSpaceBytes: 125_000_000_000,
-          totalSpaceBytes: 500_000_000_000,
         },
       ],
       qualityProfiles: [{ id: 7, name: "HD-1080p" }],
@@ -160,23 +160,26 @@ describe("verify-service-connection-helpers", () => {
     });
   });
 
-  it("does not apply a generic root diskspace entry to every library root folder", () => {
+  it("refreshes stored root folder free space from exact root-folder responses", () => {
     expect(
-      normalizeLibraryManagerMetadata({
-        rootFolders: [
-          { path: "/dmedia/Movies", name: "/dmedia/Movies" },
-          { path: "/emedia/Movies", name: "/emedia/Movies" },
+      mergeLibraryManagerRootFolderFreeSpace(
+        [
+          {
+            path: "/dmedia/Movies",
+            label: "/dmedia/Movies",
+            freeSpaceBytes: 36_000_000_000,
+            totalSpaceBytes: 102_000_000_000,
+          },
+          { path: "/emedia/Movies", label: "/emedia/Movies" },
         ],
-        diskSpaces: [
-          { path: "/", freeSpace: 36_000_000_000, totalSpace: 102_000_000_000 },
-          { path: "/config", freeSpace: 36_000_000_000, totalSpace: 102_000_000_000 },
+        [
+          { path: "/dmedia/Movies", freeSpace: 24_000_000_000 },
+          { path: "/emedia/Movies", freeSpace: 838_000_000_000 },
         ],
-        qualityProfiles: [{ id: 7, name: "HD-1080p" }],
-        tags: [],
-      }).rootFolders,
+      ),
     ).toEqual([
-      { path: "/dmedia/Movies", label: "/dmedia/Movies" },
-      { path: "/emedia/Movies", label: "/emedia/Movies" },
+      { path: "/dmedia/Movies", label: "/dmedia/Movies", freeSpaceBytes: 24_000_000_000 },
+      { path: "/emedia/Movies", label: "/emedia/Movies", freeSpaceBytes: 838_000_000_000 },
     ]);
   });
 

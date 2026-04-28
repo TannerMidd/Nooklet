@@ -24,12 +24,8 @@ function buildInput(overrides: Partial<VerifyServiceConnectionInput> = {}): Veri
 }
 
 const HEALTHY_ROOT_FOLDERS = [
-  { path: "/tv", name: "TV" },
-  { path: "/anime", name: "Anime" },
-];
-const HEALTHY_DISK_SPACES = [
-  { path: "/", freeSpace: 750_000_000_000, totalSpace: 2_000_000_000_000 },
-  { path: "/anime", freeSpace: 90_000_000_000, totalSpace: 500_000_000_000 },
+  { path: "/tv", name: "TV", freeSpace: 750_000_000_000, totalSpace: 2_000_000_000_000 },
+  { path: "/anime", name: "Anime", freeSpace: 90_000_000_000, totalSpace: 500_000_000_000 },
 ];
 const HEALTHY_QUALITY_PROFILES = [
   { id: 1, name: "HD-1080p" },
@@ -45,7 +41,6 @@ function mockHealthyResponses() {
     const target = String(url);
     if (target.endsWith("/system/status")) return { version: "4.0.0" } as never;
     if (target.endsWith("/rootfolder")) return HEALTHY_ROOT_FOLDERS as never;
-    if (target.endsWith("/diskspace")) return HEALTHY_DISK_SPACES as never;
     if (target.endsWith("/qualityprofile")) return HEALTHY_QUALITY_PROFILES as never;
     if (target.endsWith("/tag")) return HEALTHY_TAGS as never;
     throw new Error(`unexpected url: ${target}`);
@@ -57,15 +52,14 @@ describe("verifyLibraryManager", () => {
     vi.clearAllMocks();
   });
 
-  it("hits all five endpoints with the X-Api-Key header on the configured base URL", async () => {
+  it("hits all four endpoints with the X-Api-Key header on the configured base URL", async () => {
     mockHealthyResponses();
 
     await verifyLibraryManager(buildInput());
 
-    expect(fetchJsonMock).toHaveBeenCalledTimes(5);
+    expect(fetchJsonMock).toHaveBeenCalledTimes(4);
     const calledUrls = fetchJsonMock.mock.calls.map((call) => String(call[0])).sort();
     expect(calledUrls).toEqual([
-      "https://sonarr.test/api/v3/diskspace",
       "https://sonarr.test/api/v3/qualityprofile",
       "https://sonarr.test/api/v3/rootfolder",
       "https://sonarr.test/api/v3/system/status",
@@ -105,7 +99,6 @@ describe("verifyLibraryManager", () => {
         throw new Error("metadata endpoints called before /system/status resolved");
       }
       if (target.endsWith("/rootfolder")) return HEALTHY_ROOT_FOLDERS as never;
-      if (target.endsWith("/diskspace")) return HEALTHY_DISK_SPACES as never;
       if (target.endsWith("/qualityprofile")) return HEALTHY_QUALITY_PROFILES as never;
       if (target.endsWith("/tag")) return HEALTHY_TAGS as never;
       throw new Error(`unexpected url: ${target}`);
@@ -127,6 +120,8 @@ describe("verifyLibraryManager", () => {
         {
           path: "/tv",
           label: "TV",
+          freeSpaceBytes: 750_000_000_000,
+          totalSpaceBytes: 2_000_000_000_000,
         },
         {
           path: "/anime",
@@ -157,7 +152,6 @@ describe("verifyLibraryManager", () => {
           { path: "/extra" }, // missing name -> falls back to path as label
           { name: "no path" }, // dropped
         ] as never;
-      if (target.endsWith("/diskspace")) return [] as never;
       if (target.endsWith("/qualityprofile"))
         return [
           { id: 1, name: "HD" }, // valid
@@ -192,7 +186,6 @@ describe("verifyLibraryManager", () => {
       const target = String(url);
       if (target.endsWith("/system/status")) return {} as never;
       if (target.endsWith("/rootfolder")) return [] as never;
-      if (target.endsWith("/diskspace")) return HEALTHY_DISK_SPACES as never;
       if (target.endsWith("/qualityprofile")) return HEALTHY_QUALITY_PROFILES as never;
       if (target.endsWith("/tag")) return HEALTHY_TAGS as never;
       throw new Error(`unexpected url: ${target}`);
@@ -211,7 +204,6 @@ describe("verifyLibraryManager", () => {
       const target = String(url);
       if (target.endsWith("/system/status")) return {} as never;
       if (target.endsWith("/rootfolder")) return HEALTHY_ROOT_FOLDERS as never;
-      if (target.endsWith("/diskspace")) return HEALTHY_DISK_SPACES as never;
       if (target.endsWith("/qualityprofile")) return [] as never;
       if (target.endsWith("/tag")) return HEALTHY_TAGS as never;
       throw new Error(`unexpected url: ${target}`);
@@ -230,7 +222,6 @@ describe("verifyLibraryManager", () => {
       const target = String(url);
       if (target.endsWith("/system/status")) return {} as never;
       if (target.endsWith("/rootfolder")) return HEALTHY_ROOT_FOLDERS as never;
-      if (target.endsWith("/diskspace")) return HEALTHY_DISK_SPACES as never;
       if (target.endsWith("/qualityprofile")) return HEALTHY_QUALITY_PROFILES as never;
       if (target.endsWith("/tag")) return [] as never;
       throw new Error(`unexpected url: ${target}`);

@@ -89,12 +89,6 @@ export type LibraryManagerRootFolderResponse = Array<{
   totalSpace?: number;
 }>;
 
-export type LibraryManagerDiskSpaceResponse = Array<{
-  path?: string;
-  freeSpace?: number;
-  totalSpace?: number;
-}>;
-
 export type LibraryManagerQualityProfileResponse = Array<{
   id?: number;
   name?: string;
@@ -115,42 +109,12 @@ function normalizeRemotePath(value: string) {
   return normalized.replace(/\/+$/, "");
 }
 
-function pathWithTrailingSeparator(value: string) {
-  return value.endsWith("/") ? value : `${value}/`;
-}
-
 function isNonnegativeByteCount(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 function normalizeByteCount(value: unknown) {
   return isNonnegativeByteCount(value) ? Math.trunc(value) : null;
-}
-
-function findDiskSpaceForRootFolder(
-  rootFolderPath: string,
-  diskSpaces: LibraryManagerDiskSpaceResponse,
-) {
-  const normalizedRootFolderPath = normalizeRemotePath(rootFolderPath);
-
-  return diskSpaces
-    .map((entry) => {
-      const diskPath = typeof entry.path === "string" ? normalizeRemotePath(entry.path) : "";
-
-      if (!diskPath || diskPath === "/") {
-        return null;
-      }
-
-      const matches =
-        normalizedRootFolderPath === diskPath ||
-        normalizedRootFolderPath.startsWith(pathWithTrailingSeparator(diskPath));
-
-      return matches ? { entry, pathLength: diskPath.length } : null;
-    })
-    .filter((entry): entry is { entry: LibraryManagerDiskSpaceResponse[number]; pathLength: number } =>
-      entry !== null,
-    )
-    .sort((left, right) => right.pathLength - left.pathLength)[0]?.entry;
 }
 
 function findRemoteRootFolder(
@@ -179,31 +143,10 @@ export function mergeLibraryManagerRootFolderFreeSpace(
 
     const freeSpaceBytes = normalizeByteCount(remoteRootFolder.freeSpace);
     const totalSpaceBytes = normalizeByteCount(remoteRootFolder.totalSpace);
-    const baseRootFolder = { ...rootFolder };
-
-    delete baseRootFolder.freeSpaceBytes;
-    delete baseRootFolder.totalSpaceBytes;
 
     return {
-      ...baseRootFolder,
-      ...(freeSpaceBytes !== null ? { freeSpaceBytes } : {}),
-      ...(totalSpaceBytes !== null ? { totalSpaceBytes } : {}),
-    };
-  });
-}
-
-export function mergeLibraryManagerRootFolderDiskSpace(
-  rootFolders: LibraryManagerMetadata["rootFolders"],
-  diskSpaces: LibraryManagerDiskSpaceResponse,
-): LibraryManagerMetadata["rootFolders"] {
-  return rootFolders.map((rootFolder) => {
-    const diskSpace = findDiskSpaceForRootFolder(rootFolder.path, diskSpaces);
-    const freeSpaceBytes =
-      rootFolder.freeSpaceBytes ?? normalizeByteCount(diskSpace?.freeSpace);
-    const totalSpaceBytes = normalizeByteCount(diskSpace?.totalSpace);
-
-    return {
-      ...rootFolder,
+      path: rootFolder.path,
+      label: rootFolder.label,
       ...(freeSpaceBytes !== null ? { freeSpaceBytes } : {}),
       ...(totalSpaceBytes !== null ? { totalSpaceBytes } : {}),
     };
@@ -212,15 +155,11 @@ export function mergeLibraryManagerRootFolderDiskSpace(
 
 export function normalizeLibraryManagerMetadata(input: {
   rootFolders: LibraryManagerRootFolderResponse;
-  diskSpaces?: LibraryManagerDiskSpaceResponse;
   qualityProfiles: LibraryManagerQualityProfileResponse;
   tags: LibraryManagerTagResponse;
 }): LibraryManagerMetadata {
-  const diskSpaces = input.diskSpaces ?? [];
-
   return {
-    rootFolders: mergeLibraryManagerRootFolderDiskSpace(
-      input.rootFolders
+    rootFolders: input.rootFolders
       .map((entry) => {
         const path = typeof entry.path === "string" ? entry.path.trim() : "";
         const label = typeof entry.name === "string" ? entry.name.trim() : path;
@@ -240,8 +179,6 @@ export function normalizeLibraryManagerMetadata(input: {
         };
       })
       .filter((entry): entry is LibraryManagerMetadata["rootFolders"][number] => entry !== null),
-      diskSpaces,
-    ),
     qualityProfiles: input.qualityProfiles
       .map((entry) => {
         if (typeof entry.id !== "number" || typeof entry.name !== "string") {
