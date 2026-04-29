@@ -241,4 +241,5 @@ advisory** rather than a public issue.
 
 ## License
 
-TBD.
+Released under the [MIT License](LICENSE) — free for personal and commercial
+use, modification, and distribution. Attribution required.
