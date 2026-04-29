@@ -21,6 +21,11 @@ with a single click.
 > Treat it with the same scrutiny as any other third-party code, and report
 > suspected bugs or security issues through GitHub.
 
+> **Disclaimer**
+> Recommendarr is a personal project maintained in my spare time. Issues, pull
+> requests, and feature ideas are welcome, but responses, fixes, and new
+> features are **not guaranteed** and may land on no particular schedule.
+
 ---
 
 ## Table of contents
