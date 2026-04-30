@@ -18,16 +18,16 @@ export default async function BootstrapPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Identity foundation"
+        eyebrow="Welcome in"
         title="Create the first administrator"
-        description="Set up the first account for this Nooklet install."
+        description="Set up the first account for this Nooklet install — you'll use it to sign in and invite anyone else."
       />
 
       <div>
         <Panel
           eyebrow="First account"
           title="One-time setup"
-          description="Create the admin account you will use to sign in."
+          description="Pick the admin account you'll use to sign in."
         >
           <BootstrapForm />
         </Panel>

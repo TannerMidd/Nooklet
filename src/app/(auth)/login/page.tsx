@@ -35,14 +35,14 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       <PageHeader
         eyebrow="Welcome back"
         title="Sign in"
-        description="Use your Nooklet account to access saved recommendations, service connections, and library actions."
+        description="Settle back in — your saved recommendations, connections, and library actions are right where you left them."
       />
 
       <div>
         <Panel
           eyebrow="Account access"
           title="Local sign in"
-          description="Use your Nooklet account."
+          description="Sign in to pick up where you left off."
         >
           <LoginForm showBootstrapSuccess={resolvedSearchParams?.bootstrapped === "1"} />
         </Panel>

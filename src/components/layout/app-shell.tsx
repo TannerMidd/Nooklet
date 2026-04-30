@@ -23,7 +23,7 @@ export function AppShell({ children, user }: AppShellProps) {
           <aside className="lg:sticky lg:top-7 lg:w-80 lg:flex-none xl:w-[21rem]">
             <div className="rounded-3xl border border-line/70 bg-panel/90 p-4 shadow-soft ring-1 ring-white/[0.03] backdrop-blur sm:p-5 lg:max-h-[calc(100vh-3.5rem)] lg:overflow-y-auto">
               <p className="text-[0.7rem] font-semibold uppercase tracking-[0.26em] text-accent sm:text-xs sm:tracking-[0.32em]">
-                Personal workspace
+                Your nook
               </p>
               <div className="mt-4 flex items-start gap-3">
                 <Link
@@ -41,7 +41,7 @@ export function AppShell({ children, user }: AppShellProps) {
                     Nooklet
                   </Link>
                   <p className="text-sm leading-6 text-muted">
-                    Recommendations, watch history, and library actions in one place.
+                    A cozy corner for what&apos;s next — recommendations, history, and your library, all in one place.
                   </p>
                 </div>
               </div>
