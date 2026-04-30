@@ -19,7 +19,7 @@ import {
   type NotificationChannelType,
   type NotificationEventType,
 } from "@/lib/database/schema";
-import { type NotificationChannelView } from "@/modules/notifications/repositories/notification-channels-repository";
+import { type NotificationChannelView } from "@/modules/notifications/queries/list-notification-channels";
 
 const channelTypeLabels: Record<NotificationChannelType, string> = {
   webhook: "Webhook (generic JSON POST)",

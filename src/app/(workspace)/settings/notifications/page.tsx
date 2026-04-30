@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { NotificationChannelsForm } from "@/app/(workspace)/settings/notifications/notification-channels-form";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
-import { listNotificationChannelsForUser } from "@/modules/notifications/repositories/notification-channels-repository";
+import { listNotificationChannels } from "@/modules/notifications/queries/list-notification-channels";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export default async function NotificationsSettingsPage() {
     return null;
   }
 
-  const channels = await listNotificationChannelsForUser(session.user.id);
+  const channels = await listNotificationChannels(session.user.id);
 
   return (
     <div className="space-y-6">
