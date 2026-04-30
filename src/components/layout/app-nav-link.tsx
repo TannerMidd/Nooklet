@@ -1,11 +1,26 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { type ReactNode } from "react";
 
 import { type NavigationItem } from "@/config/navigation";
 import { cn } from "@/lib/utils";
+
+function NavLinkPendingIndicator() {
+  const { pending } = useLinkStatus();
+
+  if (!pending) {
+    return null;
+  }
+
+  return (
+    <span
+      aria-hidden="true"
+      className="ml-2 inline-block h-3 w-3 flex-none animate-spin rounded-full border-2 border-accent border-t-transparent"
+    />
+  );
+}
 
 type AppNavLinkProps = {
   item: NavigationItem;
@@ -44,7 +59,10 @@ export function AppNavLink({ item, badge }: AppNavLinkProps) {
       />
       <span className="flex min-w-0 items-start justify-between gap-3">
         <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold text-current">{item.label}</span>
+          <span className="flex items-center text-sm font-semibold text-current">
+            <span className="block truncate">{item.label}</span>
+            <NavLinkPendingIndicator />
+          </span>
           <span className="mt-1 block line-clamp-1 text-xs leading-5 text-muted">
             {item.description}
           </span>
