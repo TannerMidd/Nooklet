@@ -36,9 +36,9 @@ export function RecommendationTrailerSection({ videos, title }: RecommendationTr
 
   return (
     <section className="space-y-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Trailers and clips</p>
+      <p className="font-heading text-sm italic text-accent">Trailers and clips</p>
 
-      <div className="overflow-hidden rounded-2xl border border-line/70 bg-panel-strong/70">
+      <div className="overflow-hidden rounded-lg border border-line/70 bg-panel-strong/60">
         {activeKey ? (
           <div className="relative aspect-video w-full bg-black">
             <iframe
@@ -63,9 +63,9 @@ export function RecommendationTrailerSection({ videos, title }: RecommendationTr
               loading="lazy"
               className="h-full w-full object-cover opacity-80 transition group-hover:opacity-100"
             />
-            <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(18,22,29,0.1),rgba(18,22,29,0.7))]" />
+            <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(24,20,32,0.1),rgba(24,20,32,0.72))]" />
             <span className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-foreground">
-              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-background shadow-soft">
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-accent-foreground">
                 <Play className="h-7 w-7" aria-hidden="true" />
               </span>
               <span className="px-4 text-center text-sm font-medium leading-6 text-foreground">

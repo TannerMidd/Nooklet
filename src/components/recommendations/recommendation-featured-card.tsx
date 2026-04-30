@@ -60,29 +60,29 @@ export function RecommendationFeaturedCard({
 
   return (
     <article
-      className="recommendation-featured-card flex h-full flex-col rounded-[30px] border border-line/70 bg-[linear-gradient(180deg,rgba(33,39,49,0.96),rgba(24,29,37,0.98))] p-5 shadow-soft"
+      className="recommendation-featured-card flex h-full flex-col rounded-xl border border-line/70 bg-panel p-5"
       style={{ animationDelay: `${animationDelayMs}ms` }}
     >
       <Link
         href={resolvedOverviewHref}
         scroll={false}
-        className="relative block space-y-5 rounded-[24px] outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent/50"
+        className="relative block space-y-5 rounded-lg outline-none transition hover:opacity-90 focus-visible:ring-1 focus-visible:ring-accent/50"
       >
-        <LinkPendingOverlay className="rounded-[24px]" />
+        <LinkPendingOverlay className="rounded-lg" />
         <div className="grid gap-4 sm:grid-cols-[6.25rem_minmax(0,1fr)] sm:items-start">
           <div className="mx-auto sm:mx-0">
             <RecommendationPoster title={title} posterUrl={providerMetadata?.posterUrl} />
           </div>
 
           <div className="min-w-0 space-y-3 sm:pt-1">
-            <div className="flex flex-wrap gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted">
+            <div className="flex flex-wrap gap-2 text-xs text-muted">
               {confidenceLabel ? (
-                <span className="rounded-full border border-line/70 bg-panel-strong/70 px-3 py-1.5 text-foreground">
+                <span className="rounded-md border border-line/70 bg-panel-strong/70 px-3 py-1.5 font-medium text-foreground">
                   {formatConfidenceLabel(confidenceLabel)}
                 </span>
               ) : null}
               {existingInLibrary ? (
-                <span className="rounded-full border border-accent/25 bg-accent/10 px-3 py-1.5 text-foreground">
+                <span className="rounded-md border border-accent/30 bg-accent/10 px-3 py-1.5 font-medium text-foreground">
                   Existing in library
                 </span>
               ) : null}

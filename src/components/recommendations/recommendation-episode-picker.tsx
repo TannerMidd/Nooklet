@@ -141,7 +141,7 @@ export function RecommendationEpisodePicker({
           return (
             <section
               key={group.seasonNumber}
-              className="rounded-[28px] border border-line/70 bg-panel/80 p-5"
+              className="rounded-lg border border-line/70 bg-panel-strong/40 p-5"
             >
               <header className="flex flex-wrap items-center justify-between gap-3">
                 <div>

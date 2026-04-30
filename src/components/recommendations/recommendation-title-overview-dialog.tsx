@@ -66,7 +66,7 @@ export function RecommendationTitleOverviewDialog({
   return (
     <RecommendationOverviewModalShell titleId={titleId} closeHref={closeHref}>
       <div className="space-y-6 p-5 md:p-8">
-        <header className="relative overflow-hidden rounded-[28px] border border-line/80 bg-panel-strong/70">
+        <header className="relative overflow-hidden rounded-lg border border-line/80 bg-panel-strong/60">
           {details?.backdropUrl ? (
             <Image
               src={details.backdropUrl}
@@ -77,12 +77,12 @@ export function RecommendationTitleOverviewDialog({
               className="object-cover opacity-30"
             />
           ) : null}
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(18,22,29,0.98),rgba(18,22,29,0.76),rgba(18,22,29,0.94))]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(24,20,32,0.96),rgba(24,20,32,0.74),rgba(24,20,32,0.92))]" />
           <div className="relative flex flex-col gap-5 p-5 md:flex-row md:items-start md:p-7">
             <RecommendationPoster title={item.title} posterUrl={posterUrl} />
             <div className="min-w-0 flex-1 space-y-4">
               <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent">
+                <p className="font-heading text-sm italic text-accent">
                   {item.mediaType === "tv" ? "TV recommendation" : "Movie recommendation"}
                 </p>
                 <h2 id={titleId} className="font-heading text-3xl leading-tight text-foreground md:text-4xl">
@@ -93,7 +93,7 @@ export function RecommendationTitleOverviewDialog({
                   <p className="max-w-4xl text-base leading-7 text-muted">{details.tagline}</p>
                 ) : null}
               </div>
-              <div className="flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+              <div className="flex flex-wrap gap-3 text-xs text-muted">
                 {item.confidenceLabel ? <span>{item.confidenceLabel}</span> : null}
                 {genresLabel ? <span>{genresLabel}</span> : null}
                 {details?.originalLanguage ? <span>{formatOriginalLanguage(details.originalLanguage)}</span> : null}
@@ -106,22 +106,22 @@ export function RecommendationTitleOverviewDialog({
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)]">
           <section className="space-y-5 text-sm leading-7 text-foreground">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Overview</p>
+              <p className="font-heading text-sm italic text-accent">Overview</p>
               <p className="mt-3">{details?.overview ?? item.rationale}</p>
             </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Recommendation rationale</p>
+            <div className="rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-3">
+              <p className="font-heading text-sm italic text-muted">Recommendation rationale</p>
               <p className="mt-2 text-sm leading-7 text-foreground">{item.rationale}</p>
             </div>
             {tmdbLookupMessage ? (
-              <p className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm text-muted">
+              <p className="rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-3 text-sm text-muted">
                 {tmdbLookupMessage}
               </p>
             ) : null}
           </section>
 
           <section className="space-y-4 text-sm leading-6 text-foreground">
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+            <div className="rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-3">
               <span className="font-medium">Generated:</span> {formatDate(item.runCreatedAt)}
               <p className="mt-1 text-muted">Prompt: {item.requestPrompt || "Taste-based automatic request"}</p>
             </div>
@@ -143,7 +143,7 @@ export function RecommendationTitleOverviewDialog({
         </div>
 
         <section className="space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Title facts</p>
+          <p className="font-heading text-sm italic text-accent">Title facts</p>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Fact label="Original language" value={formatOriginalLanguage(details?.originalLanguage)} />
             <Fact label="Release" value={releaseLabel} />
@@ -171,7 +171,7 @@ export function RecommendationTitleOverviewDialog({
         ) : null}
 
         <section className="space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Status timeline</p>
+          <p className="font-heading text-sm italic text-accent">Status timeline</p>
           <RecommendationTimeline events={timeline} />
         </section>
       </div>

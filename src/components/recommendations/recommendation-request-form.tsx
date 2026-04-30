@@ -311,10 +311,10 @@ export function RecommendationRequestForm({
                 type="button"
                 aria-pressed={isSelected}
                 onClick={() => toggleSelectedGenre(option.value)}
-                className={`inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                className={`inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50 ${
                   isSelected
-                    ? "border-accent/40 bg-accent/10 text-foreground shadow-[0_8px_22px_rgba(91,202,183,0.1)]"
-                    : "border-line/80 bg-panel-strong/65 text-muted hover:border-accent/30 hover:bg-panel hover:text-foreground"
+                    ? "border-accent/50 bg-accent/15 text-foreground"
+                    : "border-line/80 bg-panel-strong/60 text-muted hover:border-accent/30 hover:bg-panel-strong hover:text-foreground"
                 }`}
               >
                 {option.label}

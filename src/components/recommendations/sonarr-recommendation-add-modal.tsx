@@ -84,7 +84,7 @@ export function SonarrRecommendationAddModal({
                 disabled={isSavingDefaults}
               />
 
-              <section className="rounded-[28px] border border-line/70 bg-panel-strong/70 p-5 md:p-6">
+              <section className="rounded-lg border border-line/70 bg-panel-strong/60 p-5 md:p-6">
                 <div className="space-y-4">
                   <div>
                     <h4 className="text-sm font-medium text-foreground">Seasons</h4>

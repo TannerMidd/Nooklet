@@ -215,9 +215,9 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
             {summaryItems.map((item) => (
               <div
                 key={item.label}
-                className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3"
+                className="rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-3"
               >
-                <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-muted">
+                <p className="font-heading text-xs italic text-muted">
                   {item.label}
                 </p>
                 <p className="mt-2 font-medium text-foreground">{item.value}</p>
@@ -266,7 +266,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
             </Link>
           </div>
         ) : snapshot && snapshot.items.length > 0 ? (
-          <div className="rounded-[28px] border border-line/70 bg-panel-strong/60 p-3 sm:p-4">
+          <div className="rounded-lg border border-line/70 bg-panel-strong/50 p-3 sm:p-4">
             <div className="flex flex-col gap-2 border-b border-line/70 px-1 pb-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-medium text-foreground">Queue items</p>
@@ -274,7 +274,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
                   Scroll this list when the downloader backlog is long, then drag cards to reorder them or use the fallback queue controls.
                 </p>
               </div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted">
+              <p className="font-heading text-xs italic text-muted">
                 Showing {snapshot.items.length} of {snapshot.totalQueueCount}
               </p>
             </div>
@@ -299,24 +299,24 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
                     handleDrop(event, item.id);
                   }}
                   onDragEnd={handleDragEnd}
-                  className={`rounded-2xl border px-4 py-4 transition ${
+                  className={`rounded-lg border px-4 py-4 transition ${
                     draggedItemId === item.id
-                      ? "border-accent/40 bg-panel shadow-soft opacity-70"
+                      ? "border-accent/50 bg-panel-strong opacity-70"
                       : dragTargetItemId === item.id
-                        ? "border-accent bg-panel shadow-soft"
-                        : "border-line/70 bg-panel/90"
+                        ? "border-accent bg-panel-strong"
+                        : "border-line/70 bg-panel"
                   }`}
                 >
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-muted">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
                         <span className="rounded-full border border-line/70 bg-panel-strong px-2 py-1">
                           Drag to reorder
                         </span>
                         {dragTargetItemId === item.id ? <span>Drop here</span> : null}
                       </div>
                       <p className="font-medium text-foreground">{item.title}</p>
-                      <div className="flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+                      <div className="flex flex-wrap gap-3 text-xs text-muted">
                         <span>{item.status}</span>
                         {item.category ? <span>{item.category}</span> : null}
                         {item.priority ? <span>{item.priority}</span> : null}

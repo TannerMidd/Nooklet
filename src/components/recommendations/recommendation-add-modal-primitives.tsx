@@ -116,7 +116,7 @@ export function RecommendationDestinationFields({
   );
 
   return (
-    <section className="rounded-[28px] border border-line/70 bg-panel-strong/70 p-5 md:p-6">
+    <section className="rounded-lg border border-line/70 bg-panel-strong/60 p-5 md:p-6">
       <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-2">
@@ -126,7 +126,7 @@ export function RecommendationDestinationFields({
               value={selectedRootFolderPath}
               onChange={(event) => onRootFolderPathChange(event.target.value)}
               disabled={disabled}
-              className="min-h-11 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
+              className="min-h-11 w-full rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/60 focus:ring-1 focus:ring-accent/30"
               aria-invalid={Boolean(fieldErrors?.rootFolderPath)}
             >
               {connectionSummary.rootFolders.map((entry) => (
@@ -147,7 +147,7 @@ export function RecommendationDestinationFields({
               value={String(selectedQualityProfileId ?? "")}
               onChange={(event) => onQualityProfileIdChange(Number.parseInt(event.target.value, 10))}
               disabled={disabled}
-              className="min-h-11 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
+              className="min-h-11 w-full rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/60 focus:ring-1 focus:ring-accent/30"
               aria-invalid={Boolean(fieldErrors?.qualityProfileId)}
             >
               {connectionSummary.qualityProfiles.map((entry) => (
@@ -243,7 +243,7 @@ export function RecommendationTagFields({
   fieldErrors: RecommendationLibraryActionState["fieldErrors"];
 }) {
   return (
-    <section className="rounded-[28px] border border-line/70 bg-panel-strong/70 p-5 md:p-6">
+    <section className="rounded-lg border border-line/70 bg-panel-strong/60 p-5 md:p-6">
       <div className="space-y-4">
         <div>
           <h4 className="text-sm font-medium text-foreground">Tags</h4>
@@ -253,7 +253,7 @@ export function RecommendationTagFields({
         </div>
 
         {connectionSummary.tags.length === 0 ? (
-          <p className="rounded-2xl border border-line/70 bg-panel px-4 py-3 text-sm text-muted">
+          <p className="rounded-lg border border-line/70 bg-panel px-4 py-3 text-sm text-muted">
             No tags were returned by the verified connection.
           </p>
         ) : (
@@ -261,7 +261,7 @@ export function RecommendationTagFields({
             {connectionSummary.tags.map((tag) => (
               <label
                 key={tag.id}
-                className="flex items-center gap-2 rounded-2xl border border-line/70 bg-panel px-4 py-3 text-sm text-foreground"
+                className="flex items-center gap-2 rounded-lg border border-line/70 bg-panel px-4 py-3 text-sm text-foreground"
               >
                 <input
                   type="checkbox"
@@ -283,7 +283,7 @@ export function RecommendationTagFields({
 
 export function RecommendationAddSummaryCard({ children }: { children: ReactNode }) {
   return (
-    <section className="rounded-[28px] border border-line/70 bg-panel-strong/70 p-5 md:p-6">
+    <section className="rounded-lg border border-line/70 bg-panel-strong/60 p-5 md:p-6">
       <div className="space-y-3">
         <h4 className="text-sm font-medium text-foreground">What happens next</h4>
         <div className="text-sm leading-6 text-muted">{children}</div>
@@ -337,7 +337,7 @@ export function RecommendationAddModalShell({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[150] bg-background/80 backdrop-blur-md"
+      className="fixed inset-0 z-[150] bg-background/85"
       onClick={() => {
         if (!closeDisabled) {
           onClose();
@@ -350,14 +350,14 @@ export function RecommendationAddModalShell({
           aria-modal="true"
           aria-labelledby={titleId}
           className={cn(
-            "flex max-h-[min(88vh,58rem)] w-full flex-col overflow-hidden rounded-[36px] border border-line/80 bg-panel shadow-soft",
+            "flex max-h-[min(88vh,58rem)] w-full flex-col overflow-hidden rounded-xl border border-line/80 bg-panel",
             maxWidthClassName,
           )}
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex items-start justify-between gap-4 border-b border-line/70 px-6 py-5 md:px-8 md:py-6">
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+              <p className="font-heading text-sm italic text-accent">
                 Library add
               </p>
               <h3 id={titleId} className="font-heading text-3xl leading-tight text-foreground md:text-4xl">

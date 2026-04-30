@@ -59,7 +59,7 @@ export function RecommendationOverviewModalShell({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[130] bg-background/80 px-4 py-6 backdrop-blur-md md:px-8 md:py-10"
+      className="fixed inset-0 z-[130] bg-background/85 px-4 py-6 md:px-8 md:py-10"
       onClick={closeModal}
     >
       <div className="flex min-h-full items-center justify-center">
@@ -67,7 +67,7 @@ export function RecommendationOverviewModalShell({
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
-          className="flex max-h-[min(90vh,62rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[36px] border border-line/80 bg-panel shadow-soft"
+          className="flex max-h-[min(90vh,62rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-line/80 bg-panel"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex justify-end border-b border-line/70 px-5 py-4 md:px-8">

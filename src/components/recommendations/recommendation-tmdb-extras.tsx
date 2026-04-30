@@ -19,12 +19,12 @@ export function RecommendationCastSection({ cast }: { cast: TmdbCastMember[] }) 
 
   return (
     <section className="space-y-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Top cast</p>
+      <p className="font-heading text-sm italic text-accent">Top cast</p>
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-4">
         {cast.map((member) => (
           <li
             key={member.id}
-            className="flex items-center gap-3 rounded-2xl border border-line/70 bg-panel-strong/70 p-3"
+            className="flex items-center gap-3 rounded-lg border border-line/70 bg-panel-strong/60 p-3"
           >
             <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-full border border-line/60 bg-panel">
               {member.profileUrl ? (
@@ -75,7 +75,7 @@ export function RecommendationWatchProvidersSection({
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+        <p className="font-heading text-sm italic text-accent">
           Where to watch ({providers.countryCode})
         </p>
         {providers.link ? (
@@ -99,7 +99,7 @@ export function RecommendationWatchProvidersSection({
               {list.map((provider) => (
                 <li
                   key={`${category}-${provider.providerId}`}
-                  className="flex items-center gap-2 rounded-2xl border border-line/70 bg-panel-strong/70 px-3 py-2 text-sm text-foreground"
+                  className="flex items-center gap-2 rounded-md border border-line/70 bg-panel-strong/60 px-3 py-2 text-sm text-foreground"
                   title={provider.providerName}
                 >
                   {provider.logoUrl ? (
@@ -139,14 +139,14 @@ export function RecommendationSimilarTitlesSection({
 
   return (
     <section className="space-y-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">More like this</p>
+      <p className="font-heading text-sm italic text-accent">More like this</p>
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-6">
         {similar.map((title) => (
           <li
             key={`${title.mediaType}-${title.tmdbId}`}
-            className="flex flex-col gap-2 rounded-2xl border border-line/70 bg-panel-strong/70 p-3"
+            className="flex flex-col gap-2 rounded-lg border border-line/70 bg-panel-strong/60 p-3"
           >
-            <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl border border-line/60 bg-panel">
+            <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border border-line/60 bg-panel">
               {title.posterUrl ? (
                 <Image
                   src={title.posterUrl}

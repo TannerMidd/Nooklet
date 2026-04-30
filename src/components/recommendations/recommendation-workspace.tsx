@@ -192,13 +192,13 @@ export async function RecommendationWorkspace({
 
       {featuredRun ? (
         <section
-          className={`rounded-[32px] border border-line/80 bg-panel/90 px-6 py-6 shadow-soft backdrop-blur md:px-8 xl:px-10 ${
+          className={`rounded-xl border border-line/70 bg-panel px-6 py-6 md:px-8 xl:px-10 ${
             wasJustGenerated && featuredRun.id === activeRunId ? "recommendation-featured-run recommendation-featured-run--fresh" : ""
           }`}
         >
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">
+              <p className="font-heading text-sm italic text-accent">
                 {wasJustGenerated && featuredRun.id === activeRunId ? "Fresh batch" : "Latest batch"}
               </p>
               <div className="space-y-2">
@@ -292,7 +292,7 @@ export async function RecommendationWorkspace({
             {previousRuns.map((run) => (
               <article
                 key={run.id}
-                className="rounded-[24px] border border-line/70 bg-panel-strong/70 p-5"
+                className="rounded-lg border border-line/70 bg-panel-strong/60 p-5"
               >
                 {(() => {
                   const genreSummary = formatGenreSummary(run.selectedGenres);
@@ -338,7 +338,7 @@ export async function RecommendationWorkspace({
                     {run.items.map((item) => (
                       <div
                         key={item.id}
-                        className="rounded-[24px] border border-line/70 bg-panel px-4 py-4"
+                        className="rounded-lg border border-line/70 bg-panel px-4 py-4"
                       >
                         <div className="flex min-w-0 flex-col gap-4 sm:flex-row">
                           <RecommendationPoster
