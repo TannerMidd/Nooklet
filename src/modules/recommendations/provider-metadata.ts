@@ -1,4 +1,4 @@
-import { type TmdbTitleDetails } from "@/modules/service-connections/adapters/tmdb";
+import { type TmdbTitleDetails, type TmdbVideo, tmdbVideoTypes } from "@/modules/service-connections/adapters/tmdb";
 import {
   readInteger,
   readNumber,
@@ -75,6 +75,40 @@ function parseStringArray(value: unknown) {
   return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
 }
 
+function parseTmdbVideos(value: unknown): TmdbVideo[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const videos: TmdbVideo[] = [];
+
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null) {
+      continue;
+    }
+
+    const record = entry as Record<string, unknown>;
+    const key = readString(record.key);
+    const site = readString(record.site);
+    const type = readString(record.type);
+
+    if (!key || site !== "YouTube" || !type || !(tmdbVideoTypes as readonly string[]).includes(type)) {
+      continue;
+    }
+
+    videos.push({
+      key,
+      site: "YouTube",
+      type: type as TmdbVideo["type"],
+      name: readString(record.name) ?? "",
+      official: record.official === true,
+      publishedAt: readString(record.publishedAt),
+    });
+  }
+
+  return videos;
+}
+
 function parseTmdbTitleDetails(value: unknown): TmdbTitleDetails | undefined {
   if (typeof value !== "object" || value === null) {
     return undefined;
@@ -111,6 +145,7 @@ function parseTmdbTitleDetails(value: unknown): TmdbTitleDetails | undefined {
     homepage: readString(record.homepage),
     imdbId: readString(record.imdbId),
     tvdbId: readInteger(record.tvdbId),
+    videos: parseTmdbVideos(record.videos),
   };
 }
 

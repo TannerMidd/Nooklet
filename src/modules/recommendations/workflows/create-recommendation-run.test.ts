@@ -544,6 +544,7 @@ describe("createRecommendationRunWorkflow", () => {
             homepage: null,
             imdbId: null,
             tvdbId: null,
+            videos: [],
           },
         };
       }
@@ -572,6 +573,7 @@ describe("createRecommendationRunWorkflow", () => {
           homepage: null,
           imdbId: "tt2543164",
           tvdbId: null,
+          videos: [],
         },
       };
     });

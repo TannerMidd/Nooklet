@@ -56,6 +56,19 @@ type TmdbDetailsPayload = TmdbSearchResult & {
   vote_count?: unknown;
   homepage?: unknown;
   external_ids?: unknown;
+  videos?: unknown;
+};
+
+export const tmdbVideoTypes = ["Trailer", "Teaser", "Featurette", "Clip"] as const;
+export type TmdbVideoType = (typeof tmdbVideoTypes)[number];
+
+export type TmdbVideo = {
+  key: string;
+  site: "YouTube";
+  type: TmdbVideoType;
+  name: string;
+  official: boolean;
+  publishedAt: string | null;
 };
 
 export type TmdbTitleDetails = {
@@ -80,6 +93,7 @@ export type TmdbTitleDetails = {
   homepage: string | null;
   imdbId: string | null;
   tvdbId: number | null;
+  videos: TmdbVideo[];
 };
 
 export type LookupTmdbTitleDetailsResult =
@@ -289,6 +303,73 @@ function normalizeExternalIds(value: unknown) {
   };
 }
 
+const tmdbVideoTypePriority: Record<TmdbVideoType, number> = {
+  Trailer: 0,
+  Teaser: 1,
+  Featurette: 2,
+  Clip: 3,
+};
+
+const tmdbVideoMaxResults = 5;
+
+function isTmdbVideoType(value: unknown): value is TmdbVideoType {
+  return typeof value === "string" && (tmdbVideoTypes as readonly string[]).includes(value);
+}
+
+function normalizeTmdbVideos(value: unknown): TmdbVideo[] {
+  const list = (value as { results?: unknown })?.results;
+
+  if (!Array.isArray(list)) {
+    return [];
+  }
+
+  const videos: TmdbVideo[] = [];
+
+  for (const entry of list) {
+    if (typeof entry !== "object" || entry === null) {
+      continue;
+    }
+
+    const record = entry as Record<string, unknown>;
+    const key = readString(record.key);
+    const site = readString(record.site);
+    const type = record.type;
+    const name = readString(record.name) ?? "";
+
+    if (!key || site !== "YouTube" || !isTmdbVideoType(type)) {
+      continue;
+    }
+
+    videos.push({
+      key,
+      site: "YouTube",
+      type,
+      name,
+      official: record.official === true,
+      publishedAt: readString(record.published_at),
+    });
+  }
+
+  videos.sort((left, right) => {
+    if (left.official !== right.official) {
+      return left.official ? -1 : 1;
+    }
+
+    const typeDelta = tmdbVideoTypePriority[left.type] - tmdbVideoTypePriority[right.type];
+
+    if (typeDelta !== 0) {
+      return typeDelta;
+    }
+
+    const leftPublishedAt = left.publishedAt ? Date.parse(left.publishedAt) : 0;
+    const rightPublishedAt = right.publishedAt ? Date.parse(right.publishedAt) : 0;
+
+    return rightPublishedAt - leftPublishedAt;
+  });
+
+  return videos.slice(0, tmdbVideoMaxResults);
+}
+
 function normalizeRuntime(payload: TmdbDetailsPayload, mediaType: RecommendationMediaType) {
   if (mediaType === "movie") {
     const runtime = readInteger(payload.runtime);
@@ -346,6 +427,7 @@ function normalizeTmdbDetails(
     homepage: readString(payload.homepage),
     imdbId: externalIds.imdbId,
     tvdbId: externalIds.tvdbId,
+    videos: normalizeTmdbVideos(payload.videos),
   };
 }
 
@@ -425,7 +507,7 @@ export async function lookupTmdbTitleDetails(input: TmdbConnectionInput & {
     ...input,
     path: detailsPath,
     searchParams: {
-      append_to_response: "external_ids",
+      append_to_response: "external_ids,videos",
       language: "en-US",
     },
   });

@@ -142,7 +142,7 @@ describe("lookupTmdbTitleDetails", () => {
       "https://api.themoviedb.org/3/search/movie?api_key=tmdb-key&query=Arrival&include_adult=false&language=en-US&primary_release_year=2016",
     );
     expect(fetchWithTimeoutMock.mock.calls[1]?.[0].toString()).toBe(
-      "https://api.themoviedb.org/3/movie/1?api_key=tmdb-key&append_to_response=external_ids&language=en-US",
+      "https://api.themoviedb.org/3/movie/1?api_key=tmdb-key&append_to_response=external_ids%2Cvideos&language=en-US",
     );
     expect(result.details).toMatchObject({
       source: "tmdb",
@@ -206,6 +206,70 @@ describe("lookupTmdbTitleDetails", () => {
       seasonCount: 3,
       tvdbId: 334824,
     });
+  });
+
+  it("normalizes TMDB videos to YouTube trailers/teasers ordered by official+type+date", async () => {
+    fetchWithTimeoutMock
+      .mockResolvedValueOnce(
+        jsonResponse({ results: [{ id: 1, title: "Arrival", release_date: "2016-11-11" }] }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 1,
+          title: "Arrival",
+          release_date: "2016-11-11",
+          videos: {
+            results: [
+              { key: "clip1", site: "YouTube", type: "Clip", name: "Clip", official: true, published_at: "2016-09-01T00:00:00Z" },
+              { key: "trailer-old", site: "YouTube", type: "Trailer", name: "Old trailer", official: false, published_at: "2016-08-01T00:00:00Z" },
+              { key: "trailer-new", site: "YouTube", type: "Trailer", name: "Official trailer", official: true, published_at: "2016-10-01T00:00:00Z" },
+              { key: "vimeo-skip", site: "Vimeo", type: "Trailer", name: "Vimeo", official: true },
+              { key: "unknown-type", site: "YouTube", type: "Bloopers", name: "Bloopers", official: true },
+            ],
+          },
+        }),
+      );
+
+    const result = await lookupTmdbTitleDetails({
+      baseUrl: "https://api.themoviedb.org/3",
+      secret: "tmdb-key",
+      mediaType: "movie",
+      title: "Arrival",
+      year: 2016,
+    });
+
+    expect(result.ok).toBe(true);
+
+    if (!result.ok) {
+      throw new Error("Expected TMDB lookup to succeed.");
+    }
+
+    expect(result.details.videos).toEqual([
+      {
+        key: "trailer-new",
+        site: "YouTube",
+        type: "Trailer",
+        name: "Official trailer",
+        official: true,
+        publishedAt: "2016-10-01T00:00:00Z",
+      },
+      {
+        key: "clip1",
+        site: "YouTube",
+        type: "Clip",
+        name: "Clip",
+        official: true,
+        publishedAt: "2016-09-01T00:00:00Z",
+      },
+      {
+        key: "trailer-old",
+        site: "YouTube",
+        type: "Trailer",
+        name: "Old trailer",
+        official: false,
+        publishedAt: "2016-08-01T00:00:00Z",
+      },
+    ]);
   });
 
   it("returns a typed failure when no scored TMDB candidate is found", async () => {

@@ -70,6 +70,7 @@ const tmdbDetails = {
   homepage: "https://arrival.movie",
   imdbId: "tt2543164",
   tvdbId: null,
+  videos: [],
 };
 
 describe("getRecommendationTitleOverview", () => {

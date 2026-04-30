@@ -67,6 +67,7 @@ describe("findSabnzbdQueueItemForTitle", () => {
             homepage: null,
             imdbId: null,
             tvdbId: null,
+            videos: [],
           },
         },
       })?.id,
