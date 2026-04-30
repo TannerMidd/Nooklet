@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { RecommendationHistoryItemActions } from "@/components/recommendations/recommendation-history-item-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationTitleOverviewDialog } from "@/components/recommendations/recommendation-title-overview-dialog";
+import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
@@ -184,8 +185,9 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 <Link
                   href={appendDetailsParam(returnTo, item.itemId)}
                   scroll={false}
-                  className="flex min-w-0 flex-col gap-4 rounded-[20px] outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent/50 sm:flex-row sm:items-start"
+                  className="relative flex min-w-0 flex-col gap-4 rounded-[20px] outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent/50 sm:flex-row sm:items-start"
                 >
+                  <LinkPendingOverlay className="rounded-[20px]" />
                   <RecommendationPoster
                     title={item.title}
                     posterUrl={item.providerMetadata?.posterUrl}

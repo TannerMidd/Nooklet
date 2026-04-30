@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { auth } from "@/auth";
 import { DiscoverTitleOverviewDialog } from "@/components/discover/discover-title-overview-dialog";
+import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { getDiscoverOverview } from "@/modules/discover/queries/get-discover-overview";
@@ -88,8 +89,9 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
                     <Link
                       href={buildOverviewHref(rail.mediaType, title.tmdbId)}
                       scroll={false}
-                      className="flex flex-col gap-2"
+                      className="relative flex flex-col gap-2"
                     >
+                      <LinkPendingOverlay className="rounded-xl" />
                       <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl border border-line/60 bg-panel">
                         {title.posterUrl ? (
                           <Image

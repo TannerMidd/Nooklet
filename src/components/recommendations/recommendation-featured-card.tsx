@@ -5,6 +5,7 @@ import { RecommendationAddForm } from "@/components/recommendations/recommendati
 import { RecommendationFeedbackActions } from "@/components/recommendations/recommendation-feedback-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationSabnzbdStatus } from "@/components/recommendations/recommendation-sabnzbd-status";
+import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { type RecommendationMediaType, type RecommendationFeedbackValue } from "@/lib/database/schema";
 import { type RecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
@@ -65,8 +66,9 @@ export function RecommendationFeaturedCard({
       <Link
         href={resolvedOverviewHref}
         scroll={false}
-        className="block space-y-5 rounded-[24px] outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent/50"
+        className="relative block space-y-5 rounded-[24px] outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent/50"
       >
+        <LinkPendingOverlay className="rounded-[24px]" />
         <div className="grid gap-4 sm:grid-cols-[6.25rem_minmax(0,1fr)] sm:items-start">
           <div className="mx-auto sm:mx-0">
             <RecommendationPoster title={title} posterUrl={providerMetadata?.posterUrl} />
