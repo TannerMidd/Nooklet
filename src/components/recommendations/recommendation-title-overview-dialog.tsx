@@ -4,6 +4,11 @@ import { RecommendationHistoryItemActions } from "@/components/recommendations/r
 import { RecommendationOverviewModalShell } from "@/components/recommendations/recommendation-overview-modal-shell";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationTimeline } from "@/components/recommendations/recommendation-timeline";
+import {
+  RecommendationCastSection,
+  RecommendationSimilarTitlesSection,
+  RecommendationWatchProvidersSection,
+} from "@/components/recommendations/recommendation-tmdb-extras";
 import { RecommendationTrailerSection } from "@/components/recommendations/recommendation-trailer-section";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { type PreferenceRecord } from "@/modules/preferences/queries/get-user-preferences";
@@ -185,6 +190,16 @@ export function RecommendationTitleOverviewDialog({
 
         {details?.videos?.length ? (
           <RecommendationTrailerSection videos={details.videos} title={item.title} />
+        ) : null}
+
+        {details?.cast?.length ? <RecommendationCastSection cast={details.cast} /> : null}
+
+        {details?.watchProviders ? (
+          <RecommendationWatchProvidersSection providers={details.watchProviders} />
+        ) : null}
+
+        {details?.similarTitles?.length ? (
+          <RecommendationSimilarTitlesSection similar={details.similarTitles} />
         ) : null}
 
         <section className="space-y-4">

@@ -6,6 +6,11 @@ import { auth } from "@/auth";
 import { RecommendationHistoryItemActions } from "@/components/recommendations/recommendation-history-item-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationTimeline } from "@/components/recommendations/recommendation-timeline";
+import {
+  RecommendationCastSection,
+  RecommendationSimilarTitlesSection,
+  RecommendationWatchProvidersSection,
+} from "@/components/recommendations/recommendation-tmdb-extras";
 import { RecommendationTrailerSection } from "@/components/recommendations/recommendation-trailer-section";
 import { Panel } from "@/components/ui/panel";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
@@ -209,6 +214,24 @@ export default async function RecommendationOverviewPage({
       {details?.videos?.length ? (
         <Panel eyebrow="Watch" title="Trailers and clips">
           <RecommendationTrailerSection videos={details.videos} title={item.title} />
+        </Panel>
+      ) : null}
+
+      {details?.cast?.length ? (
+        <Panel eyebrow="Cast" title="Top cast">
+          <RecommendationCastSection cast={details.cast} />
+        </Panel>
+      ) : null}
+
+      {details?.watchProviders ? (
+        <Panel eyebrow="Streaming" title="Where to watch">
+          <RecommendationWatchProvidersSection providers={details.watchProviders} />
+        </Panel>
+      ) : null}
+
+      {details?.similarTitles?.length ? (
+        <Panel eyebrow="Similar" title="More like this">
+          <RecommendationSimilarTitlesSection similar={details.similarTitles} />
         </Panel>
       ) : null}
 
