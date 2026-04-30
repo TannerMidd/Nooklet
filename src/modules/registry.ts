@@ -5,7 +5,9 @@ export type DomainModuleKey =
   | "credential-vault"
   | "watch-history"
   | "recommendations"
+  | "discover"
   | "preferences"
+  | "notifications"
   | "admin";
 
 export type DomainModule = {
@@ -116,6 +118,19 @@ export const domainModules = [
     ],
   },
   {
+    key: "discover",
+    title: "Discover",
+    summary: "TMDB-powered browse rails for trending, popular, top-rated, and upcoming titles.",
+    responsibilities: [
+      "Compose discover rails from a verified TMDB connection",
+      "Resolve TMDB title detail overviews for in-app preview",
+    ],
+    workflows: [
+      "List discover rails",
+      "Resolve title detail overview",
+    ],
+  },
+  {
     key: "preferences",
     title: "Preferences",
     summary: "User-facing defaults, history filters, and recommendation behavior toggles.",
@@ -128,6 +143,20 @@ export const domainModules = [
       "Update preference",
       "Apply persisted history filters",
       "Resolve recommendation defaults",
+    ],
+  },
+  {
+    key: "notifications",
+    title: "Notifications",
+    summary: "Outbound notification channels and event dispatch for runs and sync failures.",
+    responsibilities: [
+      "Notification channel configuration and event subscriptions",
+      "Event dispatch fan-out with delivery audit",
+    ],
+    workflows: [
+      "Configure notification channel",
+      "Dispatch event notification",
+      "Test notification channel",
     ],
   },
   {
