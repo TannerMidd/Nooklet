@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useFormStatus } from "react-dom";
+import { LoaderCircle, Plus, X } from "lucide-react";
 
 import { type RecommendationLibraryActionState } from "@/app/(workspace)/recommendation-action-state";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,12 @@ export function SubmitButton({
 
   return (
     <Button type="submit" className="w-full sm:w-auto" disabled={pending || disabled}>
-      {pending ? `Adding to ${serviceLabel}...` : `Add to ${serviceLabel}`}
+      {pending ? (
+        <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
+      ) : (
+        <Plus aria-hidden="true" className="h-4 w-4" />
+      )}
+      <span>{pending ? `Adding to ${serviceLabel}...` : `Add to ${serviceLabel}`}</span>
     </Button>
   );
 }
@@ -60,7 +66,8 @@ export function CancelButton({
 
   return (
     <Button type="button" variant="secondary" onClick={onClose} disabled={pending || disabled}>
-      Cancel
+      <X aria-hidden="true" className="h-4 w-4" />
+      <span>Cancel</span>
     </Button>
   );
 }
@@ -359,7 +366,8 @@ export function RecommendationAddModalShell({
               <p className="max-w-3xl text-sm leading-6 text-muted md:text-base">{description}</p>
             </div>
             <Button type="button" variant="secondary" onClick={onClose} disabled={closeDisabled}>
-              {closeButtonLabel}
+              <X aria-hidden="true" className="h-4 w-4" />
+              <span>{closeButtonLabel}</span>
             </Button>
           </div>
 

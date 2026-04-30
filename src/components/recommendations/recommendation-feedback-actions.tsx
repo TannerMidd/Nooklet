@@ -1,11 +1,13 @@
 "use client";
 
+import { ThumbsDown, ThumbsUp } from "lucide-react";
+import { useActionState, useOptimistic } from "react";
+
 import { submitRecommendationFeedbackAction } from "@/app/(workspace)/recommendation-item-actions";
 import { initialRecommendationFeedbackActionState } from "@/app/(workspace)/recommendation-action-state";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { type RecommendationFeedbackValue } from "@/lib/database/schema";
-import { useActionState, useOptimistic } from "react";
 
 type RecommendationFeedbackActionsProps = {
   itemId: string;
@@ -52,11 +54,14 @@ export function RecommendationFeedbackActions({
         <Button
           type="submit"
           variant={optimisticFeedback === "like" ? "primary" : "secondary"}
-          className={cn("whitespace-nowrap", buttonClassName)}
+          size="icon"
+          className={cn("h-10 min-h-10 w-10 rounded-full", buttonClassName)}
           disabled={isPending}
           aria-pressed={optimisticFeedback === "like"}
+          aria-label="Like recommendation"
+          title="Like recommendation"
         >
-          Like
+          <ThumbsUp aria-hidden="true" className="h-4 w-4" />
         </Button>
       </form>
 
@@ -67,11 +72,14 @@ export function RecommendationFeedbackActions({
         <Button
           type="submit"
           variant={optimisticFeedback === "dislike" ? "primary" : "secondary"}
-          className={cn("whitespace-nowrap", buttonClassName)}
+          size="icon"
+          className={cn("h-10 min-h-10 w-10 rounded-full", buttonClassName)}
           disabled={isPending}
           aria-pressed={optimisticFeedback === "dislike"}
+          aria-label="Dislike recommendation"
+          title="Dislike recommendation"
         >
-          Dislike
+          <ThumbsDown aria-hidden="true" className="h-4 w-4" />
         </Button>
       </form>
 

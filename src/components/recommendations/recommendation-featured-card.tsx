@@ -115,7 +115,7 @@ export function RecommendationFeaturedCard({
               itemId={itemId}
               feedback={feedback}
               returnTo={routePath}
-              buttonClassName="min-h-10 rounded-full px-4 py-2"
+              buttonClassName="h-10 min-h-10 w-10 rounded-full"
             />
           </div>
 

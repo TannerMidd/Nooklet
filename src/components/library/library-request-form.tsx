@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, Plus } from "lucide-react";
 
 import {
   initialRecommendationLibraryActionState,
@@ -180,7 +181,10 @@ export function LibraryRequestForm({
             }}
             disabled={state.status === "success" || isSavingDefaults}
           >
-            {resolvedButtonLabel}
+            <LibraryRequestButtonContent
+              label={resolvedButtonLabel}
+              isSuccess={state.status === "success"}
+            />
           </Button>
         </div>
       ) : (
@@ -201,7 +205,10 @@ export function LibraryRequestForm({
             }}
             disabled={state.status === "success" || isSavingDefaults}
           >
-            {resolvedButtonLabel}
+            <LibraryRequestButtonContent
+              label={resolvedButtonLabel}
+              isSuccess={state.status === "success"}
+            />
           </Button>
         </div>
       )}
@@ -283,5 +290,22 @@ export function LibraryRequestForm({
         />
       ) : null}
     </div>
+  );
+}
+
+function LibraryRequestButtonContent({
+  label,
+  isSuccess,
+}: {
+  label: string;
+  isSuccess: boolean;
+}) {
+  const Icon = isSuccess ? Check : Plus;
+
+  return (
+    <>
+      <Icon aria-hidden="true" className="h-4 w-4" />
+      <span>{label}</span>
+    </>
   );
 }
