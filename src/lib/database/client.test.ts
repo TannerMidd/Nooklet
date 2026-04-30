@@ -34,7 +34,7 @@ function createTempDirectory(prefix: string) {
 }
 
 function createLegacyMigrationsFolder(lastMigrationIndex: number) {
-  const directory = createTempDirectory("recommendarr-legacy-migrations-");
+  const directory = createTempDirectory("nooklet-legacy-migrations-");
   const journal = JSON.parse(readFileSync(journalPath, "utf8")) as MigrationJournal;
   const filteredEntries = journal.entries.filter((entry) => entry.idx <= lastMigrationIndex);
 
@@ -87,8 +87,8 @@ function hasTableColumn(databasePath: string, tableName: string, columnName: str
 describe("ensureDatabaseReady", () => {
   beforeEach(() => {
     vi.resetModules();
-    delete (globalThis as typeof globalThis & { __recommendarrDatabase?: unknown })
-      .__recommendarrDatabase;
+    delete (globalThis as typeof globalThis & { __nookletDatabase?: unknown })
+      .__nookletDatabase;
   });
 
   afterEach(() => {
@@ -99,14 +99,14 @@ describe("ensureDatabaseReady", () => {
     }
 
     const databaseState = (globalThis as typeof globalThis & {
-      __recommendarrDatabase?: {
+      __nookletDatabase?: {
         sqlite?: Database.Database;
       };
-    }).__recommendarrDatabase;
+    }).__nookletDatabase;
 
     databaseState?.sqlite?.close();
-    delete (globalThis as typeof globalThis & { __recommendarrDatabase?: unknown })
-      .__recommendarrDatabase;
+    delete (globalThis as typeof globalThis & { __nookletDatabase?: unknown })
+      .__nookletDatabase;
 
     vi.resetModules();
 
@@ -116,7 +116,7 @@ describe("ensureDatabaseReady", () => {
   });
 
   it("repairs the skipped selected_genres_json upgrade on older databases", async () => {
-    const databaseDirectory = createTempDirectory("recommendarr-upgrade-db-");
+    const databaseDirectory = createTempDirectory("nooklet-upgrade-db-");
     const databasePath = join(databaseDirectory, "upgrade.db");
 
     seedDatabaseThroughMigration(13, databasePath);

@@ -21,11 +21,11 @@ type WorkerState = {
 };
 
 const workerGlobals = globalThis as typeof globalThis & {
-  __recommendarrWorker?: WorkerState;
+  __nookletWorker?: WorkerState;
 };
 
-const sharedWorkerState = workerGlobals.__recommendarrWorker ?? {};
-workerGlobals.__recommendarrWorker = sharedWorkerState;
+const sharedWorkerState = workerGlobals.__nookletWorker ?? {};
+workerGlobals.__nookletWorker = sharedWorkerState;
 
 const workerIntervalMs = 60_000;
 

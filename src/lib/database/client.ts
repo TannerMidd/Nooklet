@@ -34,7 +34,7 @@ type DatabaseGlobals = {
 };
 
 const databaseGlobals = globalThis as typeof globalThis & {
-  __recommendarrDatabase?: DatabaseGlobals;
+  __nookletDatabase?: DatabaseGlobals;
 };
 
 const databaseCompatibilityRules: DatabaseCompatibilityRule[] = [
@@ -139,8 +139,8 @@ function readMigrationSignature() {
   }
 }
 
-const sharedDatabaseState = databaseGlobals.__recommendarrDatabase ?? {};
-databaseGlobals.__recommendarrDatabase = sharedDatabaseState;
+const sharedDatabaseState = databaseGlobals.__nookletDatabase ?? {};
+databaseGlobals.__nookletDatabase = sharedDatabaseState;
 
 function getOrCreateDatabase() {
   const databasePath = resolveDatabasePath(env.DATABASE_URL);
