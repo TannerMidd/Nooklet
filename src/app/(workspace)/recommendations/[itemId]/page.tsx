@@ -212,27 +212,17 @@ export default async function RecommendationOverviewPage({
       </Panel>
 
       {details?.videos?.length ? (
-        <Panel eyebrow="Watch" title="Trailers and clips">
-          <RecommendationTrailerSection videos={details.videos} title={item.title} />
-        </Panel>
+        <RecommendationTrailerSection videos={details.videos} title={item.title} />
       ) : null}
 
-      {details?.cast?.length ? (
-        <Panel eyebrow="Cast" title="Top cast">
-          <RecommendationCastSection cast={details.cast} />
-        </Panel>
-      ) : null}
+      {details?.cast?.length ? <RecommendationCastSection cast={details.cast} /> : null}
 
       {details?.watchProviders ? (
-        <Panel eyebrow="Streaming" title="Where to watch">
-          <RecommendationWatchProvidersSection providers={details.watchProviders} />
-        </Panel>
+        <RecommendationWatchProvidersSection providers={details.watchProviders} />
       ) : null}
 
       {details?.similarTitles?.length ? (
-        <Panel eyebrow="Similar" title="More like this">
-          <RecommendationSimilarTitlesSection similar={details.similarTitles} />
-        </Panel>
+        <RecommendationSimilarTitlesSection similar={details.similarTitles} />
       ) : null}
 
       <Panel eyebrow="Status timeline" title="Title activity">
