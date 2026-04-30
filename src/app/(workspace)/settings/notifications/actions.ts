@@ -15,6 +15,7 @@ import { testNotificationChannelCommand } from "@/modules/notifications/commands
 import { updateNotificationChannelCommand } from "@/modules/notifications/commands/update-notification-channel";
 import {
   addNotificationChannelInputSchema,
+  deleteNotificationChannelInputSchema,
   testNotificationChannelInputSchema,
 } from "@/modules/notifications/schemas/notification-channel-input";
 
@@ -103,14 +104,17 @@ export async function toggleNotificationChannelAction(formData: FormData): Promi
     return;
   }
 
-  const id = formData.get("id");
-  const enable = formData.get("enable") === "1";
+  const parsed = deleteNotificationChannelInputSchema.safeParse({
+    id: formData.get("id"),
+  });
 
-  if (typeof id !== "string" || id.length === 0) {
+  if (!parsed.success) {
     return;
   }
 
-  await updateNotificationChannelCommand(session.user.id, { id, isEnabled: enable });
+  const enable = formData.get("enable") === "1";
+
+  await updateNotificationChannelCommand(session.user.id, { id: parsed.data.id, isEnabled: enable });
   revalidatePath("/settings/notifications");
 }
 
@@ -121,13 +125,15 @@ export async function removeNotificationChannelAction(formData: FormData): Promi
     return;
   }
 
-  const id = formData.get("id");
+  const parsed = deleteNotificationChannelInputSchema.safeParse({
+    id: formData.get("id"),
+  });
 
-  if (typeof id !== "string" || id.length === 0) {
+  if (!parsed.success) {
     return;
   }
 
-  await removeNotificationChannelCommand(session.user.id, id);
+  await removeNotificationChannelCommand(session.user.id, parsed.data.id);
   revalidatePath("/settings/notifications");
 }
 
