@@ -1,21 +1,19 @@
 import {
-  type TmdbCastMember,
-  type TmdbSimilarTitle,
   type TmdbTitleDetails,
-  type TmdbVideo,
-  type TmdbWatchProvider,
-  type TmdbWatchProviderCategory,
-  type TmdbWatchProviders,
-  tmdbVideoTypes,
-  tmdbWatchProviderCategories,
 } from "@/modules/service-connections/adapters/tmdb";
-import {
-  readInteger,
-  readNumber,
-  readString,
-} from "@/modules/service-connections/adapters/arr-response-helpers";
+import { tmdbTitleDetailsSchema } from "@/modules/service-connections/schemas/tmdb-title";
 
 export const CURRENT_PROVIDER_METADATA_VERSION = 2;
+
+export function isProviderMetadataTmdbCacheStale(
+  metadata: { metadataSchemaVersion?: number; tmdbDetails?: unknown } | null | undefined,
+): boolean {
+  if (!metadata?.tmdbDetails) {
+    return true;
+  }
+
+  return (metadata.metadataSchemaVersion ?? 0) < CURRENT_PROVIDER_METADATA_VERSION;
+}
 
 export type RecommendationProviderSeason = {
   seasonNumber: number;
@@ -80,212 +78,9 @@ function parseRecommendationProviderSeasons(value: unknown) {
   return seasons.length > 0 ? seasons : undefined;
 }
 
-function parseStringArray(value: unknown) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
-}
-
-function parseTmdbVideos(value: unknown): TmdbVideo[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const videos: TmdbVideo[] = [];
-
-  for (const entry of value) {
-    if (typeof entry !== "object" || entry === null) {
-      continue;
-    }
-
-    const record = entry as Record<string, unknown>;
-    const key = readString(record.key);
-    const site = readString(record.site);
-    const type = readString(record.type);
-
-    if (!key || site !== "YouTube" || !type || !(tmdbVideoTypes as readonly string[]).includes(type)) {
-      continue;
-    }
-
-    videos.push({
-      key,
-      site: "YouTube",
-      type: type as TmdbVideo["type"],
-      name: readString(record.name) ?? "",
-      official: record.official === true,
-      publishedAt: readString(record.publishedAt),
-    });
-  }
-
-  return videos;
-}
-
-function parseTmdbCast(value: unknown): TmdbCastMember[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const cast: TmdbCastMember[] = [];
-
-  for (const entry of value) {
-    if (typeof entry !== "object" || entry === null) {
-      continue;
-    }
-
-    const record = entry as Record<string, unknown>;
-    const id = readInteger(record.id);
-    const name = readString(record.name);
-
-    if (id === null || !name) {
-      continue;
-    }
-
-    cast.push({
-      id,
-      name,
-      character: readString(record.character),
-      profileUrl: readString(record.profileUrl),
-      order: readInteger(record.order) ?? cast.length,
-    });
-  }
-
-  return cast;
-}
-
-function parseTmdbWatchProviders(value: unknown): TmdbWatchProviders | null {
-  if (typeof value !== "object" || value === null) {
-    return null;
-  }
-
-  const record = value as Record<string, unknown>;
-  const countryCode = readString(record.countryCode);
-
-  if (!countryCode) {
-    return null;
-  }
-
-  if (!Array.isArray(record.providers)) {
-    return null;
-  }
-
-  const providers: TmdbWatchProvider[] = [];
-
-  for (const entry of record.providers) {
-    if (typeof entry !== "object" || entry === null) {
-      continue;
-    }
-
-    const providerRecord = entry as Record<string, unknown>;
-    const providerId = readInteger(providerRecord.providerId);
-    const providerName = readString(providerRecord.providerName);
-    const category = readString(providerRecord.category);
-
-    if (
-      providerId === null ||
-      !providerName ||
-      !category ||
-      !(tmdbWatchProviderCategories as readonly string[]).includes(category)
-    ) {
-      continue;
-    }
-
-    providers.push({
-      providerId,
-      providerName,
-      logoUrl: readString(providerRecord.logoUrl),
-      category: category as TmdbWatchProviderCategory,
-      displayPriority: readInteger(providerRecord.displayPriority) ?? providers.length,
-    });
-  }
-
-  if (providers.length === 0) {
-    return null;
-  }
-
-  return {
-    countryCode,
-    link: readString(record.link),
-    providers,
-  };
-}
-
-function parseTmdbSimilarTitles(value: unknown): TmdbSimilarTitle[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const titles: TmdbSimilarTitle[] = [];
-
-  for (const entry of value) {
-    if (typeof entry !== "object" || entry === null) {
-      continue;
-    }
-
-    const record = entry as Record<string, unknown>;
-    const tmdbId = readInteger(record.tmdbId);
-    const mediaType = record.mediaType === "tv" || record.mediaType === "movie" ? record.mediaType : null;
-    const title = readString(record.title);
-
-    if (tmdbId === null || !mediaType || !title) {
-      continue;
-    }
-
-    titles.push({
-      tmdbId,
-      mediaType,
-      title,
-      year: readInteger(record.year),
-      posterUrl: readString(record.posterUrl),
-      voteAverage: readNumber(record.voteAverage),
-    });
-  }
-
-  return titles;
-}
-
 function parseTmdbTitleDetails(value: unknown): TmdbTitleDetails | undefined {
-  if (typeof value !== "object" || value === null) {
-    return undefined;
-  }
-
-  const record = value as Record<string, unknown>;
-  const tmdbId = readInteger(record.tmdbId);
-  const mediaType = record.mediaType === "tv" || record.mediaType === "movie" ? record.mediaType : null;
-  const title = readString(record.title);
-
-  if (record.source !== "tmdb" || tmdbId === null || tmdbId <= 0 || !mediaType || !title) {
-    return undefined;
-  }
-
-  return {
-    source: "tmdb",
-    tmdbId,
-    mediaType,
-    title,
-    originalTitle: readString(record.originalTitle),
-    overview: readString(record.overview),
-    tagline: readString(record.tagline),
-    year: readInteger(record.year),
-    releaseDate: readString(record.releaseDate),
-    originalLanguage: readString(record.originalLanguage),
-    posterUrl: readString(record.posterUrl),
-    backdropUrl: readString(record.backdropUrl),
-    genres: parseStringArray(record.genres),
-    runtimeMinutes: readInteger(record.runtimeMinutes),
-    seasonCount: readInteger(record.seasonCount),
-    status: readString(record.status),
-    voteAverage: readNumber(record.voteAverage),
-    voteCount: readInteger(record.voteCount),
-    homepage: readString(record.homepage),
-    imdbId: readString(record.imdbId),
-    tvdbId: readInteger(record.tvdbId),
-    videos: parseTmdbVideos(record.videos),
-    cast: parseTmdbCast(record.cast),
-    watchProviders: parseTmdbWatchProviders(record.watchProviders),
-    similarTitles: parseTmdbSimilarTitles(record.similarTitles),
-  };
+  const result = tmdbTitleDetailsSchema.safeParse(value);
+  return result.success ? result.data : undefined;
 }
 
 export function parseRecommendationProviderMetadata(

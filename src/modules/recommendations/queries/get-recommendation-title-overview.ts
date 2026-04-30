@@ -1,7 +1,7 @@
 import {
   CURRENT_PROVIDER_METADATA_VERSION,
+  isProviderMetadataTmdbCacheStale,
   parseRecommendationProviderMetadata,
-  type RecommendationProviderMetadata,
 } from "@/modules/recommendations/provider-metadata";
 import {
   findRecommendationItemForUser,
@@ -26,14 +26,6 @@ function parseProviderMetadataRecord(metadataJson: string | null): Record<string
   }
 }
 
-function isStaleTmdbDetails(metadata: RecommendationProviderMetadata | null): boolean {
-  if (!metadata?.tmdbDetails) {
-    return true;
-  }
-
-  return (metadata.metadataSchemaVersion ?? 0) < CURRENT_PROVIDER_METADATA_VERSION;
-}
-
 export async function getRecommendationTitleOverview(userId: string, itemId: string) {
   const item = await findRecommendationItemForUser(userId, itemId);
 
@@ -44,7 +36,7 @@ export async function getRecommendationTitleOverview(userId: string, itemId: str
   const providerMetadata = parseRecommendationProviderMetadata(item.providerMetadataJson);
   const timeline = await listRecommendationItemTimeline(userId, itemId);
 
-  if (providerMetadata?.tmdbDetails && !isStaleTmdbDetails(providerMetadata)) {
+  if (providerMetadata?.tmdbDetails && !isProviderMetadataTmdbCacheStale(providerMetadata)) {
     return { item, providerMetadata, timeline, tmdbLookupMessage: null };
   }
 
