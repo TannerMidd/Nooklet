@@ -1,4 +1,5 @@
 import {
+  CURRENT_PROVIDER_METADATA_VERSION,
   parseRecommendationProviderMetadata,
   type RecommendationProviderMetadata,
 } from "@/modules/recommendations/provider-metadata";
@@ -26,21 +27,11 @@ function parseProviderMetadataRecord(metadataJson: string | null): Record<string
 }
 
 function isStaleTmdbDetails(metadata: RecommendationProviderMetadata | null): boolean {
-  const details = metadata?.tmdbDetails;
-
-  if (!details) {
+  if (!metadata?.tmdbDetails) {
     return true;
   }
 
-  // Legacy caches predate the videos/cast/similar/watch-providers extras.
-  // If all of those are empty, treat the cache as stale and refetch so trailers
-  // show up consistently with the Discover modal (which always fetches fresh).
-  return (
-    details.videos.length === 0 &&
-    details.cast.length === 0 &&
-    details.similarTitles.length === 0 &&
-    !details.watchProviders
-  );
+  return (metadata.metadataSchemaVersion ?? 0) < CURRENT_PROVIDER_METADATA_VERSION;
 }
 
 export async function getRecommendationTitleOverview(userId: string, itemId: string) {
@@ -82,6 +73,7 @@ export async function getRecommendationTitleOverview(userId: string, itemId: str
   const currentMetadata = parseProviderMetadataRecord(item.providerMetadataJson);
   const mergedMetadata = {
     ...currentMetadata,
+    metadataSchemaVersion: CURRENT_PROVIDER_METADATA_VERSION,
     tmdbDetails: detailsResult.details,
     ...(currentMetadata.posterUrl || !detailsResult.details.posterUrl
       ? {}

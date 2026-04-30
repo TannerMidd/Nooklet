@@ -6,6 +6,7 @@ import {
   type LanguagePreferenceCode,
 } from "@/modules/preferences/language-preferences";
 import { generateOpenAiCompatibleRecommendations } from "@/modules/recommendations/adapters/openai-compatible-recommendations";
+import { CURRENT_PROVIDER_METADATA_VERSION } from "@/modules/recommendations/provider-metadata";
 import { lookupLibraryItemMatch } from "@/modules/service-connections/adapters/add-library-item";
 import {
   lookupTmdbTitleDetails,
@@ -125,6 +126,7 @@ function mergeTmdbDetailsIntoItem(
     year: item.year ?? details.year,
     providerMetadata: {
       ...item.providerMetadata,
+      metadataSchemaVersion: CURRENT_PROVIDER_METADATA_VERSION,
       tmdbDetails: details,
       ...(posterUrl ? { posterUrl } : {}),
     },

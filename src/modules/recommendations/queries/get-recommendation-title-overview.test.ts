@@ -103,7 +103,7 @@ describe("getRecommendationTitleOverview", () => {
   it("returns existing TMDB metadata without looking it up again", async () => {
     findMock.mockResolvedValue(
       buildItem({
-        providerMetadataJson: JSON.stringify({ tmdbDetails }),
+        providerMetadataJson: JSON.stringify({ metadataSchemaVersion: 2, tmdbDetails }),
       }),
     );
 

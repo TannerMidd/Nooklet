@@ -15,12 +15,15 @@ import {
   readString,
 } from "@/modules/service-connections/adapters/arr-response-helpers";
 
+export const CURRENT_PROVIDER_METADATA_VERSION = 2;
+
 export type RecommendationProviderSeason = {
   seasonNumber: number;
   label: string;
 };
 
 export type RecommendationProviderMetadata = {
+  metadataSchemaVersion?: number;
   source?: string;
   model?: string;
   temperature?: number;
@@ -320,6 +323,12 @@ export function parseRecommendationProviderMetadata(
         : undefined;
 
     return {
+      metadataSchemaVersion:
+        typeof metadata.metadataSchemaVersion === "number" &&
+        Number.isFinite(metadata.metadataSchemaVersion) &&
+        metadata.metadataSchemaVersion > 0
+          ? metadata.metadataSchemaVersion
+          : undefined,
       source: typeof metadata.source === "string" ? metadata.source : undefined,
       model: typeof metadata.model === "string" ? metadata.model : undefined,
       temperature:
