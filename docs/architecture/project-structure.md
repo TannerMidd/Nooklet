@@ -1,22 +1,23 @@
 # Project Structure
 
-This repo starts from the rewrite ADR rather than from the old Vue and Express
-implementation shape.
+This document describes how Recommendarr is organized. Architectural rules
+come from [ADR-0001](../adr/ADR-0001-architecture-principles.md). Product
+behavior comes from the [behavior matrix](../product/behavior-matrix.md).
 
 ## Working rules
 
-- Route flows stay thin. They describe the task and delegate real work to
-  domain modules.
+- Route handlers and server actions stay thin. They describe the task and
+  delegate real work to domain modules.
 - Domain modules own validation, commands, queries, repositories, adapters,
   types, and explicit workflows.
 - UI routes stay separate for login, bootstrap, account, preferences,
   connections, admin, TV recommendations, movie recommendations, and history.
-- Shared framework code belongs in `src/lib` or `src/components`, not inside a
-  generic service layer.
-- Product behavior comes from the behavior matrix, not from copied component
-  boundaries.
+- Shared framework code belongs in `src/lib` or `src/components`, not inside
+  a generic service layer.
+- Product behavior is sourced from the behavior matrix, not from any one
+  screen's component boundary.
 
-## Initial directory layout
+## Top-level directory layout
 
 ```text
 src/
@@ -33,17 +34,20 @@ src/
         connections/
         preferences/
       tv/
+    api/
   components/
     layout/
+    library/
+    recommendations/
     ui/
   config/
   lib/
   modules/
 ```
 
-## Module implementation template
+## Module template
 
-As each module is implemented, keep its internals local to the module:
+Each module under `src/modules/<module>/` keeps its internals local:
 
 ```text
 src/modules/<module>/
@@ -56,16 +60,25 @@ src/modules/<module>/
   workflows/
 ```
 
-Do not create those folders just to hold placeholders. Add them when real code
-lands for the module.
+Folders are created only when real code lands. No placeholder folders.
 
-## Immediate next slice
+The public surface of a module is its `commands/`, `queries/`, and
+`workflows/` exports. Repositories and adapters are internal — other modules
+reach them via a query/command/workflow, never by direct import.
 
-1. Add Auth.js-backed local login and one-time bootstrap.
-2. Introduce Drizzle schema foundations for users, sessions, audit events, and
-   service secrets.
-3. Define service-connection capability contracts before any provider-specific
-   wiring.
-4. Build watch-history sync as an explicit workflow with persisted run state.
-5. Build recommendation workflows on top of the normalized schema and shared
-   capability contracts.
+## Workflow layout
+
+Workflows live at `src/modules/<module>/workflows/<workflow>/` with one file
+per phase plus a thin orchestrator and a wiring test:
+
+```text
+workflows/<workflow>/
+  index.ts          # thin orchestrator, no business logic
+  index.test.ts     # mocks each phase, asserts order and propagation
+  types.ts          # shared input/output and context types
+  <phase-1>.ts
+  <phase-2>.ts
+  ...
+```
+
+Phase lists for the major workflows are fixed in the ADR.

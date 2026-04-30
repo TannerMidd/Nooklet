@@ -104,7 +104,7 @@ clients are never called directly from UI code.
 
 For a deeper tour, see
 [`docs/architecture/project-structure.md`](docs/architecture/project-structure.md)
-and [`docs/adr/ADR-0001-rewrite-principles.md`](docs/adr/ADR-0001-rewrite-principles.md).
+and [`docs/adr/ADR-0001-architecture-principles.md`](docs/adr/ADR-0001-architecture-principles.md).
 
 ---
 
@@ -237,7 +237,7 @@ advisory** rather than a public issue.
 
 ## Documentation
 
-- [`docs/adr/ADR-0001-rewrite-principles.md`](docs/adr/ADR-0001-rewrite-principles.md) — architectural rules
+- [`docs/adr/ADR-0001-architecture-principles.md`](docs/adr/ADR-0001-architecture-principles.md) — architectural rules
 - [`docs/architecture/project-structure.md`](docs/architecture/project-structure.md) — module map
 - [`docs/product/behavior-matrix.md`](docs/product/behavior-matrix.md) — product behavior matrix
 - [`docs/api.md`](docs/api.md) — API surface
