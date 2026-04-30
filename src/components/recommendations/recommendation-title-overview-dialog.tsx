@@ -4,6 +4,7 @@ import { RecommendationHistoryItemActions } from "@/components/recommendations/r
 import { RecommendationOverviewModalShell } from "@/components/recommendations/recommendation-overview-modal-shell";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationTimeline } from "@/components/recommendations/recommendation-timeline";
+import { RecommendationTrailerSection } from "@/components/recommendations/recommendation-trailer-section";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { type PreferenceRecord } from "@/modules/preferences/queries/get-user-preferences";
 import {
@@ -181,6 +182,10 @@ export function RecommendationTitleOverviewDialog({
             <Fact label="Run status" value={item.runStatus} />
           </div>
         </section>
+
+        {details?.videos?.length ? (
+          <RecommendationTrailerSection videos={details.videos} title={item.title} />
+        ) : null}
 
         <section className="space-y-4">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Status timeline</p>

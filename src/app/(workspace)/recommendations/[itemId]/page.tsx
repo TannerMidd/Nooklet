@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { RecommendationHistoryItemActions } from "@/components/recommendations/recommendation-history-item-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationTimeline } from "@/components/recommendations/recommendation-timeline";
+import { RecommendationTrailerSection } from "@/components/recommendations/recommendation-trailer-section";
 import { Panel } from "@/components/ui/panel";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
@@ -204,6 +205,12 @@ export default async function RecommendationOverviewPage({
           <Fact label="Run status" value={item.runStatus} />
         </div>
       </Panel>
+
+      {details?.videos?.length ? (
+        <Panel eyebrow="Watch" title="Trailers and clips">
+          <RecommendationTrailerSection videos={details.videos} title={item.title} />
+        </Panel>
+      ) : null}
 
       <Panel eyebrow="Status timeline" title="Title activity">
         <RecommendationTimeline events={timeline} />
