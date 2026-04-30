@@ -156,7 +156,7 @@ export async function LibrarySearchWorkspace({
               ? searchResult.items.map((item) => (
                   <article
                     key={item.resultKey}
-                    className="flex min-h-full gap-4 rounded-[28px] border border-line/80 bg-panel-strong/80 p-4 shadow-soft"
+                    className="flex min-h-full gap-4 rounded-lg border border-line/80 bg-panel-strong/60 p-4"
                   >
                     <RecommendationPoster title={item.title} posterUrl={item.posterUrl} />
                     <div className="min-w-0 flex-1 space-y-4">

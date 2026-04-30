@@ -42,14 +42,14 @@ export function RadarrMovieModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby={dialogTitleId}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4"
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-[28px] border border-line/80 bg-panel shadow-soft">
+      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border border-line/80 bg-panel">
         <header className="flex items-start justify-between gap-4 border-b border-line/60 p-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">
@@ -80,7 +80,7 @@ export function RadarrMovieModal({
             <RecommendationPoster title={movie.title} posterUrl={movie.posterUrl} />
             <dl className="grid flex-1 grid-cols-2 gap-3 text-sm">
               <div>
-                <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted">
+                <dt className="text-xs font-medium text-muted">
                   Monitoring
                 </dt>
                 <dd className="mt-1">
@@ -88,21 +88,21 @@ export function RadarrMovieModal({
                 </dd>
               </div>
               <div>
-                <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted">
+                <dt className="text-xs font-medium text-muted">
                   File
                 </dt>
                 <dd className="mt-1 text-foreground">{movie.hasFile ? "On disk" : "Missing"}</dd>
               </div>
               {movie.status ? (
                 <div className="col-span-2">
-                  <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted">
+                  <dt className="text-xs font-medium text-muted">
                     Status
                   </dt>
                   <dd className="mt-1 text-foreground">{movie.status}</dd>
                 </div>
               ) : null}
               <div className="col-span-2">
-                <dt className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted">
+                <dt className="text-xs font-medium text-muted">
                   Quality profile
                 </dt>
                 <dd className="mt-1 text-foreground">

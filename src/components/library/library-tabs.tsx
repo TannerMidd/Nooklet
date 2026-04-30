@@ -29,7 +29,7 @@ export function LibraryTabs({ tabs, defaultTabId }: LibraryTabsProps) {
       <div
         role="tablist"
         aria-label="Library views"
-        className="grid gap-1.5 rounded-2xl border border-line/70 bg-panel-strong/55 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] sm:inline-grid sm:grid-flow-col"
+        className="grid gap-1.5 rounded-lg border border-line/70 bg-panel-strong/50 p-1.5 sm:inline-grid sm:grid-flow-col"
       >
         {tabs.map((tab) => {
           const active = tab.id === activeTab.id;
@@ -43,10 +43,10 @@ export function LibraryTabs({ tabs, defaultTabId }: LibraryTabsProps) {
               id={`library-tab-${tab.id}`}
               onClick={() => setActiveTabId(tab.id)}
               className={cn(
-                "min-h-10 rounded-xl px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35",
+                "min-h-10 rounded-md px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50",
                 active
-                  ? "bg-accent text-accent-foreground shadow-[0_10px_28px_rgba(91,202,183,0.16)]"
-                  : "text-muted hover:bg-panel hover:text-foreground",
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted hover:bg-panel-strong hover:text-foreground",
               )}
             >
               {tab.label}

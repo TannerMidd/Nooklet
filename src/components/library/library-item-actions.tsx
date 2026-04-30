@@ -280,9 +280,9 @@ export function LibraryItemActions({
       {hasQualityProfiles || enableSearch ? (
         <div className="grid w-full gap-3 pt-2 text-sm">
           {hasQualityProfiles ? (
-            <div className="grid gap-2 rounded-2xl border border-line/70 bg-panel-strong/70 p-3">
+            <div className="grid gap-2 rounded-lg border border-line/70 bg-panel-strong/60 p-3">
               <label className="grid gap-1.5">
-                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
+                <span className="text-xs font-medium text-muted">
                   Quality profile
                 </span>
                 <select
@@ -428,16 +428,16 @@ function DeleteLibraryItemDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby={dialogTitleId}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4 backdrop-blur"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4"
       onClick={(event) => {
         if (event.target === event.currentTarget && !isPending) {
           onClose();
         }
       }}
     >
-      <div className="flex w-full max-w-md flex-col rounded-[28px] border border-line/80 bg-panel shadow-soft">
+      <div className="flex w-full max-w-md flex-col rounded-xl border border-line/80 bg-panel">
         <header className="space-y-2 border-b border-line/60 p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-rose-300">
+          <p className="font-heading text-sm italic text-rose-300">
             Delete from {serviceLabel}
           </p>
           <h2
