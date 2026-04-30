@@ -7,7 +7,7 @@ vi.mock("@/lib/integrations/http-helpers", () => ({
 
 import { fetchWithTimeout } from "@/lib/integrations/http-helpers";
 
-import { lookupTmdbTitleDetails, verifyTmdbConnection } from "./tmdb";
+import { lookupTmdbTitleDetails, listTmdbDiscoverTitles, verifyTmdbConnection } from "./tmdb";
 import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 
 const fetchWithTimeoutMock = vi.mocked(fetchWithTimeout);
@@ -448,5 +448,86 @@ describe("lookupTmdbTitleDetails", () => {
       message: "No TMDB match was found for Arrival (2016).",
     });
     expect(fetchWithTimeoutMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("listTmdbDiscoverTitles", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("normalizes trending titles, dedupes ids, and respects the configured page size", async () => {
+    fetchWithTimeoutMock.mockResolvedValueOnce(
+      jsonResponse({
+        results: [
+          { id: 100, title: "Interstellar", release_date: "2014-11-07", poster_path: "/inter.jpg", vote_average: 8.4 },
+          { id: 100, title: "Interstellar dupe" },
+          { id: 101, title: "Dune", release_date: "2021-10-22", poster_path: "/dune.jpg", vote_average: 8 },
+          { id: null, title: "Skip" },
+          { id: 102 },
+        ],
+      }),
+    );
+
+    const result = await listTmdbDiscoverTitles({
+      baseUrl: "https://api.themoviedb.org/3",
+      secret: "tmdb-key",
+      metadata: { tmdbImageBaseUrl: "https://image.tmdb.org/t/p/" },
+      category: "trending",
+      mediaType: "movie",
+    });
+
+    expect(result.ok).toBe(true);
+
+    if (!result.ok) {
+      throw new Error("expected ok result");
+    }
+
+    expect(fetchWithTimeoutMock).toHaveBeenCalledTimes(1);
+    expect(fetchWithTimeoutMock.mock.calls[0]?.[0]?.toString()).toContain("/trending/movie/week");
+    expect(result.titles).toEqual([
+      {
+        tmdbId: 100,
+        mediaType: "movie",
+        title: "Interstellar",
+        year: 2014,
+        posterUrl: "https://image.tmdb.org/t/p/w500/inter.jpg",
+        voteAverage: 8.4,
+      },
+      {
+        tmdbId: 101,
+        mediaType: "movie",
+        title: "Dune",
+        year: 2021,
+        posterUrl: "https://image.tmdb.org/t/p/w500/dune.jpg",
+        voteAverage: 8,
+      },
+    ]);
+  });
+
+  it("uses the on_the_air endpoint for upcoming TV", async () => {
+    fetchWithTimeoutMock.mockResolvedValueOnce(jsonResponse({ results: [] }));
+
+    await listTmdbDiscoverTitles({
+      baseUrl: "https://api.themoviedb.org/3",
+      secret: "tmdb-key",
+      category: "upcoming",
+      mediaType: "tv",
+    });
+
+    expect(fetchWithTimeoutMock.mock.calls[0]?.[0]?.toString()).toContain("/tv/on_the_air");
+  });
+
+  it("returns a typed failure when TMDB responds with a non-2xx status", async () => {
+    fetchWithTimeoutMock.mockResolvedValueOnce(jsonResponse({}, { status: 500 }));
+
+    const result = await listTmdbDiscoverTitles({
+      baseUrl: "https://api.themoviedb.org/3",
+      secret: "tmdb-key",
+      category: "popular",
+      mediaType: "movie",
+    });
+
+    expect(result).toEqual({ ok: false, message: "TMDB popular lookup failed with status 500." });
   });
 });

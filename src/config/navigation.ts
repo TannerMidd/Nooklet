@@ -37,6 +37,11 @@ export const navigationGroups = [
         description: "Get movie picks based on your taste and manage them in one place.",
       },
       {
+        href: "/discover",
+        label: "Discover",
+        description: "Browse trending, popular, and upcoming titles powered by TMDB.",
+      },
+      {
         href: "/sonarr",
         label: "Sonarr library",
         description: "Browse your Sonarr library, filter in real time, and manage which seasons are monitored.",

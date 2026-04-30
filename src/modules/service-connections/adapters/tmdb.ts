@@ -790,3 +790,112 @@ export async function lookupTmdbTitleDetails(input: TmdbConnectionInput & {
     details,
   };
 }
+
+export const tmdbDiscoverCategories = ["trending", "popular", "top_rated", "upcoming"] as const;
+export type TmdbDiscoverCategory = (typeof tmdbDiscoverCategories)[number];
+
+export type TmdbDiscoverTitle = TmdbSimilarTitle;
+
+export type ListTmdbDiscoverTitlesResult =
+  | { ok: true; titles: TmdbDiscoverTitle[] }
+  | { ok: false; message: string };
+
+const tmdbDiscoverPageSize = 20;
+
+function buildTmdbDiscoverPath(category: TmdbDiscoverCategory, mediaType: RecommendationMediaType) {
+  if (category === "trending") {
+    return `trending/${mediaType}/week`;
+  }
+
+  if (category === "upcoming") {
+    return mediaType === "movie" ? "movie/upcoming" : "tv/on_the_air";
+  }
+
+  if (category === "top_rated") {
+    return mediaType === "movie" ? "movie/top_rated" : "tv/top_rated";
+  }
+
+  return mediaType === "movie" ? "movie/popular" : "tv/popular";
+}
+
+function normalizeTmdbDiscoverTitles(
+  payload: TmdbSearchPayload,
+  mediaType: RecommendationMediaType,
+  imageBaseUrl: string | null,
+): TmdbDiscoverTitle[] {
+  if (!Array.isArray(payload.results)) {
+    return [];
+  }
+
+  const seenIds = new Set<number>();
+  const titles: TmdbDiscoverTitle[] = [];
+
+  for (const entry of payload.results) {
+    if (!isTmdbSearchResult(entry)) {
+      continue;
+    }
+
+    const tmdbId = readInteger(entry.id);
+
+    if (tmdbId === null || seenIds.has(tmdbId)) {
+      continue;
+    }
+
+    const title =
+      mediaType === "movie"
+        ? readString(entry.title) ?? readString(entry.name)
+        : readString(entry.name) ?? readString(entry.title);
+
+    if (!title) {
+      continue;
+    }
+
+    const releaseDate =
+      mediaType === "movie"
+        ? readString(entry.release_date) ?? readString(entry.first_air_date)
+        : readString(entry.first_air_date) ?? readString(entry.release_date);
+
+    seenIds.add(tmdbId);
+    titles.push({
+      tmdbId,
+      mediaType,
+      title,
+      year: extractYear(releaseDate),
+      posterUrl: buildImageUrl(imageBaseUrl, (entry as { poster_path?: unknown }).poster_path, "w500"),
+      voteAverage: readNumber((entry as { vote_average?: unknown }).vote_average),
+    });
+  }
+
+  return titles.slice(0, tmdbDiscoverPageSize);
+}
+
+export async function listTmdbDiscoverTitles(input: TmdbConnectionInput & {
+  category: TmdbDiscoverCategory;
+  mediaType: RecommendationMediaType;
+}): Promise<ListTmdbDiscoverTitlesResult> {
+  const path = buildTmdbDiscoverPath(input.category, input.mediaType);
+  const response = await fetchTmdbJson<TmdbSearchPayload>({
+    ...input,
+    path,
+    searchParams: {
+      language: "en-US",
+      page: 1,
+    },
+  });
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: `TMDB ${input.category} lookup failed with status ${response.status}.`,
+    };
+  }
+
+  return {
+    ok: true,
+    titles: normalizeTmdbDiscoverTitles(
+      response.payload,
+      input.mediaType,
+      getTmdbImageBaseUrl(input.metadata),
+    ),
+  };
+}
