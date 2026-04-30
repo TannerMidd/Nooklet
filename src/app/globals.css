@@ -60,9 +60,11 @@ body::before {
   background-size: 200px 200px;
 }
 
-body > * {
-  position: relative;
-  z-index: 1;
+@layer base {
+  body > * {
+    position: relative;
+    z-index: 1;
+  }
 }
 
 button,
