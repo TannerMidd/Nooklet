@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
   type NotificationChannelType,
   type NotificationEventType,
+  notificationChannelEvents,
   notificationChannels,
 } from "@/lib/database/schema";
 
@@ -26,47 +27,30 @@ export type NotificationChannelView = {
   updatedAt: Date;
 };
 
-const supportedEventTypes = new Set<NotificationEventType>([
-  "recommendation_run_succeeded",
-  "recommendation_run_failed",
-  "library_add_failed",
-  "watch_history_sync_failed",
-]);
+function loadEventsForChannelIds(channelIds: string[]): Map<string, NotificationEventType[]> {
+  const events = new Map<string, NotificationEventType[]>();
 
-export function parseEventMaskJson(json: string | null | undefined): NotificationEventType[] {
-  if (!json) {
-    return [];
-  }
-
-  try {
-    const parsed: unknown = JSON.parse(json);
-
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    const events: NotificationEventType[] = [];
-    const seen = new Set<NotificationEventType>();
-
-    for (const entry of parsed) {
-      if (typeof entry !== "string") {
-        continue;
-      }
-
-      if (supportedEventTypes.has(entry as NotificationEventType) && !seen.has(entry as NotificationEventType)) {
-        const event = entry as NotificationEventType;
-        events.push(event);
-        seen.add(event);
-      }
-    }
-
+  if (channelIds.length === 0) {
     return events;
-  } catch {
-    return [];
   }
+
+  const database = ensureDatabaseReady();
+  const rows = database
+    .select()
+    .from(notificationChannelEvents)
+    .where(inArray(notificationChannelEvents.channelId, channelIds))
+    .all();
+
+  for (const row of rows) {
+    const list = events.get(row.channelId) ?? [];
+    list.push(row.eventType);
+    events.set(row.channelId, list);
+  }
+
+  return events;
 }
 
-function toView(channel: StoredNotificationChannel): NotificationChannelView {
+function toView(channel: StoredNotificationChannel, events: NotificationEventType[]): NotificationChannelView {
   return {
     id: channel.id,
     userId: channel.userId,
@@ -74,7 +58,7 @@ function toView(channel: StoredNotificationChannel): NotificationChannelView {
     displayName: channel.displayName,
     targetUrl: channel.targetUrl,
     isEnabled: channel.isEnabled,
-    events: parseEventMaskJson(channel.eventMaskJson),
+    events,
     lastDispatchAt: channel.lastDispatchAt,
     lastDispatchStatus: channel.lastDispatchStatus,
     lastDispatchMessage: channel.lastDispatchMessage,
@@ -93,7 +77,9 @@ export async function listNotificationChannelsForUser(userId: string): Promise<N
     .orderBy(asc(notificationChannels.displayName))
     .all();
 
-  return rows.map(toView);
+  const events = loadEventsForChannelIds(rows.map((row) => row.id));
+
+  return rows.map((row) => toView(row, events.get(row.id) ?? []));
 }
 
 export async function findNotificationChannelById(
@@ -109,18 +95,40 @@ export async function findNotificationChannelById(
       .where(and(eq(notificationChannels.userId, userId), eq(notificationChannels.id, id)))
       .get() ?? null;
 
-  return row ? toView(row) : null;
+  if (!row) {
+    return null;
+  }
+
+  const events = loadEventsForChannelIds([row.id]);
+  return toView(row, events.get(row.id) ?? []);
 }
 
 export async function listEnabledNotificationChannelsForEvent(
   userId: string,
   eventType: NotificationEventType,
 ): Promise<NotificationChannelView[]> {
-  const channels = await listNotificationChannelsForUser(userId);
+  const database = ensureDatabaseReady();
 
-  return channels.filter(
-    (channel) => channel.isEnabled && channel.events.includes(eventType),
-  );
+  const rows = database
+    .select({
+      channel: notificationChannels,
+    })
+    .from(notificationChannels)
+    .innerJoin(notificationChannelEvents, eq(notificationChannelEvents.channelId, notificationChannels.id))
+    .where(
+      and(
+        eq(notificationChannels.userId, userId),
+        eq(notificationChannels.isEnabled, true),
+        eq(notificationChannelEvents.eventType, eventType),
+      ),
+    )
+    .orderBy(asc(notificationChannels.displayName))
+    .all();
+
+  const channels = rows.map((row) => row.channel);
+  const events = loadEventsForChannelIds(channels.map((channel) => channel.id));
+
+  return channels.map((channel) => toView(channel, events.get(channel.id) ?? []));
 }
 
 type CreateNotificationChannelInput = {
@@ -139,20 +147,29 @@ export async function createNotificationChannel(
   const id = randomUUID();
   const now = new Date();
 
-  database
-    .insert(notificationChannels)
-    .values({
-      id,
-      userId: input.userId,
-      channelType: input.channelType,
-      displayName: input.displayName,
-      targetUrl: input.targetUrl,
-      isEnabled: input.isEnabled,
-      eventMaskJson: JSON.stringify(input.events),
-      createdAt: now,
-      updatedAt: now,
-    })
-    .run();
+  database.transaction((tx) => {
+    tx
+      .insert(notificationChannels)
+      .values({
+        id,
+        userId: input.userId,
+        channelType: input.channelType,
+        displayName: input.displayName,
+        targetUrl: input.targetUrl,
+        isEnabled: input.isEnabled,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+
+    const unique = Array.from(new Set(input.events));
+    if (unique.length > 0) {
+      tx
+        .insert(notificationChannelEvents)
+        .values(unique.map((eventType) => ({ channelId: id, eventType })))
+        .run();
+    }
+  });
 
   const created = await findNotificationChannelById(input.userId, id);
 
@@ -193,15 +210,28 @@ export async function updateNotificationChannel(
     updates.isEnabled = input.isEnabled;
   }
 
-  if (input.events !== undefined) {
-    updates.eventMaskJson = JSON.stringify(input.events);
-  }
+  database.transaction((tx) => {
+    tx
+      .update(notificationChannels)
+      .set(updates)
+      .where(and(eq(notificationChannels.userId, input.userId), eq(notificationChannels.id, input.id)))
+      .run();
 
-  database
-    .update(notificationChannels)
-    .set(updates)
-    .where(and(eq(notificationChannels.userId, input.userId), eq(notificationChannels.id, input.id)))
-    .run();
+    if (input.events !== undefined) {
+      tx
+        .delete(notificationChannelEvents)
+        .where(eq(notificationChannelEvents.channelId, input.id))
+        .run();
+
+      const unique = Array.from(new Set(input.events));
+      if (unique.length > 0) {
+        tx
+          .insert(notificationChannelEvents)
+          .values(unique.map((eventType) => ({ channelId: input.id, eventType })))
+          .run();
+      }
+    }
+  });
 
   return findNotificationChannelById(input.userId, input.id);
 }
