@@ -1,4 +1,4 @@
-import { fetchWithTimeout } from "@/lib/integrations/http-helpers";
+import { SafeFetchAbortError, SsrfBlockedError, safeFetch } from "@/lib/security/safe-fetch";
 import { type NotificationChannelType } from "@/lib/database/schema";
 
 export type NotificationMessage = {
@@ -61,6 +61,24 @@ function buildBodyForChannel(
   };
 }
 
+function describeDispatchError(error: unknown): string {
+  if (error instanceof SsrfBlockedError) {
+    return "Notification target is not reachable from this server (blocked by SSRF policy).";
+  }
+
+  if (error instanceof SafeFetchAbortError) {
+    return error.reason === "timeout"
+      ? "Notification request timed out."
+      : "Notification request was canceled.";
+  }
+
+  if (error instanceof TypeError) {
+    return "Notification request failed to reach the configured endpoint.";
+  }
+
+  return "Notification request failed.";
+}
+
 export async function dispatchNotificationToChannel(input: {
   channelType: NotificationChannelType;
   targetUrl: string;
@@ -69,17 +87,17 @@ export async function dispatchNotificationToChannel(input: {
   const { body, contentType } = buildBodyForChannel(input.channelType, input.message);
 
   try {
-    const response = await fetchWithTimeout(
-      input.targetUrl,
-      {
-        method: "POST",
-        headers: {
-          "content-type": contentType,
-        },
-        body,
+    // Notifications fan out to user-supplied URLs and must never reach LAN/loopback
+    // hosts even when ALLOW_PRIVATE_SERVICE_HOSTS is enabled for *arr connections.
+    const response = await safeFetch(input.targetUrl, {
+      method: "POST",
+      headers: {
+        "content-type": contentType,
       },
-      dispatchTimeoutMs,
-    );
+      body,
+      timeoutMs: dispatchTimeoutMs,
+      allowPrivateHosts: false,
+    });
 
     if (!response.ok) {
       return {
@@ -92,7 +110,7 @@ export async function dispatchNotificationToChannel(input: {
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Notification request failed.",
+      message: describeDispatchError(error),
     };
   }
 }

@@ -51,7 +51,10 @@ export async function safeDispatchNotificationWorkflow(input: {
   try {
     return await dispatchNotificationWorkflow(input);
   } catch (error) {
-    console.error("Failed to dispatch notifications", error);
+    // Avoid logging the raw error: notification target URLs (Discord/Apprise)
+    // commonly embed secrets in the path and may appear in error messages.
+    const message = error instanceof Error ? error.name : "unknown error";
+    console.error("Failed to dispatch notifications:", message);
 
     return null;
   }
