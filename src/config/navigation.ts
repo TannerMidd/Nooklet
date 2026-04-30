@@ -13,7 +13,7 @@ export const publicEntryPoints = [
   {
     href: "/login",
     label: "Local login",
-    description: "Sign in with your Recommendarr account.",
+    description: "Sign in with your Nooklet account.",
   },
   {
     href: "/bootstrap",

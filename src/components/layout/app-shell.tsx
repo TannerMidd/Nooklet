@@ -29,16 +29,16 @@ export function AppShell({ children, user }: AppShellProps) {
                 <Link
                   href="/"
                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent/25 bg-accent/10 font-heading text-sm font-semibold text-accent transition hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
-                  aria-label="Recommendarr home"
+                  aria-label="Nooklet home"
                 >
-                  RA
+                  NK
                 </Link>
                 <div className="min-w-0 space-y-2">
                   <Link
                     href="/"
                     className="block truncate font-heading text-2xl leading-none tracking-normal text-foreground sm:text-3xl"
                   >
-                    Recommendarr Next
+                    Nooklet
                   </Link>
                   <p className="text-sm leading-6 text-muted">
                     Recommendations, watch history, and library actions in one place.
@@ -51,7 +51,7 @@ export function AppShell({ children, user }: AppShellProps) {
                   Signed in as
                 </p>
                 <p className="mt-2 font-medium text-foreground">
-                  {user.name || user.email || "Recommendarr user"}
+                  {user.name || user.email || "Nooklet user"}
                 </p>
                 {user.email ? <p className="mt-1 text-sm text-muted">{user.email}</p> : null}
                 <div className="mt-4">

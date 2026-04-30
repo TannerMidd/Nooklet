@@ -20,7 +20,7 @@ export default async function BootstrapPage() {
       <PageHeader
         eyebrow="Identity foundation"
         title="Create the first administrator"
-        description="Set up the first account for this Recommendarr install."
+        description="Set up the first account for this Nooklet install."
       />
 
       <div>

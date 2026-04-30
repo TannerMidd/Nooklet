@@ -18,8 +18,8 @@ const bodyFont = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Recommendarr Next",
-  description: "Domain-first rewrite scaffold for Recommendarr.",
+  title: "Nooklet",
+  description: "A cozy corner for what's next.",
 };
 
 type RootLayoutProps = {
