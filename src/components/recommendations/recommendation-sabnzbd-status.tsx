@@ -67,8 +67,8 @@ export function RecommendationSabnzbdStatus({
       aria-label={`${title} ${mediaType === "tv" ? "TV" : "movie"} SABnzbd status: ${statusLabel}, ${progressLabel}`}
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">SABnzbd</span>
-        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">
+        <span className="font-heading text-sm italic text-accent">SABnzbd</span>
+        <span className="text-xs font-medium text-muted">
           {statusLabel} / {progressLabel}
         </span>
       </div>

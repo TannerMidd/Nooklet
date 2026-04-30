@@ -61,7 +61,7 @@ export function CreateUserForm() {
           <select
             name="role"
             defaultValue="user"
-            className="min-h-11 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
+            className="min-h-11 w-full rounded-lg border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
             aria-invalid={Boolean(state.fieldErrors?.role)}
           >
             <option value="user">User</option>

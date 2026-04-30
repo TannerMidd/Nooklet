@@ -293,7 +293,7 @@ export function LibraryItemActions({
                     setQualityMessage(null);
                   }}
                   disabled={(qualityProfiles?.length ?? 0) === 0 || isQualityPending}
-                  className="min-h-10 w-full rounded-2xl border border-line bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
+                  className="min-h-10 w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
                 >
                   {(qualityProfiles?.length ?? 0) === 0 ? (
                     <option value="">No profiles loaded</option>

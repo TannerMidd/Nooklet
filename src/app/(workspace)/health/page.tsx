@@ -77,9 +77,9 @@ export default async function HealthPage() {
                   <p className="font-medium text-foreground">{connection.displayName}</p>
                   <p className="text-muted">{connection.statusMessage}</p>
                 </div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">{connection.status}</p>
+                <p className="text-xs font-medium text-muted">{connection.status}</p>
               </div>
-              <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+              <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium text-muted">
                 <span>Last verified {formatDate(connection.lastVerifiedAt)}</span>
                 {connection.serverName ? <span>{connection.serverName}</span> : null}
                 {connection.serviceType === "sabnzbd" ? <span>{connection.activeQueueCount} active queue items</span> : null}
@@ -104,7 +104,7 @@ export default async function HealthPage() {
                 <article key={source.id} className={`rounded-2xl border px-4 py-4 text-sm leading-6 ${statusTone(source.status)}`}>
                   <p className="font-medium text-foreground">{source.displayName}</p>
                   <p className="mt-1 text-muted">{source.statusMessage}</p>
-                  <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+                  <p className="mt-2 text-xs font-medium text-muted">
                     Last sync {formatDate(source.lastSyncedAt)}
                   </p>
                 </article>
@@ -125,9 +125,9 @@ export default async function HealthPage() {
                       <p className="font-medium text-foreground">{job.jobType}</p>
                       <p className="text-muted">{job.targetType}: {job.targetKey}</p>
                     </div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">{job.lastStatus}</p>
+                    <p className="text-xs font-medium text-muted">{job.lastStatus}</p>
                   </div>
-                  <div className="mt-3 grid gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted sm:grid-cols-2">
+                  <div className="mt-3 grid gap-2 text-xs font-medium text-muted sm:grid-cols-2">
                     <span>Next {formatDate(job.nextRunAt)}</span>
                     <span>Last completed {formatDate(job.lastCompletedAt)}</span>
                   </div>

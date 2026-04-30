@@ -195,7 +195,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
       <div className="space-y-4 text-sm leading-6 text-foreground">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <p className="text-sm text-muted">{queueState.statusMessage}</p>
-          <div className="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+          <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-muted">
             {snapshot?.queueStatus ? <span>{snapshot.queueStatus}</span> : null}
             {snapshot?.speed ? <span>{snapshot.speed}/s</span> : null}
             {snapshot?.timeLeft ? <span>{snapshot.timeLeft} left</span> : null}

@@ -289,7 +289,7 @@ export function RecommendationRequestForm({
               ? "Leave blank to use your library and watch history, or add guidance like slow-burn sci-fi with emotional stakes."
               : "Leave blank to use your library and watch history, or add guidance like tense modern thrillers with sharp pacing."
           }
-          className="min-h-32 w-full rounded-xl border border-line/80 bg-panel-strong/75 px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted focus:border-accent/50 focus:bg-panel focus:ring-2 focus:ring-accent/20"
+          className="min-h-32 w-full rounded-lg border border-line/80 bg-panel-strong/75 px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted focus:border-accent/50 focus:bg-panel focus:ring-1 focus:ring-accent/30"
           aria-invalid={Boolean(state.fieldErrors?.requestPrompt)}
         />
         {state.fieldErrors?.requestPrompt ? (

@@ -139,7 +139,7 @@ export function SonarrSeasonMonitorModal({
       <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border border-line/80 bg-panel">
         <header className="flex items-start justify-between gap-4 border-b border-line/60 p-6">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent">
+            <p className="font-heading text-sm italic text-accent">
               Sonarr monitoring
             </p>
             <h2

@@ -66,8 +66,8 @@ function formatOriginalLanguage(value: string | null | undefined) {
 
 function Fact({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
-    <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">{label}</p>
+    <div className="rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-3">
+      <p className="text-xs font-medium text-muted">{label}</p>
       <p className="mt-1 text-sm leading-6 text-foreground">{value ?? "Unknown"}</p>
     </div>
   );
@@ -162,12 +162,12 @@ export default async function RecommendationOverviewPage({
         <Panel eyebrow="Title overview" title="Overview">
           <div className="space-y-5 text-sm leading-7 text-foreground">
             {details?.overview ? <p>{details.overview}</p> : <p>{item.rationale}</p>}
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Recommendation rationale</p>
+            <div className="rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-3">
+              <p className="font-heading text-sm italic text-muted">Recommendation rationale</p>
               <p className="mt-2 text-sm leading-7 text-foreground">{item.rationale}</p>
             </div>
             {tmdbLookupMessage ? (
-              <p className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm text-muted">
+              <p className="rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-3 text-sm text-muted">
                 {tmdbLookupMessage}
               </p>
             ) : null}

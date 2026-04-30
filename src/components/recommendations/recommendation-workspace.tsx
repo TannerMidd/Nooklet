@@ -351,7 +351,7 @@ export async function RecommendationWorkspace({
                               {item.year ? ` (${item.year})` : ""}
                             </p>
                             <p className="mt-2 text-sm leading-6 text-muted">{item.rationale}</p>
-                            <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+                            <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium text-muted">
                               {item.confidenceLabel ? <span>{item.confidenceLabel}</span> : null}
                               {item.existingInLibrary ? <span>existing in library</span> : null}
                             </div>

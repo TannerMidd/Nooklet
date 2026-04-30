@@ -27,7 +27,7 @@ function ToggleControl({ enabled }: { enabled: boolean }) {
         aria-pressed={enabled}
         disabled={pending}
         className={cn(
-          "inline-flex h-8 w-14 items-center rounded-full border px-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-60",
+          "inline-flex h-8 w-14 items-center rounded-full border px-1 transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-60",
           enabled
             ? "border-accent/35 bg-accent/80"
             : "border-line/80 bg-panel-strong hover:border-accent/30",

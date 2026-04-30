@@ -185,9 +185,9 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 <Link
                   href={appendDetailsParam(returnTo, item.itemId)}
                   scroll={false}
-                  className="relative flex min-w-0 flex-col gap-4 rounded-[20px] outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent/50 sm:flex-row sm:items-start"
+                  className="relative flex min-w-0 flex-col gap-4 rounded-lg outline-none transition hover:opacity-90 focus-visible:ring-1 focus-visible:ring-accent/50 sm:flex-row sm:items-start"
                 >
-                  <LinkPendingOverlay className="rounded-[20px]" />
+                  <LinkPendingOverlay className="rounded-lg" />
                   <RecommendationPoster
                     title={item.title}
                     posterUrl={item.providerMetadata?.posterUrl}
@@ -216,7 +216,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
 
                     <p className="mt-4 text-sm leading-6 text-foreground">{item.rationale}</p>
 
-                    <div className="mt-4 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+                    <div className="mt-4 flex flex-wrap gap-3 text-xs font-medium text-muted">
                       {item.confidenceLabel ? <span>{item.confidenceLabel}</span> : null}
                       {item.feedback ? <span>feedback: {item.feedback}</span> : null}
                       {item.isHidden ? <span>hidden</span> : null}

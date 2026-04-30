@@ -66,14 +66,14 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
       <form action={roleAction} className="space-y-2 rounded-2xl border border-line/70 bg-panel px-3 py-3">
         <input type="hidden" name="userId" value={user.id} />
         <label className="space-y-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+          <span className="text-xs font-medium text-muted">
             Role
           </span>
           <select
             name="role"
             defaultValue={user.role}
             disabled={isCurrentAdmin}
-            className="min-h-11 w-full rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-11 w-full rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <option value="user">User</option>
             <option value="admin">Admin</option>
@@ -94,7 +94,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
       <form action={statusAction} className="space-y-2 rounded-2xl border border-line/70 bg-panel px-3 py-3">
         <input type="hidden" name="userId" value={user.id} />
         <input type="hidden" name="isDisabled" value={user.isDisabled ? "false" : "true"} />
-        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+        <div className="text-xs font-medium text-muted">
           Account status
         </div>
         <InlineSubmitButton
@@ -112,7 +112,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
 
       <form action={passwordAction} className="space-y-2 rounded-2xl border border-line/70 bg-panel px-3 py-3">
         <input type="hidden" name="userId" value={user.id} />
-        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+        <div className="text-xs font-medium text-muted">
           Reset password
         </div>
         <Input

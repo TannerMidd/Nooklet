@@ -83,7 +83,7 @@ export default async function AdminPage() {
       >
         <div className="overflow-x-auto rounded-lg border border-line/70">
           <table className="min-w-full border-collapse text-left text-sm text-foreground">
-            <thead className="bg-panel-strong/80 text-xs uppercase tracking-[0.2em] text-muted">
+            <thead className="bg-panel-strong/80 text-xs font-medium text-muted">
               <tr>
                 <th className="px-4 py-3 font-semibold">User</th>
                 <th className="px-4 py-3 font-semibold">Role</th>

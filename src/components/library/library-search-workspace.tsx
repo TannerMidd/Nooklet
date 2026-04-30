@@ -169,7 +169,7 @@ export async function LibrarySearchWorkspace({
                             {item.year ? `${item.year}` : "Year unavailable"}
                           </p>
                         </div>
-                        <div className="flex flex-wrap gap-2 text-xs font-medium uppercase tracking-[0.2em] text-muted">
+                        <div className="flex flex-wrap gap-2 text-xs font-medium text-muted">
                           {item.year ? (
                             <span className="rounded-full border border-line/80 bg-panel px-3 py-1">
                               {item.year}

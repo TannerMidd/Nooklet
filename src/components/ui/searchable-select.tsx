@@ -167,7 +167,7 @@ export function SearchableSelect({
           }
         }}
         className={cn(
-          "flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border border-line/80 bg-panel-strong/75 px-4 py-3 text-left text-sm text-foreground outline-none transition focus:border-accent/50 focus:bg-panel focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-60",
+          "flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-line/80 bg-panel-strong/75 px-4 py-3 text-left text-sm text-foreground outline-none transition focus:border-accent/50 focus:bg-panel focus:ring-1 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-60",
           triggerClassName,
         )}
       >
@@ -194,7 +194,7 @@ export function SearchableSelect({
               placeholder={searchPlaceholder}
               autoComplete="off"
               spellCheck={false}
-              className="min-h-10 w-full rounded-xl border border-line/80 bg-panel-strong/80 px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
+              className="min-h-10 w-full rounded-lg border border-line/80 bg-panel-strong/80 px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
             />
           </div>
           <ul

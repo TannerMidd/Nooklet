@@ -53,7 +53,7 @@ function RecentWatchHistoryItemList({
           <p className="mt-1 text-sm text-muted">
             {item.mediaType === "tv" ? "TV" : "Movie"} watched item
           </p>
-          <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-accent">
+          <p className="mt-2 text-xs font-medium text-accent">
             {formatDate(item.watchedAt)}
           </p>
         </article>
@@ -312,7 +312,7 @@ export default async function WatchHistorySettingsPage() {
                         <p className="mt-1 text-sm text-muted">Remote user: {source.selectedUserName}</p>
                       ) : null}
                       <p className="mt-2 text-sm text-muted">{source.statusMessage}</p>
-                      <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-accent">
+                      <p className="mt-2 text-xs font-medium text-accent">
                         Last sync {formatDate(source.lastSyncedAt)}
                       </p>
                     </article>

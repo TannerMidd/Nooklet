@@ -32,7 +32,7 @@ export function ManualWatchHistoryForm() {
           <select
             name="mediaType"
             defaultValue="tv"
-            className="min-h-11 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
+            className="min-h-11 w-full rounded-lg border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
             aria-invalid={Boolean(state.fieldErrors?.mediaType)}
           >
             <option value="tv">TV</option>
@@ -49,7 +49,7 @@ export function ManualWatchHistoryForm() {
             name="entriesText"
             rows={9}
             placeholder={"Severance (2022)\nStation Eleven (2021)\nThe Expanse (2015)"}
-            className="min-h-48 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/20"
+            className="min-h-48 w-full rounded-lg border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
             aria-invalid={Boolean(state.fieldErrors?.entriesText)}
           />
           <p className="text-sm leading-6 text-muted">

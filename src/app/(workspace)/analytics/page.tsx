@@ -134,9 +134,9 @@ export default async function AnalyticsPage() {
                       <p className="font-medium text-foreground">{run.mediaType === "tv" ? "TV" : "Movie"} run</p>
                       <p className="text-muted">{run.requestPrompt || "Taste-based automatic request"}</p>
                     </div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">{run.status}</p>
+                    <p className="text-xs font-medium text-muted">{run.status}</p>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+                  <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium text-muted">
                     <span>{formatNumber(run.totalTokens)} tokens</span>
                     <span>{formatDuration(run.durationMs)}</span>
                     <span>{run.generatedItemCount} saved</span>

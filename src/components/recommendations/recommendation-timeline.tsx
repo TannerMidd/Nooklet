@@ -48,7 +48,7 @@ export function RecommendationTimeline({ events }: RecommendationTimelineProps) 
               <p className="font-medium text-foreground">{event.title}</p>
               <p className="mt-1 text-muted">{event.message}</p>
             </div>
-            <p className="shrink-0 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+            <p className="shrink-0 text-xs font-medium text-muted">
               {formatDate(event.createdAt)}
             </p>
           </div>
