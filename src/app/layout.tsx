@@ -1,17 +1,20 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans, Space_Grotesk } from "next/font/google";
+import { Fraunces, Inter } from "next/font/google";
 import { type ReactNode } from "react";
 
 import { AppProviders } from "@/app/providers";
 
 import "./globals.css";
 
-const headingFont = Space_Grotesk({
+const headingFont = Fraunces({
   subsets: ["latin"],
   variable: "--app-font-heading",
+  weight: ["400", "500", "600"],
+  style: ["normal", "italic"],
+  axes: ["opsz"],
 });
 
-const bodyFont = IBM_Plex_Sans({
+const bodyFont = Inter({
   subsets: ["latin"],
   variable: "--app-font-body",
   weight: ["400", "500", "600", "700"],
