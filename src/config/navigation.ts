@@ -92,6 +92,11 @@ export const navigationGroups = [
         description: "Import watched titles from Plex, Tautulli, or manual entries.",
       },
       {
+        href: "/settings/notifications",
+        label: "Notifications",
+        description: "Send recommendation and sync events to Discord, Apprise, or webhooks.",
+      },
+      {
         href: "/health",
         label: "Health",
         description: "View service status, sync jobs, and queued work.",
