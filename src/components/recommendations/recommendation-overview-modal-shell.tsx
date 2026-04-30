@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useCallback, useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
@@ -18,12 +18,25 @@ export function RecommendationOverviewModalShell({
   children,
 }: RecommendationOverviewModalShellProps) {
   const router = useRouter();
+  // Hide the modal optimistically while the URL transition runs in the
+  // background. Without this the dialog stays mounted until the parent
+  // server component re-renders, which is the source of the noticeable
+  // close lag on `force-dynamic` pages like /history and /discover.
+  const [isClosing, setIsClosing] = useState(false);
+  const [, startTransition] = useTransition();
 
-  function closeModal() {
-    router.push(closeHref, { scroll: false });
-  }
+  const closeModal = useCallback(() => {
+    setIsClosing(true);
+    startTransition(() => {
+      router.push(closeHref, { scroll: false });
+    });
+  }, [closeHref, router]);
 
   useEffect(() => {
+    if (isClosing) {
+      return;
+    }
+
     const previousOverflow = document.body.style.overflow;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -38,9 +51,9 @@ export function RecommendationOverviewModalShell({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  });
+  }, [closeModal, isClosing]);
 
-  if (typeof document === "undefined") {
+  if (isClosing || typeof document === "undefined") {
     return null;
   }
 
