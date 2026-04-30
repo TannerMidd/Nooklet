@@ -25,7 +25,7 @@ export function LinkPendingOverlay({ className }: LinkPendingOverlayProps) {
     <span
       aria-hidden="true"
       className={cn(
-        "pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] bg-[rgba(18,22,29,0.55)] backdrop-blur-[1px]",
+        "pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] bg-background/55",
         className,
       )}
     >

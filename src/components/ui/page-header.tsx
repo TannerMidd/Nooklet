@@ -22,14 +22,13 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        "relative overflow-hidden rounded-3xl border border-line/70 bg-[linear-gradient(135deg,rgba(35,42,52,0.94),rgba(22,27,34,0.96))] px-5 py-6 shadow-soft ring-1 ring-white/[0.03] backdrop-blur sm:px-6 md:px-8 xl:px-10",
+        "relative overflow-hidden rounded-xl border border-line/70 bg-panel px-5 py-6 sm:px-6 md:px-8 xl:px-10",
         className,
       )}
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(91,202,183,0.65),transparent)]" />
       <div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0 max-w-4xl space-y-3">
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-accent sm:text-xs sm:tracking-[0.28em]">
+          <p className="font-heading text-sm italic text-accent">
             {eyebrow}
           </p>
           <div className="space-y-3">

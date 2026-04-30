@@ -8,10 +8,10 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const buttonVariants = {
-  primary: "border border-accent/20 bg-accent text-accent-foreground shadow-[0_10px_28px_rgba(91,202,183,0.18)] hover:bg-accent/90",
-  secondary: "border border-line/80 bg-panel-strong/80 text-foreground hover:border-accent/35 hover:bg-panel",
-  ghost: "border border-transparent bg-transparent text-muted hover:border-line/70 hover:bg-panel-strong/70 hover:text-foreground",
-  danger: "border border-highlight/25 bg-highlight/10 text-highlight hover:bg-highlight/20",
+  primary: "border border-accent/30 bg-accent text-accent-foreground hover:bg-accent/90",
+  secondary: "border border-line/80 bg-panel-strong/70 text-foreground hover:border-accent/40 hover:bg-panel-strong",
+  ghost: "border border-transparent bg-transparent text-muted hover:border-line/70 hover:text-foreground",
+  danger: "border border-highlight/30 bg-highlight/10 text-highlight hover:bg-highlight/20",
 } satisfies Record<NonNullable<ButtonProps["variant"]>, string>;
 
 const buttonSizes = {
@@ -29,7 +29,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       type={type}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-55 [&>svg]:shrink-0",
+        "inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-55 [&>svg]:shrink-0",
         buttonSizes[size],
         buttonVariants[variant],
         className,

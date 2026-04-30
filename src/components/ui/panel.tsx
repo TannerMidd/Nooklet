@@ -20,13 +20,13 @@ export function Panel({
   return (
     <section
       className={cn(
-        "min-w-0 rounded-3xl border border-line/70 bg-panel/90 p-5 shadow-soft ring-1 ring-white/[0.03] backdrop-blur sm:p-6",
+        "min-w-0 rounded-xl border border-line/70 bg-panel p-5 sm:p-6",
         className,
       )}
     >
       <div className="space-y-2.5">
         {eyebrow ? (
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-accent sm:text-xs sm:tracking-[0.3em]">
+          <p className="font-heading text-sm italic text-accent">
             {eyebrow}
           </p>
         ) : null}

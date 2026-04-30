@@ -180,7 +180,7 @@ export function SearchableSelect({
       </button>
 
       {open ? (
-        <div className="absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-2xl border border-line/80 bg-panel shadow-soft ring-1 ring-white/[0.03]">
+        <div className="absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-lg border border-line/80 bg-panel">
           <div className="border-b border-line/70 p-2">
             <input
               ref={searchRef}
