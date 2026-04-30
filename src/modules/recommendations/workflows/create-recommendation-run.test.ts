@@ -54,6 +54,10 @@ vi.mock("@/modules/users/repositories/user-repository", () => ({
   createAuditEvent: vi.fn(),
 }));
 
+vi.mock("@/modules/notifications/workflows/dispatch-notification", () => ({
+  safeDispatchNotificationWorkflow: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("@/modules/service-connections/adapters/add-library-item", () => {
   const normalizeTitle = (value: string) =>
     value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ");

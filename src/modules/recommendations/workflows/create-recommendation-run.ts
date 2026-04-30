@@ -21,6 +21,7 @@ import { buildLibraryTasteItemKey } from "@/modules/service-connections/adapters
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
 import { generateBackfilledRecommendationItems } from "@/modules/recommendations/workflows/recommendation-generation";
+import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
 
 import {
   buildMissingTmdbLanguageMessage,
@@ -346,6 +347,16 @@ async function executeRecommendationRunGeneration(
       }),
     });
 
+    await safeDispatchNotificationWorkflow({
+      userId,
+      payload: {
+        eventType: "recommendation_run_succeeded",
+        runId,
+        mediaType: input.mediaType,
+        itemCount: normalizedItems.length,
+      },
+    });
+
     return {
       ok: true,
       runId,
@@ -363,6 +374,16 @@ async function executeRecommendationRunGeneration(
       generationAttemptCount,
       excludedExistingItemCount,
       excludedLanguageItemCount,
+    });
+
+    await safeDispatchNotificationWorkflow({
+      userId,
+      payload: {
+        eventType: "recommendation_run_failed",
+        runId,
+        mediaType: input.mediaType,
+        message,
+      },
     });
 
     return {
