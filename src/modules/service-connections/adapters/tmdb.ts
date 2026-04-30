@@ -756,9 +756,17 @@ export async function lookupTmdbTitleDetails(input: TmdbConnectionInput & {
   }
 
   const detailsPath = input.mediaType === "movie" ? `movie/${tmdbId}` : `tv/${tmdbId}`;
+  return fetchTmdbDetailsById({ ...input, tmdbId, mediaType: input.mediaType, path: detailsPath });
+}
+
+async function fetchTmdbDetailsById(input: TmdbConnectionInput & {
+  tmdbId: number;
+  mediaType: RecommendationMediaType;
+  path: string;
+}): Promise<LookupTmdbTitleDetailsResult> {
   const detailsResult = await fetchTmdbJson<TmdbDetailsPayload>({
     ...input,
-    path: detailsPath,
+    path: input.path,
     searchParams: {
       append_to_response: "external_ids,videos,credits,watch/providers,recommendations",
       language: "en-US",
@@ -789,6 +797,14 @@ export async function lookupTmdbTitleDetails(input: TmdbConnectionInput & {
     ok: true,
     details,
   };
+}
+
+export async function lookupTmdbTitleDetailsByTmdbId(input: TmdbConnectionInput & {
+  mediaType: RecommendationMediaType;
+  tmdbId: number;
+}): Promise<LookupTmdbTitleDetailsResult> {
+  const detailsPath = input.mediaType === "movie" ? `movie/${input.tmdbId}` : `tv/${input.tmdbId}`;
+  return fetchTmdbDetailsById({ ...input, path: detailsPath });
 }
 
 export const tmdbDiscoverCategories = ["trending", "popular", "top_rated", "upcoming"] as const;
