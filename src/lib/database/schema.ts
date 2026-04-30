@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const userRoles = ["admin", "user"] as const;
 
@@ -432,7 +432,6 @@ export const notificationChannels = sqliteTable(
     displayName: text("display_name").notNull(),
     targetUrl: text("target_url").notNull(),
     isEnabled: integer("is_enabled", { mode: "boolean" }).notNull().default(true),
-    eventMaskJson: text("event_mask_json").notNull().default('["recommendation_run_succeeded","recommendation_run_failed"]'),
     lastDispatchAt: integer("last_dispatch_at", { mode: "timestamp_ms" }),
     lastDispatchStatus: text("last_dispatch_status"),
     lastDispatchMessage: text("last_dispatch_message"),
@@ -444,6 +443,17 @@ export const notificationChannels = sqliteTable(
       .default(sql`(unixepoch() * 1000)`),
   },
   (table) => [uniqueIndex("notification_channels_user_name_unique").on(table.userId, table.displayName)],
+);
+
+export const notificationChannelEvents = sqliteTable(
+  "notification_channel_events",
+  {
+    channelId: text("channel_id")
+      .notNull()
+      .references(() => notificationChannels.id, { onDelete: "cascade" }),
+    eventType: text("event_type", { enum: notificationEventTypes }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.channelId, table.eventType] })],
 );
 
 export type UserRole = (typeof userRoles)[number];

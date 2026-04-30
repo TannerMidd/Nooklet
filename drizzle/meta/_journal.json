@@ -134,6 +134,13 @@
       "when": 1777562118926,
       "tag": "0018_lazy_fantastic_four",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1777566459414,
+      "tag": "0019_notification_channel_events",
+      "breakpoints": true
     }
   ]
 }
