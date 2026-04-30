@@ -83,7 +83,7 @@ with a single click.
 
 ## Screenshots
 
-<!-- Add screenshots or a short demo GIF here -->
+<img width="3840" height="1826" alt="image" src="https://github.com/user-attachments/assets/5d2e8077-65d8-497f-90e4-5a39d13a05e3" />
 
 ---
 
