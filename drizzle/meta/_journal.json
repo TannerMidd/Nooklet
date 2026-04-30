@@ -127,6 +127,13 @@
       "when": 1777271200000,
       "tag": "0017_icy_goliath",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1777562118926,
+      "tag": "0018_lazy_fantastic_four",
+      "breakpoints": true
     }
   ]
 }

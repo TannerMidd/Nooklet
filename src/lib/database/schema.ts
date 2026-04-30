@@ -413,6 +413,39 @@ export const rateLimits = sqliteTable("rate_limits", {
   attempts: integer("attempts").notNull().default(0),
 });
 
+export const notificationChannelTypes = ["webhook", "discord", "apprise"] as const;
+export const notificationEventTypes = [
+  "recommendation_run_succeeded",
+  "recommendation_run_failed",
+  "library_add_failed",
+  "watch_history_sync_failed",
+] as const;
+
+export const notificationChannels = sqliteTable(
+  "notification_channels",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    channelType: text("channel_type", { enum: notificationChannelTypes }).notNull(),
+    displayName: text("display_name").notNull(),
+    targetUrl: text("target_url").notNull(),
+    isEnabled: integer("is_enabled", { mode: "boolean" }).notNull().default(true),
+    eventMaskJson: text("event_mask_json").notNull().default('["recommendation_run_succeeded","recommendation_run_failed"]'),
+    lastDispatchAt: integer("last_dispatch_at", { mode: "timestamp_ms" }),
+    lastDispatchStatus: text("last_dispatch_status"),
+    lastDispatchMessage: text("last_dispatch_message"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [uniqueIndex("notification_channels_user_name_unique").on(table.userId, table.displayName)],
+);
+
 export type UserRole = (typeof userRoles)[number];
 export type PreferenceMediaMode = (typeof preferenceMediaModes)[number];
 export type PreferenceLanguageCode = (typeof preferenceLanguageCodes)[number];
@@ -427,4 +460,6 @@ export type RecommendationRunStatus = (typeof recommendationRunStatuses)[number]
 export type RecommendationFeedbackValue = (typeof recommendationFeedbackValues)[number];
 export type RecommendationTimelineEventType = (typeof recommendationTimelineEventTypes)[number];
 export type RecommendationTimelineStatus = (typeof recommendationTimelineStatuses)[number];
+export type NotificationChannelType = (typeof notificationChannelTypes)[number];
+export type NotificationEventType = (typeof notificationEventTypes)[number];
 
