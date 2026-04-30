@@ -66,6 +66,20 @@ with a single click.
   per-user defaults (root folder, quality profile, monitored, etc.).
 - **In-progress** view that tracks active SABnzbd downloads.
 
+### Discover & rich title overviews
+- **Discover** rails (trending, popular, top-rated for TV and movies)
+  powered by TMDB.
+- Rich title overview dialogs with TMDB artwork, genres, runtime, cast,
+  trailers, watch providers, and similar titles.
+- Add directly to Sonarr or Radarr from any Discover or recommendation
+  overview.
+
+### Notifications
+- Per-user notification channels (**Discord**, **Apprise**, generic
+  **webhook**) with event-level subscriptions.
+- SSRF-guarded, secret-redacting dispatcher with a built-in test action and
+  dispatch audit history.
+
 ### Insights & operations
 - **Analytics** dashboard for recommendation quality, AI token usage, and
   feedback-derived taste signals.
@@ -177,10 +191,12 @@ encrypted at rest.
 | **OpenAI-compatible** | Chat model used to generate recommendations. |
 | **Sonarr** | Library context, season monitoring, request new shows. |
 | **Radarr** | Library context, search and request new movies. |
+| **TMDB** | Title overviews, artwork, genres, cast, trailers, watch providers, and the Discover rails. |
 | **Plex** | Optional watch-history source. |
 | **Tautulli** | Optional watch-history source with richer history detail. |
 | **Trakt** | Optional watch-history source. |
 | **SABnzbd** | In-progress download tracking. |
+| **Notifications** | Outbound-only channels: Discord, Apprise, or generic webhook. |
 
 ---
 
@@ -212,9 +228,9 @@ drizzle/          generated SQL migrations and snapshots
 docs/             ADRs, architecture notes, and product behavior matrix
 ```
 
-Domain modules under `src/modules/` include `recommendations`,
-`service-connections`, `watch-history`, `identity-access`, `preferences`,
-`users`, `admin`, and `jobs`.
+Domain modules under `src/modules/` include `recommendations`, `discover`,
+`service-connections`, `watch-history`, `notifications`, `identity-access`,
+`preferences`, `users`, `admin`, and `jobs`.
 
 ---
 
