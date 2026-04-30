@@ -1,23 +1,62 @@
 import Image from "next/image";
+import Link from "next/link";
 
 import { auth } from "@/auth";
+import { DiscoverTitleOverviewDialog } from "@/components/discover/discover-title-overview-dialog";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { getDiscoverOverview } from "@/modules/discover/queries/get-discover-overview";
+import { getDiscoverTitleOverview } from "@/modules/discover/queries/get-discover-title-overview";
+import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
+import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 export const dynamic = "force-dynamic";
 
-const tmdbTitleHref = (mediaType: "movie" | "tv", tmdbId: number) =>
-  `https://www.themoviedb.org/${mediaType}/${tmdbId}`;
+type DiscoverPageProps = {
+  searchParams?: Promise<{ details?: string; type?: string }>;
+};
 
-export default async function DiscoverPage() {
+function parseTmdbId(value: string | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseMediaType(value: string | undefined): "movie" | "tv" | null {
+  return value === "movie" || value === "tv" ? value : null;
+}
+
+function buildOverviewHref(mediaType: "movie" | "tv", tmdbId: number) {
+  return `/discover?details=${tmdbId}&type=${mediaType}`;
+}
+
+export default async function DiscoverPage({ searchParams }: DiscoverPageProps) {
   const session = await auth();
 
   if (!session?.user?.id) {
     return null;
   }
 
-  const overview = await getDiscoverOverview(session.user.id);
+  const resolvedSearchParams = await searchParams;
+  const detailsTmdbId = parseTmdbId(resolvedSearchParams?.details);
+  const detailsMediaType = parseMediaType(resolvedSearchParams?.type);
+
+  const [overview, preferences, connectionSummaries, selectedOverview] = await Promise.all([
+    getDiscoverOverview(session.user.id),
+    getUserPreferences(session.user.id),
+    listConnectionSummaries(session.user.id),
+    detailsTmdbId && detailsMediaType
+      ? getDiscoverTitleOverview({
+          userId: session.user.id,
+          tmdbId: detailsTmdbId,
+          mediaType: detailsMediaType,
+        })
+      : Promise.resolve(null),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -46,10 +85,9 @@ export default async function DiscoverPage() {
                     key={`${rail.category}-${rail.mediaType}-${title.tmdbId}`}
                     className="flex flex-col gap-2 rounded-2xl border border-line/70 bg-panel-strong/70 p-3"
                   >
-                    <a
-                      href={tmdbTitleHref(rail.mediaType, title.tmdbId)}
-                      target="_blank"
-                      rel="noreferrer noopener"
+                    <Link
+                      href={buildOverviewHref(rail.mediaType, title.tmdbId)}
+                      scroll={false}
                       className="flex flex-col gap-2"
                     >
                       <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl border border-line/60 bg-panel">
@@ -75,7 +113,7 @@ export default async function DiscoverPage() {
                           {title.voteAverage ? ` • ${title.voteAverage.toFixed(1)} TMDB` : ""}
                         </p>
                       </div>
-                    </a>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -83,6 +121,25 @@ export default async function DiscoverPage() {
           </Panel>
         ))
       )}
+
+      {selectedOverview && selectedOverview.ok ? (
+        <DiscoverTitleOverviewDialog
+          details={selectedOverview.details}
+          preferences={preferences}
+          connectionSummaries={connectionSummaries}
+          closeHref="/discover"
+          returnTo={buildOverviewHref(selectedOverview.details.mediaType, selectedOverview.details.tmdbId)}
+        />
+      ) : null}
+
+      {selectedOverview && !selectedOverview.ok ? (
+        <Panel
+          eyebrow={selectedOverview.reason === "tmdb-not-configured" ? "TMDB required" : "Title unavailable"}
+          title="We couldn't load this title"
+        >
+          <p className="text-sm leading-6 text-muted">{selectedOverview.message}</p>
+        </Panel>
+      ) : null}
     </div>
   );
 }
