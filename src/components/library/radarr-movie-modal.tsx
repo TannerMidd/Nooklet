@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 
 import { LibraryItemActions } from "@/components/library/library-item-actions";
 import { MonitoringStatusIcon } from "@/components/library/monitoring-status-icon";
@@ -67,9 +68,10 @@ export function RadarrMovieModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full border border-line/70 bg-panel-strong px-3 py-1 text-xs font-semibold text-muted hover:bg-panel"
+            className="inline-flex items-center gap-1.5 rounded-full border border-line/70 bg-panel-strong px-3 py-1 text-xs font-semibold text-muted hover:bg-panel"
           >
-            Close
+            <X aria-hidden="true" className="h-3.5 w-3.5" />
+            <span>Close</span>
           </button>
         </header>
 

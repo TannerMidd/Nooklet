@@ -2,7 +2,7 @@
 
 import { useId, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
-import { Eye, EyeOff, LoaderCircle, Trash2 } from "lucide-react";
+import { Eye, EyeOff, LoaderCircle, Save, Search, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -313,7 +313,12 @@ export function LibraryItemActions({
                   onClick={handleSaveQualityProfile}
                   disabled={isQualityPending || selectedQualityProfileId === null}
                 >
-                  {isQualityPending ? "Saving…" : "Save quality"}
+                  {isQualityPending ? (
+                    <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save aria-hidden="true" className="h-4 w-4" />
+                  )}
+                  <span>{isQualityPending ? "Saving..." : "Save quality"}</span>
                 </Button>
                 {resolvedQualityProfileName ? (
                   <span className="text-xs text-muted">Current: {resolvedQualityProfileName}</span>
@@ -342,7 +347,12 @@ export function LibraryItemActions({
                 onClick={handleTriggerSearch}
                 disabled={isSearchPending}
               >
-                {isSearchPending ? "Searching…" : "Search now"}
+                {isSearchPending ? (
+                  <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Search aria-hidden="true" className="h-4 w-4" />
+                )}
+                <span>{isSearchPending ? "Searching..." : "Search now"}</span>
               </Button>
               {searchMessage ? (
                 <span
@@ -477,7 +487,8 @@ function DeleteLibraryItemDialog({
             onClick={onClose}
             disabled={isPending}
           >
-            Cancel
+            <X aria-hidden="true" className="h-4 w-4" />
+            <span>Cancel</span>
           </Button>
           <Button
             type="button"
@@ -485,7 +496,12 @@ function DeleteLibraryItemDialog({
             disabled={isPending}
             className="bg-rose-500 text-white hover:bg-rose-500/90"
           >
-            {isPending ? "Deleting…" : "Delete"}
+            {isPending ? (
+              <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 aria-hidden="true" className="h-4 w-4" />
+            )}
+            <span>{isPending ? "Deleting..." : "Delete"}</span>
           </Button>
         </div>
       </div>

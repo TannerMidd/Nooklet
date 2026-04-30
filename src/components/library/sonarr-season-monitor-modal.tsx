@@ -8,7 +8,7 @@ import {
   useTransition,
 } from "react";
 import { createPortal } from "react-dom";
-import { Eye, EyeOff, LoaderCircle } from "lucide-react";
+import { Check, Eye, EyeOff, LoaderCircle, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -155,9 +155,10 @@ export function SonarrSeasonMonitorModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full border border-line/70 bg-panel-strong px-3 py-1 text-xs font-semibold text-muted hover:bg-panel"
+            className="inline-flex items-center gap-1.5 rounded-full border border-line/70 bg-panel-strong px-3 py-1 text-xs font-semibold text-muted hover:bg-panel"
           >
-            Close
+            <X aria-hidden="true" className="h-3.5 w-3.5" />
+            <span>Close</span>
           </button>
         </header>
 
@@ -380,10 +381,16 @@ function SeasonModeForm({
 
       <div className="flex flex-wrap justify-end gap-3 border-t border-line/60 p-6">
         <Button type="button" variant="secondary" onClick={onCancel} disabled={isPending}>
-          Cancel
+          <X aria-hidden="true" className="h-4 w-4" />
+          <span>Cancel</span>
         </Button>
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Saving..." : "Save monitoring"}
+          {isPending ? (
+            <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
+          ) : (
+            <Check aria-hidden="true" className="h-4 w-4" />
+          )}
+          <span>{isPending ? "Saving..." : "Save monitoring"}</span>
         </Button>
       </div>
     </form>

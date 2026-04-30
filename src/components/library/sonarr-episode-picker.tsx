@@ -9,6 +9,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import { Check, ChevronDown, ChevronUp, LoaderCircle, RotateCcw, X } from "lucide-react";
 
 import {
   initialSonarrLibraryActionState,
@@ -227,7 +228,8 @@ export function SonarrEpisodePickerForm({
           {loadState.message}
         </p>
         <Button type="button" variant="secondary" onClick={onRetry}>
-          Try again
+          <RotateCcw aria-hidden="true" className="h-4 w-4" />
+          <span>Try again</span>
         </Button>
       </div>
     );
@@ -386,9 +388,14 @@ function LoadedSonarrEpisodePickerForm({
                     type="button"
                     onClick={() => toggleExpanded(group.seasonNumber)}
                     aria-expanded={expanded}
-                    className="rounded-full border border-line/70 bg-panel px-3 py-1 text-xs font-semibold text-muted hover:bg-panel-strong"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-line/70 bg-panel px-3 py-1 text-xs font-semibold text-muted hover:bg-panel-strong"
                   >
-                    {expanded ? "Hide episodes" : "Show episodes"}
+                    {expanded ? (
+                      <ChevronUp aria-hidden="true" className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" />
+                    )}
+                    <span>{expanded ? "Hide episodes" : "Show episodes"}</span>
                   </button>
                 </header>
 
@@ -449,10 +456,16 @@ function LoadedSonarrEpisodePickerForm({
 
       <div className="flex flex-wrap justify-end gap-3 border-t border-line/60 p-6">
         <Button type="button" variant="secondary" onClick={onCancel} disabled={isPending}>
-          {cancelLabel}
+          <X aria-hidden="true" className="h-4 w-4" />
+          <span>{cancelLabel}</span>
         </Button>
         <Button type="submit" disabled={isPending}>
-          {isPending ? "Saving…" : submitLabel}
+          {isPending ? (
+            <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
+          ) : (
+            <Check aria-hidden="true" className="h-4 w-4" />
+          )}
+          <span>{isPending ? "Saving..." : submitLabel}</span>
         </Button>
       </div>
     </form>
