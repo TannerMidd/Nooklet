@@ -16,12 +16,12 @@
 }
 
 :root {
-  --background: 13 17 22;
+  --background: 18 16 22;
   --foreground: 240 238 232;
-  --panel: 23 28 35;
-  --panel-strong: 31 38 47;
-  --muted: 169 176 186;
-  --line: 71 82 96;
+  --panel: 28 25 33;
+  --panel-strong: 38 33 44;
+  --muted: 178 174 184;
+  --line: 78 70 88;
   --accent: 91 202 183;
   --accent-foreground: 5 18 17;
   --highlight: 239 147 102;
@@ -40,9 +40,9 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0) 18rem),
-    linear-gradient(135deg, rgba(91, 202, 183, 0.08), rgba(91, 202, 183, 0) 28rem),
-    linear-gradient(315deg, rgba(239, 147, 102, 0.07), rgba(239, 147, 102, 0) 26rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0) 18rem),
+    linear-gradient(135deg, rgba(91, 202, 183, 0.06), rgba(91, 202, 183, 0) 28rem),
+    linear-gradient(315deg, rgba(239, 147, 102, 0.11), rgba(239, 147, 102, 0) 30rem),
     rgb(var(--background));
   color: rgb(var(--foreground));
   font-family: var(--app-font-body), sans-serif;
