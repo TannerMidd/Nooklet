@@ -60,7 +60,7 @@ export function DiscoverTitleOverviewDialog({
   return (
     <RecommendationOverviewModalShell titleId={titleId} closeHref={closeHref}>
       <div className="space-y-6 p-5 md:p-8">
-        <header className="relative overflow-hidden rounded-[28px] border border-line/80 bg-panel-strong/70">
+        <header className="relative overflow-hidden rounded-xl border border-line/80 bg-panel-strong/70">
           {details.backdropUrl ? (
             <Image
               src={details.backdropUrl}
@@ -76,7 +76,7 @@ export function DiscoverTitleOverviewDialog({
             <RecommendationPoster title={details.title} posterUrl={details.posterUrl} />
             <div className="min-w-0 flex-1 space-y-4">
               <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent">
+                <p className="font-heading text-sm italic text-accent">
                   {details.mediaType === "tv" ? "TV title" : "Movie title"}
                 </p>
                 <h2 id={titleId} className="font-heading text-3xl leading-tight text-foreground md:text-4xl">
@@ -87,7 +87,7 @@ export function DiscoverTitleOverviewDialog({
                   <p className="max-w-4xl text-base leading-7 text-muted">{details.tagline}</p>
                 ) : null}
               </div>
-              <div className="flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+              <div className="flex flex-wrap gap-3 text-xs font-medium text-muted">
                 {genresLabel ? <span>{genresLabel}</span> : null}
                 {details.originalLanguage ? <span>{formatOriginalLanguage(details.originalLanguage)}</span> : null}
               </div>
@@ -99,15 +99,15 @@ export function DiscoverTitleOverviewDialog({
           <section className="space-y-5 text-sm leading-7 text-foreground">
             {details.overview ? (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Overview</p>
+                <p className="font-heading text-sm italic text-accent">Overview</p>
                 <p className="mt-3">{details.overview}</p>
               </div>
             ) : null}
           </section>
 
           <section className="space-y-4 text-sm leading-6 text-foreground">
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+            <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <p className="font-heading text-sm italic text-muted">
                 Add to {details.mediaType === "tv" ? "Sonarr" : "Radarr"}
               </p>
               <p className="mt-2 text-xs text-muted">
@@ -131,7 +131,7 @@ export function DiscoverTitleOverviewDialog({
         </div>
 
         <section className="space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Title facts</p>
+          <p className="font-heading text-sm italic text-accent">Title facts</p>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Fact label="Original language" value={formatOriginalLanguage(details.originalLanguage)} />
             <Fact label="Release" value={releaseLabel} />
