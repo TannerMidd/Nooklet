@@ -76,7 +76,7 @@ export default async function PreferencesSettingsPage({
       <PageHeader eyebrow="User preferences" title="Preferences" />
 
       {wasUpdated ? (
-        <p className="rounded-[24px] border border-accent/20 bg-accent/10 px-5 py-4 text-sm leading-6 text-foreground">
+        <p className="rounded-lg border border-accent/30 bg-accent/10 px-5 py-4 text-sm leading-6 text-foreground">
           Preferences saved. Current values and recommendation defaults have been refreshed.
         </p>
       ) : null}

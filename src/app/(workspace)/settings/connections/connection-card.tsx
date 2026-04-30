@@ -50,7 +50,7 @@ function formatDate(value: Date | null) {
 function ConnectionFact({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="min-w-0 border-t border-line/55 px-1 py-3 first:border-t-0 md:border-t-0 md:px-0 md:py-0">
-      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted">
+      <p className="text-xs font-medium text-muted">
         {label}
       </p>
       <p className="mt-1 break-words text-sm leading-6 text-foreground">{value}</p>
@@ -111,13 +111,13 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
   return (
     <form
       action={formAction}
-      className="rounded-3xl border border-line/70 bg-panel/90 p-5 shadow-soft ring-1 ring-white/[0.03] backdrop-blur sm:p-6"
+      className="rounded-xl border border-line/70 bg-panel p-5 sm:p-6"
     >
       <input type="hidden" name="serviceType" value={summary.serviceType} />
 
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent">
+          <p className="font-heading text-sm italic text-accent">
             {definition.displayName}
           </p>
           <h2 className="font-heading text-2xl tracking-normal text-foreground">
@@ -126,7 +126,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
           <p className="max-w-2xl text-sm leading-6 text-muted">{summary.description}</p>
         </div>
         <div
-          className={`inline-flex w-fit items-center rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] ${statusTone(summary.status)}`}
+          className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-medium ${statusTone(summary.status)}`}
         >
           {formatStatusLabel(summary.status)}
         </div>

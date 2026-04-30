@@ -115,7 +115,7 @@ export default async function RecommendationOverviewPage({
 
   return (
     <div className="space-y-6">
-      <header className="relative overflow-hidden rounded-[32px] border border-line/80 bg-panel/90 shadow-soft backdrop-blur">
+      <header className="relative overflow-hidden rounded-xl border border-line/80 bg-panel">
         {details?.backdropUrl ? (
           <Image
             src={details.backdropUrl}
@@ -136,7 +136,7 @@ export default async function RecommendationOverviewPage({
             <RecommendationPoster title={item.title} posterUrl={posterUrl} />
             <div className="min-w-0 flex-1 space-y-4">
               <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-accent">
+                <p className="font-heading text-sm italic text-accent">
                   {item.mediaType === "tv" ? "TV recommendation" : "Movie recommendation"}
                 </p>
                 <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
@@ -147,7 +147,7 @@ export default async function RecommendationOverviewPage({
                   <p className="max-w-4xl text-base leading-7 text-muted">{details.tagline}</p>
                 ) : null}
               </div>
-              <div className="flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+              <div className="flex flex-wrap gap-3 text-xs font-medium text-muted">
                 {item.confidenceLabel ? <span>{item.confidenceLabel}</span> : null}
                 {genresLabel ? <span>{genresLabel}</span> : null}
                 {details?.originalLanguage ? <span>{formatOriginalLanguage(details.originalLanguage)}</span> : null}

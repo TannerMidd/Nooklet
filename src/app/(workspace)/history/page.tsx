@@ -180,7 +180,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
             {history.items.map((item) => (
               <article
                 key={item.itemId}
-                className="rounded-[24px] border border-line/70 bg-panel-strong/70 p-5"
+                className="rounded-lg border border-line/70 bg-panel-strong/60 p-5"
               >
                 <Link
                   href={appendDetailsParam(returnTo, item.itemId)}

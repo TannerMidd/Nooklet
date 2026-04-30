@@ -90,7 +90,7 @@ export function NotificationChannelsForm({
   return (
     <div className="space-y-8">
       <section className="space-y-4">
-        <h3 className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
+        <h3 className="font-heading text-base italic text-accent">
           Add a notification channel
         </h3>
         <StatusBanner state={addState} />
@@ -154,7 +154,7 @@ export function NotificationChannelsForm({
       </section>
 
       <section className="space-y-4">
-        <h3 className="text-sm font-semibold uppercase tracking-[0.24em] text-accent">
+        <h3 className="font-heading text-base italic text-accent">
           Configured channels
         </h3>
         <StatusBanner state={testState} />

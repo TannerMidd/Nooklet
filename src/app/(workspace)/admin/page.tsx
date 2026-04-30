@@ -81,7 +81,7 @@ export default async function AdminPage() {
         title="Accounts"
         description="Review current accounts, manage access, and keep at least one active administrator available."
       >
-        <div className="overflow-x-auto rounded-[24px] border border-line/70">
+        <div className="overflow-x-auto rounded-lg border border-line/70">
           <table className="min-w-full border-collapse text-left text-sm text-foreground">
             <thead className="bg-panel-strong/80 text-xs uppercase tracking-[0.2em] text-muted">
               <tr>
