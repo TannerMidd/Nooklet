@@ -7,14 +7,10 @@ import {
   updateRecommendationItemProviderMetadata,
 } from "@/modules/recommendations/repositories/recommendation-repository";
 import { listRecommendationItemTimeline } from "@/modules/recommendations/queries/list-recommendation-item-timeline";
-import {
-  loadVerifiedTmdbConnection,
-} from "@/modules/recommendations/workflows/create-recommendation-run-enrichment";
 import { lookupTmdbTitleDetails } from "@/modules/service-connections/adapters/tmdb";
+import { getVerifiedTmdbConnection } from "@/modules/service-connections/queries/get-verified-tmdb-connection";
 
-type ProviderMetadataRecord = Record<string, unknown>;
-
-function parseProviderMetadataRecord(metadataJson: string | null): ProviderMetadataRecord {
+function parseProviderMetadataRecord(metadataJson: string | null): Record<string, unknown> {
   if (!metadataJson) {
     return {};
   }
@@ -22,15 +18,11 @@ function parseProviderMetadataRecord(metadataJson: string | null): ProviderMetad
   try {
     const parsed = JSON.parse(metadataJson) as unknown;
 
-    return typeof parsed === "object" && parsed !== null ? parsed as ProviderMetadataRecord : {};
+    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
   } catch (error) {
     console.error("[recommendations/overview] failed to parse providerMetadataJson", error);
     return {};
   }
-}
-
-function parseMergedMetadata(metadata: ProviderMetadataRecord) {
-  return parseRecommendationProviderMetadata(JSON.stringify(metadata));
 }
 
 function isStaleTmdbDetails(metadata: RecommendationProviderMetadata | null): boolean {
@@ -59,23 +51,19 @@ export async function getRecommendationTitleOverview(userId: string, itemId: str
   }
 
   const providerMetadata = parseRecommendationProviderMetadata(item.providerMetadataJson);
+  const timeline = await listRecommendationItemTimeline(userId, itemId);
 
   if (providerMetadata?.tmdbDetails && !isStaleTmdbDetails(providerMetadata)) {
-    return {
-      item,
-      providerMetadata,
-      timeline: await listRecommendationItemTimeline(userId, itemId),
-      tmdbLookupMessage: null,
-    };
+    return { item, providerMetadata, timeline, tmdbLookupMessage: null };
   }
 
-  const tmdbConnection = await loadVerifiedTmdbConnection(userId);
+  const tmdbConnection = await getVerifiedTmdbConnection(userId);
 
   if (!tmdbConnection) {
     return {
       item,
       providerMetadata,
-      timeline: await listRecommendationItemTimeline(userId, itemId),
+      timeline,
       tmdbLookupMessage: "Verify TMDB to load richer title details for this recommendation.",
     };
   }
@@ -88,12 +76,7 @@ export async function getRecommendationTitleOverview(userId: string, itemId: str
   });
 
   if (!detailsResult.ok) {
-    return {
-      item,
-      providerMetadata,
-      timeline: await listRecommendationItemTimeline(userId, itemId),
-      tmdbLookupMessage: detailsResult.message,
-    };
+    return { item, providerMetadata, timeline, tmdbLookupMessage: detailsResult.message };
   }
 
   const currentMetadata = parseProviderMetadataRecord(item.providerMetadataJson);
@@ -104,17 +87,18 @@ export async function getRecommendationTitleOverview(userId: string, itemId: str
       ? {}
       : { posterUrl: detailsResult.details.posterUrl }),
   };
+  const mergedJson = JSON.stringify(mergedMetadata);
 
-  await updateRecommendationItemProviderMetadata(item.itemId, JSON.stringify(mergedMetadata));
+  await updateRecommendationItemProviderMetadata(item.itemId, mergedJson);
 
   return {
     item: {
       ...item,
       year: item.year ?? detailsResult.details.year,
-      providerMetadataJson: JSON.stringify(mergedMetadata),
+      providerMetadataJson: mergedJson,
     },
-    providerMetadata: parseMergedMetadata(mergedMetadata) satisfies RecommendationProviderMetadata | null,
-    timeline: await listRecommendationItemTimeline(userId, itemId),
+    providerMetadata: parseRecommendationProviderMetadata(mergedJson),
+    timeline,
     tmdbLookupMessage: null,
   };
 }

@@ -5,25 +5,27 @@ vi.mock("@/modules/recommendations/repositories/recommendation-repository", () =
   listRecommendationItemTimelineEvents: vi.fn(async () => []),
   updateRecommendationItemProviderMetadata: vi.fn(),
 }));
-vi.mock("@/modules/recommendations/workflows/create-recommendation-run-enrichment", () => ({
-  loadVerifiedTmdbConnection: vi.fn(),
+vi.mock("@/modules/service-connections/queries/get-verified-tmdb-connection", () => ({
+  getVerifiedTmdbConnection: vi.fn(),
 }));
 vi.mock("@/modules/service-connections/adapters/tmdb", () => ({
   lookupTmdbTitleDetails: vi.fn(),
+  tmdbVideoTypes: ["Trailer", "Teaser", "Featurette", "Clip"] as const,
+  tmdbWatchProviderCategories: ["flatrate", "rent", "buy"] as const,
 }));
 
 import {
   findRecommendationItemForUser,
   updateRecommendationItemProviderMetadata,
 } from "@/modules/recommendations/repositories/recommendation-repository";
-import { loadVerifiedTmdbConnection } from "@/modules/recommendations/workflows/create-recommendation-run-enrichment";
+import { getVerifiedTmdbConnection } from "@/modules/service-connections/queries/get-verified-tmdb-connection";
 import { lookupTmdbTitleDetails } from "@/modules/service-connections/adapters/tmdb";
 
 import { getRecommendationTitleOverview } from "./get-recommendation-title-overview";
 
 const findMock = vi.mocked(findRecommendationItemForUser);
 const updateMetadataMock = vi.mocked(updateRecommendationItemProviderMetadata);
-const loadTmdbMock = vi.mocked(loadVerifiedTmdbConnection);
+const loadTmdbMock = vi.mocked(getVerifiedTmdbConnection);
 const lookupTmdbMock = vi.mocked(lookupTmdbTitleDetails);
 
 type RecommendationOverviewRepositoryItem = NonNullable<Awaited<ReturnType<typeof findRecommendationItemForUser>>>;
@@ -70,7 +72,16 @@ const tmdbDetails = {
   homepage: "https://arrival.movie",
   imdbId: "tt2543164",
   tvdbId: null,
-  videos: [],
+  videos: [
+    {
+      key: "abc123",
+      site: "YouTube" as const,
+      type: "Trailer" as const,
+      name: "Arrival - Official Trailer",
+      official: true,
+      publishedAt: "2016-08-16T00:00:00Z",
+    },
+  ],
   cast: [],
   watchProviders: null,
   similarTitles: [],

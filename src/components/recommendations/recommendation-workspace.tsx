@@ -22,7 +22,7 @@ import {
   formatRecommendationGenres,
   type RecommendationGenre,
 } from "@/modules/recommendations/recommendation-genres";
-import { getRecommendationTitleOverview } from "@/modules/recommendations/workflows/get-recommendation-title-overview";
+import { getRecommendationTitleOverview } from "@/modules/recommendations/queries/get-recommendation-title-overview";
 import { listRecentRecommendationRuns } from "@/modules/recommendations/queries/list-recent-recommendation-runs";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 

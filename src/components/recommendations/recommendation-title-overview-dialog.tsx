@@ -17,7 +17,7 @@ import {
 } from "@/components/recommendations/title-overview-helpers";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { type PreferenceRecord } from "@/modules/preferences/queries/get-user-preferences";
-import { type getRecommendationTitleOverview } from "@/modules/recommendations/workflows/get-recommendation-title-overview";
+import { type getRecommendationTitleOverview } from "@/modules/recommendations/queries/get-recommendation-title-overview";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 type RecommendationOverview = NonNullable<Awaited<ReturnType<typeof getRecommendationTitleOverview>>>;

@@ -20,7 +20,7 @@ import {
   languagePreferenceCodes,
   type LanguagePreferenceCode,
 } from "@/modules/preferences/language-preferences";
-import { getRecommendationTitleOverview } from "@/modules/recommendations/workflows/get-recommendation-title-overview";
+import { getRecommendationTitleOverview } from "@/modules/recommendations/queries/get-recommendation-title-overview";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 export const dynamic = "force-dynamic";

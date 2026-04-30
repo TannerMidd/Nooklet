@@ -10,7 +10,7 @@ import { Panel } from "@/components/ui/panel";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import { listRecommendationHistory } from "@/modules/recommendations/queries/list-recommendation-history";
-import { getRecommendationTitleOverview } from "@/modules/recommendations/workflows/get-recommendation-title-overview";
+import { getRecommendationTitleOverview } from "@/modules/recommendations/queries/get-recommendation-title-overview";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 export const dynamic = "force-dynamic";
