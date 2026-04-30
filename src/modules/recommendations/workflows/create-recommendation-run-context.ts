@@ -55,7 +55,7 @@ export async function loadSampledLibraryTasteContext(
     if (!verificationResult.ok) {
       return {
         ok: false as const,
-        message: `${definition.displayName} could not be verified automatically, so Recommendarr cannot safely exclude titles that are already in your library. Fix the connection and try again.`,
+        message: `${definition.displayName} could not be verified automatically, so Nooklet cannot safely exclude titles that are already in your library. Fix the connection and try again.`,
       };
     }
 
@@ -69,7 +69,7 @@ export async function loadSampledLibraryTasteContext(
   ) {
     return {
       ok: false as const,
-      message: `${definition.displayName} is not ready, so Recommendarr cannot safely exclude titles that are already in your library. Fix the connection and try again.`,
+      message: `${definition.displayName} is not ready, so Nooklet cannot safely exclude titles that are already in your library. Fix the connection and try again.`,
     };
   }
 
@@ -84,7 +84,7 @@ export async function loadSampledLibraryTasteContext(
   if (!result.ok) {
     return {
       ok: false as const,
-      message: `${definition.displayName} library lookup failed, so Recommendarr cannot safely exclude titles that are already in your library. ${result.message}`,
+      message: `${definition.displayName} library lookup failed, so Nooklet cannot safely exclude titles that are already in your library. ${result.message}`,
     };
   }
 

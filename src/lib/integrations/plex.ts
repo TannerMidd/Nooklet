@@ -68,7 +68,9 @@ function buildPlexUrl(baseUrl: string, path: string, params: Record<string, stri
 function buildPlexHeaders(apiKey: string) {
   return {
     Accept: "application/json",
-    "X-Plex-Product": "Recommendarr",
+    "X-Plex-Product": "Nooklet",
+    // Stable per-install client identifier kept as the legacy value so existing
+    // users do not see a duplicate authorized device after the rebrand.
     "X-Plex-Client-Identifier": "recommendarr-next",
     "X-Plex-Token": apiKey,
   };

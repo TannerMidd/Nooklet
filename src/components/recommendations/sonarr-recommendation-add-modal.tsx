@@ -196,7 +196,7 @@ export function SonarrRecommendationAddModal({
                 fieldErrors={state.fieldErrors}
               />
               <RecommendationAddSummaryCard>
-                Recommendarr searches Sonarr by title and year, then submits the destination, season,
+                Nooklet searches Sonarr by title and year, then submits the destination, season,
                 and tag options you selected here.
               </RecommendationAddSummaryCard>
               <RecommendationAddMessage state={state} />

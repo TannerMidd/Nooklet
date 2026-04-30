@@ -85,7 +85,7 @@ export function RadarrRecommendationAddModal({
                 fieldErrors={state.fieldErrors}
               />
               <RecommendationAddSummaryCard>
-                Recommendarr searches Radarr by title and year, then submits the destination and tag
+                Nooklet searches Radarr by title and year, then submits the destination and tag
                 options you selected here.
               </RecommendationAddSummaryCard>
               <RecommendationAddMessage state={state} />

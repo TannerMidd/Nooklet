@@ -79,7 +79,7 @@ export const navigationGroups = [
       {
         href: "/settings/connections",
         label: "Connections",
-        description: "Connect the services Recommendarr uses.",
+        description: "Connect the services Nooklet uses.",
       },
       {
         href: "/settings/preferences",

@@ -23,7 +23,7 @@ export const serviceConnectionDefinitions = [
     serviceType: "sonarr",
     displayName: "Sonarr",
     description:
-      "Connect your TV library so Recommendarr can avoid duplicates and add shows for you.",
+      "Connect your TV library so Nooklet can avoid duplicates and add shows for you.",
     secretLabel: "API key",
     defaultBaseUrl: "http://localhost:8989",
   },
@@ -31,7 +31,7 @@ export const serviceConnectionDefinitions = [
     serviceType: "radarr",
     displayName: "Radarr",
     description:
-      "Connect your movie library so Recommendarr can avoid duplicates and add movies for you.",
+      "Connect your movie library so Nooklet can avoid duplicates and add movies for you.",
     secretLabel: "API key",
     defaultBaseUrl: "http://localhost:7878",
   },
@@ -55,7 +55,7 @@ export const serviceConnectionDefinitions = [
     serviceType: "sabnzbd",
     displayName: "SABnzbd",
     description:
-      "Connect SABnzbd so Recommendarr can surface active download queue progress while requests are in flight.",
+      "Connect SABnzbd so Nooklet can surface active download queue progress while requests are in flight.",
     secretLabel: "API key",
     defaultBaseUrl: "http://localhost:8080",
   },
