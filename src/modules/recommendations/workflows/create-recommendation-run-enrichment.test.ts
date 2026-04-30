@@ -21,7 +21,6 @@ import {
   buildStoredRecommendationItems,
   enrichGeneratedItemsWithLibraryMetadata,
   enrichGeneratedItemsWithTmdbMetadata,
-  loadVerifiedTmdbConnection,
   type GeneratedRecommendationItem,
 } from "./create-recommendation-run-enrichment";
 
@@ -226,36 +225,6 @@ describe("enrichGeneratedItemsWithLibraryMetadata", () => {
     const result = await enrichGeneratedItemsWithLibraryMetadata(USER_ID, "tv", [item]);
 
     expect(result[0]).toBe(item);
-  });
-});
-
-describe("loadVerifiedTmdbConnection", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("returns a decrypted TMDB connection only when the saved connection is verified", async () => {
-    findMock.mockResolvedValue({
-      connection: { baseUrl: "https://api.tmdb.test", status: "verified" },
-      secret: { encryptedValue: "tmdb-enc" },
-      metadata: { tmdbImageBaseUrl: "https://image.tmdb.test/t/p/" },
-    } as never);
-
-    await expect(loadVerifiedTmdbConnection(USER_ID)).resolves.toEqual({
-      baseUrl: "https://api.tmdb.test",
-      secret: "dec(tmdb-enc)",
-      metadata: { tmdbImageBaseUrl: "https://image.tmdb.test/t/p/" },
-    });
-  });
-
-  it("returns null when TMDB is missing or not verified", async () => {
-    findMock.mockResolvedValue({
-      connection: { baseUrl: "https://api.tmdb.test", status: "configured" },
-      secret: { encryptedValue: "tmdb-enc" },
-      metadata: null,
-    } as never);
-
-    await expect(loadVerifiedTmdbConnection(USER_ID)).resolves.toBeNull();
   });
 });
 

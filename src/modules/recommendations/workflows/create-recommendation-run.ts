@@ -28,8 +28,8 @@ import {
   buildStoredRecommendationItems,
   enrichGeneratedItemsWithLibraryMetadata,
   enrichGeneratedItemsWithTmdbMetadata,
-  loadVerifiedTmdbConnection,
 } from "./create-recommendation-run-enrichment";
+import { getVerifiedTmdbConnection } from "@/modules/service-connections/queries/get-verified-tmdb-connection";
 import {
   ensureVerifiedAiProviderConnection,
   loadSampledLibraryTasteContext,
@@ -200,7 +200,7 @@ async function executeRecommendationRunGeneration(
       throw new Error(aiProvider.message);
     }
 
-    const tmdbConnection = await loadVerifiedTmdbConnection(userId);
+    const tmdbConnection = await getVerifiedTmdbConnection(userId);
 
     if (preferences.languagePreference !== "any" && !tmdbConnection) {
       throw new Error(buildMissingTmdbLanguageMessage(preferences.languagePreference));

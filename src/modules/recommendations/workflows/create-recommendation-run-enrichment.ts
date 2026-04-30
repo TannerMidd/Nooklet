@@ -133,12 +133,6 @@ function mergeTmdbDetailsIntoItem(
   } satisfies GeneratedRecommendationItem;
 }
 
-export async function loadVerifiedTmdbConnection(
-  userId: string,
-): Promise<VerifiedTmdbConnection | null> {
-  return getVerifiedTmdbConnection(userId);
-}
-
 export function buildMissingTmdbLanguageMessage(languagePreference: LanguagePreferenceCode) {
   return `Verify TMDB before requesting ${formatLanguagePreference(languagePreference)} recommendations. TMDB is required to strictly confirm each title's original language.`;
 }
