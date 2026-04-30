@@ -44,10 +44,10 @@ export function AppNavLink({ item, badge }: AppNavLinkProps) {
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative block rounded-2xl border px-4 py-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35",
+        "group relative block rounded-lg border px-4 py-3 transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50",
         active
-          ? "border-accent/35 bg-accent/10 text-foreground shadow-[0_14px_35px_rgba(91,202,183,0.1)]"
-          : "border-transparent bg-transparent text-muted hover:border-line/70 hover:bg-panel-strong/70 hover:text-foreground",
+          ? "border-accent/40 bg-accent/10 text-foreground"
+          : "border-transparent bg-transparent text-muted hover:border-line/70 hover:bg-panel-strong/60 hover:text-foreground",
       )}
     >
       <span

@@ -21,14 +21,14 @@ export function AppShell({ children, user }: AppShellProps) {
       <div className="min-h-screen overflow-x-clip px-4 py-5 sm:px-6 sm:py-7 xl:px-8 xl:py-9">
         <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 sm:gap-6 xl:gap-8 lg:flex-row lg:items-start">
           <aside className="lg:sticky lg:top-7 lg:w-80 lg:flex-none xl:w-[21rem]">
-            <div className="rounded-3xl border border-line/70 bg-panel/90 p-4 shadow-soft ring-1 ring-white/[0.03] backdrop-blur sm:p-5 lg:max-h-[calc(100vh-3.5rem)] lg:overflow-y-auto">
-              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.26em] text-accent sm:text-xs sm:tracking-[0.32em]">
+            <div className="rounded-xl border border-line/70 bg-panel p-4 sm:p-5 lg:max-h-[calc(100vh-3.5rem)] lg:overflow-y-auto">
+              <p className="font-heading text-sm italic text-accent">
                 Your nook
               </p>
               <div className="mt-4 flex items-start gap-3">
                 <Link
                   href="/"
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-accent/25 bg-accent/10 font-heading text-sm font-semibold text-accent transition hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 font-heading text-sm font-semibold text-accent transition hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
                   aria-label="Nooklet home"
                 >
                   NK
@@ -46,8 +46,8 @@ export function AppShell({ children, user }: AppShellProps) {
                 </div>
               </div>
 
-              <div className="mt-6 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 ring-1 ring-white/[0.02]">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
+              <div className="mt-6 rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-4">
+                <p className="font-heading text-sm italic text-muted">
                   Signed in as
                 </p>
                 <p className="mt-2 font-medium text-foreground">
@@ -62,7 +62,7 @@ export function AppShell({ children, user }: AppShellProps) {
               <div className="mt-7 space-y-5 sm:space-y-6">
                 {navigationGroups.map((group) => (
                   <section key={group.title} className="space-y-3">
-                    <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-muted sm:text-xs sm:tracking-[0.28em]">
+                    <h2 className="font-heading text-sm italic text-muted">
                       {group.title}
                     </h2>
                     <div className="space-y-2">
