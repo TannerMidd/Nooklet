@@ -11,17 +11,17 @@ import {
   lookupTmdbTitleDetails,
   type TmdbTitleDetails,
 } from "@/modules/service-connections/adapters/tmdb";
+import {
+  type VerifiedTmdbConnection,
+  getVerifiedTmdbConnection,
+} from "@/modules/service-connections/queries/get-verified-tmdb-connection";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 
 export type GeneratedRecommendationItem = Awaited<
   ReturnType<typeof generateOpenAiCompatibleRecommendations>
 >[number];
 
-export type VerifiedTmdbConnection = {
-  baseUrl: string;
-  secret: string;
-  metadata: Record<string, unknown> | null;
-};
+export type { VerifiedTmdbConnection };
 
 type TmdbEnrichmentResult =
   | {
@@ -134,21 +134,7 @@ function mergeTmdbDetailsIntoItem(
 export async function loadVerifiedTmdbConnection(
   userId: string,
 ): Promise<VerifiedTmdbConnection | null> {
-  const connection = await findServiceConnectionByType(userId, "tmdb");
-
-  if (
-    !connection?.secret ||
-    connection.connection.status !== "verified" ||
-    !connection.connection.baseUrl
-  ) {
-    return null;
-  }
-
-  return {
-    baseUrl: connection.connection.baseUrl,
-    secret: decryptSecret(connection.secret.encryptedValue),
-    metadata: connection.metadata,
-  };
+  return getVerifiedTmdbConnection(userId);
 }
 
 export function buildMissingTmdbLanguageMessage(languagePreference: LanguagePreferenceCode) {

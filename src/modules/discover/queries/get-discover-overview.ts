@@ -4,7 +4,7 @@ import {
   listTmdbDiscoverTitles,
 } from "@/modules/service-connections/adapters/tmdb";
 import { type RecommendationMediaType } from "@/lib/database/schema";
-import { loadVerifiedTmdbConnection } from "@/modules/recommendations/workflows/create-recommendation-run-enrichment";
+import { getVerifiedTmdbConnection } from "@/modules/service-connections/queries/get-verified-tmdb-connection";
 
 export type DiscoverRail = {
   category: TmdbDiscoverCategory;
@@ -68,7 +68,7 @@ const railDefinitions = [
 ] as const;
 
 export async function getDiscoverOverview(userId: string): Promise<DiscoverOverview> {
-  const tmdbConnection = await loadVerifiedTmdbConnection(userId);
+  const tmdbConnection = await getVerifiedTmdbConnection(userId);
 
   if (!tmdbConnection) {
     return {

@@ -1,5 +1,5 @@
 import { type RecommendationMediaType } from "@/lib/database/schema";
-import { loadVerifiedTmdbConnection } from "@/modules/recommendations/workflows/create-recommendation-run-enrichment";
+import { getVerifiedTmdbConnection } from "@/modules/service-connections/queries/get-verified-tmdb-connection";
 import {
   type TmdbTitleDetails,
   lookupTmdbTitleDetailsByTmdbId,
@@ -21,7 +21,7 @@ export async function getDiscoverTitleOverview(input: {
   mediaType: RecommendationMediaType;
   tmdbId: number;
 }): Promise<DiscoverTitleOverview> {
-  const tmdbConnection = await loadVerifiedTmdbConnection(input.userId);
+  const tmdbConnection = await getVerifiedTmdbConnection(input.userId);
 
   if (!tmdbConnection) {
     return {
