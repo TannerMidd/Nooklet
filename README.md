@@ -1,8 +1,8 @@
-# Recommendarr
+# Nooklet
 
-> Self-hosted AI recommendations for your Sonarr and Radarr libraries.
+> A cozy corner for what's next.
 
-Recommendarr connects your existing media stack to an OpenAI-compatible chat
+Nooklet connects your existing media stack to an OpenAI-compatible chat
 model and turns your library and watch history into thoughtful, duplicate-aware
 TV and movie recommendations — then helps you queue them in Sonarr or Radarr
 with a single click.
@@ -22,7 +22,7 @@ with a single click.
 > suspected bugs or security issues through GitHub.
 
 > **Disclaimer**
-> Recommendarr is a personal project maintained in my spare time. Issues, pull
+> Nooklet is a personal project maintained in my spare time. Issues, pull
 > requests, and feature ideas are welcome, but responses, fixes, and new
 > features are **not guaranteed** and may land on no particular schedule.
 
@@ -103,7 +103,7 @@ with a single click.
 
 ## Architecture
 
-Recommendarr is a single Next.js 16 application using the App Router with
+Nooklet is a single Next.js 16 application using the App Router with
 React Server Components and server actions throughout. Domain logic lives in
 explicit workflows under `src/modules/`, route handlers stay thin, and vendor
 clients are never called directly from UI code.
@@ -134,8 +134,8 @@ and [`docs/adr/ADR-0001-architecture-principles.md`](docs/adr/ADR-0001-architect
 **Run locally**
 
 ```bash
-git clone https://github.com/<your-fork>/recommendarr-next.git
-cd recommendarr-next
+git clone https://github.com/<your-fork>/nooklet.git
+cd nooklet
 npm install
 cp .env.example .env
 # edit .env — AUTH_SECRET must be at least 32 characters
@@ -171,7 +171,7 @@ The canonical environment list lives in [`.env.example`](.env.example).
 
 | Variable | Required | Notes |
 | --- | --- | --- |
-| `APP_URL` | ✅ | Public app origin, e.g. `https://recommendarr.example.com`. |
+| `APP_URL` | ✅ | Public app origin, e.g. `https://nooklet.example.com`. |
 | `DATABASE_URL` | ✅ | SQLite URL. Local default: `file:./data/recommendarr.db`. |
 | `AUTH_SECRET` | ✅ | Auth.js signing secret. Must be at least 32 characters. |
 | `APP_PORT` | ⛔ | Docker host port to publish. Defaults to `42021`. |
@@ -236,7 +236,7 @@ Domain modules under `src/modules/` include `recommendations`, `discover`,
 
 ## Security
 
-Recommendarr ships with several hardening features by default:
+Nooklet ships with several hardening features by default:
 
 - 🔐 Encrypted-at-rest service secrets using a dedicated `SECRET_BOX_KEY`.
 - 🚦 Database-backed rate limits on auth and high-risk endpoints.

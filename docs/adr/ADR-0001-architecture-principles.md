@@ -10,7 +10,7 @@ Accepted
 
 ## Context
 
-Recommendarr is a self-hosted application that connects an OpenAI-compatible
+Nooklet is a self-hosted application that connects an OpenAI-compatible
 chat model to a media stack (Sonarr, Radarr, Plex, Jellyfin, Tautulli, Trakt,
 SABnzbd) and produces TV and movie recommendations grounded in the user's
 library and watch history.
@@ -25,7 +25,7 @@ a single, durable source of truth.
 
 ## Decision
 
-Recommendarr is built as a domain-oriented, workflow-oriented Next.js
+Nooklet is built as a domain-oriented, workflow-oriented Next.js
 application.
 
 ### Core stack

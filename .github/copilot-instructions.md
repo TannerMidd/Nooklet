@@ -1,6 +1,6 @@
-# Copilot Instructions — recommendarr-next
+# Copilot Instructions — nooklet
 
-Recommendarr is a self-hosted Next.js app that turns a media stack plus an OpenAI-compatible model into TV/movie recommendations. Architecture comes from [ADR-0001](../docs/adr/ADR-0001-architecture-principles.md), product scope from the [behavior matrix](../docs/product/behavior-matrix.md), and folder shape from [project-structure.md](../docs/architecture/project-structure.md). When those three documents disagree with anything below, they win.
+Nooklet is a self-hosted Next.js app that turns a media stack plus an OpenAI-compatible model into TV/movie recommendations. Architecture comes from [ADR-0001](../docs/adr/ADR-0001-architecture-principles.md), product scope from the [behavior matrix](../docs/product/behavior-matrix.md), and folder shape from [project-structure.md](../docs/architecture/project-structure.md). When those three documents disagree with anything below, they win.
 
 ## Stack
 

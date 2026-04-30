@@ -1,6 +1,6 @@
 # Project Structure
 
-This document describes how Recommendarr is organized. Architectural rules
+This document describes how Nooklet is organized. Architectural rules
 come from [ADR-0001](../adr/ADR-0001-architecture-principles.md). Product
 behavior comes from the [behavior matrix](../product/behavior-matrix.md).
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document captures the product behaviors Recommendarr is expected to
+This document captures the product behaviors Nooklet is expected to
 support. It serves as the acceptance baseline for new work and as a checklist
 when verifying that a workflow, route, or screen meets its requirements.
 
