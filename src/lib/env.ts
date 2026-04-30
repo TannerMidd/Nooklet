@@ -10,7 +10,7 @@ const booleanFromEnv = z
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_URL: z.string().url().default("http://localhost:3000"),
-  DATABASE_URL: z.string().min(1).default("file:./data/recommendarr.db"),
+  DATABASE_URL: z.string().min(1).default("file:./data/nooklet.db"),
   AUTH_SECRET: z
     .string({ error: "AUTH_SECRET is required. Generate one with `openssl rand -base64 48`." })
     .min(32, "AUTH_SECRET must be at least 32 characters."),

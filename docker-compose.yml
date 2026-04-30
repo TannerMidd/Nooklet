@@ -1,3 +1,5 @@
+name: nooklet
+
 services:
   app:
     build:
@@ -12,11 +14,11 @@ services:
       - .env
     environment:
       # Force the in-container DB path regardless of what's in .env so a host
-      # path like ./data/recommendarr.db doesn't accidentally land outside the
+      # path like ./data/nooklet.db doesn't accidentally land outside the
       # mounted volume.
-      DATABASE_URL: file:/app/data/recommendarr.db
+      DATABASE_URL: file:/app/data/nooklet.db
     volumes:
-      - recommendarr-data:/app/data
+      - nooklet-data:/app/data
 
 volumes:
-  recommendarr-data:
+  nooklet-data:

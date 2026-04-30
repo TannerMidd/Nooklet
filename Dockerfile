@@ -39,7 +39,7 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=42021 \
     HOSTNAME=0.0.0.0 \
-    DATABASE_URL=file:/app/data/recommendarr.db
+    DATABASE_URL=file:/app/data/nooklet.db
 
 # Standalone output bundles only the dependencies the server actually imports
 # under .next/standalone. We still need the Drizzle migrations folder at

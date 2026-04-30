@@ -1,6 +1,6 @@
 import { defineConfig } from "drizzle-kit";
 
-const defaultDatabaseUrl = "./data/recommendarr.db";
+const defaultDatabaseUrl = "./data/nooklet.db";
 const configuredUrl = process.env.DATABASE_URL ?? defaultDatabaseUrl;
 
 export default defineConfig({

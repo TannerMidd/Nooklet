@@ -156,8 +156,8 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-- SQLite is persisted in the `recommendarr-data` volume.
-- The container forces `DATABASE_URL=file:/app/data/recommendarr.db`.
+- SQLite is persisted in the `nooklet-data` volume.
+- The container forces `DATABASE_URL=file:/app/data/nooklet.db`.
 - The app is published on `APP_PORT` (default `42021`); keep `APP_URL`
   aligned with the URL users open.
 - A `/api/health` endpoint is exposed for health checks.
@@ -172,7 +172,7 @@ The canonical environment list lives in [`.env.example`](.env.example).
 | Variable | Required | Notes |
 | --- | --- | --- |
 | `APP_URL` | ✅ | Public app origin, e.g. `https://nooklet.example.com`. |
-| `DATABASE_URL` | ✅ | SQLite URL. Local default: `file:./data/recommendarr.db`. |
+| `DATABASE_URL` | ✅ | SQLite URL. Local default: `file:./data/nooklet.db`. |
 | `AUTH_SECRET` | ✅ | Auth.js signing secret. Must be at least 32 characters. |
 | `APP_PORT` | ⛔ | Docker host port to publish. Defaults to `42021`. |
 | `SECRET_BOX_KEY` | ⛔ | Separate encryption key for stored service secrets. Falls back to `AUTH_SECRET`. |
