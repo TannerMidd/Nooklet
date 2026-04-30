@@ -9,7 +9,6 @@ import "./globals.css";
 const headingFont = Fraunces({
   subsets: ["latin"],
   variable: "--app-font-heading",
-  weight: ["400", "500", "600"],
   style: ["normal", "italic"],
   axes: ["opsz"],
 });
