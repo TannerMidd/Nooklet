@@ -33,6 +33,24 @@ function parseMergedMetadata(metadata: ProviderMetadataRecord) {
   return parseRecommendationProviderMetadata(JSON.stringify(metadata));
 }
 
+function isStaleTmdbDetails(metadata: RecommendationProviderMetadata | null): boolean {
+  const details = metadata?.tmdbDetails;
+
+  if (!details) {
+    return true;
+  }
+
+  // Legacy caches predate the videos/cast/similar/watch-providers extras.
+  // If all of those are empty, treat the cache as stale and refetch so trailers
+  // show up consistently with the Discover modal (which always fetches fresh).
+  return (
+    details.videos.length === 0 &&
+    details.cast.length === 0 &&
+    details.similarTitles.length === 0 &&
+    !details.watchProviders
+  );
+}
+
 export async function getRecommendationTitleOverview(userId: string, itemId: string) {
   const item = await findRecommendationItemForUser(userId, itemId);
 
@@ -42,7 +60,7 @@ export async function getRecommendationTitleOverview(userId: string, itemId: str
 
   const providerMetadata = parseRecommendationProviderMetadata(item.providerMetadataJson);
 
-  if (providerMetadata?.tmdbDetails) {
+  if (providerMetadata?.tmdbDetails && !isStaleTmdbDetails(providerMetadata)) {
     return {
       item,
       providerMetadata,
