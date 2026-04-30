@@ -23,7 +23,7 @@ export async function testNotificationChannelCommand(
     targetUrl: channel.targetUrl,
     message: {
       eventType: "test",
-      title: "Recommendarr test notification",
+      title: "Nooklet test notification",
       body: `This is a test message from the "${channel.displayName}" channel. If you can read this, delivery is working.`,
     },
   });

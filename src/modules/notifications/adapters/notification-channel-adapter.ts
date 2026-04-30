@@ -31,7 +31,7 @@ function buildBodyForChannel(
 
     return {
       body: JSON.stringify({
-        username: "Recommendarr",
+        username: "Nooklet",
         embeds: [embed],
       }),
       contentType: "application/json",
