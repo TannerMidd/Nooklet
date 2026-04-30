@@ -10,21 +10,21 @@
   --color-accent: rgb(var(--accent));
   --color-accent-foreground: rgb(var(--accent-foreground));
   --color-highlight: rgb(var(--highlight));
-  --font-heading: var(--app-font-heading), sans-serif;
+  --font-heading: var(--app-font-heading), serif;
   --font-body: var(--app-font-body), sans-serif;
-  --shadow-soft: 0 18px 55px rgba(3, 8, 16, 0.34);
+  --shadow-soft: 0 1px 0 rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.02);
 }
 
 :root {
-  --background: 18 16 22;
-  --foreground: 240 238 232;
-  --panel: 28 25 33;
-  --panel-strong: 38 33 44;
-  --muted: 178 174 184;
-  --line: 78 70 88;
-  --accent: 91 202 183;
-  --accent-foreground: 5 18 17;
-  --highlight: 239 147 102;
+  --background: 24 20 32;
+  --foreground: 232 224 208;
+  --panel: 36 28 48;
+  --panel-strong: 46 36 58;
+  --muted: 178 168 184;
+  --line: 70 58 84;
+  --accent: 218 170 96;
+  --accent-foreground: 26 16 6;
+  --highlight: 196 132 138;
 }
 
 * {
@@ -37,15 +37,32 @@ html {
 }
 
 body {
+  position: relative;
   min-height: 100vh;
   margin: 0;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0) 18rem),
-    linear-gradient(135deg, rgba(91, 202, 183, 0.06), rgba(91, 202, 183, 0) 28rem),
-    linear-gradient(315deg, rgba(239, 147, 102, 0.11), rgba(239, 147, 102, 0) 30rem),
+    radial-gradient(ellipse 60rem 32rem at 50% -8rem, rgba(218, 170, 96, 0.10), rgba(218, 170, 96, 0) 70%),
+    radial-gradient(ellipse 48rem 36rem at 110% 110%, rgba(196, 132, 138, 0.06), transparent 70%),
     rgb(var(--background));
   color: rgb(var(--foreground));
   font-family: var(--app-font-body), sans-serif;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size: 200px 200px;
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
 }
 
 button,
@@ -78,37 +95,38 @@ ol {
 }
 
 ::selection {
-  background: rgba(91, 202, 183, 0.28);
+  background: rgba(218, 170, 96, 0.28);
+  color: rgb(var(--foreground));
 }
 
 * {
-  scrollbar-color: rgba(91, 202, 183, 0.45) rgba(31, 38, 47, 0.65);
+  scrollbar-color: rgba(218, 170, 96, 0.40) rgba(46, 36, 58, 0.55);
 }
 
 ::-webkit-scrollbar {
-  height: 0.75rem;
-  width: 0.75rem;
+  height: 0.625rem;
+  width: 0.625rem;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(31, 38, 47, 0.65);
+  background: rgba(46, 36, 58, 0.55);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(91, 202, 183, 0.45);
-  border: 3px solid rgba(31, 38, 47, 0.65);
+  background: rgba(218, 170, 96, 0.40);
+  border: 3px solid rgba(46, 36, 58, 0.55);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(91, 202, 183, 0.62);
+  background: rgba(218, 170, 96, 0.58);
 }
 
 @keyframes recommendation-featured-enter {
   0% {
     opacity: 0;
-    transform: translateY(24px) scale(0.985);
+    transform: translateY(12px) scale(0.995);
   }
 
   100% {
@@ -120,7 +138,7 @@ ol {
 @keyframes recommendation-card-enter {
   0% {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translateY(10px);
   }
 
   100% {
@@ -139,8 +157,8 @@ ol {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(135deg, rgba(91, 202, 183, 0.12), transparent 38%),
-    linear-gradient(315deg, rgba(239, 147, 102, 0.12), transparent 32%);
+    radial-gradient(ellipse 32rem 18rem at 0% 0%, rgba(218, 170, 96, 0.10), transparent 60%),
+    radial-gradient(ellipse 28rem 16rem at 100% 100%, rgba(196, 132, 138, 0.08), transparent 60%);
   pointer-events: none;
 }
 

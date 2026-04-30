@@ -26,7 +26,7 @@ const config: Config = {
         body: ["var(--font-body)", "sans-serif"],
       },
       boxShadow: {
-        soft: "0 18px 60px rgba(64, 55, 46, 0.10)",
+        soft: "0 1px 0 rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.02)",
       },
     },
   },
