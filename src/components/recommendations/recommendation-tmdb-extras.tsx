@@ -4,7 +4,7 @@ import {
   type TmdbCastMember,
   type TmdbSimilarTitle,
   type TmdbWatchProviders,
-} from "@/modules/service-connections/adapters/tmdb";
+} from "@/modules/service-connections/types/tmdb-title";
 
 const watchProviderCategoryLabels: Record<string, string> = {
   flatrate: "Stream",

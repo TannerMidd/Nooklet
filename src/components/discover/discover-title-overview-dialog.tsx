@@ -16,7 +16,7 @@ import {
 } from "@/components/recommendations/title-overview-helpers";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { type PreferenceRecord } from "@/modules/preferences/queries/get-user-preferences";
-import { type TmdbTitleDetails } from "@/modules/service-connections/adapters/tmdb";
+import { type TmdbTitleDetails } from "@/modules/service-connections/types/tmdb-title";
 import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 type DiscoverTitleOverviewDialogProps = {

@@ -4,7 +4,7 @@ import { Play } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { type TmdbVideo } from "@/modules/service-connections/adapters/tmdb";
+import { type TmdbVideo } from "@/modules/service-connections/types/tmdb-title";
 
 type RecommendationTrailerSectionProps = {
   videos: TmdbVideo[];
