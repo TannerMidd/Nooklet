@@ -3,8 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: recommendarr-next:local
-    container_name: recommendarr-next
+    image: nooklet:local
+    container_name: nooklet
     restart: unless-stopped
     ports:
       - "${APP_PORT:-42021}:42021"
