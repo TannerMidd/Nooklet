@@ -141,6 +141,13 @@
       "when": 1777566459414,
       "tag": "0019_notification_channel_events",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1777566602364,
+      "tag": "0020_notification_dispatch_audit",
+      "breakpoints": true
     }
   ]
 }

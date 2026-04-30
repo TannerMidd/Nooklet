@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const userRoles = ["admin", "user"] as const;
 
@@ -421,6 +421,9 @@ export const notificationEventTypes = [
   "watch_history_sync_failed",
 ] as const;
 
+export const notificationDispatchStatuses = ["success", "error"] as const;
+export type NotificationDispatchStatus = (typeof notificationDispatchStatuses)[number];
+
 export const notificationChannels = sqliteTable(
   "notification_channels",
   {
@@ -432,9 +435,6 @@ export const notificationChannels = sqliteTable(
     displayName: text("display_name").notNull(),
     targetUrl: text("target_url").notNull(),
     isEnabled: integer("is_enabled", { mode: "boolean" }).notNull().default(true),
-    lastDispatchAt: integer("last_dispatch_at", { mode: "timestamp_ms" }),
-    lastDispatchStatus: text("last_dispatch_status"),
-    lastDispatchMessage: text("last_dispatch_message"),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
@@ -454,6 +454,27 @@ export const notificationChannelEvents = sqliteTable(
     eventType: text("event_type", { enum: notificationEventTypes }).notNull(),
   },
   (table) => [primaryKey({ columns: [table.channelId, table.eventType] })],
+);
+
+export const notificationDispatchAudit = sqliteTable(
+  "notification_dispatch_audit",
+  {
+    id: text("id").primaryKey(),
+    channelId: text("channel_id")
+      .notNull()
+      .references(() => notificationChannels.id, { onDelete: "cascade" }),
+    dispatchedAt: integer("dispatched_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    status: text("status", { enum: notificationDispatchStatuses }).notNull(),
+    message: text("message"),
+  },
+  (table) => [
+    index("notification_dispatch_audit_channel_dispatched_idx").on(
+      table.channelId,
+      table.dispatchedAt,
+    ),
+  ],
 );
 
 export type UserRole = (typeof userRoles)[number];

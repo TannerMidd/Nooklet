@@ -1,13 +1,15 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
   type NotificationChannelType,
+  type NotificationDispatchStatus,
   type NotificationEventType,
   notificationChannelEvents,
   notificationChannels,
+  notificationDispatchAudit,
 } from "@/lib/database/schema";
 
 export type StoredNotificationChannel = typeof notificationChannels.$inferSelect;
@@ -21,11 +23,49 @@ export type NotificationChannelView = {
   isEnabled: boolean;
   events: NotificationEventType[];
   lastDispatchAt: Date | null;
-  lastDispatchStatus: string | null;
+  lastDispatchStatus: NotificationDispatchStatus | null;
   lastDispatchMessage: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
+
+type LatestDispatchRow = {
+  channelId: string;
+  dispatchedAt: Date;
+  status: NotificationDispatchStatus;
+  message: string | null;
+};
+
+function loadLatestDispatchByChannelIds(channelIds: string[]): Map<string, LatestDispatchRow> {
+  const result = new Map<string, LatestDispatchRow>();
+
+  if (channelIds.length === 0) {
+    return result;
+  }
+
+  const database = ensureDatabaseReady();
+  const rows = database
+    .select()
+    .from(notificationDispatchAudit)
+    .where(inArray(notificationDispatchAudit.channelId, channelIds))
+    .orderBy(desc(notificationDispatchAudit.dispatchedAt))
+    .all();
+
+  for (const row of rows) {
+    if (result.has(row.channelId)) {
+      continue;
+    }
+
+    result.set(row.channelId, {
+      channelId: row.channelId,
+      dispatchedAt: row.dispatchedAt,
+      status: row.status,
+      message: row.message,
+    });
+  }
+
+  return result;
+}
 
 function loadEventsForChannelIds(channelIds: string[]): Map<string, NotificationEventType[]> {
   const events = new Map<string, NotificationEventType[]>();
@@ -50,7 +90,11 @@ function loadEventsForChannelIds(channelIds: string[]): Map<string, Notification
   return events;
 }
 
-function toView(channel: StoredNotificationChannel, events: NotificationEventType[]): NotificationChannelView {
+function toView(
+  channel: StoredNotificationChannel,
+  events: NotificationEventType[],
+  latestDispatch: LatestDispatchRow | undefined,
+): NotificationChannelView {
   return {
     id: channel.id,
     userId: channel.userId,
@@ -59,9 +103,9 @@ function toView(channel: StoredNotificationChannel, events: NotificationEventTyp
     targetUrl: channel.targetUrl,
     isEnabled: channel.isEnabled,
     events,
-    lastDispatchAt: channel.lastDispatchAt,
-    lastDispatchStatus: channel.lastDispatchStatus,
-    lastDispatchMessage: channel.lastDispatchMessage,
+    lastDispatchAt: latestDispatch?.dispatchedAt ?? null,
+    lastDispatchStatus: latestDispatch?.status ?? null,
+    lastDispatchMessage: latestDispatch?.message ?? null,
     createdAt: channel.createdAt,
     updatedAt: channel.updatedAt,
   };
@@ -78,8 +122,9 @@ export async function listNotificationChannelsForUser(userId: string): Promise<N
     .all();
 
   const events = loadEventsForChannelIds(rows.map((row) => row.id));
+  const dispatches = loadLatestDispatchByChannelIds(rows.map((row) => row.id));
 
-  return rows.map((row) => toView(row, events.get(row.id) ?? []));
+  return rows.map((row) => toView(row, events.get(row.id) ?? [], dispatches.get(row.id)));
 }
 
 export async function findNotificationChannelById(
@@ -100,7 +145,8 @@ export async function findNotificationChannelById(
   }
 
   const events = loadEventsForChannelIds([row.id]);
-  return toView(row, events.get(row.id) ?? []);
+  const dispatches = loadLatestDispatchByChannelIds([row.id]);
+  return toView(row, events.get(row.id) ?? [], dispatches.get(row.id));
 }
 
 export async function listEnabledNotificationChannelsForEvent(
@@ -127,8 +173,9 @@ export async function listEnabledNotificationChannelsForEvent(
 
   const channels = rows.map((row) => row.channel);
   const events = loadEventsForChannelIds(channels.map((channel) => channel.id));
+  const dispatches = loadLatestDispatchByChannelIds(channels.map((channel) => channel.id));
 
-  return channels.map((channel) => toView(channel, events.get(channel.id) ?? []));
+  return channels.map((channel) => toView(channel, events.get(channel.id) ?? [], dispatches.get(channel.id)));
 }
 
 type CreateNotificationChannelInput = {
@@ -238,21 +285,30 @@ export async function updateNotificationChannel(
 
 export async function recordNotificationDispatchResult(input: {
   channelId: string;
-  status: "success" | "error";
+  status: NotificationDispatchStatus;
   message: string | null;
 }): Promise<void> {
   const database = ensureDatabaseReady();
+  const now = new Date();
 
-  database
-    .update(notificationChannels)
-    .set({
-      lastDispatchAt: new Date(),
-      lastDispatchStatus: input.status,
-      lastDispatchMessage: input.message,
-      updatedAt: new Date(),
-    })
-    .where(eq(notificationChannels.id, input.channelId))
-    .run();
+  database.transaction((tx) => {
+    tx
+      .insert(notificationDispatchAudit)
+      .values({
+        id: randomUUID(),
+        channelId: input.channelId,
+        dispatchedAt: now,
+        status: input.status,
+        message: input.message,
+      })
+      .run();
+
+    tx
+      .update(notificationChannels)
+      .set({ updatedAt: now })
+      .where(eq(notificationChannels.id, input.channelId))
+      .run();
+  });
 }
 
 export async function deleteNotificationChannel(userId: string, id: string): Promise<boolean> {
