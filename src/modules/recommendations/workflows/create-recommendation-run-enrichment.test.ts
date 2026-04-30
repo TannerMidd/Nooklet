@@ -329,6 +329,9 @@ describe("enrichGeneratedItemsWithTmdbMetadata", () => {
             imdbId: null,
             tvdbId: 334824,
             videos: [],
+            cast: [],
+            watchProviders: null,
+            similarTitles: [],
           },
         };
       }
@@ -358,6 +361,9 @@ describe("enrichGeneratedItemsWithTmdbMetadata", () => {
           imdbId: null,
           tvdbId: null,
           videos: [],
+          cast: [],
+          watchProviders: null,
+          similarTitles: [],
         },
       };
     });

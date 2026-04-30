@@ -142,7 +142,7 @@ describe("lookupTmdbTitleDetails", () => {
       "https://api.themoviedb.org/3/search/movie?api_key=tmdb-key&query=Arrival&include_adult=false&language=en-US&primary_release_year=2016",
     );
     expect(fetchWithTimeoutMock.mock.calls[1]?.[0].toString()).toBe(
-      "https://api.themoviedb.org/3/movie/1?api_key=tmdb-key&append_to_response=external_ids%2Cvideos&language=en-US",
+      "https://api.themoviedb.org/3/movie/1?api_key=tmdb-key&append_to_response=external_ids%2Cvideos%2Ccredits%2Cwatch%2Fproviders%2Crecommendations&language=en-US",
     );
     expect(result.details).toMatchObject({
       source: "tmdb",
@@ -270,6 +270,164 @@ describe("lookupTmdbTitleDetails", () => {
         publishedAt: "2016-08-01T00:00:00Z",
       },
     ]);
+  });
+
+  it("normalizes cast, watch providers, and similar titles from append_to_response data", async () => {
+    fetchWithTimeoutMock
+      .mockResolvedValueOnce(
+        jsonResponse({ results: [{ id: 1, title: "Arrival", release_date: "2016-11-11" }] }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 1,
+          title: "Arrival",
+          release_date: "2016-11-11",
+          credits: {
+            cast: [
+              { id: 10, name: "Amy Adams", character: "Louise Banks", profile_path: "/amy.jpg", order: 0 },
+              { id: 11, name: "Jeremy Renner", character: "Ian Donnelly", profile_path: "/jeremy.jpg", order: 1 },
+              { id: 12, name: "No Image", profile_path: null, order: 2 },
+              { id: null, name: "skip" },
+            ],
+          },
+          "watch/providers": {
+            results: {
+              US: {
+                link: "https://www.themoviedb.org/movie/329865/watch?locale=US",
+                flatrate: [
+                  { provider_id: 8, provider_name: "Netflix", logo_path: "/netflix.jpg", display_priority: 0 },
+                ],
+                rent: [
+                  { provider_id: 2, provider_name: "Apple TV", logo_path: "/apple.jpg", display_priority: 1 },
+                  { provider_id: 8, provider_name: "Netflix duplicate", logo_path: "/dupe.jpg" },
+                ],
+              },
+              GB: {
+                flatrate: [{ provider_id: 9, provider_name: "Should not appear" }],
+              },
+            },
+          },
+          recommendations: {
+            results: [
+              { id: 100, title: "Interstellar", release_date: "2014-11-07", poster_path: "/inter.jpg", vote_average: 8.4 },
+              { id: 101, title: "Dune", release_date: "2021-10-22", poster_path: "/dune.jpg", vote_average: 8.0 },
+              { id: 100, title: "Interstellar duplicate" },
+            ],
+          },
+        }),
+      );
+
+    const result = await lookupTmdbTitleDetails({
+      baseUrl: "https://api.themoviedb.org/3",
+      secret: "tmdb-key",
+      metadata: { tmdbImageBaseUrl: "https://image.tmdb.org/t/p/" },
+      mediaType: "movie",
+      title: "Arrival",
+      year: 2016,
+    });
+
+    expect(result.ok).toBe(true);
+
+    if (!result.ok) {
+      throw new Error("Expected TMDB lookup to succeed.");
+    }
+
+    expect(result.details.cast).toEqual([
+      {
+        id: 10,
+        name: "Amy Adams",
+        character: "Louise Banks",
+        profileUrl: "https://image.tmdb.org/t/p/w500/amy.jpg",
+        order: 0,
+      },
+      {
+        id: 11,
+        name: "Jeremy Renner",
+        character: "Ian Donnelly",
+        profileUrl: "https://image.tmdb.org/t/p/w500/jeremy.jpg",
+        order: 1,
+      },
+      {
+        id: 12,
+        name: "No Image",
+        character: null,
+        profileUrl: null,
+        order: 2,
+      },
+    ]);
+    expect(result.details.watchProviders).toEqual({
+      countryCode: "US",
+      link: "https://www.themoviedb.org/movie/329865/watch?locale=US",
+      providers: [
+        {
+          providerId: 8,
+          providerName: "Netflix",
+          logoUrl: "https://image.tmdb.org/t/p/w500/netflix.jpg",
+          category: "flatrate",
+          displayPriority: 0,
+        },
+        {
+          providerId: 2,
+          providerName: "Apple TV",
+          logoUrl: "https://image.tmdb.org/t/p/w500/apple.jpg",
+          category: "rent",
+          displayPriority: 1,
+        },
+      ],
+    });
+    expect(result.details.similarTitles).toEqual([
+      {
+        tmdbId: 100,
+        mediaType: "movie",
+        title: "Interstellar",
+        year: 2014,
+        posterUrl: "https://image.tmdb.org/t/p/w500/inter.jpg",
+        voteAverage: 8.4,
+      },
+      {
+        tmdbId: 101,
+        mediaType: "movie",
+        title: "Dune",
+        year: 2021,
+        posterUrl: "https://image.tmdb.org/t/p/w500/dune.jpg",
+        voteAverage: 8.0,
+      },
+    ]);
+  });
+
+  it("uses the configured tmdbWatchRegion when present", async () => {
+    fetchWithTimeoutMock
+      .mockResolvedValueOnce(
+        jsonResponse({ results: [{ id: 1, title: "Arrival", release_date: "2016-11-11" }] }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 1,
+          title: "Arrival",
+          "watch/providers": {
+            results: {
+              GB: {
+                flatrate: [{ provider_id: 9, provider_name: "BBC iPlayer" }],
+              },
+              US: {
+                flatrate: [{ provider_id: 8, provider_name: "Netflix" }],
+              },
+            },
+          },
+        }),
+      );
+
+    const result = await lookupTmdbTitleDetails({
+      baseUrl: "https://api.themoviedb.org/3",
+      secret: "tmdb-key",
+      metadata: { tmdbWatchRegion: "gb" },
+      mediaType: "movie",
+      title: "Arrival",
+      year: 2016,
+    });
+
+    expect(result.ok && result.details.watchProviders?.countryCode).toBe("GB");
+    expect(result.ok && result.details.watchProviders?.providers[0]?.providerName).toBe("BBC iPlayer");
   });
 
   it("returns a typed failure when no scored TMDB candidate is found", async () => {

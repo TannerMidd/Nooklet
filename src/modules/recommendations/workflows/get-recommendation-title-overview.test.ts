@@ -71,6 +71,9 @@ const tmdbDetails = {
   imdbId: "tt2543164",
   tvdbId: null,
   videos: [],
+  cast: [],
+  watchProviders: null,
+  similarTitles: [],
 };
 
 describe("getRecommendationTitleOverview", () => {

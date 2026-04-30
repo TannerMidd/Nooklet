@@ -1,4 +1,14 @@
-import { type TmdbTitleDetails, type TmdbVideo, tmdbVideoTypes } from "@/modules/service-connections/adapters/tmdb";
+import {
+  type TmdbCastMember,
+  type TmdbSimilarTitle,
+  type TmdbTitleDetails,
+  type TmdbVideo,
+  type TmdbWatchProvider,
+  type TmdbWatchProviderCategory,
+  type TmdbWatchProviders,
+  tmdbVideoTypes,
+  tmdbWatchProviderCategories,
+} from "@/modules/service-connections/adapters/tmdb";
 import {
   readInteger,
   readNumber,
@@ -109,6 +119,129 @@ function parseTmdbVideos(value: unknown): TmdbVideo[] {
   return videos;
 }
 
+function parseTmdbCast(value: unknown): TmdbCastMember[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const cast: TmdbCastMember[] = [];
+
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null) {
+      continue;
+    }
+
+    const record = entry as Record<string, unknown>;
+    const id = readInteger(record.id);
+    const name = readString(record.name);
+
+    if (id === null || !name) {
+      continue;
+    }
+
+    cast.push({
+      id,
+      name,
+      character: readString(record.character),
+      profileUrl: readString(record.profileUrl),
+      order: readInteger(record.order) ?? cast.length,
+    });
+  }
+
+  return cast;
+}
+
+function parseTmdbWatchProviders(value: unknown): TmdbWatchProviders | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const countryCode = readString(record.countryCode);
+
+  if (!countryCode) {
+    return null;
+  }
+
+  if (!Array.isArray(record.providers)) {
+    return null;
+  }
+
+  const providers: TmdbWatchProvider[] = [];
+
+  for (const entry of record.providers) {
+    if (typeof entry !== "object" || entry === null) {
+      continue;
+    }
+
+    const providerRecord = entry as Record<string, unknown>;
+    const providerId = readInteger(providerRecord.providerId);
+    const providerName = readString(providerRecord.providerName);
+    const category = readString(providerRecord.category);
+
+    if (
+      providerId === null ||
+      !providerName ||
+      !category ||
+      !(tmdbWatchProviderCategories as readonly string[]).includes(category)
+    ) {
+      continue;
+    }
+
+    providers.push({
+      providerId,
+      providerName,
+      logoUrl: readString(providerRecord.logoUrl),
+      category: category as TmdbWatchProviderCategory,
+      displayPriority: readInteger(providerRecord.displayPriority) ?? providers.length,
+    });
+  }
+
+  if (providers.length === 0) {
+    return null;
+  }
+
+  return {
+    countryCode,
+    link: readString(record.link),
+    providers,
+  };
+}
+
+function parseTmdbSimilarTitles(value: unknown): TmdbSimilarTitle[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const titles: TmdbSimilarTitle[] = [];
+
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null) {
+      continue;
+    }
+
+    const record = entry as Record<string, unknown>;
+    const tmdbId = readInteger(record.tmdbId);
+    const mediaType = record.mediaType === "tv" || record.mediaType === "movie" ? record.mediaType : null;
+    const title = readString(record.title);
+
+    if (tmdbId === null || !mediaType || !title) {
+      continue;
+    }
+
+    titles.push({
+      tmdbId,
+      mediaType,
+      title,
+      year: readInteger(record.year),
+      posterUrl: readString(record.posterUrl),
+      voteAverage: readNumber(record.voteAverage),
+    });
+  }
+
+  return titles;
+}
+
 function parseTmdbTitleDetails(value: unknown): TmdbTitleDetails | undefined {
   if (typeof value !== "object" || value === null) {
     return undefined;
@@ -146,6 +279,9 @@ function parseTmdbTitleDetails(value: unknown): TmdbTitleDetails | undefined {
     imdbId: readString(record.imdbId),
     tvdbId: readInteger(record.tvdbId),
     videos: parseTmdbVideos(record.videos),
+    cast: parseTmdbCast(record.cast),
+    watchProviders: parseTmdbWatchProviders(record.watchProviders),
+    similarTitles: parseTmdbSimilarTitles(record.similarTitles),
   };
 }
 

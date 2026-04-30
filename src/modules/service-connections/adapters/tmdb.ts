@@ -57,6 +57,9 @@ type TmdbDetailsPayload = TmdbSearchResult & {
   homepage?: unknown;
   external_ids?: unknown;
   videos?: unknown;
+  credits?: unknown;
+  "watch/providers"?: unknown;
+  recommendations?: unknown;
 };
 
 export const tmdbVideoTypes = ["Trailer", "Teaser", "Featurette", "Clip"] as const;
@@ -69,6 +72,40 @@ export type TmdbVideo = {
   name: string;
   official: boolean;
   publishedAt: string | null;
+};
+
+export type TmdbCastMember = {
+  id: number;
+  name: string;
+  character: string | null;
+  profileUrl: string | null;
+  order: number;
+};
+
+export const tmdbWatchProviderCategories = ["flatrate", "rent", "buy"] as const;
+export type TmdbWatchProviderCategory = (typeof tmdbWatchProviderCategories)[number];
+
+export type TmdbWatchProvider = {
+  providerId: number;
+  providerName: string;
+  logoUrl: string | null;
+  category: TmdbWatchProviderCategory;
+  displayPriority: number;
+};
+
+export type TmdbWatchProviders = {
+  countryCode: string;
+  link: string | null;
+  providers: TmdbWatchProvider[];
+};
+
+export type TmdbSimilarTitle = {
+  tmdbId: number;
+  mediaType: RecommendationMediaType;
+  title: string;
+  year: number | null;
+  posterUrl: string | null;
+  voteAverage: number | null;
 };
 
 export type TmdbTitleDetails = {
@@ -94,6 +131,9 @@ export type TmdbTitleDetails = {
   imdbId: string | null;
   tvdbId: number | null;
   videos: TmdbVideo[];
+  cast: TmdbCastMember[];
+  watchProviders: TmdbWatchProviders | null;
+  similarTitles: TmdbSimilarTitle[];
 };
 
 export type LookupTmdbTitleDetailsResult =
@@ -370,6 +410,195 @@ function normalizeTmdbVideos(value: unknown): TmdbVideo[] {
   return videos.slice(0, tmdbVideoMaxResults);
 }
 
+const tmdbCastMaxResults = 8;
+const tmdbSimilarMaxResults = 6;
+const tmdbDefaultWatchRegion = "US";
+
+function buildProviderLogoUrl(imageBaseUrl: string | null, path: unknown) {
+  return buildImageUrl(imageBaseUrl, path, "w500");
+}
+
+function normalizeTmdbCast(value: unknown, imageBaseUrl: string | null): TmdbCastMember[] {
+  const list = (value as { cast?: unknown })?.cast;
+
+  if (!Array.isArray(list)) {
+    return [];
+  }
+
+  const cast: TmdbCastMember[] = [];
+
+  for (const entry of list) {
+    if (typeof entry !== "object" || entry === null) {
+      continue;
+    }
+
+    const record = entry as Record<string, unknown>;
+    const id = readInteger(record.id);
+    const name = readString(record.name);
+
+    if (id === null || !name) {
+      continue;
+    }
+
+    cast.push({
+      id,
+      name,
+      character: readString(record.character),
+      profileUrl: buildImageUrl(imageBaseUrl, record.profile_path, "w500"),
+      order: readInteger(record.order) ?? cast.length,
+    });
+  }
+
+  cast.sort((left, right) => left.order - right.order);
+
+  return cast.slice(0, tmdbCastMaxResults);
+}
+
+function isTmdbWatchProviderCategory(value: string): value is TmdbWatchProviderCategory {
+  return (tmdbWatchProviderCategories as readonly string[]).includes(value);
+}
+
+function normalizeWatchProviderEntries(
+  list: unknown,
+  category: TmdbWatchProviderCategory,
+  imageBaseUrl: string | null,
+  seenProviderIds: Set<number>,
+): TmdbWatchProvider[] {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+
+  const providers: TmdbWatchProvider[] = [];
+
+  for (const entry of list) {
+    if (typeof entry !== "object" || entry === null) {
+      continue;
+    }
+
+    const record = entry as Record<string, unknown>;
+    const providerId = readInteger(record.provider_id);
+    const providerName = readString(record.provider_name);
+
+    if (providerId === null || !providerName || seenProviderIds.has(providerId)) {
+      continue;
+    }
+
+    seenProviderIds.add(providerId);
+    providers.push({
+      providerId,
+      providerName,
+      logoUrl: buildProviderLogoUrl(imageBaseUrl, record.logo_path),
+      category,
+      displayPriority: readInteger(record.display_priority) ?? providers.length,
+    });
+  }
+
+  return providers;
+}
+
+function normalizeTmdbWatchProviders(
+  value: unknown,
+  countryCode: string,
+  imageBaseUrl: string | null,
+): TmdbWatchProviders | null {
+  const results = (value as { results?: unknown })?.results;
+
+  if (typeof results !== "object" || results === null) {
+    return null;
+  }
+
+  const region = (results as Record<string, unknown>)[countryCode];
+
+  if (typeof region !== "object" || region === null) {
+    return null;
+  }
+
+  const regionRecord = region as Record<string, unknown>;
+  const seenProviderIds = new Set<number>();
+  const providers: TmdbWatchProvider[] = [];
+
+  for (const category of tmdbWatchProviderCategories) {
+    if (!isTmdbWatchProviderCategory(category)) {
+      continue;
+    }
+
+    providers.push(
+      ...normalizeWatchProviderEntries(
+        regionRecord[category],
+        category,
+        imageBaseUrl,
+        seenProviderIds,
+      ),
+    );
+  }
+
+  if (providers.length === 0) {
+    return null;
+  }
+
+  providers.sort((left, right) => left.displayPriority - right.displayPriority);
+
+  return {
+    countryCode,
+    link: readString(regionRecord.link),
+    providers,
+  };
+}
+
+function normalizeTmdbSimilarTitles(
+  value: unknown,
+  mediaType: RecommendationMediaType,
+  imageBaseUrl: string | null,
+): TmdbSimilarTitle[] {
+  const list = (value as { results?: unknown })?.results;
+
+  if (!Array.isArray(list)) {
+    return [];
+  }
+
+  const seenIds = new Set<number>();
+  const titles: TmdbSimilarTitle[] = [];
+
+  for (const entry of list) {
+    if (typeof entry !== "object" || entry === null) {
+      continue;
+    }
+
+    const record = entry as Record<string, unknown>;
+    const tmdbId = readInteger(record.id);
+
+    if (tmdbId === null || seenIds.has(tmdbId)) {
+      continue;
+    }
+
+    const title =
+      mediaType === "movie"
+        ? readString(record.title) ?? readString(record.name)
+        : readString(record.name) ?? readString(record.title);
+
+    if (!title) {
+      continue;
+    }
+
+    const releaseDate =
+      mediaType === "movie"
+        ? readString(record.release_date)
+        : readString(record.first_air_date);
+
+    seenIds.add(tmdbId);
+    titles.push({
+      tmdbId,
+      mediaType,
+      title,
+      year: extractYear(releaseDate),
+      posterUrl: buildImageUrl(imageBaseUrl, record.poster_path, "w500"),
+      voteAverage: readNumber(record.vote_average),
+    });
+  }
+
+  return titles.slice(0, tmdbSimilarMaxResults);
+}
+
 function normalizeRuntime(payload: TmdbDetailsPayload, mediaType: RecommendationMediaType) {
   if (mediaType === "movie") {
     const runtime = readInteger(payload.runtime);
@@ -393,6 +622,7 @@ function normalizeTmdbDetails(
   input: {
     mediaType: RecommendationMediaType;
     imageBaseUrl: string | null;
+    watchRegion: string;
   },
 ): TmdbTitleDetails | null {
   const tmdbId = readInteger(payload.id);
@@ -428,11 +658,34 @@ function normalizeTmdbDetails(
     imdbId: externalIds.imdbId,
     tvdbId: externalIds.tvdbId,
     videos: normalizeTmdbVideos(payload.videos),
+    cast: normalizeTmdbCast(payload.credits, input.imageBaseUrl),
+    watchProviders: normalizeTmdbWatchProviders(
+      payload["watch/providers"],
+      input.watchRegion,
+      input.imageBaseUrl,
+    ),
+    similarTitles: normalizeTmdbSimilarTitles(
+      payload.recommendations,
+      input.mediaType,
+      input.imageBaseUrl,
+    ),
   };
 }
 
 function getTmdbImageBaseUrl(metadata: Record<string, unknown> | null | undefined) {
   return readString(metadata?.tmdbImageBaseUrl);
+}
+
+function getTmdbWatchRegion(metadata: Record<string, unknown> | null | undefined) {
+  const value = readString(metadata?.tmdbWatchRegion);
+
+  if (!value) {
+    return tmdbDefaultWatchRegion;
+  }
+
+  const upper = value.toUpperCase();
+
+  return /^[A-Z]{2}$/.test(upper) ? upper : tmdbDefaultWatchRegion;
 }
 
 export async function verifyTmdbConnection(input: TmdbConnectionInput) {
@@ -507,7 +760,7 @@ export async function lookupTmdbTitleDetails(input: TmdbConnectionInput & {
     ...input,
     path: detailsPath,
     searchParams: {
-      append_to_response: "external_ids,videos",
+      append_to_response: "external_ids,videos,credits,watch/providers,recommendations",
       language: "en-US",
     },
   });
@@ -522,6 +775,7 @@ export async function lookupTmdbTitleDetails(input: TmdbConnectionInput & {
   const details = normalizeTmdbDetails(detailsResult.payload, {
     mediaType: input.mediaType,
     imageBaseUrl: getTmdbImageBaseUrl(input.metadata),
+    watchRegion: getTmdbWatchRegion(input.metadata),
   });
 
   if (!details) {
