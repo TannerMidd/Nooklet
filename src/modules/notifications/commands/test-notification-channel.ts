@@ -2,6 +2,7 @@ import {
   type DispatchNotificationResult,
   dispatchNotificationToChannel,
 } from "@/modules/notifications/adapters/notification-channel-adapter";
+import { NotificationChannelNotFoundError } from "@/modules/notifications/errors";
 import {
   findNotificationChannelById,
   recordNotificationDispatchResult,
@@ -10,11 +11,11 @@ import {
 export async function testNotificationChannelCommand(
   userId: string,
   id: string,
-): Promise<DispatchNotificationResult & { channelMissing?: boolean }> {
+): Promise<DispatchNotificationResult> {
   const channel = await findNotificationChannelById(userId, id);
 
   if (!channel) {
-    return { ok: false, message: "Notification channel not found.", channelMissing: true };
+    throw new NotificationChannelNotFoundError(id);
   }
 
   const result = await dispatchNotificationToChannel({

@@ -13,6 +13,7 @@ import { addNotificationChannelCommand } from "@/modules/notifications/commands/
 import { removeNotificationChannelCommand } from "@/modules/notifications/commands/remove-notification-channel";
 import { testNotificationChannelCommand } from "@/modules/notifications/commands/test-notification-channel";
 import { updateNotificationChannelCommand } from "@/modules/notifications/commands/update-notification-channel";
+import { NotificationChannelNotFoundError } from "@/modules/notifications/errors";
 import {
   addNotificationChannelInputSchema,
   deleteNotificationChannelInputSchema,
@@ -155,7 +156,15 @@ export async function testNotificationChannelAction(
     return { status: "error", message: "Notification channel reference was invalid." };
   }
 
-  const result = await testNotificationChannelCommand(session.user.id, parsed.data.id);
+  let result;
+  try {
+    result = await testNotificationChannelCommand(session.user.id, parsed.data.id);
+  } catch (error) {
+    if (error instanceof NotificationChannelNotFoundError) {
+      return { status: "error", message: "Notification channel not found." };
+    }
+    throw error;
+  }
 
   revalidatePath("/settings/notifications");
 
