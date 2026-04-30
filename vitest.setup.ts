@@ -12,6 +12,6 @@ if (!process.env.NODE_ENV) {
 // Isolate the test database from the developer's local SQLite file. Each test
 // run gets a fresh temp directory so migrations apply cleanly.
 if (!process.env.DATABASE_URL) {
-  const dir = mkdtempSync(join(tmpdir(), "recommendarr-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "nooklet-test-"));
   process.env.DATABASE_URL = `file:${join(dir, "test.db")}`;
 }
