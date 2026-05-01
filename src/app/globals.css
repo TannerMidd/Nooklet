@@ -41,6 +41,7 @@ body {
   min-height: 100vh;
   margin: 0;
   position: relative;
+  isolation: isolate;
   background:
     radial-gradient(ellipse 60rem 32rem at 50% -8rem, rgba(210, 158, 102, 0.10), rgba(210, 158, 102, 0) 70%),
     radial-gradient(ellipse 48rem 36rem at 110% 110%, rgba(198, 118, 84, 0.06), transparent 70%),
@@ -56,7 +57,7 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: -1;
   background:
     radial-gradient(ellipse 80% 70% at 50% 35%, transparent 0%, transparent 55%, rgba(14, 10, 6, 0.55) 100%),
     radial-gradient(ellipse 60% 40% at 50% 100%, rgba(14, 10, 6, 0.35), transparent 70%);
@@ -69,16 +70,11 @@ body::after {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 0;
+  z-index: -1;
   background-image: var(--cozy-grain);
   background-size: 220px 220px;
   opacity: 0.05;
   mix-blend-mode: overlay;
-}
-
-body > * {
-  position: relative;
-  z-index: 1;
 }
 
 button,
