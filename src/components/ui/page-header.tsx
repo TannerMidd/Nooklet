@@ -22,7 +22,7 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        "relative overflow-hidden rounded-xl border border-line/70 bg-panel px-5 py-6 sm:px-6 md:px-8 xl:px-10",
+        "cozy-panel relative overflow-hidden rounded-xl border border-line/70 bg-panel px-5 py-6 sm:px-6 md:px-8 xl:px-10",
         className,
       )}
     >

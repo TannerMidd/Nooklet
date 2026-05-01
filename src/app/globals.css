@@ -26,15 +26,15 @@
 }
 
 :root {
-  --background: 26 20 16;
-  --foreground: 238 226 206;
-  --panel: 40 30 24;
-  --panel-strong: 54 40 30;
-  --muted: 186 168 146;
-  --line: 78 60 46;
-  --accent: 210 158 102;
-  --accent-foreground: 26 16 8;
-  --highlight: 198 118 84;
+  --background: 58 45 35;
+  --foreground: 249 236 214;
+  --panel: 74 57 43;
+  --panel-strong: 88 67 50;
+  --muted: 224 204 176;
+  --line: 134 101 74;
+  --accent: 224 169 108;
+  --accent-foreground: 35 22 12;
+  --highlight: 207 126 88;
   /* Subtle paper-grain texture, used by body and cozy panels. */
   --cozy-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.86  0 0 0 0 0.72  0 0 0 0 0.52  0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
@@ -54,8 +54,8 @@ body {
   position: relative;
   isolation: isolate;
   background:
-    radial-gradient(ellipse 60rem 32rem at 50% -8rem, rgba(210, 158, 102, 0.10), rgba(210, 158, 102, 0) 70%),
-    radial-gradient(ellipse 48rem 36rem at 110% 110%, rgba(198, 118, 84, 0.06), transparent 70%),
+    radial-gradient(ellipse 60rem 32rem at 50% -8rem, rgba(224, 169, 108, 0.10), rgba(224, 169, 108, 0) 70%),
+    radial-gradient(ellipse 48rem 36rem at 110% 110%, rgba(207, 126, 88, 0.055), transparent 70%),
     rgb(var(--background));
   color: rgb(var(--foreground));
   font-family: var(--app-font-body), sans-serif;
@@ -70,8 +70,8 @@ body::before {
   pointer-events: none;
   z-index: -1;
   background:
-    radial-gradient(ellipse 80% 70% at 50% 35%, transparent 0%, transparent 55%, rgba(14, 10, 6, 0.55) 100%),
-    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(14, 10, 6, 0.35), transparent 70%);
+    radial-gradient(ellipse 80% 70% at 50% 35%, transparent 0%, transparent 60%, rgba(38, 27, 19, 0.16) 100%),
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(38, 27, 19, 0.11), transparent 70%);
 }
 
 /* Paper-grain overlay: barely-there fibrous texture, like newsprint or
@@ -202,10 +202,10 @@ ol {
   position: relative;
   isolation: isolate;
   box-shadow:
-    inset 0 1px 0 0 rgba(238, 226, 206, 0.04),
-    inset 0 0 0 1px rgba(210, 158, 102, 0.015),
-    0 1px 0 0 rgba(0, 0, 0, 0.25),
-    0 12px 28px -22px rgba(0, 0, 0, 0.6);
+    inset 0 1px 0 0 rgba(249, 236, 214, 0.075),
+    inset 0 0 0 1px rgba(224, 169, 108, 0.025),
+    0 1px 0 0 rgba(38, 27, 19, 0.18),
+    0 16px 34px -26px rgba(38, 27, 19, 0.34);
   transition: box-shadow 220ms ease, border-color 220ms ease, transform 220ms ease;
 }
 
@@ -224,10 +224,10 @@ ol {
 
 .cozy-panel:hover {
   box-shadow:
-    inset 0 1px 0 0 rgba(238, 226, 206, 0.06),
-    inset 0 0 0 1px rgba(210, 158, 102, 0.04),
-    0 1px 0 0 rgba(0, 0, 0, 0.3),
-    0 18px 36px -22px rgba(198, 118, 84, 0.32);
+    inset 0 1px 0 0 rgba(249, 236, 214, 0.09),
+    inset 0 0 0 1px rgba(224, 169, 108, 0.055),
+    0 1px 0 0 rgba(38, 27, 19, 0.20),
+    0 20px 42px -28px rgba(207, 126, 88, 0.30);
 }
 
 /* Cozy glow: warm lamplight halo on hover/focus, for primary actions and
@@ -239,6 +239,6 @@ ol {
 .cozy-glow:hover,
 .cozy-glow:focus-visible {
   box-shadow:
-    0 0 0 1px rgba(210, 158, 102, 0.22),
-    0 12px 32px -12px rgba(210, 158, 102, 0.55);
+    0 0 0 1px rgba(224, 169, 108, 0.22),
+    0 12px 32px -12px rgba(224, 169, 108, 0.48);
 }
