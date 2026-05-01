@@ -97,7 +97,15 @@ with a single click.
 
 ## Screenshots
 
-<img width="3840" height="1826" alt="image" src="https://github.com/user-attachments/assets/5d2e8077-65d8-497f-90e4-5a39d13a05e3" />
+<img width="3822" height="1826" alt="image" src="https://github.com/user-attachments/assets/33e127d1-6744-44ce-9f44-dea8953baed9" />
+<br>
+<img width="3806" height="1826" alt="image" src="https://github.com/user-attachments/assets/e94382ed-2c58-4164-bd2c-8e8e4962ba12" />
+<br>
+<img width="3818" height="1816" alt="image" src="https://github.com/user-attachments/assets/ecfbcff5-342c-4c2b-82dd-57b61e03355c" />
+<br>
+<img width="3828" height="1820" alt="image" src="https://github.com/user-attachments/assets/0ae21d72-835f-4d43-b815-ecfd8885f298" />
+<br>
+<img width="3818" height="1824" alt="image" src="https://github.com/user-attachments/assets/b9ad74b3-d845-4413-b612-27bfb229cac7" />
 
 ---
 
