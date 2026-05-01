@@ -20,7 +20,7 @@ export function Panel({
   return (
     <section
       className={cn(
-        "min-w-0 rounded-xl border border-line/70 bg-panel p-5 sm:p-6",
+        "cozy-panel min-w-0 rounded-xl border border-line/70 bg-panel p-5 sm:p-6",
         className,
       )}
     >

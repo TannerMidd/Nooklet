@@ -21,7 +21,7 @@ export function AppShell({ children, user }: AppShellProps) {
       <div className="min-h-screen overflow-x-clip px-4 py-5 sm:px-6 sm:py-7 xl:px-8 xl:py-9">
         <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 sm:gap-6 xl:gap-8 lg:flex-row lg:items-start">
           <aside className="lg:sticky lg:top-7 lg:w-80 lg:flex-none xl:w-[21rem]">
-            <div className="rounded-xl border border-line/70 bg-panel p-4 sm:p-5 lg:max-h-[calc(100vh-3.5rem)] lg:overflow-y-auto">
+            <div className="cozy-panel rounded-xl border border-line/70 bg-panel p-4 sm:p-5 lg:max-h-[calc(100vh-3.5rem)] lg:overflow-y-auto">
               <p className="font-heading text-sm italic text-accent">
                 Your nook
               </p>
