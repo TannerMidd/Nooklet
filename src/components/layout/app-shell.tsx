@@ -18,51 +18,35 @@ type AppShellProps = {
 export function AppShell({ children, user }: AppShellProps) {
   return (
     <SabnzbdQueueProvider>
-      <div className="min-h-screen overflow-x-clip px-4 py-5 sm:px-6 sm:py-7 xl:px-8 xl:py-9">
-        <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-4 sm:gap-6 xl:gap-8 lg:flex-row lg:items-start">
-          <aside className="lg:sticky lg:top-7 lg:w-80 lg:flex-none xl:w-[21rem]">
-            <div className="cozy-panel rounded-xl border border-line/70 bg-panel p-4 sm:p-5 lg:max-h-[calc(100vh-3.5rem)] lg:overflow-y-auto">
-              <p className="font-heading text-sm italic text-accent-cool">
-                Your nook
-              </p>
-              <div className="mt-4 flex items-start gap-3">
+      <div className="min-h-screen overflow-x-clip px-4 py-4 sm:px-6 sm:py-6 xl:px-8 xl:py-8">
+        <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-5 lg:flex-row lg:items-start xl:gap-7">
+          <aside className="lg:sticky lg:top-6 lg:w-72 lg:flex-none xl:w-[19rem]">
+            <div className="cozy-panel rounded-lg border border-line/65 bg-panel/92 p-3.5 sm:p-4 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
+              <div className="flex items-center gap-3 border-b border-line/55 pb-4">
                 <Link
                   href="/"
-                  className="nooklet-brand-mark flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-accent/35 font-heading text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
+                  className="nooklet-brand-mark flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-accent/35 font-heading text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
                   aria-label="Nooklet home"
                 >
                   NK
                 </Link>
-                <div className="min-w-0 space-y-2">
+                <div className="min-w-0">
                   <Link
                     href="/"
-                    className="block truncate font-heading text-2xl leading-none tracking-normal text-foreground sm:text-3xl"
+                    className="block truncate font-heading text-2xl leading-none text-foreground"
                   >
                     Nooklet
                   </Link>
-                  <p className="text-sm leading-6 text-muted">
-                    A cozy corner for what&apos;s next — recommendations, history, and your library, all in one place.
+                  <p className="mt-1 truncate text-xs font-medium text-muted">
+                    Media taste desk
                   </p>
                 </div>
               </div>
 
-              <div className="mt-6 rounded-lg border border-accent-cool/20 bg-accent-cool/10 px-4 py-4">
-                <p className="font-heading text-sm italic text-accent-cool">
-                  Signed in as
-                </p>
-                <p className="mt-2 font-medium text-foreground">
-                  {user.name || user.email || "Nooklet user"}
-                </p>
-                {user.email ? <p className="mt-1 text-sm text-muted">{user.email}</p> : null}
-                <div className="mt-4">
-                  <SignOutForm />
-                </div>
-              </div>
-
-              <div className="mt-7 space-y-5 sm:space-y-6">
+              <nav className="mt-5 space-y-5" aria-label="Workspace navigation">
                 {navigationGroups.map((group) => (
                   <section key={group.title} className="space-y-3">
-                    <h2 className="font-heading text-sm italic text-accent-cool/90">
+                    <h2 className="px-2 font-heading text-xs italic text-accent-cool/85">
                       {group.title}
                     </h2>
                     <div className="space-y-2">
@@ -76,6 +60,18 @@ export function AppShell({ children, user }: AppShellProps) {
                     </div>
                   </section>
                 ))}
+              </nav>
+
+              <div className="mt-5 border-t border-line/55 pt-4">
+                <div className="rounded-lg border border-line/55 bg-background/18 px-3 py-3">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {user.name || user.email || "Nooklet user"}
+                  </p>
+                  {user.email ? <p className="mt-0.5 truncate text-xs text-muted">{user.email}</p> : null}
+                  <div className="mt-3">
+                    <SignOutForm />
+                  </div>
+                </div>
               </div>
             </div>
           </aside>
