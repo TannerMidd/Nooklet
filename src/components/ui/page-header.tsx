@@ -22,13 +22,13 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        "cozy-panel relative overflow-hidden rounded-xl border border-line/70 bg-panel px-5 py-6 sm:px-6 md:px-8 xl:px-10",
+        "cozy-panel nooklet-hero-surface relative overflow-hidden rounded-xl border border-accent-cool/25 px-5 py-6 sm:px-6 md:px-8 xl:px-10",
         className,
       )}
     >
       <div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0 max-w-4xl space-y-3">
-          <p className="font-heading text-sm italic text-accent">
+          <p className="font-heading text-sm italic text-accent-cool">
             {eyebrow}
           </p>
           <div className="space-y-3">

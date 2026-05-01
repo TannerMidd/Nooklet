@@ -46,15 +46,15 @@ export function AppNavLink({ item, badge }: AppNavLinkProps) {
       className={cn(
         "group relative block rounded-lg border px-4 py-3 transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50",
         active
-          ? "border-accent/40 bg-accent/10 text-foreground"
-          : "border-transparent bg-transparent text-muted hover:border-line/70 hover:bg-panel-strong/60 hover:text-foreground",
+          ? "nooklet-nav-link--active border-accent/45 text-foreground"
+          : "border-transparent bg-transparent text-muted hover:border-accent-cool/25 hover:bg-accent-cool/10 hover:text-foreground",
       )}
     >
       <span
         aria-hidden="true"
         className={cn(
-          "absolute left-0 top-3 h-[calc(100%-1.5rem)] w-0.5 rounded-full transition",
-          active ? "bg-accent" : "bg-transparent group-hover:bg-line",
+          "nooklet-nav-link__rail absolute left-0 top-3 h-[calc(100%-1.5rem)] w-0.5 rounded-full transition",
+          active ? "" : "bg-transparent group-hover:bg-accent-cool/70",
         )}
       />
       <span className="flex min-w-0 items-start justify-between gap-3">

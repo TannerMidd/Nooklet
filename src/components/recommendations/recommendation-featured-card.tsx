@@ -60,7 +60,7 @@ export function RecommendationFeaturedCard({
 
   return (
     <article
-      className="recommendation-featured-card flex h-full flex-col rounded-xl border border-line/70 bg-panel p-5"
+      className="recommendation-featured-card nooklet-feature-card flex h-full flex-col rounded-xl border border-line/70 p-5"
       style={{ animationDelay: `${animationDelayMs}ms` }}
     >
       <Link
@@ -77,7 +77,7 @@ export function RecommendationFeaturedCard({
           <div className="min-w-0 space-y-3 sm:pt-1">
             <div className="flex flex-wrap gap-2 text-xs text-muted">
               {confidenceLabel ? (
-                <span className="rounded-md border border-line/70 bg-panel-strong/70 px-3 py-1.5 font-medium text-foreground">
+                <span className="rounded-md border border-accent-cool/30 bg-accent-cool/10 px-3 py-1.5 font-medium text-foreground">
                   {formatConfidenceLabel(confidenceLabel)}
                 </span>
               ) : null}

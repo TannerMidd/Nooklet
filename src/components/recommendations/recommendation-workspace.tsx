@@ -193,7 +193,7 @@ export async function RecommendationWorkspace({
 
       {featuredRun ? (
         <section
-          className={`rounded-xl border border-line/70 bg-panel px-6 py-6 md:px-8 xl:px-10 ${
+          className={`cozy-panel nooklet-feature-run rounded-xl border border-accent-cool/20 px-6 py-6 md:px-8 xl:px-10 ${
             wasJustGenerated && featuredRun.id === activeRunId ? "recommendation-featured-run recommendation-featured-run--fresh" : ""
           }`}
         >
@@ -219,16 +219,16 @@ export async function RecommendationWorkspace({
               </div>
             </div>
             <div className="grid gap-3 text-sm leading-6 text-foreground sm:grid-cols-2 xl:min-w-[360px]">
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <div className="rounded-2xl border border-accent-cool/20 bg-panel-raised/50 px-4 py-3">
                 <span className="font-medium">Model:</span> {featuredRun.aiModel ?? defaultModel}
               </div>
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <div className="rounded-2xl border border-accent-cool/20 bg-panel-raised/50 px-4 py-3">
                 <span className="font-medium">Temperature:</span> {formatTemperature(featuredRun.aiTemperature)}
               </div>
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <div className="rounded-2xl border border-accent-cool/20 bg-panel-raised/50 px-4 py-3">
                 <span className="font-medium">Requested:</span> {featuredRun.requestedCount}
               </div>
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <div className="rounded-2xl border border-accent-cool/20 bg-panel-raised/50 px-4 py-3">
                 <span className="font-medium">{featuredRunIsPending ? "Brewing" : "Completed"}:</span>{" "}
                 {featuredRunIsPending ? (
                   <RecommendationPendingTimer startedAt={featuredRun.createdAt} />

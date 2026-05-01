@@ -18,7 +18,7 @@ export function RecommendationPoster({ title, posterUrl }: RecommendationPosterP
   const fallbackLabel = buildPosterFallbackLabel(title);
 
   return (
-    <div className="relative aspect-[2/3] w-24 shrink-0 overflow-hidden rounded-md border border-line/70 bg-panel-strong sm:w-28">
+    <div className="relative aspect-[2/3] w-24 shrink-0 overflow-hidden rounded-md border border-accent-cool/20 bg-panel-strong sm:w-28">
       {posterUrl ? (
         <Image
           src={posterUrl}
@@ -29,8 +29,8 @@ export function RecommendationPoster({ title, posterUrl }: RecommendationPosterP
           className="object-cover"
         />
       ) : (
-        <div className="flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_top,_rgb(var(--accent)/0.16),_transparent_60%),linear-gradient(180deg,_rgb(var(--panel-strong)/0.95),_rgb(var(--background)/0.98))] p-3 text-foreground">
-          <span className="font-heading text-xl leading-none text-accent">{fallbackLabel}</span>
+        <div className="flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_top,_rgb(var(--accent-cool)/0.18),_transparent_58%),radial-gradient(circle_at_bottom_right,_rgb(var(--accent)/0.14),_transparent_62%),linear-gradient(180deg,_rgb(var(--panel-strong)/0.95),_rgb(var(--background)/0.98))] p-3 text-foreground">
+          <span className="font-heading text-xl leading-none text-accent-strong">{fallbackLabel}</span>
           <div className="space-y-1">
             <p className="font-heading text-xs italic text-muted">
               Poster
