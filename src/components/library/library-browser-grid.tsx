@@ -134,7 +134,7 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
             placeholder={placeholder}
-            className="w-full rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+            className="w-full rounded-lg border border-line/75 bg-background/25 px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted/75 focus:border-accent/55 focus:ring-1 focus:ring-accent/25"
           />
         </label>
         <p className="text-xs text-muted">
@@ -145,11 +145,11 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
       </div>
 
       {totalCount === 0 ? (
-        <div className="rounded-lg border border-line/70 bg-panel-strong/40 px-6 py-10 text-center text-sm text-muted">
+        <div className="rounded-lg border border-line/60 bg-background/15 px-6 py-10 text-center text-sm text-muted">
           {emptyLibraryLabel}
         </div>
       ) : filteredCount === 0 ? (
-        <div className="rounded-lg border border-line/70 bg-panel-strong/40 px-6 py-10 text-center text-sm text-muted">
+        <div className="rounded-lg border border-line/60 bg-background/15 px-6 py-10 text-center text-sm text-muted">
           {emptyLabel}
         </div>
       ) : (
@@ -251,7 +251,7 @@ function SonarrLibraryCard({
         tabIndex={0}
         onClick={onClick}
         onKeyDown={handleKeyDown}
-        className="group flex h-full w-full flex-col gap-3 rounded-lg border border-line/80 bg-panel p-3 text-left transition hover:border-accent/40 hover:bg-panel-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
+        className="group flex h-full w-full flex-col gap-3 rounded-lg border border-line/65 bg-panel/85 p-3 text-left transition hover:border-accent/40 hover:bg-panel-strong/75 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
       >
         <div className="flex items-start gap-3">
           <RecommendationPoster title={series.title} posterUrl={series.posterUrl} />
@@ -321,7 +321,7 @@ function RadarrLibraryCard({
         tabIndex={0}
         onClick={onClick}
         onKeyDown={handleKeyDown}
-        className="group flex h-full w-full flex-col gap-3 rounded-lg border border-line/80 bg-panel p-3 text-left transition hover:border-accent/40 hover:bg-panel-strong focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
+        className="group flex h-full w-full flex-col gap-3 rounded-lg border border-line/65 bg-panel/85 p-3 text-left transition hover:border-accent/40 hover:bg-panel-strong/75 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
       >
         <div className="flex items-start gap-3">
           <RecommendationPoster title={movie.title} posterUrl={movie.posterUrl} />
@@ -339,8 +339,8 @@ function RadarrLibraryCard({
               <span
                 className={
                   movie.hasFile
-                    ? "inline-flex items-center rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] font-medium text-emerald-200"
-                    : "inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[0.65rem] font-medium text-amber-200"
+                    ? "inline-flex items-center rounded-md border border-accent-cool/35 bg-accent-cool/10 px-2 py-0.5 text-[0.65rem] font-medium text-accent-cool"
+                    : "inline-flex items-center rounded-md border border-highlight/30 bg-highlight/10 px-2 py-0.5 text-[0.65rem] font-medium text-highlight"
                 }
               >
                 {movie.hasFile ? "On disk" : "Missing"}

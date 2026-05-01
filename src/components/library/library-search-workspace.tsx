@@ -92,7 +92,7 @@ export async function LibrarySearchWorkspace({
                 defaultValue={normalizedQuery}
                 placeholder={serviceType === "sonarr" ? "Search by series title" : "Search by movie title"}
                 disabled={!canSearch}
-                className="w-full rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted focus:border-accent/40 focus:bg-panel disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-lg border border-line/75 bg-background/25 px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted/75 focus:border-accent/55 focus:bg-panel-strong/70 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </div>
             <div className="flex flex-wrap gap-3">
@@ -102,7 +102,7 @@ export async function LibrarySearchWorkspace({
               {normalizedQuery ? (
                 <Link
                   href={routePath}
-                  className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-line bg-panel-strong px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-panel"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-panel-raised/70"
                 >
                   Clear search
                 </Link>
@@ -112,17 +112,17 @@ export async function LibrarySearchWorkspace({
 
           <div className="mt-4 space-y-3 text-sm leading-6 text-foreground">
             {!canSearch ? (
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3 text-muted">
+              <div className="rounded-lg border border-line/60 bg-background/15 px-4 py-3 text-muted">
                 Verify {serviceLabel} before searching.
               </div>
             ) : null}
             {searchResult?.ok ? (
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3 text-muted">
+              <div className="rounded-lg border border-line/60 bg-background/15 px-4 py-3 text-muted">
                 Found {searchResult.items.length} {searchResult.items.length === 1 ? "match" : "matches"} for “{normalizedQuery}”.
               </div>
             ) : null}
             {searchResult && !searchResult.ok ? (
-              <div className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-highlight">
+              <div className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-highlight">
                 {searchResult.message}
               </div>
             ) : null}
@@ -135,19 +135,19 @@ export async function LibrarySearchWorkspace({
         title="Matches"
       >
         {normalizedQuery.length === 0 ? (
-          <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+          <div className="rounded-lg border border-line/60 bg-background/15 px-4 py-4 text-sm leading-6 text-muted">
             Enter a title above to search {serviceLabel} directly.
           </div>
         ) : normalizedQuery.length < 2 ? (
-          <div className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-4 text-sm leading-6 text-highlight">
+          <div className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-4 text-sm leading-6 text-highlight">
             Search terms need at least two characters.
           </div>
         ) : searchResult && !searchResult.ok ? (
-          <div className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-4 text-sm leading-6 text-highlight">
+          <div className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-4 text-sm leading-6 text-highlight">
             {searchResult.message}
           </div>
         ) : searchResult?.ok && searchResult.items.length === 0 ? (
-          <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+          <div className="rounded-lg border border-line/60 bg-background/15 px-4 py-4 text-sm leading-6 text-muted">
             No {resultLabel} matched “{normalizedQuery}”. Try a broader title or verify the spelling.
           </div>
         ) : (
@@ -156,7 +156,7 @@ export async function LibrarySearchWorkspace({
               ? searchResult.items.map((item) => (
                   <article
                     key={item.resultKey}
-                    className="flex min-h-full gap-4 rounded-lg border border-line/80 bg-panel-strong/60 p-4"
+                    className="flex min-h-full gap-4 rounded-lg border border-line/65 bg-panel/85 p-4"
                   >
                     <RecommendationPoster title={item.title} posterUrl={item.posterUrl} />
                     <div className="min-w-0 flex-1 space-y-4">
@@ -171,12 +171,12 @@ export async function LibrarySearchWorkspace({
                         </div>
                         <div className="flex flex-wrap gap-2 text-xs font-medium text-muted">
                           {item.year ? (
-                            <span className="rounded-full border border-line/80 bg-panel px-3 py-1">
+                            <span className="rounded-md border border-line/65 bg-background/15 px-3 py-1">
                               {item.year}
                             </span>
                           ) : null}
                           {serviceType === "sonarr" ? (
-                            <span className="rounded-full border border-line/80 bg-panel px-3 py-1">
+                            <span className="rounded-md border border-line/65 bg-background/15 px-3 py-1">
                               {item.availableSeasons.length > 0
                                 ? `${item.availableSeasons.length} seasons`
                                 : "Season list unavailable"}

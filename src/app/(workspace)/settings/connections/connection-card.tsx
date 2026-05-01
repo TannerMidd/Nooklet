@@ -23,14 +23,14 @@ type ConnectionCardProps = {
 function statusTone(status: ServiceConnectionSummary["status"]) {
   switch (status) {
     case "verified":
-      return "border-accent/25 bg-accent/10 text-accent";
+      return "border-accent-cool/30 bg-accent-cool/10 text-accent-cool";
     case "error":
       return "border-highlight/20 bg-highlight/10 text-highlight";
     case "configured":
-      return "border-line/80 bg-panel-strong/80 text-foreground";
+      return "border-line/65 bg-background/25 text-foreground";
     case "disconnected":
     default:
-      return "border-line/70 bg-panel/70 text-muted";
+      return "border-line/60 bg-background/20 text-muted";
   }
 }
 
@@ -87,10 +87,10 @@ function ModelField({
       />
       {availableModels.length > 0 ? (
         <p className="text-sm text-muted">
-          {availableModels.length} models loaded from the configured provider. Start typing to filter.
+          {availableModels.length} models available.
         </p>
       ) : (
-        <p className="text-sm text-muted">Run verify to load available models from the configured provider.</p>
+        <p className="text-sm text-muted">Verify to refresh the model list.</p>
       )}
       {error ? <p className="text-sm text-highlight">{error}</p> : null}
     </label>
@@ -111,7 +111,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
   return (
     <form
       action={formAction}
-      className="rounded-xl border border-line/70 bg-panel p-5 sm:p-6"
+      className="cozy-panel rounded-lg border border-line/65 bg-panel/90 p-5 sm:p-6"
     >
       <input type="hidden" name="serviceType" value={summary.serviceType} />
 
@@ -125,9 +125,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
           </h2>
           <p className="max-w-2xl text-sm leading-6 text-muted">{summary.description}</p>
         </div>
-        <div
-          className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-medium ${statusTone(summary.status)}`}
-        >
+        <div className={`inline-flex w-fit items-center rounded-md border px-3 py-1 text-xs font-medium ${statusTone(summary.status)}`}>
           {formatStatusLabel(summary.status)}
         </div>
       </div>
@@ -170,7 +168,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
       </div>
 
       <div
-        className={`mt-6 grid rounded-2xl border border-line/70 bg-panel-strong/45 px-4 py-2 ${
+        className={`mt-6 grid rounded-lg border border-line/60 bg-background/15 px-4 py-2 ${
           showsModel || showsAvailableUsers || showsSabnzbdFacts ? "md:grid-cols-3" : "md:grid-cols-2"
         }`}
       >
@@ -196,7 +194,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
         <ConnectionFact label="Last verified" value={formatDate(summary.lastVerifiedAt)} />
       </div>
 
-      <p className="mt-4 rounded-2xl border border-line/60 bg-panel-strong/35 px-4 py-3 text-sm leading-6 text-muted">
+      <p className="mt-4 rounded-lg border border-line/55 bg-background/15 px-4 py-3 text-sm leading-6 text-muted">
         {summary.statusMessage}
       </p>
 
@@ -204,8 +202,8 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
         <p
           className={
             state.status === "success"
-              ? "mt-4 rounded-2xl border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-foreground"
-              : "mt-4 rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight"
+              ? "mt-4 rounded-lg border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-foreground"
+              : "mt-4 rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight"
           }
         >
           {state.message}

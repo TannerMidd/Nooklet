@@ -99,7 +99,6 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
         <Panel
           eyebrow="Views"
           title="Media scope"
-          description="Switch between all recommendations, TV only, or movies only."
         >
           <div className="flex flex-wrap gap-3">
             {[
@@ -116,8 +115,8 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 href={item.href}
                 className={
                   item.active
-                    ? "inline-flex rounded-2xl bg-accent px-4 py-3 text-sm font-medium text-accent-foreground"
-                    : "inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                    ? "inline-flex rounded-lg bg-accent px-4 py-3 text-sm font-medium text-accent-foreground"
+                    : "inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
                 }
               >
                 {item.label}
@@ -129,19 +128,18 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
         <Panel
           eyebrow="Active filters"
           title="Saved filters"
-          description="These defaults come from your preferences. Change them there if you want history to open with different filters."
         >
           <div className="grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+            <div className="rounded-lg border border-line/60 bg-background/15 px-4 py-3">
               Hide existing: {preferences.historyHideExisting ? "On" : "Off"}
             </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+            <div className="rounded-lg border border-line/60 bg-background/15 px-4 py-3">
               Hide liked: {preferences.historyHideLiked ? "On" : "Off"}
             </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+            <div className="rounded-lg border border-line/60 bg-background/15 px-4 py-3">
               Hide disliked: {preferences.historyHideDisliked ? "On" : "Off"}
             </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+            <div className="rounded-lg border border-line/60 bg-background/15 px-4 py-3">
               Hide hidden: {preferences.historyHideHidden ? "On" : "Off"}
             </div>
           </div>
@@ -155,7 +153,6 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
             ? `Showing ${history.pageStart}-${history.pageEnd} of ${history.filteredCount}`
             : `Showing 0 of ${history.totalCount}`
         }
-        description="Your saved filters still apply here, and longer histories are split into pages to keep browsing manageable."
       >
         {history.items.length === 0 ? (
           <div className="space-y-3 text-sm leading-6 text-muted">
@@ -163,13 +160,13 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
             <div className="flex flex-wrap gap-3">
               <Link
                 href="/tv"
-                className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                className="inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
               >
                 Open TV recommendations
               </Link>
               <Link
                 href="/movies"
-                className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                className="inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
               >
                 Open movie recommendations
               </Link>
@@ -180,7 +177,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
             {history.items.map((item) => (
               <article
                 key={item.itemId}
-                className="rounded-lg border border-line/70 bg-panel-strong/60 p-5"
+                className="rounded-lg border border-line/65 bg-panel/85 p-5"
               >
                 <Link
                   href={appendDetailsParam(returnTo, item.itemId)}
@@ -265,12 +262,12 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 {history.currentPage > 1 ? (
                   <Link
                     href={buildHistoryHref(currentView, history.currentPage - 1)}
-                    className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                    className="inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
                   >
                     Previous page
                   </Link>
                 ) : (
-                  <span className="inline-flex rounded-2xl border border-line/50 bg-panel/60 px-4 py-3 text-sm font-medium text-muted">
+                  <span className="inline-flex rounded-lg border border-line/50 bg-panel/60 px-4 py-3 text-sm font-medium text-muted">
                     Previous page
                   </span>
                 )}
@@ -278,12 +275,12 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 {history.currentPage < history.totalPages ? (
                   <Link
                     href={buildHistoryHref(currentView, history.currentPage + 1)}
-                    className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                    className="inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
                   >
                     Next page
                   </Link>
                 ) : (
-                  <span className="inline-flex rounded-2xl border border-line/50 bg-panel/60 px-4 py-3 text-sm font-medium text-muted">
+                  <span className="inline-flex rounded-lg border border-line/50 bg-panel/60 px-4 py-3 text-sm font-medium text-muted">
                     Next page
                   </span>
                 )}

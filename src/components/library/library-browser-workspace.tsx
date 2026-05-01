@@ -65,7 +65,7 @@ export async function LibraryBrowserWorkspace({
         >
           <Link
             href="/settings/connections"
-            className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+            className="inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
           >
             Manage connections
           </Link>
@@ -156,7 +156,7 @@ export async function LibraryBrowserWorkspace({
     <div className="space-y-6">
       <PageHeader eyebrow={`${serviceLabel} workspace`} title={title} description={description}>
         {connectionSummary?.status === "verified" ? null : (
-          <p className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          <p className="mt-4 rounded-lg border border-highlight/25 bg-highlight/10 px-4 py-3 text-sm text-highlight">
             {connectionSummary?.statusMessage ?? `Configure ${serviceLabel} from the connections page to use this workspace.`}
           </p>
         )}
