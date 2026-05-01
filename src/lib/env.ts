@@ -19,6 +19,15 @@ const envSchema = z.object({
     .min(32, "SECRET_BOX_KEY must be at least 32 characters when set.")
     .optional(),
   ALLOW_PRIVATE_SERVICE_HOSTS: booleanFromEnv.default(true),
+  // Maximum time to wait for an AI provider to return a recommendation batch.
+  // Slow local models (LM Studio / Ollama) and large reasoning models routinely
+  // exceed several minutes; recommendation runs already execute on the
+  // background worker so a long ceiling is safe.
+  AI_RECOMMENDATIONS_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30 * 60_000),
 });
 
 export const env = envSchema.parse({
@@ -28,4 +37,5 @@ export const env = envSchema.parse({
   AUTH_SECRET: process.env.AUTH_SECRET,
   SECRET_BOX_KEY: process.env.SECRET_BOX_KEY,
   ALLOW_PRIVATE_SERVICE_HOSTS: process.env.ALLOW_PRIVATE_SERVICE_HOSTS,
+  AI_RECOMMENDATIONS_TIMEOUT_MS: process.env.AI_RECOMMENDATIONS_TIMEOUT_MS,
 });
