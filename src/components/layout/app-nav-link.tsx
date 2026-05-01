@@ -98,7 +98,7 @@ export function AppNavLink({ item, badge }: AppNavLinkProps) {
         className={cn(
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition",
           active
-            ? "border-accent/35 bg-accent/14 text-accent-strong"
+            ? "border-accent/35 bg-accent/15 text-accent-strong"
             : "border-line/45 bg-background/15 text-muted group-hover:border-line/65 group-hover:text-foreground",
         )}
       >

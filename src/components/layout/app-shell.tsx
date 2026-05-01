@@ -19,8 +19,8 @@ export function AppShell({ children, user }: AppShellProps) {
   return (
     <SabnzbdQueueProvider>
       <div className="min-h-screen overflow-x-clip px-4 py-4 sm:px-6 sm:py-6 xl:px-8 xl:py-8">
-        <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-5 lg:flex-row lg:items-start xl:gap-7">
-          <aside className="lg:sticky lg:top-6 lg:w-72 lg:flex-none xl:w-[19rem]">
+        <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 lg:flex-row lg:items-start xl:gap-7">
+          <aside className="lg:sticky lg:top-6 lg:w-[17rem] lg:flex-none xl:w-72">
             <div className="cozy-panel rounded-lg border border-line/65 bg-panel/92 p-3.5 sm:p-4 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
               <div className="flex items-center gap-3 border-b border-line/55 pb-4">
                 <Link
@@ -63,7 +63,7 @@ export function AppShell({ children, user }: AppShellProps) {
               </nav>
 
               <div className="mt-5 border-t border-line/55 pt-4">
-                <div className="rounded-lg border border-line/55 bg-background/18 px-3 py-3">
+                <div className="rounded-lg border border-line/55 bg-background/20 px-3 py-3">
                   <p className="truncate text-sm font-medium text-foreground">
                     {user.name || user.email || "Nooklet user"}
                   </p>
