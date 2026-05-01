@@ -63,7 +63,7 @@ export function RecommendationTrailerSection({ videos, title }: RecommendationTr
               loading="lazy"
               className="h-full w-full object-cover opacity-80 transition group-hover:opacity-100"
             />
-            <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(26,20,16,0.1),rgba(26,20,16,0.72))]" />
+            <span className="absolute inset-0 bg-[linear-gradient(180deg,rgb(var(--background)/0.1),rgb(var(--background)/0.72))]" />
             <span className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-foreground">
               <span className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-accent-foreground">
                 <Play className="h-7 w-7" aria-hidden="true" />

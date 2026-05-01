@@ -77,7 +77,7 @@ export function RecommendationTitleOverviewDialog({
               className="object-cover opacity-30"
             />
           ) : null}
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(26,20,16,0.96),rgba(26,20,16,0.74),rgba(26,20,16,0.92))]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgb(var(--background)/0.96),rgb(var(--background)/0.74),rgb(var(--background)/0.92))]" />
           <div className="relative flex flex-col gap-5 p-5 md:flex-row md:items-start md:p-7">
             <RecommendationPoster title={item.title} posterUrl={posterUrl} />
             <div className="min-w-0 flex-1 space-y-4">

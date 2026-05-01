@@ -29,7 +29,7 @@ export function RecommendationPoster({ title, posterUrl }: RecommendationPosterP
           className="object-cover"
         />
       ) : (
-        <div className="flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_top,_rgba(210,158,102,0.16),_transparent_60%),linear-gradient(180deg,_rgba(54,40,30,0.95),_rgba(26,20,16,0.98))] p-3 text-foreground">
+        <div className="flex h-full w-full flex-col justify-between bg-[radial-gradient(circle_at_top,_rgb(var(--accent)/0.16),_transparent_60%),linear-gradient(180deg,_rgb(var(--panel-strong)/0.95),_rgb(var(--background)/0.98))] p-3 text-foreground">
           <span className="font-heading text-xl leading-none text-accent">{fallbackLabel}</span>
           <div className="space-y-1">
             <p className="font-heading text-xs italic text-muted">

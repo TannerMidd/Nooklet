@@ -127,7 +127,7 @@ export default async function RecommendationOverviewPage({
             className="object-cover opacity-30"
           />
         ) : null}
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(26,20,16,0.98),rgba(26,20,16,0.78),rgba(26,20,16,0.94))]" />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgb(var(--background)/0.98),rgb(var(--background)/0.78),rgb(var(--background)/0.94))]" />
         <div className="relative px-6 py-6 md:px-8 xl:px-10">
           <Link href={returnTo} className="text-sm font-medium text-muted hover:text-foreground">
             Back to recommendations
