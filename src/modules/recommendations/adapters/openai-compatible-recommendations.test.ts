@@ -90,4 +90,51 @@ describe("openai-compatible-recommendations", () => {
     expect(requestBody.messages[1]?.content).toContain("Priority genres: Comedy, Sci-Fi.");
     expect(requestBody.messages[1]?.content).toContain("Every recommendation must align with at least one selected genre");
   });
+
+  it("forwards the configured AI recommendations timeout to safeFetch", async () => {
+    mockedSafeFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  items: [
+                    {
+                      title: "Moon",
+                      year: 2009,
+                      rationale: "Fits.",
+                      confidence: "high",
+                    },
+                  ],
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    await generateOpenAiCompatibleRecommendations({
+      baseUrl: "http://ai.local",
+      apiKey: "secret",
+      model: "gpt-test",
+      temperature: 0.7,
+      mediaType: "movie",
+      requestPrompt: "",
+      selectedGenres: [],
+      requestedCount: 1,
+      languagePreference: "any",
+      watchHistoryOnly: false,
+      watchHistoryContext: [],
+      libraryTasteContext: [],
+      libraryTasteTotalCount: 0,
+    });
+
+    const fetchInit = mockedSafeFetch.mock.calls[0]?.[1] as { timeoutMs?: number } | undefined;
+
+    // Default ceiling for slow AI providers — see env.AI_RECOMMENDATIONS_TIMEOUT_MS.
+    expect(fetchInit?.timeoutMs).toBe(30 * 60_000);
+  });
 });

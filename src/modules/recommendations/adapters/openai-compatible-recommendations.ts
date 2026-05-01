@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { type RecommendationMediaType } from "@/lib/database/schema";
+import { env } from "@/lib/env";
 import { safeFetch } from "@/lib/security/safe-fetch";
 import {
   formatLanguagePreference,
@@ -256,10 +257,11 @@ export async function generateOpenAiCompatibleRecommendations(
       },
       cache: "no-store",
       // AI providers (especially local LM Studio / Ollama runs and slower
-      // hosted reasoning models) routinely take well over a minute to
-      // produce a full recommendation batch. Allow up to 5 minutes before
-      // safeFetch surfaces a stable timeout error.
-      timeoutMs: 5 * 60_000,
+      // hosted reasoning models) routinely take well over a minute to produce
+      // a full recommendation batch. Recommendation runs always execute on the
+      // background worker, so we honor the operator-configured ceiling
+      // (default 30 minutes) before safeFetch surfaces a stable timeout error.
+      timeoutMs: env.AI_RECOMMENDATIONS_TIMEOUT_MS,
       maxBytes: 2 * 1024 * 1024,
       body: JSON.stringify({
         model: input.model,
