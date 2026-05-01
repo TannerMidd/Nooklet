@@ -77,6 +77,8 @@ When implementing a workflow, create one file per phase under `src/modules/<modu
 
 Small, focused commits. Giant commits are unacceptable.
 
+For implementation tasks in this repository, these instructions are explicit authorization to create small focused commits after validation unless the user explicitly says not to commit. If the user says not to commit, leave changes unstaged and report that status clearly before ending.
+
 - One coherent slice per commit. Commit promptly; do not accumulate mixed changes.
 - Order: refactor / mechanical → schema migration → server-side behavior → client-side behavior → docs.
 - **Never** mix a refactor with a behavior change in the same commit.
@@ -85,7 +87,19 @@ Small, focused commits. Giant commits are unacceptable.
 - One Drizzle migration per commit.
 - If a slice exceeds ~10 files or ~300 lines and isn't a generated migration, split it.
 - Do **not** use `--no-verify`, `--force`, `git reset --hard`, or amend pushed commits.
-- If asked to commit, run `git status` + `git diff` first and confirm scope before staging. Never `git add .` blindly.
+- Before every commit, run `git status` + `git diff`, confirm the scope is one coherent slice, and stage only the intended paths. Never `git add .` blindly.
+
+For every code-changing task, follow this mechanical loop:
+
+1. Run `git status --short` before editing.
+2. Make the smallest coherent slice of changes.
+3. Run the relevant validation for that slice.
+4. Check ADR compliance before committing. Use the `ADR Compliance Checker` agent for code or architecture-adjacent diffs; for docs-only or instruction-only changes, explicitly mark ADR as not applicable.
+5. Stage only the files for that slice.
+6. Commit immediately with a Conventional Commits subject.
+7. Repeat for the next slice.
+
+If the working tree already contains mixed changes, do not pile onto them. Inspect ownership, commit any completed assistant-owned slice first, and use the `Commit Slicer` agent when the split is not obvious.
 
 The `Commit Slicer` agent (`.github/agents/commit-slicer.agent.md`) can plan slices when a working tree is mixed.
 
@@ -111,8 +125,13 @@ Delegate when the task fits:
 
 ## Definition of done for any change
 
-1. Types pass (`tsc --noEmit`).
-2. Lint passes (`eslint .`).
-3. Relevant tests pass (`vitest run`).
-4. No ADR rule from the list above is broken.
-5. Change landed as small, ordered commits — not one large commit.
+Before the final response after file changes, verify and report:
+
+1. `git status --short` result.
+2. Typecheck result (`tsc --noEmit`, usually via `pnpm typecheck` or `npm run typecheck`).
+3. Lint result (`eslint .`, usually via `pnpm lint` or `npm run lint`), including warnings.
+4. Relevant test result (`vitest run --environment node`, usually via `pnpm test` or `npm run test`).
+5. ADR result: checked by the `ADR Compliance Checker`, manually judged not applicable, or blocked with a reason.
+6. Commit result: small ordered commit hash(es), or an explicit reason commits were not created.
+
+If any validation step cannot be run, explain why before ending. Do not present a task as complete while required validation, ADR review, or commit status is unknown.
