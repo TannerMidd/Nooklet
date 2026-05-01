@@ -89,15 +89,28 @@ For implementation tasks in this repository, these instructions are explicit aut
 - Do **not** use `--no-verify`, `--force`, `git reset --hard`, or amend pushed commits.
 - Before every commit, run `git status` + `git diff`, confirm the scope is one coherent slice, and stage only the intended paths. Never `git add .` blindly.
 
+## Pre-commit review (mandatory)
+
+Before validating and committing a slice, analyze the diff like a maintainer. Do not commit until this review is clean.
+
+1. Run `git status --short`, `git diff --stat`, `git diff --check`, and inspect the full diff for the files being committed.
+2. Confirm the slice is coherent and contains no unrelated generated files, formatting churn, debug output, temporary notes, or local-only artifacts.
+3. Check for old dead code left behind by the change: unused imports, unreachable branches, obsolete helpers, stale exports, duplicate components, unused CSS classes/tokens, dead tests, and stale docs. Remove dead code in the same slice when removal is part of the change; otherwise split it into a separate cleanup commit.
+4. Search for replaced names, old patterns, and duplicate implementations when the change renames, moves, replaces, or supersedes existing code. Use the `Code Auditor` agent for broad dead-code or boundary-risk reviews.
+5. Double-check local patterns and ADR rules before commit: module boundaries, workflow phase structure, route/server-action thinness, typed commands/queries, normalized persistence, UI-to-module boundaries, and credential ownership. Do not commit if the implementation violates the surrounding pattern.
+6. If the review finds mixed concerns, split the work before validation and commit. Use the `Commit Slicer` agent when the split is not obvious.
+
 For every code-changing task, follow this mechanical loop:
 
 1. Run `git status --short` before editing.
-2. Make the smallest coherent slice of changes.
-3. Run the relevant validation for that slice.
-4. Check ADR compliance before committing. Use the `ADR Compliance Checker` agent for code or architecture-adjacent diffs; for docs-only or instruction-only changes, explicitly mark ADR as not applicable.
-5. Stage only the files for that slice.
-6. Commit immediately with a Conventional Commits subject.
-7. Repeat for the next slice.
+2. Inspect relevant files and local patterns before changing them.
+3. Make the smallest coherent slice of changes.
+4. Perform the mandatory pre-commit review above, including dead-code and pattern checks.
+5. Run the relevant validation for that slice.
+6. Check ADR compliance before committing. Use the `ADR Compliance Checker` agent for code or architecture-adjacent diffs; for docs-only or instruction-only changes, explicitly mark ADR as not applicable.
+7. Stage only the files for that slice.
+8. Commit immediately with a Conventional Commits subject.
+9. Repeat for the next slice.
 
 If the working tree already contains mixed changes, do not pile onto them. Inspect ownership, commit any completed assistant-owned slice first, and use the `Commit Slicer` agent when the split is not obvious.
 
@@ -131,7 +144,8 @@ Before the final response after file changes, verify and report:
 2. Typecheck result (`tsc --noEmit`, usually via `pnpm typecheck` or `npm run typecheck`).
 3. Lint result (`eslint .`, usually via `pnpm lint` or `npm run lint`), including warnings.
 4. Relevant test result (`vitest run --environment node`, usually via `pnpm test` or `npm run test`).
-5. ADR result: checked by the `ADR Compliance Checker`, manually judged not applicable, or blocked with a reason.
-6. Commit result: small ordered commit hash(es), or an explicit reason commits were not created.
+5. Pre-commit review result: scope reviewed, dead-code/stale-pattern check complete, and any cleanup either included or deliberately split.
+6. ADR result: checked by the `ADR Compliance Checker`, manually judged not applicable, or blocked with a reason.
+7. Commit result: small ordered commit hash(es), or an explicit reason commits were not created.
 
 If any validation step cannot be run, explain why before ending. Do not present a task as complete while required validation, ADR review, or commit status is unknown.
