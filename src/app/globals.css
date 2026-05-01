@@ -31,20 +31,20 @@
 }
 
 :root {
-  --background: 58 45 35;
-  --foreground: 249 236 214;
-  --panel: 74 57 43;
-  --panel-strong: 88 67 50;
-  --panel-raised: 101 76 56;
-  --muted: 224 204 176;
-  --line: 134 101 74;
-  --accent: 224 169 108;
-  --accent-strong: 242 188 116;
-  --accent-foreground: 35 22 12;
-  --accent-cool: 117 169 154;
-  --accent-cool-foreground: 17 34 30;
-  --accent-wine: 179 91 105;
-  --highlight: 207 126 88;
+  --background: 49 39 32;
+  --foreground: 249 239 221;
+  --panel: 66 52 41;
+  --panel-strong: 80 62 47;
+  --panel-raised: 94 72 53;
+  --muted: 214 194 166;
+  --line: 123 94 69;
+  --accent: 224 162 94;
+  --accent-strong: 242 190 121;
+  --accent-foreground: 38 25 14;
+  --accent-cool: 126 174 157;
+  --accent-cool-foreground: 18 38 34;
+  --accent-wine: 190 96 108;
+  --highlight: 214 128 82;
   /* Subtle paper-grain texture, used by body and cozy panels. */
   --cozy-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.86  0 0 0 0 0.72  0 0 0 0 0.52  0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
@@ -64,9 +64,8 @@ body {
   position: relative;
   isolation: isolate;
   background:
-    radial-gradient(ellipse 62rem 34rem at 50% -8rem, rgba(242, 188, 116, 0.12), rgba(242, 188, 116, 0) 70%),
-    radial-gradient(ellipse 44rem 34rem at -12% 62%, rgba(117, 169, 154, 0.11), transparent 68%),
-    radial-gradient(ellipse 50rem 34rem at 112% 18%, rgba(179, 91, 105, 0.075), transparent 70%),
+    linear-gradient(180deg, rgba(94, 72, 53, 0.46), rgba(49, 39, 32, 0) 26rem),
+    linear-gradient(90deg, rgba(126, 174, 157, 0.045), transparent 34%, rgba(190, 96, 108, 0.04)),
     rgb(var(--background));
   color: rgb(var(--foreground));
   font-family: var(--app-font-body), sans-serif;
@@ -81,8 +80,8 @@ body::before {
   pointer-events: none;
   z-index: -1;
   background:
-    radial-gradient(ellipse 80% 70% at 50% 35%, transparent 0%, transparent 60%, rgba(38, 27, 19, 0.16) 100%),
-    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(38, 27, 19, 0.11), transparent 70%);
+    linear-gradient(180deg, transparent 0%, rgba(38, 27, 19, 0.12) 100%),
+    linear-gradient(90deg, rgba(38, 27, 19, 0.10), transparent 22%, transparent 78%, rgba(38, 27, 19, 0.10));
 }
 
 /* Paper-grain overlay: barely-there fibrous texture, like newsprint or
@@ -214,11 +213,9 @@ ol {
   position: relative;
   isolation: isolate;
   box-shadow:
-    inset 0 2px 0 0 rgba(242, 188, 116, 0.10),
-    inset 0 1px 0 0 rgba(249, 236, 214, 0.075),
-    inset 0 0 0 1px rgba(117, 169, 154, 0.035),
-    0 1px 0 0 rgba(38, 27, 19, 0.18),
-    0 16px 34px -26px rgba(38, 27, 19, 0.34);
+    inset 0 1px 0 0 rgba(249, 239, 221, 0.055),
+    0 1px 0 0 rgba(38, 27, 19, 0.22),
+    0 18px 38px -30px rgba(26, 18, 12, 0.50);
   transition: box-shadow 220ms ease, border-color 220ms ease, transform 220ms ease;
 }
 
@@ -235,20 +232,9 @@ ol {
   pointer-events: none;
 }
 
-.cozy-panel:hover {
-  box-shadow:
-    inset 0 2px 0 0 rgba(242, 188, 116, 0.15),
-    inset 0 1px 0 0 rgba(249, 236, 214, 0.09),
-    inset 0 0 0 1px rgba(117, 169, 154, 0.055),
-    0 1px 0 0 rgba(38, 27, 19, 0.20),
-    0 20px 42px -28px rgba(207, 126, 88, 0.30);
-}
-
 .nooklet-hero-surface {
   background:
-    radial-gradient(ellipse 58rem 32rem at 0% 0%, rgba(117, 169, 154, 0.15), transparent 56%),
-    radial-gradient(ellipse 48rem 28rem at 100% 0%, rgba(179, 91, 105, 0.12), transparent 58%),
-    linear-gradient(135deg, rgba(101, 76, 56, 0.98), rgba(74, 57, 43, 0.98) 58%, rgba(88, 67, 50, 0.92));
+    linear-gradient(135deg, rgba(94, 72, 53, 0.98), rgba(66, 52, 41, 0.98) 62%, rgba(80, 62, 47, 0.96));
 }
 
 .nooklet-hero-surface::after {
@@ -257,53 +243,52 @@ ol {
   inset: 0 0 auto;
   height: 2px;
   pointer-events: none;
-  background: linear-gradient(90deg, rgb(var(--accent-cool)), rgb(var(--accent-strong)) 48%, rgb(var(--accent-wine)));
-  opacity: 0.82;
+  background: linear-gradient(90deg, rgb(var(--accent)), rgb(var(--accent-cool)) 58%, transparent);
+  opacity: 0.46;
 }
 
 .nooklet-brand-mark {
   color: rgb(var(--accent-foreground));
-  background: linear-gradient(135deg, rgb(var(--accent)), rgb(var(--accent-strong)) 55%, rgb(var(--accent-cool)));
+  background: linear-gradient(135deg, rgb(var(--accent-strong)), rgb(var(--accent)) 72%, rgb(var(--accent-cool) / 0.86));
   box-shadow:
     0 0 0 1px rgba(249, 236, 214, 0.10) inset,
     0 12px 26px -18px rgba(242, 188, 116, 0.62);
 }
 
 .nooklet-button-primary {
-  background: linear-gradient(135deg, rgb(var(--accent)), rgb(var(--accent-strong)) 72%, rgb(var(--accent-cool)));
+  background: rgb(var(--accent));
   box-shadow:
-    inset 0 1px 0 0 rgba(249, 236, 214, 0.18),
-    0 14px 32px -20px rgba(242, 188, 116, 0.75);
+    inset 0 1px 0 0 rgba(249, 239, 221, 0.18),
+    0 12px 28px -22px rgba(242, 190, 121, 0.75);
 }
 
 .nooklet-button-primary:hover {
-  filter: saturate(1.06) brightness(1.02);
+  background: rgb(var(--accent-strong));
 }
 
 .nooklet-nav-link--active {
-  background: linear-gradient(135deg, rgba(224, 169, 108, 0.16), rgba(117, 169, 154, 0.10));
+  background: rgba(224, 162, 94, 0.12);
   box-shadow:
-    inset 0 0 0 1px rgba(117, 169, 154, 0.08),
-    0 10px 24px -20px rgba(242, 188, 116, 0.70);
+    inset 0 0 0 1px rgba(242, 190, 121, 0.08),
+    0 10px 26px -24px rgba(242, 190, 121, 0.42);
 }
 
 .nooklet-nav-link--active .nooklet-nav-link__rail {
-  background: linear-gradient(180deg, rgb(var(--accent-strong)), rgb(var(--accent-cool)));
+  background: rgb(var(--accent-strong));
 }
 
 .nooklet-tab--active {
-  background: linear-gradient(135deg, rgb(var(--accent)), rgb(var(--accent-strong)) 76%, rgb(var(--accent-cool)));
+  background: rgba(224, 162, 94, 0.92);
   box-shadow:
-    inset 0 1px 0 0 rgba(249, 236, 214, 0.16),
-    0 10px 24px -18px rgba(242, 188, 116, 0.60);
+    inset 0 1px 0 0 rgba(249, 239, 221, 0.14),
+    0 10px 24px -20px rgba(242, 190, 121, 0.52);
 }
 
 .nooklet-feature-run,
 .nooklet-feature-card {
   background:
-    radial-gradient(ellipse 34rem 22rem at 0% 0%, rgba(242, 188, 116, 0.11), transparent 62%),
-    radial-gradient(ellipse 30rem 20rem at 100% 100%, rgba(117, 169, 154, 0.09), transparent 64%),
-    linear-gradient(145deg, rgba(91, 70, 52, 0.97), rgba(74, 57, 43, 0.98));
+    linear-gradient(180deg, rgba(249, 239, 221, 0.035), rgba(249, 239, 221, 0)),
+    linear-gradient(145deg, rgba(80, 62, 47, 0.98), rgba(58, 46, 37, 0.98));
 }
 
 .nooklet-feature-card {
@@ -314,12 +299,12 @@ ol {
 }
 
 .nooklet-feature-card:hover {
-  border-color: rgba(224, 169, 108, 0.42);
+  border-color: rgba(224, 162, 94, 0.40);
   transform: translateY(-2px);
   box-shadow:
-    inset 0 1px 0 0 rgba(249, 236, 214, 0.09),
-    0 22px 44px -28px rgba(117, 169, 154, 0.34),
-    0 18px 42px -32px rgba(242, 188, 116, 0.42);
+    inset 0 1px 0 0 rgba(249, 239, 221, 0.08),
+    0 22px 44px -30px rgba(26, 18, 12, 0.62),
+    0 12px 30px -28px rgba(242, 190, 121, 0.42);
 }
 
 /* Cozy glow: warm lamplight halo on hover/focus, for primary actions and
@@ -331,6 +316,6 @@ ol {
 .cozy-glow:hover,
 .cozy-glow:focus-visible {
   box-shadow:
-    0 0 0 1px rgba(224, 169, 108, 0.22),
-    0 12px 32px -12px rgba(224, 169, 108, 0.48);
+    0 0 0 1px rgba(224, 162, 94, 0.18),
+    0 12px 30px -18px rgba(224, 162, 94, 0.44);
 }

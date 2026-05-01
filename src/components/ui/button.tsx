@@ -8,10 +8,10 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const buttonVariants = {
-  primary: "cozy-glow nooklet-button-primary border border-accent/40 text-accent-foreground",
-  secondary: "border border-line/80 bg-panel-strong/70 text-foreground hover:border-accent-cool/40 hover:bg-panel-raised/70",
-  ghost: "border border-transparent bg-transparent text-muted hover:border-accent-cool/30 hover:bg-accent-cool/10 hover:text-foreground",
-  danger: "border border-highlight/30 bg-highlight/10 text-highlight hover:bg-highlight/20",
+  primary: "cozy-glow nooklet-button-primary border border-accent/55 text-accent-foreground",
+  secondary: "border border-line/75 bg-panel-strong/70 text-foreground hover:border-accent/35 hover:bg-panel-raised/70",
+  ghost: "border border-transparent bg-transparent text-muted hover:border-line/60 hover:bg-panel-strong/35 hover:text-foreground",
+  danger: "border border-accent-wine/35 bg-accent-wine/12 text-foreground hover:bg-accent-wine/20",
 } satisfies Record<NonNullable<ButtonProps["variant"]>, string>;
 
 const buttonSizes = {
