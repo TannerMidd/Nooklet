@@ -55,7 +55,7 @@ function getServiceLabel(serviceType: LibraryManagerServiceType) {
 
 function buildIndexerUrl(
   baseUrl: string,
-  path: "" | "/schema" | "/test" | `/${number}` | `/${number}/test`,
+  path: "" | "/schema" | "/test" | `/${number}`,
 ) {
   return `${trimTrailingSlash(baseUrl)}/api/v3/indexer${path}`;
 }
@@ -466,18 +466,17 @@ export async function testArrIndexer(
   input: ArrConnectionInput & { payload: ArrIndexerWritePayload; id?: number },
 ): Promise<ArrIndexerOperationResult<ArrIndexerTestResult>> {
   try {
-    // When testing an existing indexer use the per-id endpoint so upstream
-    // skips the "name should be unique" check against the indexer itself.
-    const path = typeof input.id === "number" ? (`/${input.id}/test` as const) : "/test";
+    // Including the indexer id in the body tells Sonarr/Radarr to skip the
+    // "name should be unique" self-collision when testing an existing indexer.
+    const body =
+      typeof input.id === "number" ? { ...input.payload, id: input.id } : input.payload;
     const response = await fetchWithTimeout(
-      buildIndexerUrl(input.baseUrl, path),
+      buildIndexerUrl(input.baseUrl, "/test"),
       {
         method: "POST",
         headers: buildHeaders(input.apiKey, true),
         cache: "no-store",
-        body: JSON.stringify(
-          typeof input.id === "number" ? { ...input.payload, id: input.id } : input.payload,
-        ),
+        body: JSON.stringify(body),
       },
       SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
     );
