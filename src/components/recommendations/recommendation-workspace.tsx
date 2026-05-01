@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
 import { RecommendationFeaturedCard } from "@/components/recommendations/recommendation-featured-card";
 import { RecommendationFeedbackActions } from "@/components/recommendations/recommendation-feedback-actions";
+import { RecommendationPendingTimer } from "@/components/recommendations/recommendation-pending-timer";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationRequestForm } from "@/components/recommendations/recommendation-request-form";
 import { RecommendationRetryForm } from "@/components/recommendations/recommendation-retry-form";
@@ -204,12 +205,12 @@ export async function RecommendationWorkspace({
               <div className="space-y-2">
                 <h2 className="font-heading text-3xl leading-tight text-foreground md:text-4xl">
                   {featuredRunIsPending
-                    ? "Recommendation batch queued"
+                    ? "Brewing a fresh batch\u2026"
                     : `${featuredRun.items.length} ${mediaType === "tv" ? "TV picks" : "movie picks"} ready`}
                 </h2>
                 <p className="max-w-4xl text-base leading-7 text-muted">
                   {featuredRunIsPending
-                    ? "The background worker is generating this batch. Results update automatically while it is pending."
+                    ? "Settle in \u2014 the worker is steeping your picks. Results pour in automatically as they finish."
                     : formatPromptLabel(featuredRun.requestPrompt, featuredRun.selectedGenres)}
                 </p>
                 {featuredRunGenreSummary ? (
@@ -228,8 +229,12 @@ export async function RecommendationWorkspace({
                 <span className="font-medium">Requested:</span> {featuredRun.requestedCount}
               </div>
               <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                <span className="font-medium">{featuredRunIsPending ? "Queued" : "Completed"}:</span>{" "}
-                {formatDate(featuredRun.completedAt ?? featuredRun.createdAt)}
+                <span className="font-medium">{featuredRunIsPending ? "Brewing" : "Completed"}:</span>{" "}
+                {featuredRunIsPending ? (
+                  <RecommendationPendingTimer startedAt={featuredRun.createdAt} />
+                ) : (
+                  formatDate(featuredRun.completedAt ?? featuredRun.createdAt)
+                )}
               </div>
             </div>
           </div>
@@ -246,8 +251,9 @@ export async function RecommendationWorkspace({
           />
 
           {featuredRunIsPending && featuredRun.items.length === 0 ? (
-            <div className="mt-6 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
-              The worker has not saved generated titles for this batch yet.
+            <div className="mt-6 flex items-center gap-3 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+              <RecommendationPendingTimer startedAt={featuredRun.createdAt} className="text-foreground" />
+              <span>{"Warming up \u2014 titles will land here as soon as the worker finishes."}</span>
             </div>
           ) : (
             <div className="mt-6 grid max-h-[72vh] gap-5 overflow-y-auto pr-2 md:grid-cols-2 xl:grid-cols-3">
