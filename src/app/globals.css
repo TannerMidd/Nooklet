@@ -161,6 +161,7 @@ ol {
 
 .recommendation-featured-run {
   position: relative;
+  isolation: isolate;
   overflow: hidden;
 }
 
@@ -168,15 +169,11 @@ ol {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: -1;
   background:
     radial-gradient(ellipse 32rem 18rem at 0% 0%, rgba(210, 158, 102, 0.10), transparent 60%),
     radial-gradient(ellipse 28rem 16rem at 100% 100%, rgba(198, 118, 84, 0.08), transparent 60%);
   pointer-events: none;
-}
-
-.recommendation-featured-run > * {
-  position: relative;
-  z-index: 1;
 }
 
 .recommendation-featured-run--fresh {
@@ -205,18 +202,13 @@ ol {
   content: "";
   position: absolute;
   inset: 0;
+  z-index: -1;
   border-radius: inherit;
   background-image: var(--cozy-grain);
   background-size: 200px 200px;
   opacity: 0.035;
   mix-blend-mode: overlay;
   pointer-events: none;
-  z-index: 0;
-}
-
-.cozy-panel > * {
-  position: relative;
-  z-index: 1;
 }
 
 .cozy-panel:hover {
