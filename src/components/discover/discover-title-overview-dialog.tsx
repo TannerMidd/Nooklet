@@ -71,7 +71,7 @@ export function DiscoverTitleOverviewDialog({
               className="object-cover opacity-30"
             />
           ) : null}
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(18,22,29,0.98),rgba(18,22,29,0.76),rgba(18,22,29,0.94))]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(26,20,16,0.98),rgba(26,20,16,0.76),rgba(26,20,16,0.94))]" />
           <div className="relative flex flex-col gap-5 p-5 md:flex-row md:items-start md:p-7">
             <RecommendationPoster title={details.title} posterUrl={details.posterUrl} />
             <div className="min-w-0 flex-1 space-y-4">

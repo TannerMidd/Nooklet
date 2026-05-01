@@ -15,15 +15,15 @@
 }
 
 :root {
-  --background: 24 20 32;
-  --foreground: 232 224 208;
-  --panel: 36 28 48;
-  --panel-strong: 46 36 58;
-  --muted: 178 168 184;
-  --line: 70 58 84;
-  --accent: 218 170 96;
-  --accent-foreground: 26 16 6;
-  --highlight: 196 132 138;
+  --background: 26 20 16;
+  --foreground: 238 226 206;
+  --panel: 40 30 24;
+  --panel-strong: 54 40 30;
+  --muted: 186 168 146;
+  --line: 78 60 46;
+  --accent: 210 158 102;
+  --accent-foreground: 26 16 8;
+  --highlight: 198 118 84;
 }
 
 * {
@@ -39,8 +39,8 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(ellipse 60rem 32rem at 50% -8rem, rgba(218, 170, 96, 0.10), rgba(218, 170, 96, 0) 70%),
-    radial-gradient(ellipse 48rem 36rem at 110% 110%, rgba(196, 132, 138, 0.06), transparent 70%),
+    radial-gradient(ellipse 60rem 32rem at 50% -8rem, rgba(210, 158, 102, 0.10), rgba(210, 158, 102, 0) 70%),
+    radial-gradient(ellipse 48rem 36rem at 110% 110%, rgba(198, 118, 84, 0.06), transparent 70%),
     rgb(var(--background));
   color: rgb(var(--foreground));
   font-family: var(--app-font-body), sans-serif;
@@ -76,12 +76,12 @@ ol {
 }
 
 ::selection {
-  background: rgba(218, 170, 96, 0.28);
+  background: rgba(210, 158, 102, 0.28);
   color: rgb(var(--foreground));
 }
 
 * {
-  scrollbar-color: rgba(218, 170, 96, 0.40) rgba(46, 36, 58, 0.55);
+  scrollbar-color: rgba(210, 158, 102, 0.40) rgba(54, 40, 30, 0.55);
 }
 
 ::-webkit-scrollbar {
@@ -90,18 +90,18 @@ ol {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(46, 36, 58, 0.55);
+  background: rgba(54, 40, 30, 0.55);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(218, 170, 96, 0.40);
-  border: 3px solid rgba(46, 36, 58, 0.55);
+  background: rgba(210, 158, 102, 0.40);
+  border: 3px solid rgba(54, 40, 30, 0.55);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(218, 170, 96, 0.58);
+  background: rgba(210, 158, 102, 0.58);
 }
 
 @keyframes recommendation-featured-enter {
@@ -138,8 +138,8 @@ ol {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 32rem 18rem at 0% 0%, rgba(218, 170, 96, 0.10), transparent 60%),
-    radial-gradient(ellipse 28rem 16rem at 100% 100%, rgba(196, 132, 138, 0.08), transparent 60%);
+    radial-gradient(ellipse 32rem 18rem at 0% 0%, rgba(210, 158, 102, 0.10), transparent 60%),
+    radial-gradient(ellipse 28rem 16rem at 100% 100%, rgba(198, 118, 84, 0.08), transparent 60%);
   pointer-events: none;
 }
 
