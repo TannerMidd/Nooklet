@@ -12,6 +12,17 @@
   --color-highlight: rgb(var(--highlight));
   --font-heading: var(--app-font-heading), serif;
   --font-body: var(--app-font-body), sans-serif;
+  /* Flat-and-sharp radius scale: rectangles read like books, not pills.
+     Only `rounded-full` (used for true circles — spinners, dots, avatars,
+     toggles, progress fills) keeps its native infinity radius. */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 3px;
+  --radius-3xl: 3px;
+  --radius-4xl: 4px;
 }
 
 :root {
@@ -122,13 +133,13 @@ ol {
 
 ::-webkit-scrollbar-track {
   background: rgba(54, 40, 30, 0.55);
-  border-radius: 999px;
+  border-radius: 0;
 }
 
 ::-webkit-scrollbar-thumb {
   background: rgba(210, 158, 102, 0.40);
   border: 3px solid rgba(54, 40, 30, 0.55);
-  border-radius: 999px;
+  border-radius: 0;
 }
 
 ::-webkit-scrollbar-thumb:hover {
