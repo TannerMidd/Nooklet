@@ -175,7 +175,10 @@ describe("submitTestArrIndexerAction", () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
     testMock.mockResolvedValue({
       ok: true,
-      value: { ok: false, failures: [{ field: "apiKey", message: "Required" }] },
+      value: {
+        ok: false,
+        failures: [{ propertyName: "apiKey", errorMessage: "Required", severity: "error" }],
+      },
     });
 
     const result = await submitTestArrIndexerAction(
@@ -184,7 +187,9 @@ describe("submitTestArrIndexerAction", () => {
     );
 
     expect(result.status).toBe("test-failed");
-    expect(result.testFailures).toEqual([{ field: "apiKey", message: "Required" }]);
+    expect(result.testFailures).toEqual([
+      { propertyName: "apiKey", errorMessage: "Required", severity: "error" },
+    ]);
   });
 
   it("returns error when adapter call fails", async () => {

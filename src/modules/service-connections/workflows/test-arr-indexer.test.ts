@@ -85,7 +85,10 @@ describe("testArrIndexerForUser", () => {
     findMock.mockResolvedValue(verifiedSonarrConnection());
     testMock.mockResolvedValue({
       ok: true,
-      value: { ok: false, failures: [{ field: "apiKey", message: "Required" }] },
+      value: {
+        ok: false,
+        failures: [{ propertyName: "apiKey", errorMessage: "Required", severity: "error" }],
+      },
     });
 
     const result = await testArrIndexerForUser(USER_ID, baseInput);
