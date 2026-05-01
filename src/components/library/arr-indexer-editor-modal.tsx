@@ -235,28 +235,28 @@ export function ArrIndexerEditorModal({
 
         <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-6">
           {saveStatus === "error" && saveMessage ? (
-            <p className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+            <p className="rounded-md border border-highlight/25 bg-highlight/10 px-3 py-2 text-sm text-highlight">
               {saveMessage}
             </p>
           ) : null}
           {saveStatus === "success" && saveMessage ? (
-            <p className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+            <p className="rounded-md border border-accent-cool/30 bg-accent-cool/10 px-3 py-2 text-sm text-accent-cool">
               {saveMessage}
             </p>
           ) : null}
 
           {testStatus === "success" && testMessage ? (
-            <p className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+            <p className="rounded-md border border-accent-cool/30 bg-accent-cool/10 px-3 py-2 text-sm text-accent-cool">
               {testMessage}
             </p>
           ) : null}
           {testStatus === "error" && testMessage ? (
-            <p className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+            <p className="rounded-md border border-highlight/25 bg-highlight/10 px-3 py-2 text-sm text-highlight">
               {testMessage}
             </p>
           ) : null}
           {testStatus === "test-failed" ? (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+            <div className="rounded-md border border-highlight/25 bg-highlight/10 px-3 py-2 text-sm text-highlight">
               <p className="font-medium">{testMessage ?? "Indexer test failed."}</p>
               <ul className="mt-1 list-disc pl-5">
                 {(testFailures ?? []).map((failure, index) => (
@@ -363,7 +363,7 @@ export function ArrIndexerEditorModal({
                   <span className="text-xs text-muted">{field.helpText}</span>
                 ) : null;
                 const failureEl = failureMessage ? (
-                  <span className="text-xs text-rose-300">{failureMessage}</span>
+                  <span className="text-xs text-highlight">{failureMessage}</span>
                 ) : null;
 
                 const fieldType = field.type.toLowerCase();

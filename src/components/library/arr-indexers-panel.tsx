@@ -137,29 +137,29 @@ export function ArrIndexersPanel({
           type="button"
           disabled={schemas.length === 0}
           onClick={() => setPickerOpen(true)}
-          className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent/90 disabled:opacity-50"
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-strong disabled:opacity-50"
         >
           Add indexer
         </button>
       </header>
 
       {loadError ? (
-        <p className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+        <p className="rounded-md border border-highlight/25 bg-highlight/10 px-3 py-2 text-sm text-highlight">
           {loadError}
         </p>
       ) : null}
       {schemaError ? (
-        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+        <p className="rounded-md border border-highlight/25 bg-highlight/10 px-3 py-2 text-sm text-highlight">
           {schemaError}
         </p>
       ) : null}
       {deleteState.status === "error" && deleteState.message ? (
-        <p className="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+        <p className="rounded-md border border-highlight/25 bg-highlight/10 px-3 py-2 text-sm text-highlight">
           {deleteState.message}
         </p>
       ) : null}
       {deleteState.status === "success" && deleteState.message ? (
-        <p className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+        <p className="rounded-md border border-accent-cool/30 bg-accent-cool/10 px-3 py-2 text-sm text-accent-cool">
           {deleteState.message}
         </p>
       ) : null}
@@ -186,7 +186,7 @@ export function ArrIndexersPanel({
                 <button
                   type="button"
                   onClick={() => handleEdit(indexer)}
-                  className="rounded-full border border-line/70 bg-panel-strong px-3 py-1 text-xs font-medium text-foreground hover:bg-panel"
+                  className="rounded-md border border-line/65 bg-panel-strong/70 px-3 py-1 text-xs font-medium text-foreground hover:bg-panel-raised/70"
                 >
                   Edit
                 </button>
@@ -194,7 +194,7 @@ export function ArrIndexersPanel({
                   type="button"
                   disabled={deletePending}
                   onClick={() => handleDelete(indexer)}
-                  className="rounded-full border border-rose-500/40 bg-rose-500/10 px-3 py-1 text-xs font-medium text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
+                  className="rounded-md border border-accent-wine/35 bg-accent-wine/10 px-3 py-1 text-xs font-medium text-foreground hover:bg-accent-wine/20 disabled:opacity-50"
                 >
                   Delete
                 </button>

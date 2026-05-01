@@ -112,7 +112,7 @@ export function RadarrMovieModal({
             </dl>
           </div>
 
-          <section className="space-y-3 rounded-2xl border border-line/70 bg-panel-strong/70 p-4">
+          <section className="space-y-3 rounded-lg border border-line/60 bg-background/15 p-4">
             <h3 className="text-sm font-medium text-foreground">Movie actions</h3>
             <p className="text-sm leading-6 text-muted">
               Change quality, search for the movie, or remove it from Radarr.

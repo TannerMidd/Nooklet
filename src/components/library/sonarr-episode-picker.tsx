@@ -224,7 +224,7 @@ export function SonarrEpisodePickerForm({
   if (loadState.status === "error") {
     return (
       <div className="flex flex-1 flex-col items-start gap-3 px-6 py-8">
-        <p className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+        <p className="rounded-lg border border-highlight/25 bg-highlight/10 px-4 py-3 text-sm text-highlight">
           {loadState.message}
         </p>
         <Button type="button" variant="secondary" onClick={onRetry}>
@@ -346,7 +346,7 @@ function LoadedSonarrEpisodePickerForm({
 
       <div className="mt-3 flex-1 space-y-3 overflow-y-auto px-6 pb-2">
         {seasonGroups.length === 0 ? (
-          <p className="rounded-2xl border border-line/70 bg-panel-strong/60 px-4 py-3 text-sm text-muted">
+          <p className="rounded-lg border border-line/60 bg-background/15 px-4 py-3 text-sm text-muted">
             Sonarr returned no episodes for this series yet.
           </p>
         ) : (
@@ -362,7 +362,7 @@ function LoadedSonarrEpisodePickerForm({
             return (
               <section
                 key={group.seasonNumber}
-                className="overflow-hidden rounded-2xl border border-line/70 bg-panel-strong/40"
+                className="overflow-hidden rounded-lg border border-line/60 bg-background/15"
               >
                 <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                   <label className="flex cursor-pointer items-center gap-3 text-sm font-semibold text-foreground">
@@ -449,7 +449,7 @@ function LoadedSonarrEpisodePickerForm({
       </div>
 
       {state.status === "error" && state.message ? (
-        <p className="mx-6 mt-2 rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+        <p className="mx-6 mt-2 rounded-lg border border-highlight/25 bg-highlight/10 px-4 py-3 text-sm text-highlight">
           {state.message}
         </p>
       ) : null}

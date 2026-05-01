@@ -154,7 +154,7 @@ export function LibraryRequestForm({
 
   if (!connectionSummary || connectionSummary.status !== "verified") {
     return (
-      <p className="rounded-2xl border border-line/70 bg-panel-strong/60 px-4 py-3 text-sm leading-6 text-muted">
+      <p className="rounded-lg border border-line/60 bg-background/15 px-4 py-3 text-sm leading-6 text-muted">
         Verify {serviceLabel} on the connections page before requesting titles directly.
       </p>
     );
@@ -162,7 +162,7 @@ export function LibraryRequestForm({
 
   if (connectionSummary.rootFolders.length === 0 || connectionSummary.qualityProfiles.length === 0) {
     return (
-      <p className="rounded-2xl border border-line/70 bg-panel-strong/60 px-4 py-3 text-sm leading-6 text-muted">
+      <p className="rounded-lg border border-line/60 bg-background/15 px-4 py-3 text-sm leading-6 text-muted">
         Re-run {connectionSummary.displayName} verification to load root folders and quality profiles.
       </p>
     );
@@ -217,8 +217,8 @@ export function LibraryRequestForm({
         <p
           className={
             state.status === "success"
-              ? "rounded-2xl border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-foreground"
-              : "rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight"
+              ? "rounded-lg border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-foreground"
+              : "rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight"
           }
         >
           {state.message}

@@ -19,8 +19,8 @@ export function MonitoringStatusIcon({ monitored, className }: MonitoringStatusI
       className={cn(
         "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border",
         monitored
-          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
-          : "border-line/70 bg-panel-strong/70 text-muted",
+          ? "border-accent-cool/35 bg-accent-cool/10 text-accent-cool"
+          : "border-line/60 bg-background/20 text-muted",
         className,
       )}
     >

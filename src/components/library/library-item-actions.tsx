@@ -259,7 +259,7 @@ export function LibraryItemActions({
         type="button"
         variant="secondary"
         size="icon"
-        className="border-rose-500/40 text-rose-200 hover:bg-rose-500/10"
+        className="border-accent-wine/40 text-foreground hover:bg-accent-wine/10"
         aria-label={`Delete ${itemTitle} from ${serviceLabel}`}
         title={`Delete ${itemTitle} from ${serviceLabel}`}
         onClick={handleOpenDelete}
@@ -328,8 +328,8 @@ export function LibraryItemActions({
                 <p
                   className={
                     qualityMessage.tone === "success"
-                      ? "rounded-2xl border border-accent/20 bg-accent/10 px-3 py-2 text-xs text-foreground"
-                      : "rounded-2xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200"
+                      ? "rounded-lg border border-accent/20 bg-accent/10 px-3 py-2 text-xs text-foreground"
+                      : "rounded-lg border border-highlight/25 bg-highlight/10 px-3 py-2 text-xs text-highlight"
                   }
                 >
                   {qualityMessage.text}
@@ -339,7 +339,7 @@ export function LibraryItemActions({
           ) : null}
 
           {enableSearch ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line/70 bg-panel-strong/70 p-3">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line/60 bg-background/15 p-3">
               <Button
                 type="button"
                 variant="secondary"
@@ -359,7 +359,7 @@ export function LibraryItemActions({
                   className={
                     searchMessage.tone === "success"
                       ? "text-xs text-foreground"
-                      : "text-xs text-red-200"
+                      : "text-xs text-highlight"
                   }
                 >
                   {searchMessage.text}
@@ -437,7 +437,7 @@ function DeleteLibraryItemDialog({
     >
       <div className="flex w-full max-w-md flex-col rounded-xl border border-line/80 bg-panel">
         <header className="space-y-2 border-b border-line/60 p-6">
-          <p className="font-heading text-sm italic text-rose-300">
+          <p className="font-heading text-sm italic text-accent-wine">
             Delete from {serviceLabel}
           </p>
           <h2
@@ -455,7 +455,7 @@ function DeleteLibraryItemDialog({
         <div className="flex flex-col gap-4 p-6">
           <label
             htmlFor={checkboxId}
-            className="flex items-start gap-3 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm leading-6 text-foreground"
+            className="flex items-start gap-3 rounded-lg border border-line/60 bg-background/15 px-4 py-3 text-sm leading-6 text-foreground"
           >
             <input
               id={checkboxId}
@@ -474,7 +474,7 @@ function DeleteLibraryItemDialog({
           </label>
 
           {errorMessage ? (
-            <p className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
+            <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
               {errorMessage}
             </p>
           ) : null}
@@ -494,7 +494,7 @@ function DeleteLibraryItemDialog({
             type="button"
             onClick={handleConfirm}
             disabled={isPending}
-            className="bg-rose-500 text-white hover:bg-rose-500/90"
+            className="border-accent-wine/50 bg-accent-wine text-foreground hover:bg-accent-wine/90"
           >
             {isPending ? (
               <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />

@@ -325,7 +325,7 @@ function SeasonModeForm({
         <button
           type="button"
           onClick={selectAll}
-          className="rounded-full border border-line/70 bg-panel-strong px-3 py-1 font-semibold hover:bg-panel"
+          className="rounded-lg border border-line/65 bg-panel-strong/70 px-3 py-1 font-semibold hover:bg-panel-raised/70"
         >
           Select all
         </button>
@@ -340,7 +340,7 @@ function SeasonModeForm({
 
       <ul className="mt-4 flex-1 space-y-2 overflow-y-auto px-6 pb-2">
         {seasons.length === 0 ? (
-          <li className="rounded-2xl border border-line/70 bg-panel-strong/60 px-4 py-3 text-sm text-muted">
+          <li className="rounded-lg border border-line/60 bg-background/15 px-4 py-3 text-sm text-muted">
             Sonarr has no seasons listed for this series yet.
           </li>
         ) : (
@@ -353,7 +353,7 @@ function SeasonModeForm({
 
             return (
               <li key={season.seasonNumber}>
-                <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-line/70 bg-panel-strong/60 px-4 py-3 text-sm transition hover:bg-panel-strong">
+                <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-line/60 bg-background/15 px-4 py-3 text-sm transition hover:bg-panel-strong/55">
                   <span className="flex items-center gap-3">
                     <input
                       type="checkbox"
@@ -374,7 +374,7 @@ function SeasonModeForm({
       </ul>
 
       {state.status === "error" && state.message ? (
-        <p className="mx-6 mt-2 rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+        <p className="mx-6 mt-2 rounded-lg border border-highlight/25 bg-highlight/10 px-4 py-3 text-sm text-highlight">
           {state.message}
         </p>
       ) : null}
@@ -495,7 +495,7 @@ function SonarrSeriesControls({
         </Button>
       </div>
       {errorMessage ? (
-        <p className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-200">
+        <p className="rounded-lg border border-highlight/25 bg-highlight/10 px-4 py-2 text-sm text-highlight">
           {errorMessage}
         </p>
       ) : null}
