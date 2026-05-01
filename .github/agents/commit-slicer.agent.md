@@ -2,7 +2,7 @@
 description: "Use when a working tree has mixed changes that need to be split into small focused commits. Triggers: commit slicer, split commit, slice changes, commit plan, propose commits, break up diff, commit-as-you-go, stacked commits."
 name: "Commit Slicer"
 tools: [read, search, execute, todo]
-model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)']
+model: ['Claude Sonnet 4.6 (copilot)', 'GPT-5 (copilot)']
 argument-hint: "Optional: branch or path to scope (defaults to whole working tree)"
 ---
 

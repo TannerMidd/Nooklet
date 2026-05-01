@@ -2,7 +2,7 @@
 description: "Use when checking Drizzle schema against migrations and repositories for orphan columns, missing indexes, unused tables, or schema/code drift. Triggers: schema drift, drizzle audit, orphan columns, unused tables, missing indexes, migration audit, schema mismatch, dead schema."
 name: "Schema Drift Inspector"
 tools: [read, search, agent, todo]
-model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)']
+model: ['Claude Sonnet 4.6 (copilot)', 'GPT-5 (copilot)']
 argument-hint: "Optional: module name to scope (e.g. recommendations) or 'all'"
 ---
 

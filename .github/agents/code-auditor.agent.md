@@ -2,7 +2,7 @@
 description: "Use when auditing the codebase for dead code, unused exports, outdated patterns, redundant abstractions, duplicated logic, or architectural boundary violations. Triggers: dead code, unused, redundant, outdated, code smell, boundary violation, leaky abstraction, layering, clean architecture review, find duplication, audit module."
 name: "Code Auditor"
 tools: [read, search, agent, todo]
-model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)']
+model: ['Claude Sonnet 4.6 (copilot)', 'GPT-5 (copilot)']
 argument-hint: "Path or module to audit (e.g. src/modules/recommendations)"
 ---
 

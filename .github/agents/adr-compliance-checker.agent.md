@@ -2,7 +2,7 @@
 description: "Use to check a diff, PR, or set of changes against ADR-0001 architecture rules before commit. Triggers: ADR check, ADR compliance, principle check, architecture review, pre-commit review, rule violation, generic endpoint check, boundary review for diff, leaky abstraction check."
 name: "ADR Compliance Checker"
 tools: [read, search, execute, todo]
-model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)']
+model: ['Claude Sonnet 4.6 (copilot)', 'GPT-5 (copilot)']
 argument-hint: "Optional: ref or path to scope (defaults to current working tree diff)"
 ---
 

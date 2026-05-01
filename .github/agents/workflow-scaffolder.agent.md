@@ -2,7 +2,7 @@
 description: "Use when creating a new domain workflow or splitting collapsed phases. Triggers: scaffold workflow, new workflow, recommendation workflow, watch-history sync, workflow phases, split workflow, missing phases, phase scaffolding, ADR phases."
 name: "Workflow Scaffolder"
 tools: [read, search, edit, todo]
-model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)']
+model: ['Claude Sonnet 4.6 (copilot)', 'GPT-5 (copilot)']
 argument-hint: "Module + workflow name (e.g. recommendations/generate-tv)"
 ---
 

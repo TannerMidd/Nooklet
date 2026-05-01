@@ -2,7 +2,7 @@
 description: "Use when verifying that a workflow, route, screen, or module satisfies the product behavior matrix. Triggers: behavior matrix, behavior coverage, acceptance criteria, behavior verification, missing behavior, behavior gap, behavior audit."
 name: "Behavior Matrix Verifier"
 tools: [read, search, agent, todo]
-model: ['Claude Sonnet 4.5 (copilot)', 'GPT-5 (copilot)']
+model: ['Claude Sonnet 4.6 (copilot)', 'GPT-5 (copilot)']
 argument-hint: "Area or module from the matrix (e.g. 'Recommendation request' or 'service-connections')"
 ---
 
