@@ -13,6 +13,7 @@ import {
  */
 export const arrIndexerTestSchema = z.object({
   serviceType: libraryManagerServiceTypeSchema,
+  id: z.coerce.number().int().positive().optional(),
   name: z.string().trim().min(1, "Indexer name is required."),
   implementation: z.string().trim().min(1),
   implementationName: z.string().trim().min(1),

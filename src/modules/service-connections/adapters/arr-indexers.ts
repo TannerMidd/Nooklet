@@ -55,7 +55,7 @@ function getServiceLabel(serviceType: LibraryManagerServiceType) {
 
 function buildIndexerUrl(
   baseUrl: string,
-  path: "" | "/schema" | "/test" | `/${number}`,
+  path: "" | "/schema" | "/test" | `/${number}` | `/${number}/test`,
 ) {
   return `${trimTrailingSlash(baseUrl)}/api/v3/indexer${path}`;
 }
@@ -463,16 +463,21 @@ export async function deleteArrIndexer(
 }
 
 export async function testArrIndexer(
-  input: ArrConnectionInput & { payload: ArrIndexerWritePayload },
+  input: ArrConnectionInput & { payload: ArrIndexerWritePayload; id?: number },
 ): Promise<ArrIndexerOperationResult<ArrIndexerTestResult>> {
   try {
+    // When testing an existing indexer use the per-id endpoint so upstream
+    // skips the "name should be unique" check against the indexer itself.
+    const path = typeof input.id === "number" ? (`/${input.id}/test` as const) : "/test";
     const response = await fetchWithTimeout(
-      buildIndexerUrl(input.baseUrl, "/test"),
+      buildIndexerUrl(input.baseUrl, path),
       {
         method: "POST",
         headers: buildHeaders(input.apiKey, true),
         cache: "no-store",
-        body: JSON.stringify(input.payload),
+        body: JSON.stringify(
+          typeof input.id === "number" ? { ...input.payload, id: input.id } : input.payload,
+        ),
       },
       SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
     );

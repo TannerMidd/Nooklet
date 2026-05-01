@@ -54,6 +54,7 @@ export async function testArrIndexerForUser(
     baseUrl: connection.connection.baseUrl ?? "",
     apiKey: decryptSecret(connection.secret.encryptedValue),
     payload: buildAdapterPayload(input),
+    id: input.id,
   });
 
   if (!adapterResult.ok) {
