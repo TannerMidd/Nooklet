@@ -60,16 +60,16 @@ export function RecommendationFeaturedCard({
 
   return (
     <article
-      className="recommendation-featured-card nooklet-feature-card flex h-full flex-col rounded-xl border border-line/70 p-5"
+      className="recommendation-featured-card nooklet-feature-card flex h-full flex-col overflow-hidden rounded-lg border border-line/65 p-4"
       style={{ animationDelay: `${animationDelayMs}ms` }}
     >
       <Link
         href={resolvedOverviewHref}
         scroll={false}
-        className="relative block space-y-5 rounded-lg outline-none transition hover:opacity-90 focus-visible:ring-1 focus-visible:ring-accent/50"
+        className="relative block space-y-4 rounded-lg outline-none transition hover:opacity-95 focus-visible:ring-1 focus-visible:ring-accent/50"
       >
         <LinkPendingOverlay className="rounded-lg" />
-        <div className="grid gap-4 sm:grid-cols-[6.25rem_minmax(0,1fr)] sm:items-start">
+        <div className="grid gap-4 sm:grid-cols-[7rem_minmax(0,1fr)] sm:items-start">
           <div className="mx-auto sm:mx-0">
             <RecommendationPoster title={title} posterUrl={providerMetadata?.posterUrl} />
           </div>
@@ -77,25 +77,25 @@ export function RecommendationFeaturedCard({
           <div className="min-w-0 space-y-3 sm:pt-1">
             <div className="flex flex-wrap gap-2 text-xs text-muted">
               {confidenceLabel ? (
-                <span className="rounded-md border border-accent-cool/30 bg-accent-cool/10 px-3 py-1.5 font-medium text-foreground">
+                <span className="rounded-md border border-accent-cool/30 bg-accent-cool/10 px-2.5 py-1 font-medium text-foreground">
                   {formatConfidenceLabel(confidenceLabel)}
                 </span>
               ) : null}
               {existingInLibrary ? (
-                <span className="rounded-md border border-accent/30 bg-accent/10 px-3 py-1.5 font-medium text-foreground">
+                <span className="rounded-md border border-accent/30 bg-accent/10 px-2.5 py-1 font-medium text-foreground">
                   Existing in library
                 </span>
               ) : null}
-              {year ? <span className="px-1 py-1.5">{year}</span> : null}
+              {year ? <span className="px-1 py-1 text-muted">{year}</span> : null}
             </div>
 
-            <h3 className="text-[1.35rem] font-semibold leading-tight text-foreground sm:text-[1.5rem]">
+            <h3 className="text-[1.25rem] font-semibold leading-tight text-foreground sm:text-[1.4rem]">
               {title}
             </h3>
           </div>
         </div>
 
-        <p className="min-h-[7.5rem] text-sm leading-7 text-muted" style={rationaleClampStyle}>
+        <p className="min-h-[6.5rem] text-sm leading-6 text-muted" style={rationaleClampStyle}>
           {rationale}
         </p>
       </Link>
@@ -115,7 +115,7 @@ export function RecommendationFeaturedCard({
               itemId={itemId}
               feedback={feedback}
               returnTo={routePath}
-              buttonClassName="h-10 min-h-10 w-10 rounded-full"
+              buttonClassName="h-10 min-h-10 w-10 rounded-lg"
             />
           </div>
 
@@ -129,7 +129,7 @@ export function RecommendationFeaturedCard({
             savedRootFolderPath={savedRootFolderPath}
             savedQualityProfileId={savedQualityProfileId}
             variant="compact"
-            buttonClassName="min-h-10 rounded-full px-4 py-2 whitespace-nowrap"
+            buttonClassName="min-h-10 rounded-lg px-4 py-2 whitespace-nowrap"
           />
         </div>
       </div>

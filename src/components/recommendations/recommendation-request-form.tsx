@@ -118,7 +118,7 @@ function RequestProgressPanel() {
   const activeStage = requestProgressStages[activeStageIndex];
 
   return (
-    <div className="rounded-2xl border border-accent/20 bg-accent/5 px-4 py-3" role="status">
+    <div className="rounded-lg border border-accent/20 bg-accent/10 px-4 py-3" role="status">
       <div className="flex items-center gap-3">
         <div className="mt-1 h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-accent" />
         <div className="min-w-0">
@@ -279,17 +279,17 @@ export function RecommendationRequestForm({
         <input key={genre} type="hidden" name="selectedGenres" value={genre} />
       ))}
 
-      <label className="space-y-2">
+      <label className="block rounded-lg border border-line/65 bg-background/20 p-4 transition focus-within:border-accent/45 focus-within:bg-background/30">
         <span className="text-sm font-medium text-foreground">Optional request focus</span>
         <textarea
           name="requestPrompt"
-          rows={5}
+          rows={4}
           placeholder={
             mediaType === "tv"
               ? "Leave blank to use your library and watch history, or add guidance like slow-burn sci-fi with emotional stakes."
               : "Leave blank to use your library and watch history, or add guidance like tense modern thrillers with sharp pacing."
           }
-          className="min-h-32 w-full rounded-lg border border-line/80 bg-panel-strong/75 px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted focus:border-accent/50 focus:bg-panel focus:ring-1 focus:ring-accent/30"
+          className="mt-3 min-h-28 w-full resize-y bg-transparent text-sm leading-6 text-foreground outline-none placeholder:text-muted/75"
           aria-invalid={Boolean(state.fieldErrors?.requestPrompt)}
         />
         {state.fieldErrors?.requestPrompt ? (
@@ -311,10 +311,10 @@ export function RecommendationRequestForm({
                 type="button"
                 aria-pressed={isSelected}
                 onClick={() => toggleSelectedGenre(option.value)}
-                className={`inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50 ${
+                className={`inline-flex min-h-9 items-center justify-center rounded-md border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50 ${
                   isSelected
-                    ? "border-accent/50 bg-accent/15 text-foreground"
-                    : "border-line/80 bg-panel-strong/60 text-muted hover:border-accent/30 hover:bg-panel-strong hover:text-foreground"
+                    ? "border-accent/45 bg-accent/15 text-foreground"
+                    : "border-line/65 bg-background/20 text-muted hover:border-accent/30 hover:bg-panel-strong/45 hover:text-foreground"
                 }`}
               >
                 {option.label}
@@ -332,7 +332,7 @@ export function RecommendationRequestForm({
         ) : null}
       </div>
 
-      <div className="grid gap-4 rounded-2xl border border-line/60 bg-panel-strong/35 p-4 lg:grid-cols-[minmax(0,1fr),180px,180px]">
+      <div className="grid gap-4 rounded-lg border border-line/55 bg-background/15 p-4 lg:grid-cols-[minmax(0,1fr),180px,180px]">
         <label className="space-y-2">
           <span className="text-sm font-medium text-foreground">Model</span>
           <SearchableSelect
@@ -387,7 +387,7 @@ export function RecommendationRequestForm({
       </div>
 
       {state.message ? (
-        <p className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm leading-6 text-highlight">
+        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm leading-6 text-highlight">
           {state.message}
         </p>
       ) : null}
@@ -395,7 +395,7 @@ export function RecommendationRequestForm({
       <RequestProgressPanel />
 
       {!canSubmit ? (
-        <div className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm leading-6 text-highlight">
+        <div className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm leading-6 text-highlight">
           <p>
             {submitBlockedMessage ?? "Verify the AI provider connection before requesting recommendations."}
           </p>

@@ -168,28 +168,26 @@ export async function RecommendationWorkspace({
       <RecommendationRunAutoRefresh enabled={Boolean(featuredRunIsPending)} />
       <PageHeader eyebrow="Recommendation mode" title={title} />
 
-      <div>
-        <Panel
-          eyebrow="New request"
-          title="Get recommendations"
-          description="Choose what you want next. Leave the focus blank for taste-based picks."
-        >
-          <RecommendationWatchHistoryModeToggle
-            enabled={preferences.watchHistoryOnly}
-            redirectPath={routePath}
-          />
-          <RecommendationRequestForm
-            mediaType={mediaType}
-            redirectPath={routePath}
-            defaultResultCount={preferences.defaultResultCount}
-            defaultModel={defaultModel}
-            defaultTemperature={preferences.defaultTemperature}
-            availableModels={availableModels}
-            canSubmit={Boolean(canRequest)}
-            submitBlockedMessage={recommendationRequestBlockedMessage}
-          />
-        </Panel>
-      </div>
+      <Panel
+        eyebrow="New request"
+        title="Compose a batch"
+        className="bg-panel/90"
+      >
+        <RecommendationWatchHistoryModeToggle
+          enabled={preferences.watchHistoryOnly}
+          redirectPath={routePath}
+        />
+        <RecommendationRequestForm
+          mediaType={mediaType}
+          redirectPath={routePath}
+          defaultResultCount={preferences.defaultResultCount}
+          defaultModel={defaultModel}
+          defaultTemperature={preferences.defaultTemperature}
+          availableModels={availableModels}
+          canSubmit={Boolean(canRequest)}
+          submitBlockedMessage={recommendationRequestBlockedMessage}
+        />
+      </Panel>
 
       {featuredRun ? (
         <section
@@ -203,12 +201,12 @@ export async function RecommendationWorkspace({
                 {wasJustGenerated && featuredRun.id === activeRunId ? "Fresh batch" : "Latest batch"}
               </p>
               <div className="space-y-2">
-                <h2 className="font-heading text-3xl leading-tight text-foreground md:text-4xl">
+                <h2 className="font-heading text-2xl leading-tight text-foreground md:text-3xl">
                   {featuredRunIsPending
                     ? "Brewing a fresh batch\u2026"
                     : `${featuredRun.items.length} ${mediaType === "tv" ? "TV picks" : "movie picks"} ready`}
                 </h2>
-                <p className="max-w-4xl text-base leading-7 text-muted">
+                <p className="max-w-4xl text-sm leading-6 text-muted md:text-base md:leading-7">
                   {featuredRunIsPending
                     ? "Settle in \u2014 the worker is steeping your picks. Results pour in automatically as they finish."
                     : formatPromptLabel(featuredRun.requestPrompt, featuredRun.selectedGenres)}
@@ -219,16 +217,16 @@ export async function RecommendationWorkspace({
               </div>
             </div>
             <div className="grid gap-3 text-sm leading-6 text-foreground sm:grid-cols-2 xl:min-w-[360px]">
-              <div className="rounded-2xl border border-accent-cool/20 bg-panel-raised/50 px-4 py-3">
+              <div className="rounded-lg border border-line/55 bg-background/20 px-4 py-3">
                 <span className="font-medium">Model:</span> {featuredRun.aiModel ?? defaultModel}
               </div>
-              <div className="rounded-2xl border border-accent-cool/20 bg-panel-raised/50 px-4 py-3">
+              <div className="rounded-lg border border-line/55 bg-background/20 px-4 py-3">
                 <span className="font-medium">Temperature:</span> {formatTemperature(featuredRun.aiTemperature)}
               </div>
-              <div className="rounded-2xl border border-accent-cool/20 bg-panel-raised/50 px-4 py-3">
+              <div className="rounded-lg border border-line/55 bg-background/20 px-4 py-3">
                 <span className="font-medium">Requested:</span> {featuredRun.requestedCount}
               </div>
-              <div className="rounded-2xl border border-accent-cool/20 bg-panel-raised/50 px-4 py-3">
+              <div className="rounded-lg border border-line/55 bg-background/20 px-4 py-3">
                 <span className="font-medium">{featuredRunIsPending ? "Brewing" : "Completed"}:</span>{" "}
                 {featuredRunIsPending ? (
                   <RecommendationPendingTimer startedAt={featuredRun.createdAt} />
@@ -251,7 +249,7 @@ export async function RecommendationWorkspace({
           />
 
           {featuredRunIsPending && featuredRun.items.length === 0 ? (
-            <div className="mt-6 flex items-center gap-3 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+            <div className="mt-6 flex items-center gap-3 rounded-lg border border-line/65 bg-background/20 px-4 py-4 text-sm leading-6 text-muted">
               <RecommendationPendingTimer startedAt={featuredRun.createdAt} className="text-foreground" />
               <span>{"Warming up \u2014 titles will land here as soon as the worker finishes."}</span>
             </div>
@@ -298,7 +296,7 @@ export async function RecommendationWorkspace({
             {previousRuns.map((run) => (
               <article
                 key={run.id}
-                className="rounded-lg border border-line/70 bg-panel-strong/60 p-5"
+                className="rounded-lg border border-line/65 bg-background/15 p-5"
               >
                 {(() => {
                   const genreSummary = formatGenreSummary(run.selectedGenres);
@@ -323,7 +321,7 @@ export async function RecommendationWorkspace({
                 })()}
 
                 {run.errorMessage ? (
-                  <p className="mt-4 rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
+                  <p className="mt-4 rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
                     {run.errorMessage}
                   </p>
                 ) : null}
@@ -344,7 +342,7 @@ export async function RecommendationWorkspace({
                     {run.items.map((item) => (
                       <div
                         key={item.id}
-                        className="rounded-lg border border-line/70 bg-panel px-4 py-4"
+                        className="rounded-lg border border-line/60 bg-panel/80 px-4 py-4"
                       >
                         <div className="flex min-w-0 flex-col gap-4 sm:flex-row">
                           <RecommendationPoster
@@ -376,7 +374,7 @@ export async function RecommendationWorkspace({
                             itemId={item.id}
                             feedback={item.feedback}
                             returnTo={routePath}
-                            buttonClassName="h-10 min-h-10 w-10 rounded-full"
+                            buttonClassName="h-10 min-h-10 w-10 rounded-lg"
                           />
                         </div>
 
@@ -389,7 +387,7 @@ export async function RecommendationWorkspace({
                           savedRootFolderPath={librarySelectionDefaults.rootFolderPath}
                           savedQualityProfileId={librarySelectionDefaults.qualityProfileId}
                           variant="compact"
-                          buttonClassName="min-h-10 rounded-full px-4 py-2 whitespace-nowrap"
+                          buttonClassName="min-h-10 rounded-lg px-4 py-2 whitespace-nowrap"
                         />
                       </div>
                     ))}

@@ -29,8 +29,8 @@ function ToggleControl({ enabled }: { enabled: boolean }) {
         className={cn(
           "inline-flex h-8 w-14 items-center rounded-full border px-1 transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-60",
           enabled
-            ? "border-accent/35 bg-accent/80"
-            : "border-line/80 bg-panel-strong hover:border-accent/30",
+            ? "border-accent/40 bg-accent/85"
+            : "border-line/65 bg-background/30 hover:border-accent/30",
         )}
       >
         <span
@@ -51,7 +51,7 @@ export function RecommendationWatchHistoryModeToggle({
   return (
     <form
       action={submitRecommendationWatchHistoryModeAction}
-      className="mb-5 flex flex-col gap-4 rounded-2xl border border-line/60 bg-panel-strong/40 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+      className="mb-5 flex flex-col gap-4 rounded-lg border border-line/60 bg-background/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
     >
       <input type="hidden" name="redirectPath" value={redirectPath} />
       <div className="min-w-0 space-y-1">
