@@ -1,6 +1,8 @@
+import { MINIMUM_LIBRARY_REQUEST_FREE_SPACE_BYTES } from "@/modules/service-connections/types/library-manager";
+
 const BYTES_PER_GB = 1024 ** 3;
 
-export const LOW_DRIVE_SPACE_THRESHOLD_BYTES = 100 * BYTES_PER_GB;
+export const LOW_DRIVE_SPACE_THRESHOLD_BYTES = MINIMUM_LIBRARY_REQUEST_FREE_SPACE_BYTES;
 
 type DriveSpaceRootFolder = {
   freeSpaceBytes?: number | null;

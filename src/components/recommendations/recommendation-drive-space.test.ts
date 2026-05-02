@@ -14,7 +14,8 @@ describe("recommendation-drive-space", () => {
     expect(formatDriveSpaceBytes(null)).toBeNull();
   });
 
-  it("flags selected root folders below the 100 GB free-space threshold", () => {
+  it("flags selected root folders below the 75 GB free-space threshold", () => {
+    expect(LOW_DRIVE_SPACE_THRESHOLD_BYTES).toBe(75 * 1024 ** 3);
     expect(isLowDriveSpace({ freeSpaceBytes: LOW_DRIVE_SPACE_THRESHOLD_BYTES - 1 })).toBe(true);
     expect(isLowDriveSpace({ freeSpaceBytes: LOW_DRIVE_SPACE_THRESHOLD_BYTES })).toBe(false);
     expect(isLowDriveSpace({})).toBe(false);

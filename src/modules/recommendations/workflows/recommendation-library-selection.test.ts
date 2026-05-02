@@ -75,6 +75,40 @@ describe("recommendation-library-selection", () => {
     });
   });
 
+  it("skips saved root-folder defaults below the free-space minimum", () => {
+    expect(
+      resolveRecommendationLibrarySelectionDefaults(
+        {
+          rootFolders: [
+            {
+              path: "/library/full",
+              label: "Full",
+              freeSpaceBytes: 74 * 1024 ** 3,
+            },
+            {
+              path: "/library/available",
+              label: "Available",
+              freeSpaceBytes: 75 * 1024 ** 3,
+            },
+          ],
+          qualityProfiles: [
+            {
+              id: 10,
+              name: "Any",
+            },
+          ],
+        },
+        {
+          rootFolderPath: "/library/full",
+          qualityProfileId: 10,
+        },
+      ),
+    ).toEqual({
+      rootFolderPath: "/library/available",
+      qualityProfileId: 10,
+    });
+  });
+
   it("requires verified metadata with root folders and quality profiles", () => {
     expect(
       validateRecommendationLibrarySelection(null, {
@@ -102,6 +136,35 @@ describe("recommendation-library-selection", () => {
     ).toEqual({
       ok: false,
       message: "Select a valid root folder.",
+      field: "rootFolderPath",
+    });
+  });
+
+  it("rejects root folders below the free-space minimum", () => {
+    expect(
+      validateRecommendationLibrarySelection(
+        {
+          ...validMetadata,
+          rootFolders: [
+            {
+              path: "/library/movies",
+              label: "Movies",
+              freeSpaceBytes: 74 * 1024 ** 3,
+            },
+          ],
+        },
+        {
+          rootFolderPath: "/library/movies",
+          qualityProfileId: 7,
+          tagIds: [],
+          seasonSelectionMode: "all",
+          seasonNumbers: [],
+        },
+        "Radarr",
+      ),
+    ).toEqual({
+      ok: false,
+      message: "Select a root folder with at least 75 GB free.",
       field: "rootFolderPath",
     });
   });

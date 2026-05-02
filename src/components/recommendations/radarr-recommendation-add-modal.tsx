@@ -14,6 +14,7 @@ import {
   SubmitButton,
   type RecommendationModalFormAction,
 } from "./recommendation-add-modal-primitives";
+import { isLowDriveSpace } from "./recommendation-drive-space";
 
 type RadarrRecommendationAddModalProps = {
   open: boolean;
@@ -44,6 +45,15 @@ export function RadarrRecommendationAddModal({
   isSavingDefaults = false,
   titleId,
 }: RadarrRecommendationAddModalProps) {
+  const selectedRootFolder = connectionSummary.rootFolders.find(
+    (entry) => entry.path === selectedRootFolderPath,
+  );
+  const requestDisabled =
+    isSavingDefaults ||
+    !selectedRootFolder ||
+    isLowDriveSpace(selectedRootFolder) ||
+    selectedQualityProfileId === null;
+
   return (
     <RecommendationAddModalShell
       open={open}
@@ -99,7 +109,7 @@ export function RadarrRecommendationAddModal({
           </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <CancelButton onClose={onClose} disabled={isSavingDefaults} />
-            <SubmitButton serviceLabel="Radarr" disabled={isSavingDefaults} />
+            <SubmitButton serviceLabel="Radarr" disabled={requestDisabled} />
           </div>
         </div>
       </form>

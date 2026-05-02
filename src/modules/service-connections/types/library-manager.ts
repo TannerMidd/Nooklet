@@ -1,5 +1,29 @@
 export type LibraryManagerServiceType = "sonarr" | "radarr";
 
+const BYTES_PER_GB = 1024 ** 3;
+
+export const MINIMUM_LIBRARY_REQUEST_FREE_SPACE_GB = 75;
+export const MINIMUM_LIBRARY_REQUEST_FREE_SPACE_BYTES =
+  MINIMUM_LIBRARY_REQUEST_FREE_SPACE_GB * BYTES_PER_GB;
+
+export type LibraryManagerRootFolderSpace = {
+  freeSpaceBytes?: number | null;
+};
+
+function isByteCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+export function isLibraryManagerRootFolderBelowMinimumFreeSpace(
+  rootFolder: LibraryManagerRootFolderSpace | null | undefined,
+) {
+  const freeSpaceBytes = rootFolder?.freeSpaceBytes;
+
+  return (
+    isByteCount(freeSpaceBytes) && freeSpaceBytes < MINIMUM_LIBRARY_REQUEST_FREE_SPACE_BYTES
+  );
+}
+
 export type SonarrLibrarySeasonSummary = {
   seasonNumber: number;
   monitored: boolean;

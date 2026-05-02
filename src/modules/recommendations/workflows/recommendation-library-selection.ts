@@ -1,4 +1,8 @@
 import { type RecommendationMediaType } from "@/lib/database/schema";
+import {
+  isLibraryManagerRootFolderBelowMinimumFreeSpace,
+  MINIMUM_LIBRARY_REQUEST_FREE_SPACE_GB,
+} from "@/modules/service-connections/types/library-manager";
 
 import { type AddRecommendationToLibraryInput } from "../schemas/add-to-library";
 import { type LibraryManagerMetadata } from "../../service-connections/library-manager-metadata";
@@ -38,11 +42,15 @@ export function resolveRecommendationLibrarySelectionDefaults(
   metadata: RecommendationLibrarySelectionMetadata | null,
   defaults: Partial<RecommendationLibrarySelectionDefaults> = {},
 ) {
-  const rootFolderPath = metadata?.rootFolders.some(
+  const selectableRootFolders =
+    metadata?.rootFolders.filter(
+      (entry) => !isLibraryManagerRootFolderBelowMinimumFreeSpace(entry),
+    ) ?? [];
+  const rootFolderPath = selectableRootFolders.some(
     (entry) => entry.path === defaults.rootFolderPath,
   )
-    ? defaults.rootFolderPath ?? metadata.rootFolders[0]?.path ?? ""
-    : metadata?.rootFolders[0]?.path ?? "";
+    ? defaults.rootFolderPath ?? selectableRootFolders[0]?.path ?? ""
+    : selectableRootFolders[0]?.path ?? metadata?.rootFolders[0]?.path ?? "";
   const qualityProfileId = metadata?.qualityProfiles.some(
     (entry) => entry.id === defaults.qualityProfileId,
   )
@@ -68,10 +76,22 @@ export function validateRecommendationLibrarySelection(
     };
   }
 
-  if (!metadata.rootFolders.some((entry) => entry.path === input.rootFolderPath)) {
+  const selectedRootFolder = metadata.rootFolders.find(
+    (entry) => entry.path === input.rootFolderPath,
+  );
+
+  if (!selectedRootFolder) {
     return {
       ok: false,
       message: "Select a valid root folder.",
+      field: "rootFolderPath",
+    };
+  }
+
+  if (isLibraryManagerRootFolderBelowMinimumFreeSpace(selectedRootFolder)) {
+    return {
+      ok: false,
+      message: `Select a root folder with at least ${MINIMUM_LIBRARY_REQUEST_FREE_SPACE_GB} GB free.`,
       field: "rootFolderPath",
     };
   }

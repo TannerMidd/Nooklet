@@ -14,6 +14,7 @@ import {
   formatDriveSpaceBytes,
   getDriveSpaceUsagePercent,
   isLowDriveSpace,
+  LOW_DRIVE_SPACE_THRESHOLD_BYTES,
 } from "./recommendation-drive-space";
 
 export type RecommendationModalFormAction = (formData: FormData) => void;
@@ -130,7 +131,7 @@ export function RecommendationDestinationFields({
               aria-invalid={Boolean(fieldErrors?.rootFolderPath)}
             >
               {connectionSummary.rootFolders.map((entry) => (
-                <option key={entry.path} value={entry.path}>
+                <option key={entry.path} value={entry.path} disabled={isLowDriveSpace(entry)}>
                   {formatRootFolderOptionLabel(entry)}
                 </option>
               ))}
@@ -170,6 +171,11 @@ export function RecommendationDestinationFields({
 
 function formatRootFolderOptionLabel(rootFolder: ServiceConnectionSummary["rootFolders"][number]) {
   const freeSpaceLabel = formatDriveSpaceBytes(rootFolder.freeSpaceBytes);
+  const minimumFreeSpaceLabel = formatDriveSpaceBytes(LOW_DRIVE_SPACE_THRESHOLD_BYTES) ?? "75 GB";
+
+  if (freeSpaceLabel && isLowDriveSpace(rootFolder)) {
+    return `${rootFolder.label} (${freeSpaceLabel} free, needs ${minimumFreeSpaceLabel})`;
+  }
 
   return freeSpaceLabel ? `${rootFolder.label} (${freeSpaceLabel} free)` : rootFolder.label;
 }
@@ -185,6 +191,7 @@ function RecommendationDriveSpaceStatus({
 
   const freeSpaceLabel = formatDriveSpaceBytes(rootFolder.freeSpaceBytes);
   const totalSpaceLabel = formatDriveSpaceBytes(rootFolder.totalSpaceBytes);
+  const minimumFreeSpaceLabel = formatDriveSpaceBytes(LOW_DRIVE_SPACE_THRESHOLD_BYTES) ?? "75 GB";
   const usagePercent = getDriveSpaceUsagePercent(rootFolder);
   const hasLowDriveSpace = isLowDriveSpace(rootFolder);
 
@@ -228,7 +235,7 @@ function RecommendationDriveSpaceStatus({
 
       {hasLowDriveSpace ? (
         <p className="leading-6 text-highlight">
-          Warning: this selected drive has less than 100 GB free.
+          Requests are disabled because this drive has less than {minimumFreeSpaceLabel} free.
         </p>
       ) : null}
     </div>

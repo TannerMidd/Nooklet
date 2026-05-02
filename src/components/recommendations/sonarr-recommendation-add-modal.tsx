@@ -14,6 +14,7 @@ import {
   SubmitButton,
   type RecommendationModalFormAction,
 } from "./recommendation-add-modal-primitives";
+import { isLowDriveSpace } from "./recommendation-drive-space";
 
 type SonarrRecommendationAddModalProps = {
   open: boolean;
@@ -50,6 +51,15 @@ export function SonarrRecommendationAddModal({
   isSavingDefaults = false,
   titleId,
 }: SonarrRecommendationAddModalProps) {
+  const selectedRootFolder = connectionSummary.rootFolders.find(
+    (entry) => entry.path === selectedRootFolderPath,
+  );
+  const requestDisabled =
+    isSavingDefaults ||
+    !selectedRootFolder ||
+    isLowDriveSpace(selectedRootFolder) ||
+    selectedQualityProfileId === null;
+
   return (
     <RecommendationAddModalShell
       open={open}
@@ -210,7 +220,7 @@ export function SonarrRecommendationAddModal({
           </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <CancelButton onClose={onClose} disabled={isSavingDefaults} />
-            <SubmitButton serviceLabel="Sonarr" disabled={isSavingDefaults} />
+            <SubmitButton serviceLabel="Sonarr" disabled={requestDisabled} />
           </div>
         </div>
       </form>

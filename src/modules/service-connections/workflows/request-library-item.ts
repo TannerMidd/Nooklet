@@ -4,8 +4,15 @@ import {
   addLibraryItem,
   type LibraryManagerServiceType,
 } from "@/modules/service-connections/adapters/add-library-item";
-import { parseLibraryManagerMetadata } from "@/modules/service-connections/library-manager-metadata";
-import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
+import { refreshLibraryManagerRootFolderFreeSpace } from "@/modules/service-connections/adapters/library-manager-root-folder-space";
+import {
+  parseLibraryManagerMetadata,
+  type LibraryManagerMetadata,
+} from "@/modules/service-connections/library-manager-metadata";
+import {
+  findServiceConnectionByType,
+  type ServiceConnectionRecord,
+} from "@/modules/service-connections/repositories/service-connection-repository";
 import { getServiceConnectionDefinition } from "@/modules/service-connections/service-definitions";
 import { validateRecommendationLibrarySelection } from "@/modules/recommendations/workflows/recommendation-library-selection";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
@@ -39,6 +46,32 @@ type RequestLibraryItemOptions = {
   auditPayload?: Record<string, unknown>;
 };
 
+async function resolveLibraryManagerRequestMetadata(
+  connection: ServiceConnectionRecord,
+  apiKey: string,
+): Promise<LibraryManagerMetadata | null> {
+  const metadata = parseLibraryManagerMetadata(connection.metadata);
+
+  if (!metadata || !connection.connection.baseUrl || metadata.rootFolders.length === 0) {
+    return metadata;
+  }
+
+  try {
+    const rootFolders = await refreshLibraryManagerRootFolderFreeSpace({
+      baseUrl: connection.connection.baseUrl,
+      apiKey,
+      rootFolders: metadata.rootFolders,
+    });
+
+    return {
+      ...metadata,
+      rootFolders,
+    };
+  } catch {
+    return metadata;
+  }
+}
+
 export async function requestLibraryItem(
   userId: string,
   input: RequestLibraryItemInput,
@@ -61,8 +94,11 @@ export async function requestLibraryItem(
     };
   }
 
+  const apiKey = decryptSecret(connection.secret.encryptedValue);
+  const metadata = await resolveLibraryManagerRequestMetadata(connection, apiKey);
+
   const validationResult = validateRecommendationLibrarySelection(
-    parseLibraryManagerMetadata(connection.metadata),
+    metadata,
     input,
     definition.displayName,
     {
@@ -83,7 +119,7 @@ export async function requestLibraryItem(
   const result = await addLibraryItem({
     serviceType: input.serviceType,
     baseUrl: connection.connection.baseUrl ?? "",
-    apiKey: decryptSecret(connection.secret.encryptedValue),
+    apiKey,
     title: input.title,
     year: input.year,
     rootFolderPath: input.rootFolderPath,

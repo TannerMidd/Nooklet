@@ -12,6 +12,10 @@ vi.mock("@/modules/service-connections/adapters/add-library-item", () => ({
   addLibraryItem: vi.fn(),
 }));
 
+vi.mock("@/modules/service-connections/adapters/library-manager-root-folder-space", () => ({
+  refreshLibraryManagerRootFolderFreeSpace: vi.fn(),
+}));
+
 vi.mock("@/modules/service-connections/repositories/service-connection-repository", () => ({
   findServiceConnectionByType: vi.fn(),
 }));
@@ -22,6 +26,7 @@ vi.mock("@/modules/users/repositories/user-repository", () => ({
 
 import { updateLibrarySelectionDefaults } from "@/modules/preferences/repositories/preferences-repository";
 import { addLibraryItem } from "@/modules/service-connections/adapters/add-library-item";
+import { refreshLibraryManagerRootFolderFreeSpace } from "@/modules/service-connections/adapters/library-manager-root-folder-space";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 
@@ -29,6 +34,9 @@ import { requestLibrarySearchResult } from "./request-library-search-result";
 
 const mockedUpdateLibrarySelectionDefaults = vi.mocked(updateLibrarySelectionDefaults);
 const mockedAddLibraryItem = vi.mocked(addLibraryItem);
+const mockedRefreshLibraryManagerRootFolderFreeSpace = vi.mocked(
+  refreshLibraryManagerRootFolderFreeSpace,
+);
 const mockedFindServiceConnectionByType = vi.mocked(findServiceConnectionByType);
 const mockedCreateAuditEvent = vi.mocked(createAuditEvent);
 
@@ -81,6 +89,9 @@ describe("requestLibrarySearchResult", () => {
       ok: true,
       message: "Added to Radarr.",
     });
+    mockedRefreshLibraryManagerRootFolderFreeSpace.mockImplementation(
+      async (input) => input.rootFolders,
+    );
     mockedUpdateLibrarySelectionDefaults.mockResolvedValue(undefined);
     mockedCreateAuditEvent.mockResolvedValue(undefined);
   });
@@ -142,5 +153,48 @@ describe("requestLibrarySearchResult", () => {
     });
     expect(mockedUpdateLibrarySelectionDefaults).not.toHaveBeenCalled();
     expect(mockedAddLibraryItem).not.toHaveBeenCalled();
+  });
+
+  it("refreshes root-folder space and blocks direct requests below the free-space minimum", async () => {
+    mockedRefreshLibraryManagerRootFolderFreeSpace.mockResolvedValue([
+      {
+        path: "/library/movies",
+        label: "Movies",
+        freeSpaceBytes: 74 * 1024 ** 3,
+        totalSpaceBytes: 1_000 * 1024 ** 3,
+      },
+    ]);
+
+    const result = await requestLibrarySearchResult("user-1", {
+      serviceType: "radarr",
+      title: "Arrival",
+      year: 2016,
+      availableSeasonNumbers: [],
+      rootFolderPath: "/library/movies",
+      qualityProfileId: 7,
+      seasonSelectionMode: "all",
+      seasonNumbers: [],
+      tagIds: [],
+      returnTo: "/radarr?query=arrival",
+    });
+
+    expect(mockedRefreshLibraryManagerRootFolderFreeSpace).toHaveBeenCalledWith({
+      baseUrl: "http://radarr.example",
+      apiKey: "decrypted:encrypted-radarr",
+      rootFolders: [
+        {
+          path: "/library/movies",
+          label: "Movies",
+        },
+      ],
+    });
+    expect(result).toEqual({
+      ok: false,
+      message: "Select a root folder with at least 75 GB free.",
+      field: "rootFolderPath",
+    });
+    expect(mockedUpdateLibrarySelectionDefaults).not.toHaveBeenCalled();
+    expect(mockedAddLibraryItem).not.toHaveBeenCalled();
+    expect(mockedCreateAuditEvent).not.toHaveBeenCalled();
   });
 });
