@@ -1,6 +1,6 @@
 import { safeFetch } from "@/lib/security/safe-fetch";
 
-const DEFAULT_TIMEOUT_MS = 5000;
+const DEFAULT_TIMEOUT_MS = 30_000;
 
 /**
  * Strips one or more trailing slashes from a URL-like string. Used by every

@@ -107,7 +107,7 @@ describe("listSabnzbdQueue", () => {
         },
       ],
     });
-    expect(mockedSafeFetch.mock.calls[0]?.[1]).toMatchObject({ timeoutMs: 5000 });
+    expect(mockedSafeFetch.mock.calls[0]?.[1]).toMatchObject({ timeoutMs: 30_000 });
   });
 
   it("uses a caller-supplied timeout when provided", async () => {

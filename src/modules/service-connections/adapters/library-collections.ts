@@ -33,10 +33,8 @@ type ConnectionInput = {
   apiKey: string;
 };
 
-const LIBRARY_FETCH_TIMEOUT_MS = 10000;
-
 async function fetchLibraryManager(input: RequestInfo | URL, init?: RequestInit) {
-  return fetchWithTimeout(input, init, LIBRARY_FETCH_TIMEOUT_MS);
+  return fetchWithTimeout(input, init);
 }
 
 async function extractErrorMessage(response: Response, serviceLabel: string) {

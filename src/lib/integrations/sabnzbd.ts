@@ -169,7 +169,7 @@ function normalizeSabnzbdQueueSnapshot(payload: SabnzbdQueueResponse): SabnzbdQu
 async function fetchSabnzbdJson<T>(url: URL, options: { timeoutMs?: number } = {}) {
   const response = await safeFetch(url, {
     cache: "no-store",
-    timeoutMs: options.timeoutMs ?? 5000,
+    timeoutMs: options.timeoutMs ?? 30_000,
     maxBytes: 512 * 1024,
   });
 

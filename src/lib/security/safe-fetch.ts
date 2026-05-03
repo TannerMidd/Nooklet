@@ -32,7 +32,7 @@ export type SafeFetchOptions = RequestInit & {
   allowPrivateHosts?: boolean;
 };
 
-const DEFAULT_TIMEOUT_MS = 5_000;
+const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024;
 
 type AddressClassification = "public" | "private" | "blocked";

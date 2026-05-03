@@ -37,12 +37,12 @@ describe("fetchWithTimeout", () => {
     safeFetchMock.mockReset();
   });
 
-  it("forwards a string URL and applies the default 5s timeout", async () => {
+  it("forwards a string URL and applies the default 30s timeout", async () => {
     safeFetchMock.mockResolvedValue(new Response("ok"));
 
     await fetchWithTimeout("https://example.com");
 
-    expect(safeFetchMock).toHaveBeenCalledWith("https://example.com", { timeoutMs: 5000 });
+    expect(safeFetchMock).toHaveBeenCalledWith("https://example.com", { timeoutMs: 30_000 });
   });
 
   it("merges init options and uses a caller-supplied timeout", async () => {
@@ -66,7 +66,7 @@ describe("fetchWithTimeout", () => {
 
     await fetchWithTimeout(new Request("https://example.com/api"));
 
-    expect(safeFetchMock).toHaveBeenCalledWith("https://example.com/api", { timeoutMs: 5000 });
+    expect(safeFetchMock).toHaveBeenCalledWith("https://example.com/api", { timeoutMs: 30_000 });
   });
 });
 
