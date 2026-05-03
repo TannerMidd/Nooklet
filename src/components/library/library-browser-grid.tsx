@@ -1,6 +1,12 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -50,6 +56,7 @@ type LibraryBrowserGridProps =
 type LibraryViewMode = "grid" | "table";
 type LibrarySortKey = "title" | "year" | "size";
 type LibrarySortDirection = "asc" | "desc";
+type LibraryServiceType = "sonarr" | "radarr";
 
 type LibrarySortState = {
   key: LibrarySortKey;
@@ -155,6 +162,14 @@ function formatDiskSize(bytes: number | null) {
   return formatDriveSpaceBytes(bytes) ?? "Unknown";
 }
 
+function getLibraryItemNoun(serviceType: LibraryServiceType, count: number) {
+  if (serviceType === "sonarr") {
+    return "series";
+  }
+
+  return count === 1 ? "movie" : "movies";
+}
+
 export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
   const { serviceType, items, returnTo, qualityProfiles } = props;
   const [filter, setFilter] = useState("");
@@ -165,6 +180,7 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
     key: "size",
     direction: "desc",
   });
+  const [selectedTableItemIds, setSelectedTableItemIds] = useState<number[]>([]);
 
   const [selectedSonarrSeriesId, setSelectedSonarrSeriesId] = useState<number | null>(null);
   const [modalInitialMode, setModalInitialMode] = useState<"season" | "episode">("season");
@@ -216,6 +232,11 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
     return sortTableItems(filteredItems as RadarrLibraryMovie[], tableSort);
   }, [filteredItems, serviceType, tableSort]);
 
+  const selectedTableItemIdSet = useMemo(
+    () => new Set(selectedTableItemIds),
+    [selectedTableItemIds],
+  );
+
   function handleTableSort(nextKey: LibrarySortKey) {
     setTableSort((current) => {
       if (current.key !== nextKey) {
@@ -226,6 +247,33 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
         key: nextKey,
         direction: current.direction === "asc" ? "desc" : "asc",
       };
+    });
+  }
+
+  function handleToggleTableItemSelection(itemId: number) {
+    setSelectedTableItemIds((currentIds) =>
+      currentIds.includes(itemId)
+        ? currentIds.filter((selectedItemId) => selectedItemId !== itemId)
+        : [...currentIds, itemId],
+    );
+  }
+
+  function handleToggleVisibleTableSelection() {
+    const visibleItemIds = sortedTableItems.map((item) => item.id);
+    const visibleItemIdSet = new Set(visibleItemIds);
+
+    setSelectedTableItemIds((currentIds) => {
+      const currentIdSet = new Set(currentIds);
+      const allVisibleSelected = visibleItemIds.every((itemId) => currentIdSet.has(itemId));
+
+      if (allVisibleSelected) {
+        return currentIds.filter((itemId) => !visibleItemIdSet.has(itemId));
+      }
+
+      return [
+        ...currentIds,
+        ...visibleItemIds.filter((itemId) => !currentIdSet.has(itemId)),
+      ];
     });
   }
 
@@ -313,7 +361,10 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
             items={sortedTableItems as SonarrLibrarySeries[]}
             returnTo={returnTo}
             sort={tableSort}
+            selectedItemIds={selectedTableItemIdSet}
             onSortChange={handleTableSort}
+            onToggleItemSelection={handleToggleTableItemSelection}
+            onToggleVisibleSelection={handleToggleVisibleTableSelection}
             onOpenItem={(seriesId) => {
               setModalInitialMode("season");
               setSelectedSonarrSeriesId(seriesId);
@@ -325,7 +376,10 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
             items={sortedTableItems as RadarrLibraryMovie[]}
             returnTo={returnTo}
             sort={tableSort}
+            selectedItemIds={selectedTableItemIdSet}
             onSortChange={handleTableSort}
+            onToggleItemSelection={handleToggleTableItemSelection}
+            onToggleVisibleSelection={handleToggleVisibleTableSelection}
             onOpenItem={setSelectedRadarrMovieId}
           />
         )
@@ -402,7 +456,10 @@ type LibraryBrowserTableProps =
       items: SonarrLibrarySeries[];
       returnTo: string;
       sort: LibrarySortState;
+      selectedItemIds: ReadonlySet<number>;
       onSortChange: (key: LibrarySortKey) => void;
+      onToggleItemSelection: (itemId: number) => void;
+      onToggleVisibleSelection: () => void;
       onOpenItem: (seriesId: number) => void;
     }
   | {
@@ -410,7 +467,10 @@ type LibraryBrowserTableProps =
       items: RadarrLibraryMovie[];
       returnTo: string;
       sort: LibrarySortState;
+      selectedItemIds: ReadonlySet<number>;
       onSortChange: (key: LibrarySortKey) => void;
+      onToggleItemSelection: (itemId: number) => void;
+      onToggleVisibleSelection: () => void;
       onOpenItem: (movieId: number) => void;
     };
 
@@ -462,12 +522,28 @@ function LibraryBrowserTable(props: LibraryBrowserTableProps) {
     props.serviceType === "sonarr"
       ? ["Episodes", "Seasons", "Monitoring"]
       : ["File", "Monitoring", "Status"];
+  const visibleItemIds = props.items.map((item) => item.id);
+  const selectedVisibleCount = visibleItemIds.filter((itemId) =>
+    props.selectedItemIds.has(itemId),
+  ).length;
+  const allVisibleSelected =
+    visibleItemIds.length > 0 && selectedVisibleCount === visibleItemIds.length;
+  const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
+  const itemLabel = getLibraryItemNoun(props.serviceType, props.items.length);
 
   return (
     <div className="max-h-[72vh] overflow-auto rounded-lg border border-line/65 bg-background/10">
-      <table className="w-full min-w-[64rem] border-collapse text-left text-sm">
+      <table className="w-full min-w-[68rem] border-collapse text-left text-sm">
         <thead className="sticky top-0 z-10 border-b border-line/65 bg-panel-strong/95 backdrop-blur">
           <tr>
+            <th scope="col" className="w-12 px-4 py-3">
+              <LibrarySelectAllCheckbox
+                label={`Select all visible ${itemLabel}`}
+                checked={allVisibleSelected}
+                indeterminate={someVisibleSelected}
+                onChange={props.onToggleVisibleSelection}
+              />
+            </th>
             {sortableLibraryColumns.map(({ key, label, align }) => (
               <th
                 key={key}
@@ -502,6 +578,8 @@ function LibraryBrowserTable(props: LibraryBrowserTableProps) {
                   serviceType="sonarr"
                   item={series}
                   returnTo={props.returnTo}
+                  selected={props.selectedItemIds.has(series.id)}
+                  onToggleSelection={() => props.onToggleItemSelection(series.id)}
                   onOpen={() => props.onOpenItem(series.id)}
                 />
               ))
@@ -511,12 +589,46 @@ function LibraryBrowserTable(props: LibraryBrowserTableProps) {
                   serviceType="radarr"
                   item={movie}
                   returnTo={props.returnTo}
+                  selected={props.selectedItemIds.has(movie.id)}
+                  onToggleSelection={() => props.onToggleItemSelection(movie.id)}
                   onOpen={() => props.onOpenItem(movie.id)}
                 />
               ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function LibrarySelectAllCheckbox({
+  label,
+  checked,
+  indeterminate,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  indeterminate: boolean;
+  onChange: () => void;
+}) {
+  const checkboxRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.indeterminate = indeterminate;
+    }
+  }, [indeterminate]);
+
+  return (
+    <input
+      ref={checkboxRef}
+      type="checkbox"
+      checked={checked}
+      aria-label={label}
+      aria-checked={indeterminate ? "mixed" : checked}
+      onChange={onChange}
+      className="h-4 w-4 rounded border-line bg-panel text-accent"
+    />
   );
 }
 
@@ -551,14 +663,40 @@ function LibraryTableRow({
   serviceType,
   item,
   returnTo,
+  selected,
+  onToggleSelection,
   onOpen,
 }:
-  | { serviceType: "sonarr"; item: SonarrLibrarySeries; returnTo: string; onOpen: () => void }
-  | { serviceType: "radarr"; item: RadarrLibraryMovie; returnTo: string; onOpen: () => void }) {
+  | {
+      serviceType: "sonarr";
+      item: SonarrLibrarySeries;
+      returnTo: string;
+      selected: boolean;
+      onToggleSelection: () => void;
+      onOpen: () => void;
+    }
+  | {
+      serviceType: "radarr";
+      item: RadarrLibraryMovie;
+      returnTo: string;
+      selected: boolean;
+      onToggleSelection: () => void;
+      onOpen: () => void;
+    }) {
   const titleLabel = getTitleLabel(item);
 
   return (
     <tr className="transition hover:bg-panel-strong/35">
+      <td className="px-4 py-3 align-middle">
+        <input
+          type="checkbox"
+          checked={selected}
+          aria-label={`Select ${titleLabel}`}
+          onChange={onToggleSelection}
+          onClick={(event) => event.stopPropagation()}
+          className="h-4 w-4 rounded border-line bg-panel text-accent"
+        />
+      </td>
       <LibraryTableTitleCell
         title={titleLabel}
         subtitle={serviceType === "sonarr" ? item.network : item.studio}
