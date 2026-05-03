@@ -2,6 +2,9 @@
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   LayoutGrid,
   Table2,
   type LucideIcon,
@@ -45,6 +48,15 @@ type LibraryBrowserGridProps =
   | RadarrLibraryBrowserGridProps;
 
 type LibraryViewMode = "grid" | "table";
+type LibrarySortKey = "title" | "year" | "size";
+type LibrarySortDirection = "asc" | "desc";
+
+type LibrarySortState = {
+  key: LibrarySortKey;
+  direction: LibrarySortDirection;
+};
+
+type LibraryTableItem = SonarrLibrarySeries | RadarrLibraryMovie;
 
 const libraryViewOptions: Array<{
   mode: LibraryViewMode;
@@ -53,6 +65,16 @@ const libraryViewOptions: Array<{
 }> = [
   { mode: "grid", label: "Grid view", Icon: LayoutGrid },
   { mode: "table", label: "Table view", Icon: Table2 },
+];
+
+const sortableLibraryColumns: Array<{
+  key: LibrarySortKey;
+  label: string;
+  align?: "left" | "right";
+}> = [
+  { key: "title", label: "Title" },
+  { key: "year", label: "Year" },
+  { key: "size", label: "Size on disk", align: "right" },
 ];
 
 function normalizeFilterToken(value: string) {
@@ -75,6 +97,60 @@ function getTitleLabel(item: { title: string; year: number | null }) {
   return item.year ? `${item.title} (${item.year})` : item.title;
 }
 
+function getDefaultSortDirection(key: LibrarySortKey): LibrarySortDirection {
+  return key === "title" ? "asc" : "desc";
+}
+
+function compareText(left: string, right: string, direction: LibrarySortDirection) {
+  const result = left.localeCompare(right, undefined, { sensitivity: "base" });
+
+  return direction === "asc" ? result : -result;
+}
+
+function compareNullableNumber(
+  left: number | null,
+  right: number | null,
+  direction: LibrarySortDirection,
+) {
+  if (left === null && right === null) {
+    return 0;
+  }
+
+  if (left === null) {
+    return 1;
+  }
+
+  if (right === null) {
+    return -1;
+  }
+
+  return direction === "asc" ? left - right : right - left;
+}
+
+function compareTableItems(
+  left: LibraryTableItem,
+  right: LibraryTableItem,
+  sort: LibrarySortState,
+) {
+  const primary = (() => {
+    if (sort.key === "title") {
+      return compareText(left.sortTitle, right.sortTitle, sort.direction);
+    }
+
+    if (sort.key === "year") {
+      return compareNullableNumber(left.year, right.year, sort.direction);
+    }
+
+    return compareNullableNumber(left.sizeOnDiskBytes, right.sizeOnDiskBytes, sort.direction);
+  })();
+
+  return primary || compareText(left.sortTitle, right.sortTitle, "asc");
+}
+
+function sortTableItems<T extends LibraryTableItem>(items: T[], sort: LibrarySortState) {
+  return [...items].sort((left, right) => compareTableItems(left, right, sort));
+}
+
 function formatDiskSize(bytes: number | null) {
   return formatDriveSpaceBytes(bytes) ?? "Unknown";
 }
@@ -85,6 +161,10 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
   const deferredFilter = useDeferredValue(filter);
   const needle = normalizeFilterToken(deferredFilter);
   const [viewMode, setViewMode] = useState<LibraryViewMode>("grid");
+  const [tableSort, setTableSort] = useState<LibrarySortState>({
+    key: "size",
+    direction: "desc",
+  });
 
   const [selectedSonarrSeriesId, setSelectedSonarrSeriesId] = useState<number | null>(null);
   const [modalInitialMode, setModalInitialMode] = useState<"season" | "episode">("season");
@@ -127,6 +207,27 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
 
     return (items as RadarrLibraryMovie[]).filter((item) => matchesFilter(item, needle));
   }, [items, needle, serviceType]);
+
+  const sortedTableItems = useMemo(() => {
+    if (serviceType === "sonarr") {
+      return sortTableItems(filteredItems as SonarrLibrarySeries[], tableSort);
+    }
+
+    return sortTableItems(filteredItems as RadarrLibraryMovie[], tableSort);
+  }, [filteredItems, serviceType, tableSort]);
+
+  function handleTableSort(nextKey: LibrarySortKey) {
+    setTableSort((current) => {
+      if (current.key !== nextKey) {
+        return { key: nextKey, direction: getDefaultSortDirection(nextKey) };
+      }
+
+      return {
+        key: nextKey,
+        direction: current.direction === "asc" ? "desc" : "asc",
+      };
+    });
+  }
 
   const totalCount = items.length;
   const filteredCount = filteredItems.length;
@@ -209,7 +310,9 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
         serviceType === "sonarr" ? (
           <LibraryBrowserTable
             serviceType="sonarr"
-            items={filteredItems as SonarrLibrarySeries[]}
+            items={sortedTableItems as SonarrLibrarySeries[]}
+            sort={tableSort}
+            onSortChange={handleTableSort}
             onOpenItem={(seriesId) => {
               setModalInitialMode("season");
               setSelectedSonarrSeriesId(seriesId);
@@ -218,7 +321,9 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
         ) : (
           <LibraryBrowserTable
             serviceType="radarr"
-            items={filteredItems as RadarrLibraryMovie[]}
+            items={sortedTableItems as RadarrLibraryMovie[]}
+            sort={tableSort}
+            onSortChange={handleTableSort}
             onOpenItem={setSelectedRadarrMovieId}
           />
         )
@@ -293,13 +398,60 @@ type LibraryBrowserTableProps =
   | {
       serviceType: "sonarr";
       items: SonarrLibrarySeries[];
+      sort: LibrarySortState;
+      onSortChange: (key: LibrarySortKey) => void;
       onOpenItem: (seriesId: number) => void;
     }
   | {
       serviceType: "radarr";
       items: RadarrLibraryMovie[];
+      sort: LibrarySortState;
+      onSortChange: (key: LibrarySortKey) => void;
       onOpenItem: (movieId: number) => void;
     };
+
+function getAriaSort(
+  sort: LibrarySortState,
+  key: LibrarySortKey,
+): "ascending" | "descending" | "none" {
+  if (sort.key !== key) {
+    return "none";
+  }
+
+  return sort.direction === "asc" ? "ascending" : "descending";
+}
+
+function SortableColumnHeader({
+  label,
+  sortKey,
+  sort,
+  align = "left",
+  onSortChange,
+}: {
+  label: string;
+  sortKey: LibrarySortKey;
+  sort: LibrarySortState;
+  align?: "left" | "right";
+  onSortChange: (key: LibrarySortKey) => void;
+}) {
+  const active = sort.key === sortKey;
+  const SortIcon = active ? (sort.direction === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSortChange(sortKey)}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold text-muted transition hover:bg-panel-strong/55 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50",
+        active && "text-foreground",
+        align === "right" && "ml-auto",
+      )}
+    >
+      <span>{label}</span>
+      <SortIcon aria-hidden="true" className="h-3.5 w-3.5" />
+    </button>
+  );
+}
 
 function LibraryBrowserTable(props: LibraryBrowserTableProps) {
   const detailHeaders =
@@ -312,11 +464,22 @@ function LibraryBrowserTable(props: LibraryBrowserTableProps) {
       <table className="w-full min-w-[64rem] border-collapse text-left text-sm">
         <thead className="sticky top-0 z-10 border-b border-line/65 bg-panel-strong/95 backdrop-blur">
           <tr>
-            <th scope="col" className="px-4 py-3 text-xs font-semibold text-muted">Title</th>
-            <th scope="col" className="px-4 py-3 text-xs font-semibold text-muted">Year</th>
-            <th scope="col" className="px-4 py-3 text-right text-xs font-semibold text-muted">
-              Size on disk
-            </th>
+            {sortableLibraryColumns.map(({ key, label, align }) => (
+              <th
+                key={key}
+                scope="col"
+                aria-sort={getAriaSort(props.sort, key)}
+                className={cn("px-4 py-3", align === "right" && "text-right")}
+              >
+                <SortableColumnHeader
+                  label={label}
+                  sortKey={key}
+                  sort={props.sort}
+                  align={align}
+                  onSortChange={props.onSortChange}
+                />
+              </th>
+            ))}
             {detailHeaders.map((header) => (
               <th key={header} scope="col" className="px-4 py-3 text-xs font-semibold text-muted">
                 {header}
