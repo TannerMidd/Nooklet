@@ -3,25 +3,39 @@
 import {
   useDeferredValue,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
+  useTransition,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
   LayoutGrid,
+  LoaderCircle,
   Table2,
+  Trash2,
   type LucideIcon,
+  X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
+import {
+  initialRecommendationLibraryActionState,
+  type RecommendationLibraryActionState,
+} from "@/app/(workspace)/recommendation-action-state";
+import { submitRadarrMoviesBulkDeleteAction } from "@/app/(workspace)/radarr-library-actions";
+import { submitSonarrSeriesBulkDeleteAction } from "@/app/(workspace)/sonarr-library-actions";
 import { LibraryItemActions } from "@/components/library/library-item-actions";
 import { MonitoringStatusIcon } from "@/components/library/monitoring-status-icon";
 import { RadarrMovieModal } from "@/components/library/radarr-movie-modal";
 import { SonarrSeasonMonitorModal } from "@/components/library/sonarr-season-monitor-modal";
 import { formatDriveSpaceBytes } from "@/components/recommendations/recommendation-drive-space";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   type RadarrLibraryMovie,
@@ -162,12 +176,22 @@ function formatDiskSize(bytes: number | null) {
   return formatDriveSpaceBytes(bytes) ?? "Unknown";
 }
 
+function getLibraryServiceLabel(serviceType: LibraryServiceType) {
+  return serviceType === "sonarr" ? "Sonarr" : "Radarr";
+}
+
 function getLibraryItemNoun(serviceType: LibraryServiceType, count: number) {
   if (serviceType === "sonarr") {
     return "series";
   }
 
   return count === 1 ? "movie" : "movies";
+}
+
+function getBulkDeleteAction(serviceType: LibraryServiceType) {
+  return serviceType === "sonarr"
+    ? submitSonarrSeriesBulkDeleteAction
+    : submitRadarrMoviesBulkDeleteAction;
 }
 
 export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
@@ -181,6 +205,7 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
     direction: "desc",
   });
   const [selectedTableItemIds, setSelectedTableItemIds] = useState<number[]>([]);
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
 
   const [selectedSonarrSeriesId, setSelectedSonarrSeriesId] = useState<number | null>(null);
   const [modalInitialMode, setModalInitialMode] = useState<"season" | "episode">("season");
@@ -235,6 +260,11 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
   const selectedTableItemIdSet = useMemo(
     () => new Set(selectedTableItemIds),
     [selectedTableItemIds],
+  );
+
+  const selectedTableItems = useMemo(
+    () => items.filter((item) => selectedTableItemIdSet.has(item.id)),
+    [items, selectedTableItemIdSet],
   );
 
   function handleTableSort(nextKey: LibrarySortKey) {
@@ -355,34 +385,42 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
           {emptyLabel}
         </div>
       ) : viewMode === "table" ? (
-        serviceType === "sonarr" ? (
-          <LibraryBrowserTable
-            serviceType="sonarr"
-            items={sortedTableItems as SonarrLibrarySeries[]}
-            returnTo={returnTo}
-            sort={tableSort}
-            selectedItemIds={selectedTableItemIdSet}
-            onSortChange={handleTableSort}
-            onToggleItemSelection={handleToggleTableItemSelection}
-            onToggleVisibleSelection={handleToggleVisibleTableSelection}
-            onOpenItem={(seriesId) => {
-              setModalInitialMode("season");
-              setSelectedSonarrSeriesId(seriesId);
-            }}
+        <div className="space-y-3">
+          <LibraryBulkSelectionToolbar
+            serviceType={serviceType}
+            selectedCount={selectedTableItems.length}
+            onClearSelection={() => setSelectedTableItemIds([])}
+            onOpenDelete={() => setIsBulkDeleteOpen(true)}
           />
-        ) : (
-          <LibraryBrowserTable
-            serviceType="radarr"
-            items={sortedTableItems as RadarrLibraryMovie[]}
-            returnTo={returnTo}
-            sort={tableSort}
-            selectedItemIds={selectedTableItemIdSet}
-            onSortChange={handleTableSort}
-            onToggleItemSelection={handleToggleTableItemSelection}
-            onToggleVisibleSelection={handleToggleVisibleTableSelection}
-            onOpenItem={setSelectedRadarrMovieId}
-          />
-        )
+          {serviceType === "sonarr" ? (
+            <LibraryBrowserTable
+              serviceType="sonarr"
+              items={sortedTableItems as SonarrLibrarySeries[]}
+              returnTo={returnTo}
+              sort={tableSort}
+              selectedItemIds={selectedTableItemIdSet}
+              onSortChange={handleTableSort}
+              onToggleItemSelection={handleToggleTableItemSelection}
+              onToggleVisibleSelection={handleToggleVisibleTableSelection}
+              onOpenItem={(seriesId) => {
+                setModalInitialMode("season");
+                setSelectedSonarrSeriesId(seriesId);
+              }}
+            />
+          ) : (
+            <LibraryBrowserTable
+              serviceType="radarr"
+              items={sortedTableItems as RadarrLibraryMovie[]}
+              returnTo={returnTo}
+              sort={tableSort}
+              selectedItemIds={selectedTableItemIdSet}
+              onSortChange={handleTableSort}
+              onToggleItemSelection={handleToggleTableItemSelection}
+              onToggleVisibleSelection={handleToggleVisibleTableSelection}
+              onOpenItem={setSelectedRadarrMovieId}
+            />
+          )}
+        </div>
       ) : (
         <ul className="grid max-h-[72vh] grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-4 overflow-y-auto pr-2">
           {serviceType === "sonarr"
@@ -446,6 +484,51 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
           );
         })()
       ) : null}
+      {isBulkDeleteOpen && selectedTableItems.length > 0 ? (
+        <BulkDeleteLibraryItemsDialog
+          serviceType={serviceType}
+          items={selectedTableItems}
+          returnTo={returnTo}
+          onClose={() => setIsBulkDeleteOpen(false)}
+          onDeleted={() => setSelectedTableItemIds([])}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function LibraryBulkSelectionToolbar({
+  serviceType,
+  selectedCount,
+  onClearSelection,
+  onOpenDelete,
+}: {
+  serviceType: LibraryServiceType;
+  selectedCount: number;
+  onClearSelection: () => void;
+  onOpenDelete: () => void;
+}) {
+  if (selectedCount === 0) {
+    return null;
+  }
+
+  const itemLabel = getLibraryItemNoun(serviceType, selectedCount);
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line/65 bg-panel-strong/65 px-4 py-3">
+      <p className="text-sm font-medium text-foreground">
+        {selectedCount} {itemLabel} selected
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={onClearSelection}>
+          <X aria-hidden="true" className="h-4 w-4" />
+          <span>Clear</span>
+        </Button>
+        <Button type="button" variant="danger" size="sm" onClick={onOpenDelete}>
+          <Trash2 aria-hidden="true" className="h-4 w-4" />
+          <span>Delete selected</span>
+        </Button>
+      </div>
     </div>
   );
 }
@@ -750,6 +833,165 @@ function LibraryTableRow({
         />
       </td>
     </tr>
+  );
+}
+
+function BulkDeleteLibraryItemsDialog({
+  serviceType,
+  items,
+  returnTo,
+  onClose,
+  onDeleted,
+}: {
+  serviceType: LibraryServiceType;
+  items: LibraryTableItem[];
+  returnTo: string;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const router = useRouter();
+  const dialogTitleId = useId();
+  const checkboxId = useId();
+  const [deleteFiles, setDeleteFiles] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const serviceLabel = getLibraryServiceLabel(serviceType);
+  const itemCount = items.length;
+  const itemLabel = getLibraryItemNoun(serviceType, itemCount);
+  const listedItems = items.slice(0, 6);
+  const remainingItemCount = Math.max(0, itemCount - listedItems.length);
+
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  function handleConfirm() {
+    if (items.length === 0) {
+      return;
+    }
+
+    const formData = new FormData();
+    for (const item of items) {
+      formData.append(serviceType === "sonarr" ? "seriesIds" : "movieIds", String(item.id));
+    }
+    formData.set("deleteFiles", deleteFiles ? "true" : "false");
+    formData.set("returnTo", returnTo);
+    setErrorMessage(null);
+
+    startTransition(async () => {
+      const result: RecommendationLibraryActionState = await getBulkDeleteAction(serviceType)(
+        initialRecommendationLibraryActionState,
+        formData,
+      );
+
+      router.refresh();
+
+      if (result.status === "error") {
+        setErrorMessage(result.message ?? `Failed to delete from ${serviceLabel}.`);
+        return;
+      }
+
+      onDeleted();
+      onClose();
+    });
+  }
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={dialogTitleId}
+      className="fixed inset-0 z-[250] flex items-center justify-center bg-background/80 p-4"
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !isPending) {
+          onClose();
+        }
+      }}
+    >
+      <div className="flex w-full max-w-lg flex-col rounded-xl border border-line/80 bg-panel">
+        <header className="space-y-2 border-b border-line/60 p-6">
+          <p className="font-heading text-sm italic text-accent-wine">
+            Delete from {serviceLabel}
+          </p>
+          <h2
+            id={dialogTitleId}
+            className="font-heading text-xl leading-tight text-foreground"
+          >
+            Delete {itemCount} selected {itemLabel}
+          </h2>
+          <p className="text-sm leading-6 text-muted">
+            This removes the selected {itemLabel} from {serviceLabel}. Choose whether to
+            delete the files on disk too.
+          </p>
+        </header>
+
+        <div className="flex flex-col gap-4 p-6">
+          <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-line/60 bg-background/15 px-4 py-3 text-sm text-foreground">
+            {listedItems.map((item) => (
+              <li key={item.id} className="truncate">
+                {getTitleLabel(item)}
+              </li>
+            ))}
+            {remainingItemCount > 0 ? (
+              <li className="text-muted">{remainingItemCount} more selected</li>
+            ) : null}
+          </ul>
+
+          <label
+            htmlFor={checkboxId}
+            className="flex items-start gap-3 rounded-lg border border-line/60 bg-background/15 px-4 py-3 text-sm leading-6 text-foreground"
+          >
+            <input
+              id={checkboxId}
+              type="checkbox"
+              checked={deleteFiles}
+              onChange={(event) => setDeleteFiles(event.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-line bg-panel text-accent"
+              disabled={isPending}
+            />
+            <span>
+              <span className="block font-medium text-foreground">Delete files from disk</span>
+              <span className="mt-1 block text-muted">
+                When enabled, {serviceLabel} also removes any downloaded files. Leave
+                unchecked to keep your media.
+              </span>
+            </span>
+          </label>
+
+          {errorMessage ? (
+            <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
+              {errorMessage}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col-reverse gap-3 border-t border-line/60 p-6 sm:flex-row sm:items-center sm:justify-end">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={isPending}
+          >
+            <X aria-hidden="true" className="h-4 w-4" />
+            <span>Cancel</span>
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            onClick={handleConfirm}
+            disabled={isPending}
+          >
+            {isPending ? (
+              <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 aria-hidden="true" className="h-4 w-4" />
+            )}
+            <span>{isPending ? "Deleting..." : "Delete selected"}</span>
+          </Button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
