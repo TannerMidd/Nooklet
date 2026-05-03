@@ -13,6 +13,8 @@ import { triggerRadarrMovieSearchSchema } from "@/modules/service-connections/sc
 import { triggerRadarrMovieSearchForUser } from "@/modules/service-connections/workflows/trigger-radarr-movie-search";
 import { deleteRadarrMovieSchema } from "@/modules/service-connections/schemas/delete-radarr-movie";
 import { deleteRadarrMovieForUser } from "@/modules/service-connections/workflows/delete-radarr-movie";
+import { deleteRadarrMovieBulkSchema } from "@/modules/service-connections/schemas/delete-radarr-movie-bulk";
+import { deleteRadarrMovieBulkForUser } from "@/modules/service-connections/workflows/delete-radarr-movie-bulk";
 
 export type RadarrLibraryActionState = RecommendationLibraryActionState;
 
@@ -149,6 +151,40 @@ export async function submitRadarrMovieDeleteAction(
   }
 
   const result = await deleteRadarrMovieForUser(session.user.id, parsedInput.data);
+
+  revalidatePath(safeRevalidatePath(parsedInput.data.returnTo));
+
+  if (!result.ok) {
+    return { status: "error", message: result.message };
+  }
+
+  return { status: "success", message: result.message };
+}
+
+export async function submitRadarrMoviesBulkDeleteAction(
+  _previousState: RadarrLibraryActionState,
+  formData: FormData,
+): Promise<RadarrLibraryActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { status: "error", message: "You need to sign in again." };
+  }
+
+  const parsedInput = deleteRadarrMovieBulkSchema.safeParse({
+    movieIds: formData.getAll("movieIds"),
+    deleteFiles: formData.get("deleteFiles") ?? "false",
+    returnTo: formData.get("returnTo"),
+  });
+
+  if (!parsedInput.success) {
+    return {
+      status: "error",
+      message: "Select at least one Radarr movie to delete.",
+    };
+  }
+
+  const result = await deleteRadarrMovieBulkForUser(session.user.id, parsedInput.data);
 
   revalidatePath(safeRevalidatePath(parsedInput.data.returnTo));
 

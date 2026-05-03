@@ -18,16 +18,21 @@ vi.mock("@/modules/service-connections/workflows/trigger-radarr-movie-search", (
 vi.mock("@/modules/service-connections/workflows/delete-radarr-movie", () => ({
   deleteRadarrMovieForUser: vi.fn(),
 }));
+vi.mock("@/modules/service-connections/workflows/delete-radarr-movie-bulk", () => ({
+  deleteRadarrMovieBulkForUser: vi.fn(),
+}));
 
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
+import { deleteRadarrMovieBulkForUser } from "@/modules/service-connections/workflows/delete-radarr-movie-bulk";
 import { deleteRadarrMovieForUser } from "@/modules/service-connections/workflows/delete-radarr-movie";
 import { triggerRadarrMovieSearchForUser } from "@/modules/service-connections/workflows/trigger-radarr-movie-search";
 import { updateRadarrMovieMonitoringForUser } from "@/modules/service-connections/workflows/update-radarr-movie-monitoring";
 import { updateRadarrMovieQualityProfileForUser } from "@/modules/service-connections/workflows/update-radarr-movie-quality-profile";
 
 import {
+  submitRadarrMoviesBulkDeleteAction,
   submitRadarrMovieDeleteAction,
   submitRadarrMovieMonitoringAction,
   submitRadarrMovieQualityProfileAction,
@@ -39,6 +44,7 @@ const updateMock = vi.mocked(updateRadarrMovieMonitoringForUser);
 const qualityProfileMock = vi.mocked(updateRadarrMovieQualityProfileForUser);
 const searchMock = vi.mocked(triggerRadarrMovieSearchForUser);
 const deleteMock = vi.mocked(deleteRadarrMovieForUser);
+const bulkDeleteMock = vi.mocked(deleteRadarrMovieBulkForUser);
 const revalidateMock = vi.mocked(revalidatePath);
 
 beforeEach(() => {
@@ -271,5 +277,89 @@ describe("submitRadarrMovieDeleteAction", () => {
       validForm(),
     );
     expect(result).toEqual({ status: "error", message: "movie not found" });
+  });
+});
+
+describe("submitRadarrMoviesBulkDeleteAction", () => {
+  function validForm() {
+    const formData = new FormData();
+    formData.append("movieIds", "12");
+    formData.append("movieIds", "13");
+    formData.set("deleteFiles", "true");
+    formData.set("returnTo", "/radarr");
+    return formData;
+  }
+
+  it("returns sign-in error when there is no session", async () => {
+    authMock.mockResolvedValue(null as never);
+
+    const result = await submitRadarrMoviesBulkDeleteAction(
+      { status: "idle" } as never,
+      validForm(),
+    );
+
+    expect(result).toEqual({ status: "error", message: "You need to sign in again." });
+    expect(bulkDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a validation error when no movies are selected", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    const formData = new FormData();
+    formData.set("returnTo", "/radarr");
+
+    const result = await submitRadarrMoviesBulkDeleteAction(
+      { status: "idle" } as never,
+      formData,
+    );
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Select at least one Radarr movie to delete.",
+    });
+    expect(bulkDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("forwards selected movie ids and revalidates the return path on success", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    bulkDeleteMock.mockResolvedValue({
+      ok: true,
+      deletedCount: 2,
+      message: "Removed 2 Radarr movies; files were kept on disk.",
+    } as never);
+
+    const result = await submitRadarrMoviesBulkDeleteAction(
+      { status: "idle" } as never,
+      validForm(),
+    );
+
+    expect(bulkDeleteMock).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({ movieIds: [12, 13], deleteFiles: true }),
+    );
+    expect(result).toEqual({
+      status: "success",
+      message: "Removed 2 Radarr movies; files were kept on disk.",
+    });
+    expect(revalidateMock).toHaveBeenCalledWith("/radarr");
+  });
+
+  it("forwards workflow failure messages", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    bulkDeleteMock.mockResolvedValue({
+      ok: false,
+      deletedCount: 1,
+      failedCount: 1,
+      message: "Deleted 1 of 2 Radarr movies. 1 failed; first error for movie 13: Radarr offline",
+    } as never);
+
+    const result = await submitRadarrMoviesBulkDeleteAction(
+      { status: "idle" } as never,
+      validForm(),
+    );
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Deleted 1 of 2 Radarr movies. 1 failed; first error for movie 13: Radarr offline",
+    });
   });
 });

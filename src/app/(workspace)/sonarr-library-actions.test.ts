@@ -24,6 +24,9 @@ vi.mock("@/modules/service-connections/workflows/trigger-sonarr-series-search", 
 vi.mock("@/modules/service-connections/workflows/delete-sonarr-series", () => ({
   deleteSonarrSeriesForUser: vi.fn(),
 }));
+vi.mock("@/modules/service-connections/workflows/delete-sonarr-series-bulk", () => ({
+  deleteSonarrSeriesBulkForUser: vi.fn(),
+}));
 vi.mock("@/modules/service-connections/workflows/list-sonarr-series-episodes-for-user", () => ({
   listSonarrSeriesEpisodesForUser: vi.fn(),
 }));
@@ -31,6 +34,7 @@ vi.mock("@/modules/service-connections/workflows/list-sonarr-series-episodes-for
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
+import { deleteSonarrSeriesBulkForUser } from "@/modules/service-connections/workflows/delete-sonarr-series-bulk";
 import { deleteSonarrSeriesForUser } from "@/modules/service-connections/workflows/delete-sonarr-series";
 import { listSonarrSeriesEpisodesForUser } from "@/modules/service-connections/workflows/list-sonarr-series-episodes-for-user";
 import { triggerSonarrSeriesSearchForUser } from "@/modules/service-connections/workflows/trigger-sonarr-series-search";
@@ -41,6 +45,7 @@ import { updateSonarrSeriesSeasonMonitoringForUser } from "@/modules/service-con
 
 import {
   loadSonarrSeriesEpisodesForLibraryAction,
+  submitSonarrSeriesBulkDeleteAction,
   submitSonarrSeriesDeleteAction,
   submitSonarrSeriesEpisodeMonitoringAction,
   submitSonarrSeriesMonitoringAction,
@@ -56,6 +61,7 @@ const seriesMock = vi.mocked(updateSonarrSeriesMonitoringForUser);
 const qualityProfileMock = vi.mocked(updateSonarrSeriesQualityProfileForUser);
 const searchMock = vi.mocked(triggerSonarrSeriesSearchForUser);
 const deleteMock = vi.mocked(deleteSonarrSeriesForUser);
+const bulkDeleteMock = vi.mocked(deleteSonarrSeriesBulkForUser);
 const listMock = vi.mocked(listSonarrSeriesEpisodesForUser);
 const revalidateMock = vi.mocked(revalidatePath);
 
@@ -390,5 +396,89 @@ describe("submitSonarrSeriesDeleteAction", () => {
     );
     expect(result).toEqual({ status: "success", message: "Deleted." });
     expect(revalidateMock).toHaveBeenCalledWith("/sonarr");
+  });
+});
+
+describe("submitSonarrSeriesBulkDeleteAction", () => {
+  function validForm() {
+    const formData = new FormData();
+    formData.append("seriesIds", "7");
+    formData.append("seriesIds", "8");
+    formData.set("deleteFiles", "true");
+    formData.set("returnTo", "/sonarr");
+    return formData;
+  }
+
+  it("returns sign-in error when there is no session", async () => {
+    authMock.mockResolvedValue(null as never);
+
+    const result = await submitSonarrSeriesBulkDeleteAction(
+      { status: "idle" } as never,
+      validForm(),
+    );
+
+    expect(result).toEqual({ status: "error", message: "You need to sign in again." });
+    expect(bulkDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a validation error when no series are selected", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    const formData = new FormData();
+    formData.set("returnTo", "/sonarr");
+
+    const result = await submitSonarrSeriesBulkDeleteAction(
+      { status: "idle" } as never,
+      formData,
+    );
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Select at least one Sonarr series to delete.",
+    });
+    expect(bulkDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("forwards selected series ids and revalidates the return path on success", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    bulkDeleteMock.mockResolvedValue({
+      ok: true,
+      deletedCount: 2,
+      message: "Removed 2 series from Sonarr; files were kept on disk.",
+    } as never);
+
+    const result = await submitSonarrSeriesBulkDeleteAction(
+      { status: "idle" } as never,
+      validForm(),
+    );
+
+    expect(bulkDeleteMock).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({ seriesIds: [7, 8], deleteFiles: true }),
+    );
+    expect(result).toEqual({
+      status: "success",
+      message: "Removed 2 series from Sonarr; files were kept on disk.",
+    });
+    expect(revalidateMock).toHaveBeenCalledWith("/sonarr");
+  });
+
+  it("forwards workflow failure messages", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    bulkDeleteMock.mockResolvedValue({
+      ok: false,
+      deletedCount: 1,
+      failedCount: 1,
+      message: "Deleted 1 of 2 Sonarr series. 1 failed; first error for series 8: Sonarr offline",
+    } as never);
+
+    const result = await submitSonarrSeriesBulkDeleteAction(
+      { status: "idle" } as never,
+      validForm(),
+    );
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Deleted 1 of 2 Sonarr series. 1 failed; first error for series 8: Sonarr offline",
+    });
   });
 });
