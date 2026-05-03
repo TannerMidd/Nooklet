@@ -1,12 +1,19 @@
 "use client";
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import {
+  LayoutGrid,
+  Table2,
+  type LucideIcon,
+} from "lucide-react";
 
 import { LibraryItemActions } from "@/components/library/library-item-actions";
 import { MonitoringStatusIcon } from "@/components/library/monitoring-status-icon";
 import { RadarrMovieModal } from "@/components/library/radarr-movie-modal";
 import { SonarrSeasonMonitorModal } from "@/components/library/sonarr-season-monitor-modal";
+import { formatDriveSpaceBytes } from "@/components/recommendations/recommendation-drive-space";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
+import { cn } from "@/lib/utils";
 import {
   type RadarrLibraryMovie,
   type SonarrLibrarySeries,
@@ -37,6 +44,17 @@ type LibraryBrowserGridProps =
   | SonarrLibraryBrowserGridProps
   | RadarrLibraryBrowserGridProps;
 
+type LibraryViewMode = "grid" | "table";
+
+const libraryViewOptions: Array<{
+  mode: LibraryViewMode;
+  label: string;
+  Icon: LucideIcon;
+}> = [
+  { mode: "grid", label: "Grid view", Icon: LayoutGrid },
+  { mode: "table", label: "Table view", Icon: Table2 },
+];
+
 function normalizeFilterToken(value: string) {
   return value.trim().toLowerCase();
 }
@@ -53,11 +71,20 @@ function matchesFilter(
   return haystack.includes(needle);
 }
 
+function getTitleLabel(item: { title: string; year: number | null }) {
+  return item.year ? `${item.title} (${item.year})` : item.title;
+}
+
+function formatDiskSize(bytes: number | null) {
+  return formatDriveSpaceBytes(bytes) ?? "Unknown";
+}
+
 export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
   const { serviceType, items, returnTo, qualityProfiles } = props;
   const [filter, setFilter] = useState("");
   const deferredFilter = useDeferredValue(filter);
   const needle = normalizeFilterToken(deferredFilter);
+  const [viewMode, setViewMode] = useState<LibraryViewMode>("grid");
 
   const [selectedSonarrSeriesId, setSelectedSonarrSeriesId] = useState<number | null>(null);
   const [modalInitialMode, setModalInitialMode] = useState<"season" | "episode">("season");
@@ -137,11 +164,37 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
             className="w-full rounded-lg border border-line/75 bg-background/25 px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted/75 focus:border-accent/55 focus:ring-1 focus:ring-accent/25"
           />
         </label>
-        <p className="text-xs text-muted">
-          {needle.length > 0
-            ? `${filteredCount} of ${totalCount} shown`
-            : `${totalCount} total`}
-        </p>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <p className="text-xs text-muted">
+            {needle.length > 0
+              ? `${filteredCount} of ${totalCount} shown`
+              : `${totalCount} total`}
+          </p>
+          <div
+            role="group"
+            aria-label="Library display"
+            className="inline-grid grid-flow-col gap-1 rounded-lg border border-line/65 bg-background/20 p-1"
+          >
+            {libraryViewOptions.map(({ mode, label, Icon }) => (
+              <button
+                key={mode}
+                type="button"
+                aria-label={label}
+                title={label}
+                aria-pressed={viewMode === mode}
+                onClick={() => setViewMode(mode)}
+                className={cn(
+                  "inline-flex h-9 w-9 items-center justify-center rounded-md transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50",
+                  viewMode === mode
+                    ? "nooklet-tab--active text-accent-foreground"
+                    : "text-muted hover:bg-panel-strong/45 hover:text-foreground",
+                )}
+              >
+                <Icon aria-hidden="true" className="h-4 w-4" />
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {totalCount === 0 ? (
@@ -152,6 +205,23 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
         <div className="rounded-lg border border-line/60 bg-background/15 px-6 py-10 text-center text-sm text-muted">
           {emptyLabel}
         </div>
+      ) : viewMode === "table" ? (
+        serviceType === "sonarr" ? (
+          <LibraryBrowserTable
+            serviceType="sonarr"
+            items={filteredItems as SonarrLibrarySeries[]}
+            onOpenItem={(seriesId) => {
+              setModalInitialMode("season");
+              setSelectedSonarrSeriesId(seriesId);
+            }}
+          />
+        ) : (
+          <LibraryBrowserTable
+            serviceType="radarr"
+            items={filteredItems as RadarrLibraryMovie[]}
+            onOpenItem={setSelectedRadarrMovieId}
+          />
+        )
       ) : (
         <ul className="grid max-h-[72vh] grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-4 overflow-y-auto pr-2">
           {serviceType === "sonarr"
@@ -216,6 +286,146 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
         })()
       ) : null}
     </div>
+  );
+}
+
+type LibraryBrowserTableProps =
+  | {
+      serviceType: "sonarr";
+      items: SonarrLibrarySeries[];
+      onOpenItem: (seriesId: number) => void;
+    }
+  | {
+      serviceType: "radarr";
+      items: RadarrLibraryMovie[];
+      onOpenItem: (movieId: number) => void;
+    };
+
+function LibraryBrowserTable(props: LibraryBrowserTableProps) {
+  const detailHeaders =
+    props.serviceType === "sonarr"
+      ? ["Episodes", "Seasons", "Monitoring"]
+      : ["File", "Monitoring", "Status"];
+
+  return (
+    <div className="max-h-[72vh] overflow-auto rounded-lg border border-line/65 bg-background/10">
+      <table className="w-full min-w-[64rem] border-collapse text-left text-sm">
+        <thead className="sticky top-0 z-10 border-b border-line/65 bg-panel-strong/95 backdrop-blur">
+          <tr>
+            <th scope="col" className="px-4 py-3 text-xs font-semibold text-muted">Title</th>
+            <th scope="col" className="px-4 py-3 text-xs font-semibold text-muted">Year</th>
+            <th scope="col" className="px-4 py-3 text-right text-xs font-semibold text-muted">
+              Size on disk
+            </th>
+            {detailHeaders.map((header) => (
+              <th key={header} scope="col" className="px-4 py-3 text-xs font-semibold text-muted">
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-line/50">
+          {props.serviceType === "sonarr"
+            ? props.items.map((series) => (
+                <LibraryTableRow
+                  key={series.id}
+                  serviceType="sonarr"
+                  item={series}
+                  onOpen={() => props.onOpenItem(series.id)}
+                />
+              ))
+            : props.items.map((movie) => (
+                <LibraryTableRow
+                  key={movie.id}
+                  serviceType="radarr"
+                  item={movie}
+                  onOpen={() => props.onOpenItem(movie.id)}
+                />
+              ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function LibraryTableTitleCell({
+  title,
+  subtitle,
+  onOpen,
+}: {
+  title: string;
+  subtitle: string | null;
+  onOpen: () => void;
+}) {
+  return (
+    <td className="px-4 py-3 align-middle">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="max-w-[24rem] text-left font-heading text-sm leading-tight text-foreground transition hover:text-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
+      >
+        <span className="block truncate">{title}</span>
+      </button>
+      {subtitle ? (
+        <span className="mt-1 block max-w-[24rem] truncate text-xs text-muted">
+          {subtitle}
+        </span>
+      ) : null}
+    </td>
+  );
+}
+
+function LibraryTableRow({
+  serviceType,
+  item,
+  onOpen,
+}:
+  | { serviceType: "sonarr"; item: SonarrLibrarySeries; onOpen: () => void }
+  | { serviceType: "radarr"; item: RadarrLibraryMovie; onOpen: () => void }) {
+  const titleLabel = getTitleLabel(item);
+
+  return (
+    <tr className="transition hover:bg-panel-strong/35">
+      <LibraryTableTitleCell
+        title={titleLabel}
+        subtitle={serviceType === "sonarr" ? item.network : item.studio}
+        onOpen={onOpen}
+      />
+      <td className="px-4 py-3 align-middle text-muted">{item.year ?? "Unknown"}</td>
+      <td className="px-4 py-3 text-right align-middle font-medium tabular-nums text-foreground">
+        {formatDiskSize(item.sizeOnDiskBytes)}
+      </td>
+      {serviceType === "sonarr" ? (
+        <>
+          <td className="px-4 py-3 align-middle text-foreground">
+            {item.episodeCount > 0
+              ? `${item.episodeFileCount}/${item.episodeCount}`
+              : "Unknown"}
+          </td>
+          <td className="px-4 py-3 align-middle text-foreground">
+            {item.monitoredSeasonCount}/{item.totalSeasonCount}
+          </td>
+        </>
+      ) : (
+        <td className="px-4 py-3 align-middle">
+          <span
+            className={
+              item.hasFile
+                ? "inline-flex items-center rounded-md border border-accent-cool/35 bg-accent-cool/10 px-2 py-0.5 text-[0.65rem] font-medium text-accent-cool"
+                : "inline-flex items-center rounded-md border border-highlight/30 bg-highlight/10 px-2 py-0.5 text-[0.65rem] font-medium text-highlight"
+            }
+          >
+            {item.hasFile ? "On disk" : "Missing"}
+          </span>
+        </td>
+      )}
+      <td className="px-4 py-3 align-middle">
+        <MonitoringStatusIcon monitored={item.monitored} />
+      </td>
+      {serviceType === "radarr" ? (
+        <td className="px-4 py-3 align-middle text-muted">{item.status ?? "Unknown"}</td>
+      ) : null}
+    </tr>
   );
 }
 
