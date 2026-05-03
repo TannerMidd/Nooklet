@@ -56,6 +56,12 @@ function compareByTitle<T extends { sortTitle: string; title: string }>(left: T,
   );
 }
 
+function readByteCount(value: unknown): number | null {
+  const byteCount = readInteger(value);
+
+  return byteCount !== null && byteCount >= 0 ? byteCount : null;
+}
+
 function normalizeSonarrSeasonSummary(value: unknown): SonarrLibrarySeasonSummary | null {
   if (typeof value !== "object" || value === null) {
     return null;
@@ -122,6 +128,7 @@ function normalizeSonarrSeries(baseUrl: string, value: unknown): SonarrLibrarySe
       .length,
     episodeCount: readInteger(statistics?.episodeCount) ?? 0,
     episodeFileCount: readInteger(statistics?.episodeFileCount) ?? 0,
+    sizeOnDiskBytes: readByteCount(statistics?.sizeOnDisk),
     seasons,
   };
 }
@@ -151,6 +158,7 @@ function normalizeRadarrMovie(baseUrl: string, value: unknown): RadarrLibraryMov
     monitored: readBoolean(record.monitored),
     status: readString(record.status),
     hasFile: readBoolean(record.hasFile),
+    sizeOnDiskBytes: readByteCount(record.sizeOnDisk),
     posterUrl: extractArrPosterUrl(baseUrl, record.images),
     studio: readString(record.studio),
   };

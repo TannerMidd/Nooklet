@@ -45,7 +45,7 @@ describe("listSonarrLibrarySeries", () => {
           status: "ended",
           network: "Amazon",
           images: [{ coverType: "poster", url: "/MediaCover/12/poster.jpg" }],
-          statistics: { episodeCount: 60, episodeFileCount: 60 },
+          statistics: { episodeCount: 60, episodeFileCount: 60, sizeOnDisk: 64424509440 },
           seasons: [
             { seasonNumber: 0, monitored: false, statistics: { episodeCount: 2, episodeFileCount: 1 } },
             { seasonNumber: 1, monitored: true, statistics: { episodeCount: 10, episodeFileCount: 10 } },
@@ -81,6 +81,7 @@ describe("listSonarrLibrarySeries", () => {
       monitoredSeasonCount: 1,
       episodeCount: 60,
       episodeFileCount: 60,
+      sizeOnDiskBytes: 64424509440,
     });
     expect(result.items[0].seasons.map((season) => season.seasonNumber)).toEqual([0, 1, 2]);
   });
@@ -113,6 +114,7 @@ describe("listRadarrLibraryMovies", () => {
           monitored: true,
           status: "released",
           hasFile: true,
+          sizeOnDisk: 12884901888,
           studio: "Paramount",
           images: [{ coverType: "poster", remoteUrl: "https://image.tmdb.org/poster.jpg" }],
         },
@@ -141,6 +143,7 @@ describe("listRadarrLibraryMovies", () => {
         monitored: true,
         status: "released",
         hasFile: true,
+        sizeOnDiskBytes: 12884901888,
         studio: "Paramount",
         posterUrl: "https://image.tmdb.org/poster.jpg",
       },

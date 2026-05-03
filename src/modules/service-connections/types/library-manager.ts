@@ -46,6 +46,7 @@ export type SonarrLibrarySeries = {
   monitoredSeasonCount: number;
   episodeCount: number;
   episodeFileCount: number;
+  sizeOnDiskBytes: number | null;
   seasons: SonarrLibrarySeasonSummary[];
 };
 
@@ -59,6 +60,7 @@ export type RadarrLibraryMovie = {
   monitored: boolean;
   status: string | null;
   hasFile: boolean;
+  sizeOnDiskBytes: number | null;
   posterUrl: string | null;
   studio: string | null;
 };
