@@ -428,7 +428,7 @@ function DeleteLibraryItemDialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby={dialogTitleId}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4"
+      className="fixed inset-0 z-[250] flex items-center justify-center bg-background/80 p-4"
       onClick={(event) => {
         if (event.target === event.currentTarget && !isPending) {
           onClose();

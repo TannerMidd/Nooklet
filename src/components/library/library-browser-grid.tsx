@@ -311,6 +311,7 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
           <LibraryBrowserTable
             serviceType="sonarr"
             items={sortedTableItems as SonarrLibrarySeries[]}
+            returnTo={returnTo}
             sort={tableSort}
             onSortChange={handleTableSort}
             onOpenItem={(seriesId) => {
@@ -322,6 +323,7 @@ export function LibraryBrowserGrid(props: LibraryBrowserGridProps) {
           <LibraryBrowserTable
             serviceType="radarr"
             items={sortedTableItems as RadarrLibraryMovie[]}
+            returnTo={returnTo}
             sort={tableSort}
             onSortChange={handleTableSort}
             onOpenItem={setSelectedRadarrMovieId}
@@ -398,6 +400,7 @@ type LibraryBrowserTableProps =
   | {
       serviceType: "sonarr";
       items: SonarrLibrarySeries[];
+      returnTo: string;
       sort: LibrarySortState;
       onSortChange: (key: LibrarySortKey) => void;
       onOpenItem: (seriesId: number) => void;
@@ -405,6 +408,7 @@ type LibraryBrowserTableProps =
   | {
       serviceType: "radarr";
       items: RadarrLibraryMovie[];
+      returnTo: string;
       sort: LibrarySortState;
       onSortChange: (key: LibrarySortKey) => void;
       onOpenItem: (movieId: number) => void;
@@ -485,6 +489,9 @@ function LibraryBrowserTable(props: LibraryBrowserTableProps) {
                 {header}
               </th>
             ))}
+            <th scope="col" className="px-4 py-3 text-right text-xs font-semibold text-muted">
+              Actions
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-line/50">
@@ -494,6 +501,7 @@ function LibraryBrowserTable(props: LibraryBrowserTableProps) {
                   key={series.id}
                   serviceType="sonarr"
                   item={series}
+                  returnTo={props.returnTo}
                   onOpen={() => props.onOpenItem(series.id)}
                 />
               ))
@@ -502,6 +510,7 @@ function LibraryBrowserTable(props: LibraryBrowserTableProps) {
                   key={movie.id}
                   serviceType="radarr"
                   item={movie}
+                  returnTo={props.returnTo}
                   onOpen={() => props.onOpenItem(movie.id)}
                 />
               ))}
@@ -541,10 +550,11 @@ function LibraryTableTitleCell({
 function LibraryTableRow({
   serviceType,
   item,
+  returnTo,
   onOpen,
 }:
-  | { serviceType: "sonarr"; item: SonarrLibrarySeries; onOpen: () => void }
-  | { serviceType: "radarr"; item: RadarrLibraryMovie; onOpen: () => void }) {
+  | { serviceType: "sonarr"; item: SonarrLibrarySeries; returnTo: string; onOpen: () => void }
+  | { serviceType: "radarr"; item: RadarrLibraryMovie; returnTo: string; onOpen: () => void }) {
   const titleLabel = getTitleLabel(item);
 
   return (
@@ -588,6 +598,19 @@ function LibraryTableRow({
       {serviceType === "radarr" ? (
         <td className="px-4 py-3 align-middle text-muted">{item.status ?? "Unknown"}</td>
       ) : null}
+      <td className="px-4 py-3 align-middle">
+        <LibraryItemActions
+          target={
+            serviceType === "sonarr"
+              ? { serviceType: "sonarr", seriesId: item.id }
+              : { serviceType: "radarr", movieId: item.id }
+          }
+          monitored={item.monitored}
+          itemTitle={titleLabel}
+          returnTo={returnTo}
+          className="flex flex-nowrap items-center justify-end gap-2"
+        />
+      </td>
     </tr>
   );
 }
