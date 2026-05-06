@@ -8,61 +8,156 @@ import {
   queueIndexerResultWorkflow,
   QueueIndexerResultWorkflowError,
 } from "@/modules/downloads/workflows/queue-indexer-result";
-import { searchIndexersInputSchema, searchIndexersWorkflow } from "@/modules/indexers/workflows/search-indexers";
+import { searchDiscoverTitlesInputSchema } from "@/modules/discover/schemas/title-search";
+import { searchDiscoverTitles } from "@/modules/discover/queries/search-discover-titles";
+import { RequestMediaTitleCommandError } from "@/modules/media-library/commands/request-media-title";
 import {
-  initialIndexerSearchActionState,
+  requestTitleWithReleaseSearchInputSchema,
+  requestTitleWithReleaseSearchWorkflow,
+} from "@/modules/media-library/workflows/request-title-with-release-search";
+import {
   initialQueueIndexerResultActionState,
-  type IndexerSearchActionState,
+  initialRequestSearchTitleActionState,
+  initialTitleSearchActionState,
   type QueueIndexerResultActionState,
+  type RequestSearchTitleActionState,
+  type SearchResultView,
+  type TitleSearchActionState,
 } from "./action-state";
 
-export async function searchIndexersAction(
-  _previous: IndexerSearchActionState,
+function mapSearchResults(results: Array<{
+  id: string;
+  title: string;
+  mediaType: "movie" | "tv";
+  qualityLabel: string | null;
+  sizeBytes: number | null;
+  publishedAt: Date | null;
+  seeders: number | null;
+  leechers: number | null;
+  grabs: number | null;
+}>): SearchResultView[] {
+  return results.map((result) => ({
+    id: result.id,
+    title: result.title,
+    mediaType: result.mediaType,
+    qualityLabel: result.qualityLabel,
+    sizeBytes: result.sizeBytes,
+    publishedAt: result.publishedAt?.toISOString() ?? null,
+    seeders: result.seeders,
+    leechers: result.leechers,
+    grabs: result.grabs,
+  }));
+}
+
+export async function searchTitlesAction(
+  _previous: TitleSearchActionState,
   formData: FormData,
-): Promise<IndexerSearchActionState> {
+): Promise<TitleSearchActionState> {
   const session = await auth();
 
   if (!session?.user?.id) {
-    return { ...initialIndexerSearchActionState, status: "error", message: "You need to sign in again." };
+    return { ...initialTitleSearchActionState, status: "error", message: "You need to sign in again." };
   }
 
-  const parsed = searchIndexersInputSchema.safeParse({
+  const parsed = searchDiscoverTitlesInputSchema.safeParse({
     mediaType: formData.get("mediaType"),
     query: formData.get("query"),
   });
 
   if (!parsed.success) {
     const firstIssue = parsed.error.issues[0]?.message ?? "Review the search and try again.";
-    return { ...initialIndexerSearchActionState, status: "error", message: firstIssue };
+    return { ...initialTitleSearchActionState, status: "error", message: firstIssue };
   }
 
-  const search = await searchIndexersWorkflow(session.user.id, parsed.data);
+  const search = await searchDiscoverTitles(session.user.id, parsed.data);
 
-  if (search.searchRun.status === "failed") {
-    return {
-      ...initialIndexerSearchActionState,
-      status: "error",
-      message: search.searchRun.errorMessage ?? "Indexer search failed.",
-      searchRunId: search.searchRun.id,
-    };
+  if (!search.ok) {
+    return { ...initialTitleSearchActionState, status: "error", message: search.message };
   }
 
   return {
     status: "success",
-    message: `${search.results.length} result${search.results.length === 1 ? "" : "s"} found.`,
-    searchRunId: search.searchRun.id,
-    results: search.results.map((result) => ({
-      id: result.id,
-      title: result.title,
-      mediaType: result.mediaType,
-      qualityLabel: result.qualityLabel,
-      sizeBytes: result.sizeBytes,
-      publishedAt: result.publishedAt?.toISOString() ?? null,
-      seeders: result.seeders,
-      leechers: result.leechers,
-      grabs: result.grabs,
-    })),
+    message: `${search.titles.length} title${search.titles.length === 1 ? "" : "s"} found.`,
+    results: search.titles,
   };
+}
+
+export async function requestSearchTitleAction(
+  _previous: RequestSearchTitleActionState,
+  formData: FormData,
+): Promise<RequestSearchTitleActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { ...initialRequestSearchTitleActionState, status: "error", message: "You need to sign in again." };
+  }
+
+  const downloadNow = formData.get("downloadNow") === "on";
+  const parsed = requestTitleWithReleaseSearchInputSchema.safeParse({
+    mediaType: formData.get("mediaType"),
+    libraryId: formData.get("libraryId"),
+    tmdbId: formData.get("tmdbId"),
+    title: formData.get("title"),
+    year: formData.get("year"),
+    monitored: formData.get("monitored") === "on",
+    qualityProfile: formData.get("qualityProfile"),
+    overview: formData.get("overview"),
+    posterUrl: formData.get("posterUrl"),
+    backdropUrl: formData.get("backdropUrl"),
+    runtimeMinutes: formData.get("runtimeMinutes"),
+    originalLanguage: formData.get("originalLanguage"),
+    downloadNow,
+  });
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]?.message ?? "Review the title options and try again.";
+    return { ...initialRequestSearchTitleActionState, status: "error", message: firstIssue };
+  }
+
+  try {
+    const requested = await requestTitleWithReleaseSearchWorkflow(session.user.id, parsed.data);
+
+    revalidatePath("/library");
+    revalidatePath(parsed.data.mediaType === "tv" ? "/library/tv" : "/library/movies");
+
+    if (!requested.releaseSearch.searched) {
+      return {
+        status: "success",
+        message: "Added to your library.",
+        titleId: requested.title.id,
+        searchRunId: null,
+        results: [],
+      };
+    }
+
+    if (requested.releaseSearch.searchRun.status === "failed") {
+      return {
+        status: "success",
+        message: requested.releaseSearch.searchRun.errorMessage ?? "Added to your library, but release search failed.",
+        titleId: requested.title.id,
+        searchRunId: requested.releaseSearch.searchRun.id,
+        results: [],
+      };
+    }
+
+    return {
+      status: "success",
+      message: `${requested.releaseSearch.results.length} release${requested.releaseSearch.results.length === 1 ? "" : "s"} found for ${parsed.data.title}.`,
+      titleId: requested.title.id,
+      searchRunId: requested.releaseSearch.searchRun.id,
+      results: mapSearchResults(requested.releaseSearch.results),
+    };
+  } catch (error) {
+    if (error instanceof RequestMediaTitleCommandError) {
+      return { ...initialRequestSearchTitleActionState, status: "error", message: error.message };
+    }
+
+    return {
+      ...initialRequestSearchTitleActionState,
+      status: "error",
+      message: "Nooklet could not add that title.",
+    };
+  }
 }
 
 export async function queueIndexerResultAction(

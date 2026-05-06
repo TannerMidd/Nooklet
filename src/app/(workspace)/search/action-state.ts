@@ -10,16 +10,43 @@ export type SearchResultView = {
   grabs: number | null;
 };
 
-export type IndexerSearchActionState = {
+export type TitleSearchResultView = {
+  tmdbId: number;
+  mediaType: "movie" | "tv";
+  title: string;
+  year: number | null;
+  overview: string | null;
+  posterUrl: string | null;
+  backdropUrl: string | null;
+  releaseDate: string | null;
+  originalLanguage: string | null;
+  voteAverage: number | null;
+};
+
+export type TitleSearchActionState = {
   status: "idle" | "success" | "error";
   message: string | null;
+  results: TitleSearchResultView[];
+};
+
+export const initialTitleSearchActionState: TitleSearchActionState = {
+  status: "idle",
+  message: null,
+  results: [],
+};
+
+export type RequestSearchTitleActionState = {
+  status: "idle" | "success" | "error";
+  message: string | null;
+  titleId: string | null;
   searchRunId: string | null;
   results: SearchResultView[];
 };
 
-export const initialIndexerSearchActionState: IndexerSearchActionState = {
+export const initialRequestSearchTitleActionState: RequestSearchTitleActionState = {
   status: "idle",
   message: null,
+  titleId: null,
   searchRunId: null,
   results: [],
 };
