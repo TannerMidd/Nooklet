@@ -24,6 +24,10 @@ export type MediaLibraryPathRecord = typeof mediaLibraryPaths.$inferSelect;
 export type MediaTitleRecord = typeof mediaTitles.$inferSelect;
 export type MediaFileRecord = typeof mediaFiles.$inferSelect;
 export type MediaScanRunRecord = typeof mediaScanRuns.$inferSelect;
+export type ActiveMediaLibraryPathRecord = {
+  library: MediaLibraryRecord;
+  path: MediaLibraryPathRecord;
+};
 
 export async function createMediaLibrary(input: {
   userId: string;
@@ -103,6 +107,27 @@ export async function findMediaLibraryPathByUserPath(userId: string, path: strin
     .from(mediaLibraryPaths)
     .where(and(eq(mediaLibraryPaths.userId, userId), eq(mediaLibraryPaths.path, path)))
     .get() ?? null;
+}
+
+export async function listActiveMediaLibraryPaths(userId: string): Promise<ActiveMediaLibraryPathRecord[]> {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({ library: mediaLibraries, path: mediaLibraryPaths })
+    .from(mediaLibraryPaths)
+    .innerJoin(mediaLibraries, eq(mediaLibraries.id, mediaLibraryPaths.libraryId))
+    .where(and(eq(mediaLibraryPaths.userId, userId), eq(mediaLibraryPaths.status, "active")))
+    .all();
+}
+
+export async function markMediaLibraryPathScanned(pathId: string, scannedAt: Date = new Date()) {
+  const database = ensureDatabaseReady();
+
+  database
+    .update(mediaLibraryPaths)
+    .set({ lastScannedAt: scannedAt, updatedAt: scannedAt })
+    .where(eq(mediaLibraryPaths.id, pathId))
+    .run();
 }
 
 export async function upsertMediaTitle(input: {
@@ -318,6 +343,70 @@ export async function recordMediaFile(input: {
     .run();
 
   return database.select().from(mediaFiles).where(eq(mediaFiles.id, id)).get()!;
+}
+
+export async function upsertMediaFile(input: {
+  userId: string;
+  titleId: string;
+  libraryPathId?: string | null;
+  seasonId?: string | null;
+  episodeId?: string | null;
+  mediaType: RecommendationMediaType;
+  fileKind: MediaFileKind;
+  filePath: string;
+  relativePath: string;
+  sizeBytes?: number | null;
+  modifiedAt?: Date | null;
+  qualityLabel?: string | null;
+  releaseGroup?: string | null;
+}) {
+  const database = ensureDatabaseReady();
+  const id = randomUUID();
+  const values = {
+    id,
+    userId: input.userId,
+    titleId: input.titleId,
+    libraryPathId: input.libraryPathId ?? null,
+    seasonId: input.seasonId ?? null,
+    episodeId: input.episodeId ?? null,
+    mediaType: input.mediaType,
+    fileKind: input.fileKind,
+    filePath: input.filePath,
+    relativePath: input.relativePath,
+    sizeBytes: input.sizeBytes ?? null,
+    modifiedAt: input.modifiedAt ?? null,
+    qualityLabel: input.qualityLabel ?? null,
+    releaseGroup: input.releaseGroup ?? null,
+    updatedAt: new Date(),
+  };
+
+  database
+    .insert(mediaFiles)
+    .values(values)
+    .onConflictDoUpdate({
+      target: [mediaFiles.userId, mediaFiles.filePath],
+      set: {
+        titleId: values.titleId,
+        libraryPathId: values.libraryPathId,
+        seasonId: values.seasonId,
+        episodeId: values.episodeId,
+        mediaType: values.mediaType,
+        fileKind: values.fileKind,
+        relativePath: values.relativePath,
+        sizeBytes: values.sizeBytes,
+        modifiedAt: values.modifiedAt,
+        qualityLabel: values.qualityLabel,
+        releaseGroup: values.releaseGroup,
+        updatedAt: values.updatedAt,
+      },
+    })
+    .run();
+
+  return database
+    .select()
+    .from(mediaFiles)
+    .where(and(eq(mediaFiles.userId, input.userId), eq(mediaFiles.filePath, input.filePath)))
+    .get()!;
 }
 
 export async function createMediaScanRun(input: {

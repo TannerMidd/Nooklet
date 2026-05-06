@@ -19,8 +19,11 @@ import {
   createTvEpisode,
   createTvSeason,
   findMediaTitleByNormalizedKey,
+  listActiveMediaLibraryPaths,
+  markMediaLibraryPathScanned,
   recordMediaFile,
   setMediaTitleExternalIds,
+  upsertMediaFile,
   upsertMediaTitle,
 } from "./media-library-repository";
 
@@ -115,6 +118,22 @@ describe("media-library-repository", () => {
       qualityLabel: "WEB-1080p",
       releaseGroup: "Nooklet",
     });
+    const upsertedFile = await upsertMediaFile({
+      userId,
+      titleId: title.id,
+      libraryPathId: libraryPath.id,
+      seasonId: season.id,
+      episodeId: episode.id,
+      mediaType: "tv",
+      fileKind: "episode",
+      filePath: "F:/Media/TV/Severance/Season 01/Severance S01E01.mkv",
+      relativePath: "Severance/Season 01/Severance S01E01.mkv",
+      sizeBytes: 1_600_000_000,
+      modifiedAt: new Date("2026-05-06T12:30:00Z"),
+      qualityLabel: "WEB-1080p",
+      releaseGroup: "Nooklet",
+    });
+    const activePaths = await listActiveMediaLibraryPaths(userId);
     const scanRun = await createMediaScanRun({
       userId,
       libraryId: library.id,
@@ -128,6 +147,7 @@ describe("media-library-repository", () => {
       matchedTitleCount: 1,
       completedAt: new Date("2026-05-06T12:01:00Z"),
     });
+    await markMediaLibraryPathScanned(libraryPath.id, new Date("2026-05-06T13:00:00Z"));
 
     expect(library.mediaType).toBe("tv");
     expect(library.isDefault).toBe(true);
@@ -140,6 +160,9 @@ describe("media-library-repository", () => {
     expect(season.episodeCount).toBe(9);
     expect(episode.hasFile).toBe(true);
     expect(mediaFile.qualityLabel).toBe("WEB-1080p");
+    expect(upsertedFile.id).toBe(mediaFile.id);
+    expect(upsertedFile.sizeBytes).toBe(1_600_000_000);
+    expect(activePaths.map((entry) => entry.path.id)).toEqual([libraryPath.id]);
     expect(completedScan.status).toBe("succeeded");
     expect(completedScan.discoveredFileCount).toBe(1);
     expect(completedScan.completedAt).toEqual(new Date("2026-05-06T12:01:00Z"));
@@ -166,5 +189,6 @@ describe("media-library-repository", () => {
     expect(storedExternalIds).toHaveLength(2);
     expect(storedEpisode?.airDate).toBe("2022-02-18");
     expect(storedFile?.relativePath).toBe("Severance/Season 01/Severance S01E01.mkv");
+    expect(storedFile?.sizeBytes).toBe(1_600_000_000);
   });
 });
