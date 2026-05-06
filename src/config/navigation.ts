@@ -42,14 +42,9 @@ export const navigationGroups = [
         description: "Browse trending, popular, and upcoming titles powered by TMDB.",
       },
       {
-        href: "/sonarr",
-        label: "Sonarr library",
-        description: "Browse your Sonarr library, filter in real time, and manage which seasons are monitored.",
-      },
-      {
-        href: "/radarr",
-        label: "Radarr library",
-        description: "Browse your Radarr library and search Radarr directly to request a movie.",
+        href: "/library",
+        label: "Library",
+        description: "Manage built-in movie and TV libraries.",
       },
       {
         href: "/history",
