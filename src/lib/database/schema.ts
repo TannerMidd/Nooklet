@@ -161,6 +161,19 @@ export const mediaScanRunStatuses = ["pending", "running", "succeeded", "failed"
 export const indexerProtocols = ["newznab", "torznab"] as const;
 export const indexerConnectionStatuses = ["configured", "verified", "error", "disabled"] as const;
 export const indexerSearchRunStatuses = ["pending", "running", "succeeded", "failed"] as const;
+export const downloadClientTypes = ["sabnzbd"] as const;
+export const downloadClientStatuses = ["configured", "verified", "error", "disabled"] as const;
+export const downloadRequestStatuses = [
+  "pending",
+  "queued",
+  "downloading",
+  "importing",
+  "succeeded",
+  "failed",
+  "cancelled",
+] as const;
+export const downloadQueueItemStatuses = ["queued", "downloading", "paused", "completed", "failed"] as const;
+export const downloadImportRunStatuses = ["pending", "running", "succeeded", "failed", "skipped"] as const;
 
 export const mediaLibraries = sqliteTable(
   "media_libraries",
@@ -549,6 +562,198 @@ export const indexerSearchResultSecrets = sqliteTable("indexer_search_result_sec
     .default(sql`(unixepoch() * 1000)`),
 });
 
+export const downloadClients = sqliteTable(
+  "download_clients",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    serviceConnectionId: text("service_connection_id")
+      .notNull()
+      .references(() => serviceConnections.id, { onDelete: "cascade" }),
+    clientType: text("client_type", { enum: downloadClientTypes }).notNull(),
+    displayName: text("display_name").notNull(),
+    status: text("status", { enum: downloadClientStatuses })
+      .notNull()
+      .default("configured"),
+    statusMessage: text("status_message"),
+    isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
+    lastSyncedAt: integer("last_synced_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    uniqueIndex("download_clients_connection_unique").on(table.serviceConnectionId),
+    uniqueIndex("download_clients_user_type_name_unique").on(
+      table.userId,
+      table.clientType,
+      table.displayName,
+    ),
+    index("download_clients_user_status_default_idx").on(
+      table.userId,
+      table.status,
+      table.isDefault,
+    ),
+  ],
+);
+
+export const downloadRequests = sqliteTable(
+  "download_requests",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mediaTitleId: text("media_title_id").references(() => mediaTitles.id, {
+      onDelete: "set null",
+    }),
+    episodeId: text("episode_id").references(() => tvEpisodes.id, { onDelete: "set null" }),
+    searchResultId: text("search_result_id").references(() => indexerSearchResults.id, {
+      onDelete: "set null",
+    }),
+    clientId: text("client_id").references(() => downloadClients.id, { onDelete: "set null" }),
+    targetLibraryId: text("target_library_id").references(() => mediaLibraries.id, {
+      onDelete: "set null",
+    }),
+    targetLibraryPathId: text("target_library_path_id").references(() => mediaLibraryPaths.id, {
+      onDelete: "set null",
+    }),
+    mediaType: text("media_type", { enum: recommendationMediaTypes }).notNull(),
+    status: text("status", { enum: downloadRequestStatuses }).notNull().default("pending"),
+    requestedTitle: text("requested_title").notNull(),
+    releaseTitle: text("release_title"),
+    externalJobId: text("external_job_id"),
+    statusMessage: text("status_message"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("download_requests_user_status_created_idx").on(
+      table.userId,
+      table.status,
+      table.createdAt,
+    ),
+    index("download_requests_title_status_idx").on(table.mediaTitleId, table.status),
+    index("download_requests_episode_status_idx").on(table.episodeId, table.status),
+    index("download_requests_client_status_updated_idx").on(
+      table.clientId,
+      table.status,
+      table.updatedAt,
+    ),
+    index("download_requests_search_result_idx").on(table.searchResultId),
+    index("download_requests_target_path_status_idx").on(table.targetLibraryPathId, table.status),
+  ],
+);
+
+export const downloadQueueItems = sqliteTable(
+  "download_queue_items",
+  {
+    id: text("id").primaryKey(),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => downloadRequests.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    clientId: text("client_id").references(() => downloadClients.id, { onDelete: "set null" }),
+    externalQueueId: text("external_queue_id").notNull(),
+    status: text("status", { enum: downloadQueueItemStatuses }).notNull().default("queued"),
+    progressPercent: real("progress_percent").notNull().default(0),
+    sizeBytes: integer("size_bytes"),
+    remainingBytes: integer("remaining_bytes"),
+    etaSeconds: integer("eta_seconds"),
+    category: text("category"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    uniqueIndex("download_queue_items_client_external_unique").on(
+      table.clientId,
+      table.externalQueueId,
+    ),
+    index("download_queue_items_request_idx").on(table.requestId),
+    index("download_queue_items_user_status_updated_idx").on(
+      table.userId,
+      table.status,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export const downloadImportRuns = sqliteTable(
+  "download_import_runs",
+  {
+    id: text("id").primaryKey(),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => downloadRequests.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    libraryPathId: text("library_path_id").references(() => mediaLibraryPaths.id, {
+      onDelete: "set null",
+    }),
+    status: text("status", { enum: downloadImportRunStatuses }).notNull().default("pending"),
+    sourceRootPath: text("source_root_path").notNull(),
+    destinationRootPath: text("destination_root_path"),
+    errorMessage: text("error_message"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("download_import_runs_request_idx").on(table.requestId),
+    index("download_import_runs_user_status_created_idx").on(
+      table.userId,
+      table.status,
+      table.createdAt,
+    ),
+    index("download_import_runs_library_path_idx").on(table.libraryPathId),
+  ],
+);
+
+export const downloadImportedFiles = sqliteTable(
+  "download_imported_files",
+  {
+    id: text("id").primaryKey(),
+    importRunId: text("import_run_id")
+      .notNull()
+      .references(() => downloadImportRuns.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mediaFileId: text("media_file_id").references(() => mediaFiles.id, {
+      onDelete: "set null",
+    }),
+    sourcePath: text("source_path").notNull(),
+    destinationPath: text("destination_path").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("download_imported_files_import_run_idx").on(table.importRunId),
+    index("download_imported_files_media_file_idx").on(table.mediaFileId),
+    index("download_imported_files_user_created_idx").on(table.userId, table.createdAt),
+  ],
+);
+
 export const watchHistorySourceTypes = ["manual", "tautulli", "plex", "trakt"] as const;
 export const watchHistorySyncStatuses = ["pending", "succeeded", "failed"] as const;
 export const jobTypes = ["watch-history-sync", "recommendation-run"] as const;
@@ -886,6 +1091,11 @@ export type MediaScanRunStatus = (typeof mediaScanRunStatuses)[number];
 export type IndexerProtocol = (typeof indexerProtocols)[number];
 export type IndexerConnectionStatus = (typeof indexerConnectionStatuses)[number];
 export type IndexerSearchRunStatus = (typeof indexerSearchRunStatuses)[number];
+export type DownloadClientType = (typeof downloadClientTypes)[number];
+export type DownloadClientStatus = (typeof downloadClientStatuses)[number];
+export type DownloadRequestStatus = (typeof downloadRequestStatuses)[number];
+export type DownloadQueueItemStatus = (typeof downloadQueueItemStatuses)[number];
+export type DownloadImportRunStatus = (typeof downloadImportRunStatuses)[number];
 export type WatchHistorySourceType = (typeof watchHistorySourceTypes)[number];
 export type WatchHistorySyncStatus = (typeof watchHistorySyncStatuses)[number];
 export type JobType = (typeof jobTypes)[number];

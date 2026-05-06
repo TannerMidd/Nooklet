@@ -162,6 +162,13 @@
       "when": 1778093923539,
       "tag": "0022_woozy_vivisector",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1778094335032,
+      "tag": "0023_jazzy_queen_noir",
+      "breakpoints": true
     }
   ]
 }
