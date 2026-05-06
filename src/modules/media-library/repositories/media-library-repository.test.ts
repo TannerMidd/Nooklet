@@ -5,14 +5,21 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
+  mediaFiles,
   mediaTitleExternalIds,
+  tvEpisodes,
   users,
 } from "@/lib/database/schema";
 
 import {
   addMediaLibraryPath,
+  completeMediaScanRun,
   createMediaLibrary,
+  createMediaScanRun,
+  createTvEpisode,
+  createTvSeason,
   findMediaTitleByNormalizedKey,
+  recordMediaFile,
   setMediaTitleExternalIds,
   upsertMediaTitle,
 } from "./media-library-repository";
@@ -40,7 +47,7 @@ beforeEach(() => {
 });
 
 describe("media-library-repository", () => {
-  it("persists a TV library path, title, and external IDs", async () => {
+  it("persists a TV library path, title, external IDs, episodes, files, and scan run", async () => {
     const userId = await seedUser();
     const library = await createMediaLibrary({
       userId,
@@ -78,12 +85,64 @@ describe("media-library-repository", () => {
       { source: "tmdb", value: "95396" },
       { source: "tvdb", value: "371980" },
     ]);
+    const season = await createTvSeason({
+      titleId: title.id,
+      seasonNumber: 1,
+      title: "Season 1",
+      episodeCount: 9,
+    });
+    const episode = await createTvEpisode({
+      titleId: title.id,
+      seasonId: season.id,
+      seasonNumber: 1,
+      episodeNumber: 1,
+      title: "Good News About Hell",
+      airDate: "2022-02-18",
+      hasFile: true,
+    });
+    const mediaFile = await recordMediaFile({
+      userId,
+      titleId: title.id,
+      libraryPathId: libraryPath.id,
+      seasonId: season.id,
+      episodeId: episode.id,
+      mediaType: "tv",
+      fileKind: "episode",
+      filePath: "F:/Media/TV/Severance/Season 01/Severance S01E01.mkv",
+      relativePath: "Severance/Season 01/Severance S01E01.mkv",
+      sizeBytes: 1_500_000_000,
+      modifiedAt: new Date("2026-05-06T12:00:00Z"),
+      qualityLabel: "WEB-1080p",
+      releaseGroup: "Nooklet",
+    });
+    const scanRun = await createMediaScanRun({
+      userId,
+      libraryId: library.id,
+      libraryPathId: libraryPath.id,
+      status: "running",
+    });
+    const completedScan = await completeMediaScanRun({
+      scanRunId: scanRun.id,
+      status: "succeeded",
+      discoveredFileCount: 1,
+      matchedTitleCount: 1,
+      completedAt: new Date("2026-05-06T12:01:00Z"),
+    });
+
     expect(library.mediaType).toBe("tv");
     expect(library.isDefault).toBe(true);
     expect(libraryPath.status).toBe("active");
     expect(libraryPath.freeSpaceBytes).toBe(500_000_000_000);
     expect(title.status).toBe("available");
-    expect(new Set(externalIds.map((entry) => entry.source))).toEqual(new Set(["tmdb", "tvdb"]));
+    expect(new Set(externalIds.map((entry) => entry.source))).toEqual(
+      new Set(["tmdb", "tvdb"]),
+    );
+    expect(season.episodeCount).toBe(9);
+    expect(episode.hasFile).toBe(true);
+    expect(mediaFile.qualityLabel).toBe("WEB-1080p");
+    expect(completedScan.status).toBe("succeeded");
+    expect(completedScan.discoveredFileCount).toBe(1);
+    expect(completedScan.completedAt).toEqual(new Date("2026-05-06T12:01:00Z"));
 
     const reloadedTitle = await findMediaTitleByNormalizedKey(userId, "tv", "severance::2022");
     const storedExternalIds = ensureDatabaseReady()
@@ -91,9 +150,21 @@ describe("media-library-repository", () => {
       .from(mediaTitleExternalIds)
       .where(eq(mediaTitleExternalIds.titleId, title.id))
       .all();
+    const storedEpisode = ensureDatabaseReady()
+      .select()
+      .from(tvEpisodes)
+      .where(eq(tvEpisodes.id, episode.id))
+      .get();
+    const storedFile = ensureDatabaseReady()
+      .select()
+      .from(mediaFiles)
+      .where(eq(mediaFiles.id, mediaFile.id))
+      .get();
 
     expect(reloadedTitle?.title).toBe("Severance");
     expect(reloadedTitle?.posterUrl).toBe("https://images.example/severance.jpg");
     expect(storedExternalIds).toHaveLength(2);
+    expect(storedEpisode?.airDate).toBe("2022-02-18");
+    expect(storedFile?.relativePath).toBe("Severance/Season 01/Severance S01E01.mkv");
   });
-  });
+});
