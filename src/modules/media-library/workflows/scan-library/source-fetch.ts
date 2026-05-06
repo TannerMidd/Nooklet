@@ -29,7 +29,16 @@ export type FetchedLibrarySources = {
 };
 
 async function walkMediaFiles(rootPath: string, currentPath: string): Promise<FetchedFileWithoutSource[]> {
-  const entries = await readdir(currentPath, { withFileTypes: true });
+  let entries;
+  try {
+    entries = await readdir(currentPath, { withFileTypes: true });
+  } catch (error) {
+    if (currentPath === rootPath) {
+      throw error;
+    }
+
+    return [];
+  }
   const files: FetchedFileWithoutSource[] = [];
 
   for (const entry of entries) {
@@ -44,7 +53,12 @@ async function walkMediaFiles(rootPath: string, currentPath: string): Promise<Fe
       continue;
     }
 
-    const fileStat = await stat(entryPath);
+    let fileStat;
+    try {
+      fileStat = await stat(entryPath);
+    } catch {
+      continue;
+    }
 
     files.push({
       filePath: entryPath,
