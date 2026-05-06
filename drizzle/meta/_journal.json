@@ -169,6 +169,13 @@
       "when": 1778094335032,
       "tag": "0023_jazzy_queen_noir",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1778109646964,
+      "tag": "0024_tearful_xorn",
+      "breakpoints": true
     }
   ]
 }

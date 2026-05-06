@@ -156,6 +156,7 @@ export const recommendationMediaTypes = ["tv", "movie"] as const;
 export const mediaLibraryPathStatuses = ["active", "disabled"] as const;
 export const mediaTitleStatuses = ["requested", "available", "missing"] as const;
 export const mediaTitleExternalIdSources = ["tmdb", "tvdb", "imdb"] as const;
+export const mediaQualityProfiles = ["any", "hd-720p", "hd-1080p", "uhd-2160p"] as const;
 export const mediaFileKinds = ["movie", "episode", "extra", "unknown"] as const;
 export const mediaScanRunStatuses = ["pending", "running", "succeeded", "failed"] as const;
 export const indexerProtocols = ["newznab", "torznab"] as const;
@@ -251,6 +252,9 @@ export const mediaTitles = sqliteTable(
       .notNull()
       .default("missing"),
     monitored: integer("monitored", { mode: "boolean" }).notNull().default(true),
+    qualityProfile: text("quality_profile", { enum: mediaQualityProfiles })
+      .notNull()
+      .default("hd-1080p"),
     overview: text("overview"),
     posterUrl: text("poster_url"),
     backdropUrl: text("backdrop_url"),
@@ -1086,6 +1090,7 @@ export type ServiceConnectionStatus = (typeof serviceConnectionStatuses)[number]
 export type MediaLibraryPathStatus = (typeof mediaLibraryPathStatuses)[number];
 export type MediaTitleStatus = (typeof mediaTitleStatuses)[number];
 export type MediaTitleExternalIdSource = (typeof mediaTitleExternalIdSources)[number];
+export type MediaQualityProfile = (typeof mediaQualityProfiles)[number];
 export type MediaFileKind = (typeof mediaFileKinds)[number];
 export type MediaScanRunStatus = (typeof mediaScanRunStatuses)[number];
 export type IndexerProtocol = (typeof indexerProtocols)[number];

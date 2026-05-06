@@ -1,0 +1,1 @@
+ALTER TABLE `media_titles` ADD `quality_profile` text DEFAULT 'hd-1080p' NOT NULL;
