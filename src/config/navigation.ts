@@ -77,6 +77,11 @@ export const navigationGroups = [
         description: "Connect the services Nooklet uses.",
       },
       {
+        href: "/settings/indexers",
+        label: "Indexers",
+        description: "Configure direct Newznab and Torznab indexers.",
+      },
+      {
         href: "/settings/preferences",
         label: "Preferences",
         description: "Choose your defaults, filters, and watch-history options.",
