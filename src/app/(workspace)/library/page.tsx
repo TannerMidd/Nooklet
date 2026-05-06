@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import Link from "next/link";
 import { LibraryPathForm } from "@/app/(workspace)/library/library-path-form";
 import { LibraryPathManager } from "@/app/(workspace)/library/library-path-manager";
 import { LibraryScanButton } from "@/app/(workspace)/library/library-scan-button";
@@ -88,6 +89,23 @@ export default async function LibraryPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">Files</p>
           <p className="mt-2 font-heading text-3xl text-foreground">{overview.totals.files}</p>
         </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Link
+          href="/library/movies"
+          className="rounded-lg border border-line/70 bg-panel-strong/60 p-4 text-sm text-foreground transition hover:border-accent/45 hover:bg-panel-raised/70"
+        >
+          <span className="font-heading text-lg">Browse movie library</span>
+          <span className="mt-1 block text-muted">Open discovered local movies.</span>
+        </Link>
+        <Link
+          href="/library/tv"
+          className="rounded-lg border border-line/70 bg-panel-strong/60 p-4 text-sm text-foreground transition hover:border-accent/45 hover:bg-panel-raised/70"
+        >
+          <span className="font-heading text-lg">Browse TV library</span>
+          <span className="mt-1 block text-muted">Open discovered local series.</span>
+        </Link>
       </div>
 
       <Panel eyebrow="Folders" title="Attach a library folder">
