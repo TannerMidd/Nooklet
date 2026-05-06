@@ -10,6 +10,7 @@ import {
   type IndexerSearchActionState,
   type SearchResultView,
 } from "@/app/(workspace)/search/actions";
+import { QueueResultButton } from "@/app/(workspace)/search/queue-result-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -109,19 +110,22 @@ function SearchResults({ state }: { state: IndexerSearchActionState }) {
               </div>
               <p className="break-words font-heading text-lg leading-tight text-foreground">{result.title}</p>
             </div>
-            <div className="grid shrink-0 gap-2 text-sm text-muted sm:grid-cols-3 lg:min-w-[440px]">
-              <span className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2">
-                <HardDrive aria-hidden="true" size={15} />
-                {formatBytes(result.sizeBytes)}
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2">
-                <CalendarDays aria-hidden="true" size={15} />
-                {formatPublishedAt(result.publishedAt)}
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2">
-                <DatabaseZap aria-hidden="true" size={15} />
-                S {result.seeders ?? "?"} / L {result.leechers ?? "?"} / G {result.grabs ?? "?"}
-              </span>
+            <div className="flex shrink-0 flex-col gap-3 lg:min-w-[440px] lg:items-end">
+              <div className="grid w-full gap-2 text-sm text-muted sm:grid-cols-3">
+                <span className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2">
+                  <HardDrive aria-hidden="true" size={15} />
+                  {formatBytes(result.sizeBytes)}
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2">
+                  <CalendarDays aria-hidden="true" size={15} />
+                  {formatPublishedAt(result.publishedAt)}
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2">
+                  <DatabaseZap aria-hidden="true" size={15} />
+                  S {result.seeders ?? "?"} / L {result.leechers ?? "?"} / G {result.grabs ?? "?"}
+                </span>
+              </div>
+              <QueueResultButton resultId={result.id} />
             </div>
           </div>
         </li>
