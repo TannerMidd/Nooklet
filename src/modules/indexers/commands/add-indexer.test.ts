@@ -103,6 +103,21 @@ describe("addIndexerCommand", () => {
       isEnabled: true,
       priority: 0,
       categories: [{ mediaType: "movie", categoryId: "2000", label: "Movies" }],
-    })).rejects.toThrow("API path must start with /");
+    })).rejects.toThrow("API path must start with one /");
+  });
+
+  it("rejects protocol-relative API paths", async () => {
+    const userId = await seedUser();
+
+    await expect(addIndexerCommand(userId, {
+      name: "Protocol relative",
+      protocol: "newznab",
+      baseUrl: "https://api.example.test",
+      apiPath: "//elsewhere.example/api",
+      apiKey: "secret",
+      isEnabled: true,
+      priority: 0,
+      categories: [{ mediaType: "movie", categoryId: "2000", label: "Movies" }],
+    })).rejects.toThrow("API path must start with one /");
   });
 });
