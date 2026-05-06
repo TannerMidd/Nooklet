@@ -73,6 +73,7 @@ describe("addIndexerAction", () => {
       baseUrl: "https://api.example.test",
       apiPath: "/api",
       apiKey: "secret",
+      isEnabled: true,
       priority: 5,
       categories: [
         { mediaType: "movie", categoryId: "2000", label: "Movies" },
@@ -82,5 +83,18 @@ describe("addIndexerAction", () => {
     }));
     expect(revalidateMock).toHaveBeenCalledWith("/settings/indexers");
     expect(result).toEqual({ status: "success", message: "Indexer added." });
+  });
+
+  it("passes disabled state when the checkbox is unchecked", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    addIndexerMock.mockResolvedValue(undefined as never);
+    const form = validForm();
+    form.delete("isEnabled");
+
+    await addIndexerAction(initialIndexerActionState, form);
+
+    expect(addIndexerMock).toHaveBeenCalledWith("u1", expect.objectContaining({
+      isEnabled: false,
+    }));
   });
 });

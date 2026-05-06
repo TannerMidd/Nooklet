@@ -54,7 +54,7 @@ export async function addIndexerAction(
     baseUrl: formData.get("baseUrl"),
     apiPath: formData.get("apiPath") || "/api",
     apiKey: formData.get("apiKey"),
-    isEnabled: formData.get("isEnabled") !== "off",
+    isEnabled: formData.get("isEnabled") === "on",
     priority: formData.get("priority") || 0,
     categories,
   });
