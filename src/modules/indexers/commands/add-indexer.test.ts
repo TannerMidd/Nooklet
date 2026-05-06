@@ -90,4 +90,19 @@ describe("addIndexerCommand", () => {
       categories: [],
     })).rejects.toThrow("Add at least one movie or TV category");
   });
+
+  it("rejects API paths that can override the base URL", async () => {
+    const userId = await seedUser();
+
+    await expect(addIndexerCommand(userId, {
+      name: "Bad path",
+      protocol: "newznab",
+      baseUrl: "https://api.example.test",
+      apiPath: "https://elsewhere.example/api",
+      apiKey: "secret",
+      isEnabled: true,
+      priority: 0,
+      categories: [{ mediaType: "movie", categoryId: "2000", label: "Movies" }],
+    })).rejects.toThrow("API path must start with /");
+  });
 });

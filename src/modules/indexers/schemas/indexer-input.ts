@@ -40,6 +40,7 @@ export const addIndexerInputSchema = z.object({
     .trim()
     .min(1, "Provide an API path.")
     .max(128, "API path must be 128 characters or fewer.")
+    .regex(/^\//, "API path must start with /.")
     .default("/api"),
   apiKey: z
     .string()
