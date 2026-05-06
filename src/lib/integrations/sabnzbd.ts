@@ -33,6 +33,8 @@ type SabnzbdStatusResponse = {
   nzo_ids?: unknown;
 };
 
+type SabnzbdAddUrlResponse = SabnzbdStatusResponse;
+
 type SabnzbdMoveResponse = {
   result?: {
     position?: unknown;
@@ -198,6 +200,44 @@ function assertSabnzbdStatus(payload: SabnzbdStatusResponse, actionLabel: string
   }
 
   throw new Error(`SABnzbd could not ${actionLabel}.`);
+}
+
+function normalizeQueueIds(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as string[];
+  }
+
+  return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+}
+
+export async function addSabnzbdUrlToQueue(input: {
+  baseUrl: string;
+  apiKey: string;
+  url: string;
+  title?: string | null;
+  category?: string | null;
+}) {
+  const url = buildSabnzbdApiUrl(input.baseUrl, { mode: "addurl" });
+
+  url.searchParams.set("name", input.url);
+
+  if (input.title && input.title.trim().length > 0) {
+    url.searchParams.set("nzbname", input.title.trim());
+  }
+
+  if (input.category && input.category.trim().length > 0) {
+    url.searchParams.set("cat", input.category.trim());
+  }
+
+  setSabnzbdApiKey(url, input.apiKey);
+
+  const payload = await fetchSabnzbdJson<SabnzbdAddUrlResponse>(url);
+
+  assertSabnzbdStatus(payload, "add the release to the queue");
+
+  return {
+    queueIds: normalizeQueueIds(payload.nzo_ids),
+  };
 }
 
 export async function listSabnzbdQueue(input: {

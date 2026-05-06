@@ -7,6 +7,7 @@ vi.mock("@/lib/security/safe-fetch", () => ({
 import { safeFetch } from "@/lib/security/safe-fetch";
 
 import {
+  addSabnzbdUrlToQueue,
   listSabnzbdQueue,
   moveSabnzbdQueueItemToPosition,
   pauseSabnzbdQueue,
@@ -147,6 +148,46 @@ describe("listSabnzbdQueue", () => {
     expect((requestUrl as URL).toString()).toBe(
       "http://localhost:8080/api?mode=queue&output=json&name=pause&value=SABnzbd_nzo_1&apikey=secret",
     );
+  });
+
+  it("adds a release URL to the queue", async () => {
+    mockedSafeFetch.mockResolvedValue(
+      new Response(JSON.stringify({ status: true, nzo_ids: ["SABnzbd_nzo_3"] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const result = await addSabnzbdUrlToQueue({
+      baseUrl: "http://localhost:8080",
+      apiKey: "secret",
+      url: "https://indexer.example/download?id=abc&apikey=not-this-one",
+      title: "Movie.Name.2024.1080p",
+      category: "movies",
+    });
+
+    const requestUrl = mockedSafeFetch.mock.calls[0]?.[0];
+
+    expect(result).toEqual({ queueIds: ["SABnzbd_nzo_3"] });
+    expect(requestUrl).toBeInstanceOf(URL);
+    expect((requestUrl as URL).toString()).toBe(
+      "http://localhost:8080/api?mode=addurl&output=json&name=https%3A%2F%2Findexer.example%2Fdownload%3Fid%3Dabc%26apikey%3Dnot-this-one&nzbname=Movie.Name.2024.1080p&cat=movies&apikey=secret",
+    );
+  });
+
+  it("throws when SABnzbd rejects an add-url request", async () => {
+    mockedSafeFetch.mockResolvedValue(
+      new Response(JSON.stringify({ status: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(addSabnzbdUrlToQueue({
+      baseUrl: "http://localhost:8080",
+      apiKey: "secret",
+      url: "https://indexer.example/download?id=abc",
+    })).rejects.toThrow("SABnzbd could not add the release to the queue.");
   });
 
   it("sends a global pause command for the queue", async () => {
