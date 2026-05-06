@@ -22,6 +22,13 @@ vi.mock("@/modules/media-library/commands/add-library-path", () => {
     LibraryPathCommandError,
   };
 });
+vi.mock("@/modules/media-library/workflows/scan-library", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/media-library/workflows/scan-library")>();
+  return {
+    ...actual,
+    scanMediaLibraryWorkflow: vi.fn(),
+  };
+});
 
 import { revalidatePath } from "next/cache";
 
@@ -30,11 +37,20 @@ import {
   addLibraryPathCommand,
   LibraryPathCommandError,
 } from "@/modules/media-library/commands/add-library-path";
+import {
+  scanMediaLibraryWorkflow,
+  ScanMediaLibraryWorkflowError,
+} from "@/modules/media-library/workflows/scan-library";
 
-import { addLibraryPathAction, initialLibraryPathActionState } from "./actions";
+import {
+  addLibraryPathAction,
+  initialLibraryPathActionState,
+  scanLibraryAction,
+} from "./actions";
 
 const authMock = vi.mocked(auth);
 const addLibraryPathMock = vi.mocked(addLibraryPathCommand);
+const scanLibraryMock = vi.mocked(scanMediaLibraryWorkflow);
 const revalidateMock = vi.mocked(revalidatePath);
 
 beforeEach(() => {
@@ -99,5 +115,38 @@ describe("addLibraryPathAction", () => {
     });
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(result).toEqual({ status: "success", message: "Library folder added." });
+  });
+});
+
+describe("scanLibraryAction", () => {
+  it("returns sign-in error when there is no session", async () => {
+    authMock.mockResolvedValue(null as never);
+
+    const result = await scanLibraryAction();
+
+    expect(result).toEqual({ status: "error", message: "You need to sign in again." });
+    expect(scanLibraryMock).not.toHaveBeenCalled();
+  });
+
+  it("maps scan workflow errors to friendly messages", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    scanLibraryMock.mockRejectedValue(
+      new ScanMediaLibraryWorkflowError("no_paths", "Attach a library folder before scanning."),
+    );
+
+    const result = await scanLibraryAction();
+
+    expect(result).toEqual({ status: "error", message: "Attach a library folder before scanning." });
+  });
+
+  it("scans the library and revalidates the library page", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    scanLibraryMock.mockResolvedValue({ discoveredFileCount: 2, matchedTitleCount: 1 } as never);
+
+    const result = await scanLibraryAction();
+
+    expect(scanLibraryMock).toHaveBeenCalledWith("u1", {});
+    expect(revalidateMock).toHaveBeenCalledWith("/library");
+    expect(result).toEqual({ status: "success", message: "Scan finished: 2 files, 1 title." });
   });
 });
