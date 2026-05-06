@@ -21,6 +21,7 @@ import {
   createDownloadImportRun,
   createDownloadRequest,
   findDownloadClientById,
+  findDownloadClientByServiceConnectionId,
   listDownloadRequestsByStatus,
   listImportedFilesForRun,
   recordDownloadImportedFile,
@@ -168,6 +169,7 @@ describe("download-repository", () => {
     });
 
     const reloadedClient = await findDownloadClientById(userId, client.id);
+    const reloadedClientByConnection = await findDownloadClientByServiceConnectionId(userId, serviceConnectionId);
     const queuedRequests = await listDownloadRequestsByStatus(userId, "queued");
     const storedQueueItem = ensureDatabaseReady()
       .select()
@@ -176,6 +178,7 @@ describe("download-repository", () => {
       .get();
 
     expect(reloadedClient?.serviceConnectionId).toBe(serviceConnectionId);
+    expect(reloadedClientByConnection?.id).toBe(client.id);
     expect(reloadedClient?.isDefault).toBe(true);
     expect(queuedRequest.externalJobId).toBe("sab-job-1");
     expect(queuedRequests.map((entry) => entry.id)).toEqual([request.id]);

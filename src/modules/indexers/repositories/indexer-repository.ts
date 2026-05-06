@@ -20,6 +20,7 @@ export type IndexerRecord = typeof indexers.$inferSelect;
 export type IndexerSearchRunRecord = typeof indexerSearchRuns.$inferSelect;
 export type IndexerSearchResultRecord = typeof indexerSearchResults.$inferSelect;
 export type IndexerSecretRecord = typeof indexerSecrets.$inferSelect;
+export type IndexerSearchResultSecretRecord = typeof indexerSearchResultSecrets.$inferSelect;
 
 export async function createIndexer(input: {
   userId: string;
@@ -330,4 +331,24 @@ export async function listSearchResultsForRun(userId: string, searchRunId: strin
       ),
     )
     .all();
+}
+
+export async function findSearchResultById(userId: string, resultId: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(indexerSearchResults)
+    .where(and(eq(indexerSearchResults.userId, userId), eq(indexerSearchResults.id, resultId)))
+    .get() ?? null;
+}
+
+export async function findSearchResultSecret(resultId: string): Promise<IndexerSearchResultSecretRecord | null> {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(indexerSearchResultSecrets)
+    .where(eq(indexerSearchResultSecrets.resultId, resultId))
+    .get() ?? null;
 }

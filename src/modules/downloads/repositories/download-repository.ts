@@ -56,6 +56,21 @@ export async function findDownloadClientById(userId: string, id: string) {
     .get() ?? null;
 }
 
+export async function findDownloadClientByServiceConnectionId(userId: string, serviceConnectionId: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(downloadClients)
+    .where(
+      and(
+        eq(downloadClients.userId, userId),
+        eq(downloadClients.serviceConnectionId, serviceConnectionId),
+      ),
+    )
+    .get() ?? null;
+}
+
 export async function createDownloadRequest(input: {
   userId: string;
   mediaType: RecommendationMediaType;

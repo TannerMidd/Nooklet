@@ -17,6 +17,8 @@ import {
   createIndexerSearchRun,
   findIndexerById,
   findIndexerSecret,
+  findSearchResultById,
+  findSearchResultSecret,
   listEnabledIndexersForMedia,
   listIndexerMediaCategories,
   listSearchResultsForRun,
@@ -143,6 +145,8 @@ describe("indexer-repository", () => {
       resultCount: 1,
       completedAt: new Date("2026-05-06T12:01:00Z"),
     });
+    const selectedResult = await findSearchResultById(userId, result.id);
+    const selectedSecret = await findSearchResultSecret(result.id);
     const safeResults = await listSearchResultsForRun(userId, searchRun.id);
     const storedSecret = ensureDatabaseReady()
       .select()
@@ -154,6 +158,8 @@ describe("indexer-repository", () => {
     expect(completedRun.resultCount).toBe(1);
     expect(result.qualityLabel).toBe("WEB-2160p");
     expect("encryptedDownloadUrl" in result).toBe(false);
+    expect(selectedResult?.title).toBe("Arrival 2016 2160p WEB-DL");
+    expect(selectedSecret?.encryptedDownloadUrl).toBe("encrypted-download-url");
     expect(safeResults.map((entry) => entry.indexerGuid)).toEqual(["guid-arrival-2160p"]);
     expect(storedSecret?.encryptedDownloadUrl).toBe("encrypted-download-url");
     expect(storedSecret?.maskedDownloadUrl).toBe("https://indexer.example/...");
