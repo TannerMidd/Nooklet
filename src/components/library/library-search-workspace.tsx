@@ -1,13 +1,16 @@
 import Link from "next/link";
 
 import { auth } from "@/auth";
+import { DiscoverTitleOverviewDialog } from "@/components/discover/discover-title-overview-dialog";
 import { LibrarySearchRequestForm } from "@/components/library/library-search-request-form";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { Button } from "@/components/ui/button";
+import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
+import { getLibrarySearchTitleOverviewForUser } from "@/modules/service-connections/queries/get-library-search-title-overview";
 import { type LibraryManagerServiceType } from "@/modules/service-connections/types/library-manager";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import { searchLibraryItemsForUser } from "@/modules/service-connections/workflows/search-library-items";
@@ -18,19 +21,28 @@ type LibrarySearchWorkspaceProps = {
   title: string;
   description: string;
   searchQuery?: string;
+  detailsKey?: string;
   omitHeader?: boolean;
 };
 
-function buildReturnToPath(routePath: string, searchQuery: string) {
-  if (searchQuery.length === 0) {
-    return routePath;
+function buildSearchPath(
+  routePath: string,
+  searchQuery: string,
+  detailsKey?: string | null,
+) {
+  const searchParams = new URLSearchParams();
+
+  if (searchQuery.length > 0) {
+    searchParams.set("query", searchQuery);
   }
 
-  const searchParams = new URLSearchParams({
-    query: searchQuery,
-  });
+  if (detailsKey) {
+    searchParams.set("details", detailsKey);
+  }
 
-  return `${routePath}?${searchParams.toString()}`;
+  const query = searchParams.toString();
+
+  return query ? `${routePath}?${query}` : routePath;
 }
 
 export async function LibrarySearchWorkspace({
@@ -39,6 +51,7 @@ export async function LibrarySearchWorkspace({
   title,
   description,
   searchQuery,
+  detailsKey,
   omitHeader,
 }: LibrarySearchWorkspaceProps) {
   const session = await auth();
@@ -57,6 +70,7 @@ export async function LibrarySearchWorkspace({
   const serviceLabel = serviceType === "sonarr" ? "Sonarr" : "Radarr";
   const resultLabel = serviceType === "sonarr" ? "series" : "movies";
   const queryLabel = serviceType === "sonarr" ? "Series title" : "Movie title";
+  const mediaType = serviceType === "sonarr" ? "tv" : "movie";
   const libraryDefaults = getLibrarySelectionDefaults(preferences, serviceType);
   const canSearch = connectionSummary?.status === "verified";
   const searchResult =
@@ -66,7 +80,18 @@ export async function LibrarySearchWorkspace({
           query: normalizedQuery,
         })
       : null;
-  const returnTo = buildReturnToPath(routePath, normalizedQuery);
+  const returnTo = buildSearchPath(routePath, normalizedQuery);
+  const selectedSearchItem = searchResult?.ok && detailsKey
+    ? searchResult.items.find((item) => item.resultKey === detailsKey) ?? null
+    : null;
+  const selectedOverview = selectedSearchItem
+    ? await getLibrarySearchTitleOverviewForUser(session.user.id, {
+        mediaType,
+        title: selectedSearchItem.title,
+        year: selectedSearchItem.year,
+        tmdbId: selectedSearchItem.tmdbId,
+      })
+    : null;
 
   return (
     <div className="space-y-6">
@@ -153,56 +178,87 @@ export async function LibrarySearchWorkspace({
         ) : (
           <div className="grid max-h-[72vh] gap-4 overflow-y-auto pr-2 xl:grid-cols-2">
             {searchResult?.ok
-              ? searchResult.items.map((item) => (
-                  <article
-                    key={item.resultKey}
-                    className="flex min-h-full gap-4 rounded-lg border border-line/65 bg-panel/85 p-4"
-                  >
-                    <RecommendationPoster title={item.title} posterUrl={item.posterUrl} />
-                    <div className="min-w-0 flex-1 space-y-4">
-                      <div className="space-y-2">
-                        <div className="space-y-1">
-                          <h3 className="font-heading text-2xl leading-tight text-foreground">
-                            {item.title}
-                          </h3>
-                          <p className="text-sm leading-6 text-muted">
-                            {item.year ? `${item.year}` : "Year unavailable"}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap gap-2 text-xs font-medium text-muted">
-                          {item.year ? (
-                            <span className="rounded-md border border-line/65 bg-background/15 px-3 py-1">
-                              {item.year}
-                            </span>
-                          ) : null}
-                          {serviceType === "sonarr" ? (
-                            <span className="rounded-md border border-line/65 bg-background/15 px-3 py-1">
-                              {item.availableSeasons.length > 0
-                                ? `${item.availableSeasons.length} seasons`
-                                : "Season list unavailable"}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
+              ? searchResult.items.map((item) => {
+                  const detailsHref = buildSearchPath(routePath, normalizedQuery, item.resultKey);
 
-                      <LibrarySearchRequestForm
-                        requestKey={item.resultKey}
-                        serviceType={serviceType}
-                        title={item.title}
-                        year={item.year}
-                        availableSeasons={item.availableSeasons}
-                        returnTo={returnTo}
-                        connectionSummary={connectionSummary}
-                        savedRootFolderPath={libraryDefaults.rootFolderPath}
-                        savedQualityProfileId={libraryDefaults.qualityProfileId}
-                      />
-                    </div>
-                  </article>
-                ))
+                  return (
+                    <article
+                      key={item.resultKey}
+                      className="flex min-h-full flex-col gap-4 rounded-lg border border-line/65 bg-panel/85 p-4"
+                    >
+                      <Link
+                        href={detailsHref}
+                        scroll={false}
+                        aria-label={`Open TMDB details for ${item.title}`}
+                        className="group relative flex min-w-0 gap-4 rounded-lg outline-none transition hover:bg-panel-raised/45 focus-visible:ring-2 focus-visible:ring-accent/60"
+                      >
+                        <LinkPendingOverlay className="rounded-lg" />
+                        <RecommendationPoster title={item.title} posterUrl={item.posterUrl} />
+                        <div className="space-y-2">
+                          <div className="space-y-1">
+                            <h3 className="font-heading text-2xl leading-tight text-foreground transition group-hover:text-accent">
+                              {item.title}
+                            </h3>
+                            <p className="text-sm leading-6 text-muted">
+                              {item.year ? `${item.year}` : "Year unavailable"}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2 text-xs font-medium text-muted">
+                            {item.year ? (
+                              <span className="rounded-md border border-line/65 bg-background/15 px-3 py-1">
+                                {item.year}
+                              </span>
+                            ) : null}
+                            {serviceType === "sonarr" ? (
+                              <span className="rounded-md border border-line/65 bg-background/15 px-3 py-1">
+                                {item.availableSeasons.length > 0
+                                  ? `${item.availableSeasons.length} seasons`
+                                  : "Season list unavailable"}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </Link>
+
+                      <div className="min-w-0 flex-1">
+                        <LibrarySearchRequestForm
+                          requestKey={item.resultKey}
+                          serviceType={serviceType}
+                          title={item.title}
+                          year={item.year}
+                          availableSeasons={item.availableSeasons}
+                          returnTo={returnTo}
+                          connectionSummary={connectionSummary}
+                          savedRootFolderPath={libraryDefaults.rootFolderPath}
+                          savedQualityProfileId={libraryDefaults.qualityProfileId}
+                        />
+                      </div>
+                    </article>
+                  );
+                })
               : null}
           </div>
         )}
       </Panel>
+
+      {selectedSearchItem && selectedOverview?.ok ? (
+        <DiscoverTitleOverviewDialog
+          details={selectedOverview.details}
+          preferences={preferences}
+          connectionSummaries={connectionSummaries}
+          closeHref={returnTo}
+          returnTo={buildSearchPath(routePath, normalizedQuery, selectedSearchItem.resultKey)}
+        />
+      ) : null}
+
+      {selectedOverview && !selectedOverview.ok ? (
+        <Panel
+          eyebrow={selectedOverview.reason === "tmdb-not-configured" ? "TMDB required" : "Title unavailable"}
+          title="We couldn't load this title"
+        >
+          <p className="text-sm leading-6 text-muted">{selectedOverview.message}</p>
+        </Panel>
+      ) : null}
     </div>
   );
 }

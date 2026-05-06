@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 type RadarrPageProps = {
   searchParams?: Promise<{
     query?: string;
+    details?: string;
   }>;
 };
 
@@ -20,6 +21,7 @@ export default async function RadarrPage({ searchParams }: RadarrPageProps) {
       directSearchTitle="Search Radarr"
       directSearchDescription="Find a movie and add it to Radarr."
       searchQuery={resolvedSearchParams?.query}
+      detailsKey={resolvedSearchParams?.details}
     />
   );
 }

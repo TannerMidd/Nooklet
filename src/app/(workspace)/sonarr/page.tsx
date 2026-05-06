@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 type SonarrPageProps = {
   searchParams?: Promise<{
     query?: string;
+    details?: string;
     seriesId?: string;
     mode?: string;
   }>;
@@ -27,6 +28,7 @@ export default async function SonarrPage({ searchParams }: SonarrPageProps) {
       directSearchTitle="Search Sonarr"
       directSearchDescription="Find a show and add it to Sonarr."
       searchQuery={resolvedSearchParams?.query}
+      detailsKey={resolvedSearchParams?.details}
       autoOpenSeriesId={autoOpenSeriesId}
       autoOpenMode={autoOpenMode}
     />

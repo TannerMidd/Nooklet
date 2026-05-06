@@ -21,6 +21,7 @@ type LibraryBrowserWorkspaceProps = {
   directSearchTitle: string;
   directSearchDescription: string;
   searchQuery?: string;
+  detailsKey?: string;
   autoOpenSeriesId?: number | null;
   autoOpenMode?: "season" | "episode";
 };
@@ -33,6 +34,7 @@ export async function LibraryBrowserWorkspace({
   directSearchTitle,
   directSearchDescription,
   searchQuery,
+  detailsKey,
   autoOpenSeriesId,
   autoOpenMode,
 }: LibraryBrowserWorkspaceProps) {
@@ -120,6 +122,7 @@ export async function LibraryBrowserWorkspace({
           title={directSearchTitle}
           description={directSearchDescription}
           searchQuery={searchQuery}
+          detailsKey={detailsKey}
           omitHeader
         />
       ),
