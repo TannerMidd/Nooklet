@@ -13,6 +13,7 @@ import {
   tvEpisodes,
   tvSeasons,
   type MediaFileKind,
+  type MediaLibraryPathStatus,
   type MediaScanRunStatus,
   type MediaTitleExternalIdSource,
   type MediaTitleStatus,
@@ -107,6 +108,58 @@ export async function findMediaLibraryPathByUserPath(userId: string, path: strin
     .from(mediaLibraryPaths)
     .where(and(eq(mediaLibraryPaths.userId, userId), eq(mediaLibraryPaths.path, path)))
     .get() ?? null;
+}
+
+export async function findMediaLibraryPathByIdForUser(userId: string, pathId: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(mediaLibraryPaths)
+    .where(and(eq(mediaLibraryPaths.userId, userId), eq(mediaLibraryPaths.id, pathId)))
+    .get() ?? null;
+}
+
+export async function updateMediaLibraryPath(input: {
+  id: string;
+  userId: string;
+  libraryId: string;
+  path: string;
+  label: string;
+  status: MediaLibraryPathStatus;
+}) {
+  const database = ensureDatabaseReady();
+  const updatedAt = new Date();
+
+  database
+    .update(mediaLibraryPaths)
+    .set({
+      libraryId: input.libraryId,
+      path: input.path,
+      label: input.label,
+      status: input.status,
+      updatedAt,
+    })
+    .where(and(eq(mediaLibraryPaths.id, input.id), eq(mediaLibraryPaths.userId, input.userId)))
+    .run();
+
+  return findMediaLibraryPathByIdForUser(input.userId, input.id);
+}
+
+export async function deleteMediaLibraryPath(userId: string, pathId: string) {
+  const database = ensureDatabaseReady();
+  const existingPath = await findMediaLibraryPathByIdForUser(userId, pathId);
+
+  if (!existingPath) {
+    return null;
+  }
+
+  database
+    .delete(mediaLibraryPaths)
+    .where(and(eq(mediaLibraryPaths.id, pathId), eq(mediaLibraryPaths.userId, userId)))
+    .run();
+
+  return existingPath;
 }
 
 export async function listActiveMediaLibraryPaths(userId: string): Promise<ActiveMediaLibraryPathRecord[]> {
