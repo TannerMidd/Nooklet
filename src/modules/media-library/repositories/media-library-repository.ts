@@ -48,6 +48,26 @@ export async function createMediaLibrary(input: {
   return database.select().from(mediaLibraries).where(eq(mediaLibraries.id, id)).get()!;
 }
 
+export async function findMediaLibraryByName(
+  userId: string,
+  mediaType: RecommendationMediaType,
+  name: string,
+) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(mediaLibraries)
+    .where(
+      and(
+        eq(mediaLibraries.userId, userId),
+        eq(mediaLibraries.mediaType, mediaType),
+        eq(mediaLibraries.name, name),
+      ),
+    )
+    .get() ?? null;
+}
+
 export async function addMediaLibraryPath(input: {
   libraryId: string;
   userId: string;
