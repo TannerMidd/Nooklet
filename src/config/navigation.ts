@@ -42,6 +42,11 @@ export const navigationGroups = [
         description: "Browse trending, popular, and upcoming titles powered by TMDB.",
       },
       {
+        href: "/search",
+        label: "Search",
+        description: "Search configured indexers for movie and TV releases.",
+      },
+      {
         href: "/library",
         label: "Library",
         description: "Manage built-in movie and TV libraries.",
