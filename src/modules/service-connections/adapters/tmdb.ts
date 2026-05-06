@@ -108,6 +108,17 @@ export type TmdbSimilarTitle = {
   voteAverage: number | null;
 };
 
+export type TmdbTitleSearchResult = TmdbSimilarTitle & {
+  overview: string | null;
+  backdropUrl: string | null;
+  releaseDate: string | null;
+  originalLanguage: string | null;
+};
+
+export type SearchTmdbTitlesResult =
+  | { ok: true; titles: TmdbTitleSearchResult[] }
+  | { ok: false; message: string };
+
 export type TmdbTitleDetails = {
   source: "tmdb";
   tmdbId: number;
@@ -817,6 +828,7 @@ export type ListTmdbDiscoverTitlesResult =
   | { ok: false; message: string };
 
 const tmdbDiscoverPageSize = 20;
+const tmdbTitleSearchPageSize = 12;
 
 function buildTmdbDiscoverPath(category: TmdbDiscoverCategory, mediaType: RecommendationMediaType) {
   if (category === "trending") {
@@ -909,6 +921,88 @@ export async function listTmdbDiscoverTitles(input: TmdbConnectionInput & {
   return {
     ok: true,
     titles: normalizeTmdbDiscoverTitles(
+      response.payload,
+      input.mediaType,
+      getTmdbImageBaseUrl(input.metadata),
+    ),
+  };
+}
+
+function normalizeTmdbTitleSearchResults(
+  payload: TmdbSearchPayload,
+  mediaType: RecommendationMediaType,
+  imageBaseUrl: string | null,
+): TmdbTitleSearchResult[] {
+  if (!Array.isArray(payload.results)) {
+    return [];
+  }
+
+  const seenIds = new Set<number>();
+  const titles: TmdbTitleSearchResult[] = [];
+
+  for (const entry of payload.results) {
+    if (!isTmdbSearchResult(entry)) {
+      continue;
+    }
+
+    const tmdbId = readInteger(entry.id);
+
+    if (tmdbId === null || seenIds.has(tmdbId)) {
+      continue;
+    }
+
+    const title = getCandidateTitle(entry, mediaType);
+
+    if (!title) {
+      continue;
+    }
+
+    const releaseDate = getCandidateReleaseDate(entry, mediaType);
+
+    seenIds.add(tmdbId);
+    titles.push({
+      tmdbId,
+      mediaType,
+      title,
+      year: extractYear(releaseDate),
+      posterUrl: buildImageUrl(imageBaseUrl, (entry as { poster_path?: unknown }).poster_path, "w500"),
+      backdropUrl: buildImageUrl(imageBaseUrl, (entry as { backdrop_path?: unknown }).backdrop_path, "w780"),
+      releaseDate,
+      overview: readString((entry as { overview?: unknown }).overview),
+      originalLanguage: readString(entry.original_language),
+      voteAverage: readNumber((entry as { vote_average?: unknown }).vote_average),
+    });
+  }
+
+  return titles.slice(0, tmdbTitleSearchPageSize);
+}
+
+export async function searchTmdbTitles(input: TmdbConnectionInput & {
+  mediaType: RecommendationMediaType;
+  query: string;
+}): Promise<SearchTmdbTitlesResult> {
+  const path = input.mediaType === "movie" ? "search/movie" : "search/tv";
+  const response = await fetchTmdbJson<TmdbSearchPayload>({
+    ...input,
+    path,
+    searchParams: {
+      query: input.query,
+      include_adult: false,
+      language: "en-US",
+      page: 1,
+    },
+  });
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: `TMDB title search failed with status ${response.status}.`,
+    };
+  }
+
+  return {
+    ok: true,
+    titles: normalizeTmdbTitleSearchResults(
       response.payload,
       input.mediaType,
       getTmdbImageBaseUrl(input.metadata),
