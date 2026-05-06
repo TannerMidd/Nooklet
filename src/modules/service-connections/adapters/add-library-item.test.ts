@@ -113,6 +113,7 @@ describe("searchLibraryItems", () => {
       items: [
         {
           resultKey: "tvdb:371437",
+          tmdbId: null,
           title: "Archive 81",
           year: 2022,
           posterUrl: "http://sonarr.local/MediaCover/1/poster.jpg",

@@ -218,8 +218,10 @@ describe("add-library-item-helpers", () => {
     it("prefers tmdb id, then tvdb id, then imdb id, finally a title::year fallback for resultKey", () => {
       const tmdb = toLibrarySearchResult("https://x", { title: "T", year: 2020, tmdbId: 9 });
       expect(tmdb?.resultKey).toBe("tmdb:9");
+      expect(tmdb?.tmdbId).toBe(9);
       const tvdb = toLibrarySearchResult("https://x", { title: "T", year: 2020, tvdbId: 8 });
       expect(tvdb?.resultKey).toBe("tvdb:8");
+      expect(tvdb?.tmdbId).toBeNull();
       const imdb = toLibrarySearchResult("https://x", { title: "T", year: 2020, imdbId: "tt7" });
       expect(imdb?.resultKey).toBe("imdb:tt7");
       const fallback = toLibrarySearchResult("https://x", { title: "Movie X", year: 2020 });
@@ -264,9 +266,9 @@ describe("add-library-item-helpers", () => {
 
   describe("compareLibrarySearchResults", () => {
     it("orders by case-insensitive title, then year ascending", () => {
-      const a = { resultKey: "a", title: "alpha", year: 2000, posterUrl: null, availableSeasons: [] };
-      const b = { resultKey: "b", title: "Beta", year: 1999, posterUrl: null, availableSeasons: [] };
-      const c = { resultKey: "c", title: "alpha", year: 2001, posterUrl: null, availableSeasons: [] };
+      const a = { resultKey: "a", tmdbId: null, title: "alpha", year: 2000, posterUrl: null, availableSeasons: [] };
+      const b = { resultKey: "b", tmdbId: null, title: "Beta", year: 1999, posterUrl: null, availableSeasons: [] };
+      const c = { resultKey: "c", tmdbId: null, title: "alpha", year: 2001, posterUrl: null, availableSeasons: [] };
       const sorted = [b, c, a].sort(compareLibrarySearchResults);
       expect(sorted.map((item) => item.resultKey)).toEqual(["a", "c", "b"]);
     });

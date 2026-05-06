@@ -25,6 +25,7 @@ export const extractErrorMessage = extractArrErrorMessage;
 export type LibraryLookupCandidate = Record<string, unknown> & {
   title?: string;
   year?: number;
+  tmdbId?: number;
   seasons?: unknown[];
   images?: unknown;
 };
@@ -321,12 +322,16 @@ export function toLibrarySearchResult(
   candidate: LibraryLookupCandidate,
 ): LibrarySearchResult | null {
   const title = typeof candidate.title === "string" ? candidate.title.trim() : "";
+  const tmdbId = typeof candidate.tmdbId === "number" && Number.isInteger(candidate.tmdbId)
+    ? candidate.tmdbId
+    : null;
 
   if (!title) {
     return null;
   }
 
   const item = {
+    tmdbId,
     title,
     year: typeof candidate.year === "number" && Number.isInteger(candidate.year) ? candidate.year : null,
     posterUrl: extractPosterUrl(baseUrl, candidate),
