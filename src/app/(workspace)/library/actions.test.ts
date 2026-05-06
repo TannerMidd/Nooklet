@@ -22,6 +22,38 @@ vi.mock("@/modules/media-library/commands/add-library-path", () => {
     LibraryPathCommandError,
   };
 });
+vi.mock("@/modules/media-library/commands/remove-library-path", () => {
+  class RemoveLibraryPathCommandError extends Error {
+    constructor(
+      message: string,
+      public readonly code: "path_not_found",
+    ) {
+      super(message);
+      this.name = "RemoveLibraryPathCommandError";
+    }
+  }
+
+  return {
+    removeLibraryPathCommand: vi.fn(),
+    RemoveLibraryPathCommandError,
+  };
+});
+vi.mock("@/modules/media-library/commands/update-library-path", () => {
+  class UpdateLibraryPathCommandError extends Error {
+    constructor(
+      message: string,
+      public readonly code: "folder_not_found" | "path_already_exists" | "path_not_found",
+    ) {
+      super(message);
+      this.name = "UpdateLibraryPathCommandError";
+    }
+  }
+
+  return {
+    updateLibraryPathCommand: vi.fn(),
+    UpdateLibraryPathCommandError,
+  };
+});
 vi.mock("@/modules/media-library/workflows/scan-library", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/media-library/workflows/scan-library")>();
   return {
@@ -38,18 +70,30 @@ import {
   LibraryPathCommandError,
 } from "@/modules/media-library/commands/add-library-path";
 import {
+  removeLibraryPathCommand,
+  RemoveLibraryPathCommandError,
+} from "@/modules/media-library/commands/remove-library-path";
+import {
+  updateLibraryPathCommand,
+  UpdateLibraryPathCommandError,
+} from "@/modules/media-library/commands/update-library-path";
+import {
   scanMediaLibraryWorkflow,
   ScanMediaLibraryWorkflowError,
 } from "@/modules/media-library/workflows/scan-library";
 
 import {
   addLibraryPathAction,
+  removeLibraryPathAction,
   scanLibraryAction,
+  updateLibraryPathAction,
 } from "./actions";
-import { initialLibraryPathActionState } from "./action-state";
+import { initialLibraryPathActionState, initialLibraryPathMutationActionState } from "./action-state";
 
 const authMock = vi.mocked(auth);
 const addLibraryPathMock = vi.mocked(addLibraryPathCommand);
+const updateLibraryPathMock = vi.mocked(updateLibraryPathCommand);
+const removeLibraryPathMock = vi.mocked(removeLibraryPathCommand);
 const scanLibraryMock = vi.mocked(scanMediaLibraryWorkflow);
 const revalidateMock = vi.mocked(revalidatePath);
 
@@ -148,5 +192,106 @@ describe("scanLibraryAction", () => {
     expect(scanLibraryMock).toHaveBeenCalledWith("u1", {});
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(result).toEqual({ status: "success", message: "Scan finished: 2 files, 1 title." });
+  });
+});
+
+describe("updateLibraryPathAction", () => {
+  function validForm() {
+    const form = new FormData();
+    form.set("pathId", "path1");
+    form.set("mediaType", "tv");
+    form.set("libraryName", "TV Shows");
+    form.set("path", "E:/Plex Media/TV Shows");
+    form.set("label", "TV root");
+    form.set("status", "active");
+    return form;
+  }
+
+  it("returns sign-in error when there is no session", async () => {
+    authMock.mockResolvedValue(null as never);
+
+    const result = await updateLibraryPathAction(initialLibraryPathMutationActionState, validForm());
+
+    expect(result).toEqual({ status: "error", message: "You need to sign in again." });
+    expect(updateLibraryPathMock).not.toHaveBeenCalled();
+  });
+
+  it("validates submitted status", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    const form = validForm();
+    form.set("status", "archived");
+
+    const result = await updateLibraryPathAction(initialLibraryPathMutationActionState, form);
+
+    expect(result.status).toBe("error");
+    expect(updateLibraryPathMock).not.toHaveBeenCalled();
+  });
+
+  it("maps command errors to friendly messages", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    updateLibraryPathMock.mockRejectedValue(
+      new UpdateLibraryPathCommandError("That folder is already attached to your library.", "path_already_exists"),
+    );
+
+    const result = await updateLibraryPathAction(initialLibraryPathMutationActionState, validForm());
+
+    expect(result).toEqual({ status: "error", message: "That folder is already attached to your library." });
+  });
+
+  it("updates the path and revalidates the library page", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    updateLibraryPathMock.mockResolvedValue(undefined as never);
+
+    const result = await updateLibraryPathAction(initialLibraryPathMutationActionState, validForm());
+
+    expect(updateLibraryPathMock).toHaveBeenCalledWith("u1", {
+      pathId: "path1",
+      mediaType: "tv",
+      libraryName: "TV Shows",
+      path: "E:/Plex Media/TV Shows",
+      label: "TV root",
+      status: "active",
+    });
+    expect(revalidateMock).toHaveBeenCalledWith("/library");
+    expect(result).toEqual({ status: "success", message: "Library folder updated." });
+  });
+});
+
+describe("removeLibraryPathAction", () => {
+  function validForm() {
+    const form = new FormData();
+    form.set("pathId", "path1");
+    return form;
+  }
+
+  it("returns sign-in error when there is no session", async () => {
+    authMock.mockResolvedValue(null as never);
+
+    const result = await removeLibraryPathAction(initialLibraryPathMutationActionState, validForm());
+
+    expect(result).toEqual({ status: "error", message: "You need to sign in again." });
+    expect(removeLibraryPathMock).not.toHaveBeenCalled();
+  });
+
+  it("maps command errors to friendly messages", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    removeLibraryPathMock.mockRejectedValue(
+      new RemoveLibraryPathCommandError("Library folder was not found.", "path_not_found"),
+    );
+
+    const result = await removeLibraryPathAction(initialLibraryPathMutationActionState, validForm());
+
+    expect(result).toEqual({ status: "error", message: "Library folder was not found." });
+  });
+
+  it("removes the path and revalidates the library page", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    removeLibraryPathMock.mockResolvedValue(undefined as never);
+
+    const result = await removeLibraryPathAction(initialLibraryPathMutationActionState, validForm());
+
+    expect(removeLibraryPathMock).toHaveBeenCalledWith("u1", { pathId: "path1" });
+    expect(revalidateMock).toHaveBeenCalledWith("/library");
+    expect(result).toEqual({ status: "success", message: "Library folder removed." });
   });
 });

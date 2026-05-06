@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { LibraryPathForm } from "@/app/(workspace)/library/library-path-form";
+import { LibraryPathManager } from "@/app/(workspace)/library/library-path-manager";
 import { LibraryScanButton } from "@/app/(workspace)/library/library-scan-button";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
@@ -43,20 +44,7 @@ function LibraryList({ libraries }: { libraries: LibrarySummary[] }) {
           </div>
           <ul className="mt-4 space-y-2">
             {library.paths.map((entry) => (
-              <li
-                key={entry.id}
-                className="grid gap-2 rounded-lg border border-line/60 bg-background/20 p-3 text-sm md:grid-cols-[minmax(0,1fr)_auto]"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-foreground">{entry.label}</p>
-                  <p className="break-all text-muted">{entry.path}</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted md:justify-end">
-                  <span className="rounded-lg border border-line/60 px-2 py-1 capitalize">{entry.status}</span>
-                  <span>{entry.fileCount} file{entry.fileCount === 1 ? "" : "s"}</span>
-                  {entry.lastScannedAt ? <span>{entry.lastScannedAt.toLocaleString()}</span> : null}
-                </div>
-              </li>
+              <LibraryPathManager key={entry.id} library={library} path={entry} />
             ))}
           </ul>
         </li>

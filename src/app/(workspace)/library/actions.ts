@@ -7,7 +7,19 @@ import {
   addLibraryPathCommand,
   LibraryPathCommandError,
 } from "@/modules/media-library/commands/add-library-path";
-import { addLibraryPathInputSchema } from "@/modules/media-library/schemas/library-path";
+import {
+  removeLibraryPathCommand,
+  RemoveLibraryPathCommandError,
+} from "@/modules/media-library/commands/remove-library-path";
+import {
+  updateLibraryPathCommand,
+  UpdateLibraryPathCommandError,
+} from "@/modules/media-library/commands/update-library-path";
+import {
+  addLibraryPathInputSchema,
+  removeLibraryPathInputSchema,
+  updateLibraryPathInputSchema,
+} from "@/modules/media-library/schemas/library-path";
 import {
   scanMediaLibraryInputSchema,
   scanMediaLibraryWorkflow,
@@ -16,6 +28,7 @@ import {
 import {
   initialScanLibraryActionState,
   type LibraryPathActionState,
+  type LibraryPathMutationActionState,
   type ScanLibraryActionState,
 } from "./action-state";
 
@@ -89,4 +102,75 @@ export async function scanLibraryAction(
 
     return { status: "error", message: "Nooklet could not scan the library." };
   }
+}
+
+export async function updateLibraryPathAction(
+  _previous: LibraryPathMutationActionState,
+  formData: FormData,
+): Promise<LibraryPathMutationActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { status: "error", message: "You need to sign in again." };
+  }
+
+  const parsed = updateLibraryPathInputSchema.safeParse({
+    pathId: formData.get("pathId"),
+    mediaType: formData.get("mediaType"),
+    libraryName: formData.get("libraryName"),
+    path: formData.get("path"),
+    label: formData.get("label") || undefined,
+    status: formData.get("status"),
+  });
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]?.message ?? "Review the library folder and try again.";
+    return { status: "error", message: firstIssue };
+  }
+
+  try {
+    await updateLibraryPathCommand(session.user.id, parsed.data);
+  } catch (error) {
+    if (error instanceof UpdateLibraryPathCommandError) {
+      return { status: "error", message: error.message };
+    }
+
+    return { status: "error", message: "Failed to update library folder." };
+  }
+
+  revalidatePath("/library");
+  return { status: "success", message: "Library folder updated." };
+}
+
+export async function removeLibraryPathAction(
+  _previous: LibraryPathMutationActionState,
+  formData: FormData,
+): Promise<LibraryPathMutationActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { status: "error", message: "You need to sign in again." };
+  }
+
+  const parsed = removeLibraryPathInputSchema.safeParse({
+    pathId: formData.get("pathId"),
+  });
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]?.message ?? "Choose a library folder.";
+    return { status: "error", message: firstIssue };
+  }
+
+  try {
+    await removeLibraryPathCommand(session.user.id, parsed.data);
+  } catch (error) {
+    if (error instanceof RemoveLibraryPathCommandError) {
+      return { status: "error", message: error.message };
+    }
+
+    return { status: "error", message: "Failed to remove library folder." };
+  }
+
+  revalidatePath("/library");
+  return { status: "success", message: "Library folder removed." };
 }
