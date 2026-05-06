@@ -75,6 +75,7 @@ describe("media-library-repository", () => {
       year: 2022,
       normalizedKey: "severance::2022",
       status: "available",
+      qualityProfile: "hd-720p",
       overview: "Office work with a clean split.",
       posterUrl: "https://images.example/severance.jpg",
       originalLanguage: "en",
@@ -185,6 +186,7 @@ describe("media-library-repository", () => {
       .get();
 
     expect(reloadedTitle?.title).toBe("Severance");
+    expect(reloadedTitle?.qualityProfile).toBe("hd-720p");
     expect(reloadedTitle?.posterUrl).toBe("https://images.example/severance.jpg");
     expect(storedExternalIds).toHaveLength(2);
     expect(storedEpisode?.airDate).toBe("2022-02-18");

@@ -10,6 +10,7 @@ import {
   listMediaLibraryTitles,
   type MediaLibraryTitleSummary,
 } from "@/modules/media-library/queries/list-media-library-titles";
+import { getMediaQualityProfileLabel } from "@/modules/media-library/queries/list-media-quality-profiles";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 
 function mediaTypeLabel(mediaType: RecommendationMediaType) {
@@ -41,6 +42,9 @@ function TitleCard({ title }: { title: MediaLibraryTitleSummary }) {
             <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1 capitalize">{title.status}</span>
             <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">
               {title.monitored ? "Monitored" : "Unmonitored"}
+            </span>
+            <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">
+              {getMediaQualityProfileLabel(title.qualityProfile)}
             </span>
             <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">{qualityLabel}</span>
             {title.lastFileModifiedAt ? (

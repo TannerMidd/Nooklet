@@ -6,6 +6,7 @@ import {
   mediaLibraries,
   mediaTitles,
   type MediaTitleStatus,
+  type MediaQualityProfile,
   type RecommendationMediaType,
 } from "@/lib/database/schema";
 
@@ -18,6 +19,7 @@ export type MediaLibraryTitleSummary = {
   year: number | null;
   status: MediaTitleStatus;
   monitored: boolean;
+  qualityProfile: MediaQualityProfile;
   overview: string | null;
   posterUrl: string | null;
   fileCount: number;
@@ -91,6 +93,7 @@ export async function listMediaLibraryTitles(
         year: title.year,
         status: title.status,
         monitored: title.monitored,
+        qualityProfile: title.qualityProfile,
         overview: title.overview,
         posterUrl: title.posterUrl,
         fileCount: stats?.count ?? 0,

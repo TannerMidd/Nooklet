@@ -49,6 +49,7 @@ describe("listMediaLibraryTitles", () => {
       normalizedKey: "arrival::2016",
       status: "available",
       monitored: true,
+      qualityProfile: "uhd-2160p",
       posterUrl: "https://images.example/arrival.jpg",
     });
     await upsertMediaTitle({
@@ -84,6 +85,7 @@ describe("listMediaLibraryTitles", () => {
       libraryName: "Movies",
       fileCount: 1,
       qualityLabels: ["1080P"],
+      qualityProfile: "uhd-2160p",
       posterUrl: "https://images.example/arrival.jpg",
     }));
   });

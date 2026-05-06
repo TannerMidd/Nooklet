@@ -15,6 +15,7 @@ import {
   type MediaFileKind,
   type MediaLibraryPathStatus,
   type MediaScanRunStatus,
+  type MediaQualityProfile,
   type MediaTitleExternalIdSource,
   type MediaTitleStatus,
   type RecommendationMediaType,
@@ -70,6 +71,16 @@ export async function findMediaLibraryByName(
         eq(mediaLibraries.name, name),
       ),
     )
+    .get() ?? null;
+}
+
+export async function findMediaLibraryByIdForUser(userId: string, libraryId: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(mediaLibraries)
+    .where(and(eq(mediaLibraries.userId, userId), eq(mediaLibraries.id, libraryId)))
     .get() ?? null;
 }
 
@@ -193,6 +204,7 @@ export async function upsertMediaTitle(input: {
   normalizedKey: string;
   status?: MediaTitleStatus;
   monitored?: boolean;
+  qualityProfile?: MediaQualityProfile;
   overview?: string | null;
   posterUrl?: string | null;
   backdropUrl?: string | null;
@@ -212,6 +224,7 @@ export async function upsertMediaTitle(input: {
     normalizedKey: input.normalizedKey,
     status: input.status ?? "missing",
     monitored: input.monitored ?? true,
+    qualityProfile: input.qualityProfile ?? "hd-1080p",
     overview: input.overview ?? null,
     posterUrl: input.posterUrl ?? null,
     backdropUrl: input.backdropUrl ?? null,
@@ -232,6 +245,7 @@ export async function upsertMediaTitle(input: {
         year: values.year,
         status: values.status,
         monitored: values.monitored,
+        qualityProfile: values.qualityProfile,
         overview: values.overview,
         posterUrl: values.posterUrl,
         backdropUrl: values.backdropUrl,
