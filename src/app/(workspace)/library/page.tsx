@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { LibraryPathForm } from "@/app/(workspace)/library/library-path-form";
+import { LibraryScanButton } from "@/app/(workspace)/library/library-scan-button";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import {
@@ -79,6 +80,7 @@ export default async function LibraryPage() {
         eyebrow="Built-in library"
         title="Library"
         description="Manage local movie and TV folders for the standalone Nooklet media stack."
+        actions={<LibraryScanButton />}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
