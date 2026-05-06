@@ -68,6 +68,14 @@ export const serviceConnectionDefinitions = [
     defaultBaseUrl: "https://api.themoviedb.org/3",
   },
   {
+    serviceType: "tvdb",
+    displayName: "TVDB",
+    description:
+      "Connect TheTVDB for TV series identity, seasons, episodes, and release metadata.",
+    secretLabel: "API key",
+    defaultBaseUrl: "https://api4.thetvdb.com/v4",
+  },
+  {
     serviceType: "trakt",
     displayName: "Trakt",
     description:
