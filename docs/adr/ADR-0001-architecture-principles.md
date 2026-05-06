@@ -11,9 +11,9 @@ Accepted
 ## Context
 
 Nooklet is a self-hosted application that connects an OpenAI-compatible
-chat model to a media stack (Sonarr, Radarr, Plex, Jellyfin, Tautulli, Trakt,
-SABnzbd) and produces TV and movie recommendations grounded in the user's
-library and watch history.
+chat model to a media stack (built-in TV/movie libraries, direct indexers,
+SABnzbd, Plex, Jellyfin, Tautulli, Trakt, TMDB, and TVDB) and produces TV and
+movie recommendations grounded in the user's library and watch history.
 
 The product spans several non-trivial workflows — recommendation generation,
 watch-history sync, service connection setup, credential ownership, admin
@@ -58,6 +58,10 @@ Required core modules:
 - users
 - service-connections
 - credential-vault
+- metadata
+- media-library
+- indexers
+- downloads
 - watch-history
 - recommendations
 - preferences
@@ -92,8 +96,9 @@ Each module owns:
    etc.) in UI code to decide policy.
 8. No root component or layout orchestrates multiple workflows.
 9. Recommendation generation, watch-history sync, onboarding, connection
-   verification, and admin actions are explicit workflows with separate phase
-   files. Phases are not collapsed into one function.
+  verification, admin actions, library scanning, indexer search, and download
+  import are explicit workflows with separate phase files. Phases are not
+  collapsed into one function.
 10. Server-only adapters expose typed capabilities, not ad hoc
     service-specific methods consumed directly by screens.
 
@@ -123,6 +128,17 @@ Watch-history sync is a dedicated subsystem with explicit phases:
 Each workflow has a thin orchestrator (`index.ts`) that calls phases in order
 and a wiring test that mocks each phase and asserts order plus propagation.
 
+Built-in media management is a dedicated set of workflow modules, not a
+screen-level replacement for Sonarr or Radarr. Library scanning uses explicit
+phases for source validation, file discovery, filename parsing,
+metadata matching, merge/deduplication, scan metadata persistence, and query
+surface. Indexer search uses explicit phases for request validation,
+indexer selection, credential resolution, provider search, normalization,
+filtering/scoring, safe result persistence, and audit. Download enqueue and
+import use explicit phases for request validation, release ownership checks,
+credential resolution, SABnzbd submission or status fetch, destination path
+selection, file organization, persistence, and audit.
+
 ### Authentication and authorization
 
 - Local login is a first-class feature.
@@ -143,6 +159,19 @@ The schema is normalized around workflows and records such as:
 - service_connections
 - service_secrets
 - service_user_selections
+- media_libraries
+- media_library_paths
+- media_titles
+- media_title_external_ids
+- tv_seasons
+- tv_episodes
+- media_files
+- media_scan_runs
+- indexer_sources
+- indexer_search_runs
+- indexer_search_results
+- download_requests
+- download_import_runs
 - watch_history_sources
 - watch_history_items
 - sync_runs

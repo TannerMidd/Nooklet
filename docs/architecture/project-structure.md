@@ -11,7 +11,8 @@ behavior comes from the [behavior matrix](../product/behavior-matrix.md).
 - Domain modules own validation, commands, queries, repositories, adapters,
   types, and explicit workflows.
 - UI routes stay separate for login, bootstrap, account, preferences,
-  connections, admin, TV recommendations, movie recommendations, and history.
+  connections, admin, TV recommendations, movie recommendations, built-in
+  library management, direct media search, active downloads, and history.
 - Shared framework code belongs in `src/lib` or `src/components`, not inside
   a generic service layer.
 - Product behavior is sourced from the behavior matrix, not from any one
@@ -28,11 +29,14 @@ src/
     (workspace)/
       admin/
       history/
+      library/
       movies/
       settings/
         account/
         connections/
+        indexers/
         preferences/
+      search/
       tv/
     api/
   components/
@@ -43,6 +47,10 @@ src/
   config/
   lib/
   modules/
+    downloads/
+    indexers/
+    media-library/
+    metadata/
 ```
 
 ## Module template
