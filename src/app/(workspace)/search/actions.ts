@@ -1,6 +1,13 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
 import { auth } from "@/auth";
+import {
+  queueIndexerResultInputSchema,
+  queueIndexerResultWorkflow,
+  QueueIndexerResultWorkflowError,
+} from "@/modules/downloads/workflows/queue-indexer-result";
 import { searchIndexersInputSchema, searchIndexersWorkflow } from "@/modules/indexers/workflows/search-indexers";
 
 export type SearchResultView = {
@@ -27,6 +34,18 @@ export const initialIndexerSearchActionState: IndexerSearchActionState = {
   message: null,
   searchRunId: null,
   results: [],
+};
+
+export type QueueIndexerResultActionState = {
+  status: "idle" | "success" | "error";
+  message: string | null;
+  downloadRequestId: string | null;
+};
+
+export const initialQueueIndexerResultActionState: QueueIndexerResultActionState = {
+  status: "idle",
+  message: null,
+  downloadRequestId: null,
 };
 
 export async function searchIndexersAction(
@@ -76,4 +95,46 @@ export async function searchIndexersAction(
       grabs: result.grabs,
     })),
   };
+}
+
+export async function queueIndexerResultAction(
+  _previous: QueueIndexerResultActionState,
+  formData: FormData,
+): Promise<QueueIndexerResultActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { ...initialQueueIndexerResultActionState, status: "error", message: "You need to sign in again." };
+  }
+
+  const parsed = queueIndexerResultInputSchema.safeParse({
+    resultId: formData.get("resultId"),
+  });
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]?.message ?? "Select a release and try again.";
+    return { ...initialQueueIndexerResultActionState, status: "error", message: firstIssue };
+  }
+
+  try {
+    const queued = await queueIndexerResultWorkflow(session.user.id, parsed.data);
+
+    revalidatePath("/in-progress");
+
+    return {
+      status: "success",
+      message: "Queued in SABnzbd.",
+      downloadRequestId: queued.downloadRequest.id,
+    };
+  } catch (error) {
+    if (error instanceof QueueIndexerResultWorkflowError) {
+      return { ...initialQueueIndexerResultActionState, status: "error", message: error.message };
+    }
+
+    return {
+      ...initialQueueIndexerResultActionState,
+      status: "error",
+      message: "Nooklet could not queue that release.",
+    };
+  }
 }
