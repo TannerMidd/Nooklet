@@ -30,3 +30,4 @@ export async function searchIndexersWorkflow(
 }
 
 export type { PersistedIndexerSearch, SearchIndexersInput };
+export { searchIndexersInputSchema } from "./request-validation";
