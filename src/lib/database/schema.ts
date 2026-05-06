@@ -158,6 +158,9 @@ export const mediaTitleStatuses = ["requested", "available", "missing"] as const
 export const mediaTitleExternalIdSources = ["tmdb", "tvdb", "imdb"] as const;
 export const mediaFileKinds = ["movie", "episode", "extra", "unknown"] as const;
 export const mediaScanRunStatuses = ["pending", "running", "succeeded", "failed"] as const;
+export const indexerProtocols = ["newznab", "torznab"] as const;
+export const indexerConnectionStatuses = ["configured", "verified", "error", "disabled"] as const;
+export const indexerSearchRunStatuses = ["pending", "running", "succeeded", "failed"] as const;
 
 export const mediaLibraries = sqliteTable(
   "media_libraries",
@@ -397,6 +400,154 @@ export const mediaScanRuns = sqliteTable(
     index("media_scan_runs_path_started_idx").on(table.libraryPathId, table.startedAt),
   ],
 );
+
+export const indexers = sqliteTable(
+  "indexers",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    protocol: text("protocol", { enum: indexerProtocols }).notNull(),
+    baseUrl: text("base_url").notNull(),
+    apiPath: text("api_path").notNull().default("/api"),
+    status: text("status", { enum: indexerConnectionStatuses })
+      .notNull()
+      .default("configured"),
+    statusMessage: text("status_message"),
+    isEnabled: integer("is_enabled", { mode: "boolean" }).notNull().default(true),
+    priority: integer("priority").notNull().default(0),
+    lastTestedAt: integer("last_tested_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    uniqueIndex("indexers_user_name_unique").on(table.userId, table.name),
+    index("indexers_user_enabled_priority_idx").on(
+      table.userId,
+      table.isEnabled,
+      table.priority,
+    ),
+    index("indexers_user_protocol_status_idx").on(table.userId, table.protocol, table.status),
+  ],
+);
+
+export const indexerMediaCategories = sqliteTable(
+  "indexer_media_categories",
+  {
+    indexerId: text("indexer_id")
+      .notNull()
+      .references(() => indexers.id, { onDelete: "cascade" }),
+    mediaType: text("media_type", { enum: recommendationMediaTypes }).notNull(),
+    categoryId: text("category_id").notNull(),
+    label: text("label"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    primaryKey({ columns: [table.indexerId, table.mediaType, table.categoryId] }),
+    index("indexer_media_categories_media_idx").on(table.mediaType),
+  ],
+);
+
+export const indexerSecrets = sqliteTable("indexer_secrets", {
+  indexerId: text("indexer_id")
+    .primaryKey()
+    .references(() => indexers.id, { onDelete: "cascade" }),
+  encryptedApiKey: text("encrypted_api_key").notNull(),
+  maskedApiKey: text("masked_api_key").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
+
+export const indexerSearchRuns = sqliteTable(
+  "indexer_search_runs",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    indexerId: text("indexer_id").references(() => indexers.id, { onDelete: "set null" }),
+    mediaType: text("media_type", { enum: recommendationMediaTypes }).notNull(),
+    query: text("query").notNull(),
+    normalizedKey: text("normalized_key"),
+    status: text("status", { enum: indexerSearchRunStatuses })
+      .notNull()
+      .default("pending"),
+    resultCount: integer("result_count").notNull().default(0),
+    errorMessage: text("error_message"),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("indexer_search_runs_user_status_created_idx").on(
+      table.userId,
+      table.status,
+      table.createdAt,
+    ),
+    index("indexer_search_runs_user_expiry_idx").on(table.userId, table.expiresAt),
+    index("indexer_search_runs_indexer_created_idx").on(table.indexerId, table.createdAt),
+  ],
+);
+
+export const indexerSearchResults = sqliteTable(
+  "indexer_search_results",
+  {
+    id: text("id").primaryKey(),
+    searchRunId: text("search_run_id")
+      .notNull()
+      .references(() => indexerSearchRuns.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    indexerId: text("indexer_id").references(() => indexers.id, { onDelete: "set null" }),
+    mediaType: text("media_type", { enum: recommendationMediaTypes }).notNull(),
+    title: text("title").notNull(),
+    normalizedTitle: text("normalized_title").notNull(),
+    indexerGuid: text("indexer_guid").notNull(),
+    qualityLabel: text("quality_label"),
+    releaseGroup: text("release_group"),
+    sizeBytes: integer("size_bytes"),
+    publishedAt: integer("published_at", { mode: "timestamp_ms" }),
+    ageMinutes: integer("age_minutes"),
+    seeders: integer("seeders"),
+    leechers: integer("leechers"),
+    grabs: integer("grabs"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    uniqueIndex("indexer_search_results_run_guid_unique").on(table.searchRunId, table.indexerGuid),
+    index("indexer_search_results_user_media_created_idx").on(
+      table.userId,
+      table.mediaType,
+      table.createdAt,
+    ),
+    index("indexer_search_results_indexer_guid_idx").on(table.indexerId, table.indexerGuid),
+  ],
+);
+
+export const indexerSearchResultSecrets = sqliteTable("indexer_search_result_secrets", {
+  resultId: text("result_id")
+    .primaryKey()
+    .references(() => indexerSearchResults.id, { onDelete: "cascade" }),
+  encryptedDownloadUrl: text("encrypted_download_url").notNull(),
+  maskedDownloadUrl: text("masked_download_url").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+});
 
 export const watchHistorySourceTypes = ["manual", "tautulli", "plex", "trakt"] as const;
 export const watchHistorySyncStatuses = ["pending", "succeeded", "failed"] as const;
@@ -732,6 +883,9 @@ export type MediaTitleStatus = (typeof mediaTitleStatuses)[number];
 export type MediaTitleExternalIdSource = (typeof mediaTitleExternalIdSources)[number];
 export type MediaFileKind = (typeof mediaFileKinds)[number];
 export type MediaScanRunStatus = (typeof mediaScanRunStatuses)[number];
+export type IndexerProtocol = (typeof indexerProtocols)[number];
+export type IndexerConnectionStatus = (typeof indexerConnectionStatuses)[number];
+export type IndexerSearchRunStatus = (typeof indexerSearchRunStatuses)[number];
 export type WatchHistorySourceType = (typeof watchHistorySourceTypes)[number];
 export type WatchHistorySyncStatus = (typeof watchHistorySyncStatuses)[number];
 export type JobType = (typeof jobTypes)[number];

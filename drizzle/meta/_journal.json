@@ -155,6 +155,13 @@
       "when": 1778092835869,
       "tag": "0021_high_darkhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1778093923539,
+      "tag": "0022_woozy_vivisector",
+      "breakpoints": true
     }
   ]
 }
