@@ -44,9 +44,9 @@ import {
 
 import {
   addLibraryPathAction,
-  initialLibraryPathActionState,
   scanLibraryAction,
 } from "./actions";
+import { initialLibraryPathActionState } from "./action-state";
 
 const authMock = vi.mocked(auth);
 const addLibraryPathMock = vi.mocked(addLibraryPathCommand);

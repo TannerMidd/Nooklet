@@ -5,12 +5,14 @@ import { useFormStatus } from "react-dom";
 
 import {
   addNotificationChannelAction,
-  initialNotificationChannelActionState,
   removeNotificationChannelAction,
   testNotificationChannelAction,
   toggleNotificationChannelAction,
-  type NotificationChannelActionState,
 } from "@/app/(workspace)/settings/notifications/actions";
+import {
+  initialNotificationChannelActionState,
+  type NotificationChannelActionState,
+} from "@/app/(workspace)/settings/notifications/action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {

@@ -15,7 +15,8 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { addIndexerCommand } from "@/modules/indexers/commands/add-indexer";
 
-import { addIndexerAction, initialIndexerActionState } from "./actions";
+import { addIndexerAction } from "./actions";
+import { initialIndexerActionState } from "./action-state";
 
 const authMock = vi.mocked(auth);
 const addIndexerMock = vi.mocked(addIndexerCommand);

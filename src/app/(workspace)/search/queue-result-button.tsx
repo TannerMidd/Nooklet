@@ -5,10 +5,12 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
-  initialQueueIndexerResultActionState,
   queueIndexerResultAction,
-  type QueueIndexerResultActionState,
 } from "@/app/(workspace)/search/actions";
+import {
+  initialQueueIndexerResultActionState,
+  type QueueIndexerResultActionState,
+} from "@/app/(workspace)/search/action-state";
 import { Button } from "@/components/ui/button";
 
 function QueueStatus({ state }: { state: QueueIndexerResultActionState }) {

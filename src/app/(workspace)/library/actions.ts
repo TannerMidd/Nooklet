@@ -13,26 +13,11 @@ import {
   scanMediaLibraryWorkflow,
   ScanMediaLibraryWorkflowError,
 } from "@/modules/media-library/workflows/scan-library";
-
-export type LibraryPathActionState = {
-  status: "idle" | "success" | "error";
-  message: string | null;
-};
-
-export const initialLibraryPathActionState: LibraryPathActionState = {
-  status: "idle",
-  message: null,
-};
-
-export type ScanLibraryActionState = {
-  status: "idle" | "success" | "error";
-  message: string | null;
-};
-
-export const initialScanLibraryActionState: ScanLibraryActionState = {
-  status: "idle",
-  message: null,
-};
+import {
+  initialScanLibraryActionState,
+  type LibraryPathActionState,
+  type ScanLibraryActionState,
+} from "./action-state";
 
 export async function addLibraryPathAction(
   _previous: LibraryPathActionState,

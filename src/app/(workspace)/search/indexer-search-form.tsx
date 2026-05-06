@@ -5,11 +5,13 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
-  initialIndexerSearchActionState,
   searchIndexersAction,
+} from "@/app/(workspace)/search/actions";
+import {
+  initialIndexerSearchActionState,
   type IndexerSearchActionState,
   type SearchResultView,
-} from "@/app/(workspace)/search/actions";
+} from "@/app/(workspace)/search/action-state";
 import { QueueResultButton } from "@/app/(workspace)/search/queue-result-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

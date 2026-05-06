@@ -31,11 +31,13 @@ import {
 import { searchIndexersWorkflow } from "@/modules/indexers/workflows/search-indexers";
 
 import {
-  initialIndexerSearchActionState,
-  initialQueueIndexerResultActionState,
   queueIndexerResultAction,
   searchIndexersAction,
 } from "./actions";
+import {
+  initialIndexerSearchActionState,
+  initialQueueIndexerResultActionState,
+} from "./action-state";
 
 const authMock = vi.mocked(auth);
 const searchMock = vi.mocked(searchIndexersWorkflow);

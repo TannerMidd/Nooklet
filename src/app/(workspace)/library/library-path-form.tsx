@@ -6,9 +6,11 @@ import { useFormStatus } from "react-dom";
 
 import {
   addLibraryPathAction,
+} from "@/app/(workspace)/library/actions";
+import {
   initialLibraryPathActionState,
   type LibraryPathActionState,
-} from "@/app/(workspace)/library/actions";
+} from "@/app/(workspace)/library/action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 

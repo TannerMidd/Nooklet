@@ -5,10 +5,12 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
-  initialScanLibraryActionState,
   scanLibraryAction,
-  type ScanLibraryActionState,
 } from "@/app/(workspace)/library/actions";
+import {
+  initialScanLibraryActionState,
+  type ScanLibraryActionState,
+} from "@/app/(workspace)/library/action-state";
 import { Button } from "@/components/ui/button";
 
 function ScanStatus({ state }: { state: ScanLibraryActionState }) {

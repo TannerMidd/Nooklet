@@ -6,16 +6,7 @@ import { auth } from "@/auth";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { addIndexerCommand } from "@/modules/indexers/commands/add-indexer";
 import { addIndexerInputSchema } from "@/modules/indexers/schemas/indexer-input";
-
-export type IndexerActionState = {
-  status: "idle" | "success" | "error";
-  message: string | null;
-};
-
-export const initialIndexerActionState: IndexerActionState = {
-  status: "idle",
-  message: null,
-};
+import { type IndexerActionState } from "./action-state";
 
 const categoryMediaTypes = ["movie", "tv"] as const satisfies readonly RecommendationMediaType[];
 

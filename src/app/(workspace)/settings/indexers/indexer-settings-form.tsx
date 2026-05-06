@@ -6,9 +6,11 @@ import { useFormStatus } from "react-dom";
 
 import {
   addIndexerAction,
+} from "@/app/(workspace)/settings/indexers/actions";
+import {
   initialIndexerActionState,
   type IndexerActionState,
-} from "@/app/(workspace)/settings/indexers/actions";
+} from "@/app/(workspace)/settings/indexers/action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 

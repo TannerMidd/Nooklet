@@ -19,13 +19,7 @@ import {
   deleteNotificationChannelInputSchema,
   testNotificationChannelInputSchema,
 } from "@/modules/notifications/schemas/notification-channel-input";
-
-export type NotificationChannelActionState = {
-  status: "idle" | "success" | "error";
-  message: string | null;
-};
-
-const idleState: NotificationChannelActionState = { status: "idle", message: null };
+import { type NotificationChannelActionState } from "./action-state";
 
 function readChannelType(value: FormDataEntryValue | null): NotificationChannelType | null {
   if (typeof value !== "string") {
@@ -177,5 +171,3 @@ export async function testNotificationChannelAction(
 
   return { status: "success", message: "Test notification delivered." };
 }
-
-export const initialNotificationChannelActionState = idleState;
