@@ -4,13 +4,26 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
-import { downloadQueueItems, serviceConnections, users } from "@/lib/database/schema";
+import {
+  downloadImportRuns,
+  downloadQueueItems,
+  mediaFiles,
+  mediaLibraries,
+  mediaLibraryPaths,
+  mediaTitles,
+  serviceConnections,
+  users,
+} from "@/lib/database/schema";
 
 import {
+  completeDownloadImportRun,
   createDownloadClient,
+  createDownloadImportRun,
   createDownloadRequest,
   findDownloadClientById,
   listDownloadRequestsByStatus,
+  listImportedFilesForRun,
+  recordDownloadImportedFile,
   recordDownloadQueueItem,
   updateDownloadRequestStatus,
 } from "./download-repository";
@@ -50,6 +63,58 @@ function seedSabnzbdConnection(userId: string) {
     .run();
 
   return connectionId;
+}
+
+function seedImportedMovieFile(userId: string) {
+  const database = ensureDatabaseReady();
+  const libraryId = randomUUID();
+  const libraryPathId = randomUUID();
+  const titleId = randomUUID();
+  const mediaFileId = randomUUID();
+
+  database
+    .insert(mediaLibraries)
+    .values({ id: libraryId, userId, mediaType: "movie", name: "Movies" })
+    .run();
+  database
+    .insert(mediaLibraryPaths)
+    .values({
+      id: libraryPathId,
+      libraryId,
+      userId,
+      path: "F:/Media/Movies",
+      label: "Movies",
+    })
+    .run();
+  database
+    .insert(mediaTitles)
+    .values({
+      id: titleId,
+      userId,
+      libraryId,
+      mediaType: "movie",
+      title: "Arrival",
+      sortTitle: "arrival",
+      year: 2016,
+      normalizedKey: "arrival::2016",
+      status: "available",
+    })
+    .run();
+  database
+    .insert(mediaFiles)
+    .values({
+      id: mediaFileId,
+      userId,
+      titleId,
+      libraryPathId,
+      mediaType: "movie",
+      fileKind: "movie",
+      filePath: "F:/Media/Movies/Arrival (2016)/Arrival (2016).mkv",
+      relativePath: "Arrival (2016)/Arrival (2016).mkv",
+    })
+    .run();
+
+  return { libraryPathId, mediaFileId };
 }
 
 beforeEach(() => {
@@ -116,5 +181,53 @@ describe("download-repository", () => {
     expect(queuedRequests.map((entry) => entry.id)).toEqual([request.id]);
     expect(storedQueueItem?.progressPercent).toBe(42.5);
     expect(storedQueueItem?.category).toBe("nooklet-movies");
+  });
+
+  it("persists a download import run and imported files", async () => {
+    const userId = await seedUser();
+    const { libraryPathId, mediaFileId } = seedImportedMovieFile(userId);
+    const request = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Arrival",
+      releaseTitle: "Arrival 2016 2160p WEB-DL",
+      status: "importing",
+      targetLibraryPathId: libraryPathId,
+    });
+    const importRun = await createDownloadImportRun({
+      requestId: request.id,
+      userId,
+      libraryPathId,
+      status: "running",
+      sourceRootPath: "C:/Downloads/complete/Arrival",
+    });
+    const importedFile = await recordDownloadImportedFile({
+      importRunId: importRun.id,
+      userId,
+      mediaFileId,
+      sourcePath: "C:/Downloads/complete/Arrival/Arrival.mkv",
+      destinationPath: "F:/Media/Movies/Arrival (2016)/Arrival (2016).mkv",
+    });
+    const completedRun = await completeDownloadImportRun({
+      userId,
+      importRunId: importRun.id,
+      status: "succeeded",
+      destinationRootPath: "F:/Media/Movies/Arrival (2016)",
+      completedAt: new Date("2026-05-06T12:05:00Z"),
+    });
+
+    if (!completedRun) throw new Error("completed import run missing");
+
+    const importedFiles = await listImportedFilesForRun(userId, importRun.id);
+    const storedRun = ensureDatabaseReady()
+      .select()
+      .from(downloadImportRuns)
+      .where(eq(downloadImportRuns.id, importRun.id))
+      .get();
+
+    expect(completedRun.status).toBe("succeeded");
+    expect(storedRun?.destinationRootPath).toBe("F:/Media/Movies/Arrival (2016)");
+    expect(importedFiles.map((entry) => entry.id)).toEqual([importedFile.id]);
+    expect(importedFiles[0]?.mediaFileId).toBe(mediaFileId);
   });
 });

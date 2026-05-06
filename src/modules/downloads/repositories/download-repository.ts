@@ -1,14 +1,17 @@
 import { randomUUID } from "node:crypto";
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
   downloadClients,
+  downloadImportedFiles,
+  downloadImportRuns,
   downloadQueueItems,
   downloadRequests,
   type DownloadClientStatus,
   type DownloadClientType,
+  type DownloadImportRunStatus,
   type DownloadQueueItemStatus,
   type DownloadRequestStatus,
   type RecommendationMediaType,
@@ -172,5 +175,114 @@ export async function listDownloadRequestsByStatus(userId: string, status: Downl
     .from(downloadRequests)
     .where(and(eq(downloadRequests.userId, userId), eq(downloadRequests.status, status)))
     .orderBy(desc(downloadRequests.createdAt))
+    .all();
+}
+
+export async function createDownloadImportRun(input: {
+  requestId: string;
+  userId: string;
+  libraryPathId?: string | null;
+  status?: DownloadImportRunStatus;
+  sourceRootPath: string;
+  destinationRootPath?: string | null;
+}) {
+  const database = ensureDatabaseReady();
+  const id = randomUUID();
+
+  database
+    .insert(downloadImportRuns)
+    .values({
+      id,
+      requestId: input.requestId,
+      userId: input.userId,
+      libraryPathId: input.libraryPathId ?? null,
+      status: input.status ?? "pending",
+      sourceRootPath: input.sourceRootPath,
+      destinationRootPath: input.destinationRootPath ?? null,
+    })
+    .run();
+
+  return database
+    .select()
+    .from(downloadImportRuns)
+    .where(eq(downloadImportRuns.id, id))
+    .get()!;
+}
+
+export async function completeDownloadImportRun(input: {
+  userId: string;
+  importRunId: string;
+  status: Extract<DownloadImportRunStatus, "succeeded" | "failed" | "skipped">;
+  destinationRootPath?: string | null;
+  errorMessage?: string | null;
+  completedAt?: Date;
+}) {
+  const database = ensureDatabaseReady();
+  const completedAt = input.completedAt ?? new Date();
+
+  database
+    .update(downloadImportRuns)
+    .set({
+      status: input.status,
+      destinationRootPath: input.destinationRootPath ?? null,
+      errorMessage: input.errorMessage ?? null,
+      completedAt,
+    })
+    .where(
+      and(eq(downloadImportRuns.userId, input.userId), eq(downloadImportRuns.id, input.importRunId)),
+    )
+    .run();
+
+  return database
+    .select()
+    .from(downloadImportRuns)
+    .where(
+      and(eq(downloadImportRuns.userId, input.userId), eq(downloadImportRuns.id, input.importRunId)),
+    )
+    .get() ?? null;
+}
+
+export async function recordDownloadImportedFile(input: {
+  importRunId: string;
+  userId: string;
+  mediaFileId?: string | null;
+  sourcePath: string;
+  destinationPath: string;
+}) {
+  const database = ensureDatabaseReady();
+  const id = randomUUID();
+
+  database
+    .insert(downloadImportedFiles)
+    .values({
+      id,
+      importRunId: input.importRunId,
+      userId: input.userId,
+      mediaFileId: input.mediaFileId ?? null,
+      sourcePath: input.sourcePath,
+      destinationPath: input.destinationPath,
+    })
+    .run();
+
+  return database
+    .select()
+    .from(downloadImportedFiles)
+    .where(eq(downloadImportedFiles.id, id))
+    .get()!;
+}
+
+export async function listImportedFilesForRun(userId: string, importRunId: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(downloadImportedFiles)
+    .where(
+      and(
+        eq(downloadImportedFiles.userId, userId),
+        eq(downloadImportedFiles.importRunId, importRunId),
+      ),
+    )
+    .orderBy(asc(downloadImportedFiles.createdAt))
     .all();
 }
