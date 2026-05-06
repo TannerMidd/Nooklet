@@ -16,7 +16,9 @@ import {
   createIndexer,
   createIndexerSearchRun,
   findIndexerById,
+  findIndexerSecret,
   listEnabledIndexersForMedia,
+  listIndexerMediaCategories,
   listSearchResultsForRun,
   recordIndexerSearchResult,
   saveIndexerSecret,
@@ -73,6 +75,8 @@ describe("indexer-repository", () => {
     ]);
 
     const reloadedIndexer = await findIndexerById(userId, indexer.id);
+    const reloadedSecret = await findIndexerSecret(indexer.id);
+    const tvCategories = await listIndexerMediaCategories(indexer.id, "tv");
     const enabledTvIndexers = await listEnabledIndexersForMedia(userId, "tv");
     const storedSecret = ensureDatabaseReady()
       .select()
@@ -88,6 +92,8 @@ describe("indexer-repository", () => {
     expect(reloadedIndexer?.apiPath).toBe("/api");
     expect(reloadedIndexer?.status).toBe("verified");
     expect(secret.maskedApiKey).toBe("****-key");
+    expect(reloadedSecret?.encryptedApiKey).toBe("encrypted-key");
+    expect(tvCategories.map((entry) => entry.categoryId)).toEqual(["5000", "5030"]);
     expect(storedSecret?.encryptedApiKey).toBe("encrypted-key");
     expect(categories).toHaveLength(3);
     expect(storedCategories).toHaveLength(3);

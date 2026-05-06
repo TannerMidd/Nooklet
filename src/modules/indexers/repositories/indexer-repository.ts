@@ -19,6 +19,7 @@ import {
 export type IndexerRecord = typeof indexers.$inferSelect;
 export type IndexerSearchRunRecord = typeof indexerSearchRuns.$inferSelect;
 export type IndexerSearchResultRecord = typeof indexerSearchResults.$inferSelect;
+export type IndexerSecretRecord = typeof indexerSecrets.$inferSelect;
 
 export async function createIndexer(input: {
   userId: string;
@@ -95,6 +96,16 @@ export async function saveIndexerSecret(input: {
     .get()!;
 }
 
+export async function findIndexerSecret(indexerId: string): Promise<IndexerSecretRecord | null> {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(indexerSecrets)
+    .where(eq(indexerSecrets.indexerId, indexerId))
+    .get() ?? null;
+}
+
 export async function setIndexerMediaCategories(
   indexerId: string,
   categories: Array<{
@@ -138,6 +149,24 @@ export async function setIndexerMediaCategories(
     .select()
     .from(indexerMediaCategories)
     .where(eq(indexerMediaCategories.indexerId, indexerId))
+    .all();
+}
+
+export async function listIndexerMediaCategories(
+  indexerId: string,
+  mediaType: RecommendationMediaType,
+) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(indexerMediaCategories)
+    .where(
+      and(
+        eq(indexerMediaCategories.indexerId, indexerId),
+        eq(indexerMediaCategories.mediaType, mediaType),
+      ),
+    )
     .all();
 }
 
