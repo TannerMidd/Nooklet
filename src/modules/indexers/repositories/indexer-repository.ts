@@ -5,14 +5,20 @@ import { and, asc, eq } from "drizzle-orm";
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
   indexerMediaCategories,
+  indexerSearchResultSecrets,
+  indexerSearchResults,
+  indexerSearchRuns,
   indexerSecrets,
   indexers,
   type IndexerConnectionStatus,
   type IndexerProtocol,
+  type IndexerSearchRunStatus,
   type RecommendationMediaType,
 } from "@/lib/database/schema";
 
 export type IndexerRecord = typeof indexers.$inferSelect;
+export type IndexerSearchRunRecord = typeof indexerSearchRuns.$inferSelect;
+export type IndexerSearchResultRecord = typeof indexerSearchResults.$inferSelect;
 
 export async function createIndexer(input: {
   userId: string;
@@ -156,4 +162,143 @@ export async function listEnabledIndexersForMedia(
     .all();
 
   return Array.from(new Map(rows.map((row) => [row.indexer.id, row.indexer])).values());
+}
+
+export async function createIndexerSearchRun(input: {
+  userId: string;
+  indexerId?: string | null;
+  mediaType: RecommendationMediaType;
+  query: string;
+  normalizedKey?: string | null;
+  status?: IndexerSearchRunStatus;
+  expiresAt: Date;
+}) {
+  const database = ensureDatabaseReady();
+  const id = randomUUID();
+
+  database
+    .insert(indexerSearchRuns)
+    .values({
+      id,
+      userId: input.userId,
+      indexerId: input.indexerId ?? null,
+      mediaType: input.mediaType,
+      query: input.query,
+      normalizedKey: input.normalizedKey ?? null,
+      status: input.status ?? "pending",
+      expiresAt: input.expiresAt,
+    })
+    .run();
+
+  return database
+    .select()
+    .from(indexerSearchRuns)
+    .where(eq(indexerSearchRuns.id, id))
+    .get()!;
+}
+
+export async function completeIndexerSearchRun(input: {
+  searchRunId: string;
+  status: Extract<IndexerSearchRunStatus, "succeeded" | "failed">;
+  resultCount: number;
+  errorMessage?: string | null;
+  completedAt?: Date;
+}) {
+  const database = ensureDatabaseReady();
+  const completedAt = input.completedAt ?? new Date();
+
+  database
+    .update(indexerSearchRuns)
+    .set({
+      status: input.status,
+      resultCount: input.resultCount,
+      errorMessage: input.errorMessage ?? null,
+      completedAt,
+    })
+    .where(eq(indexerSearchRuns.id, input.searchRunId))
+    .run();
+
+  return database
+    .select()
+    .from(indexerSearchRuns)
+    .where(eq(indexerSearchRuns.id, input.searchRunId))
+    .get()!;
+}
+
+export async function recordIndexerSearchResult(input: {
+  searchRunId: string;
+  userId: string;
+  indexerId?: string | null;
+  mediaType: RecommendationMediaType;
+  title: string;
+  normalizedTitle: string;
+  indexerGuid: string;
+  qualityLabel?: string | null;
+  releaseGroup?: string | null;
+  sizeBytes?: number | null;
+  publishedAt?: Date | null;
+  ageMinutes?: number | null;
+  seeders?: number | null;
+  leechers?: number | null;
+  grabs?: number | null;
+  encryptedDownloadUrl: string;
+  maskedDownloadUrl: string;
+}) {
+  const database = ensureDatabaseReady();
+  const id = randomUUID();
+
+  database.transaction((tx) => {
+    tx
+      .insert(indexerSearchResults)
+      .values({
+        id,
+        searchRunId: input.searchRunId,
+        userId: input.userId,
+        indexerId: input.indexerId ?? null,
+        mediaType: input.mediaType,
+        title: input.title,
+        normalizedTitle: input.normalizedTitle,
+        indexerGuid: input.indexerGuid,
+        qualityLabel: input.qualityLabel ?? null,
+        releaseGroup: input.releaseGroup ?? null,
+        sizeBytes: input.sizeBytes ?? null,
+        publishedAt: input.publishedAt ?? null,
+        ageMinutes: input.ageMinutes ?? null,
+        seeders: input.seeders ?? null,
+        leechers: input.leechers ?? null,
+        grabs: input.grabs ?? null,
+      })
+      .run();
+
+    tx
+      .insert(indexerSearchResultSecrets)
+      .values({
+        resultId: id,
+        encryptedDownloadUrl: input.encryptedDownloadUrl,
+        maskedDownloadUrl: input.maskedDownloadUrl,
+        updatedAt: new Date(),
+      })
+      .run();
+  });
+
+  return database
+    .select()
+    .from(indexerSearchResults)
+    .where(eq(indexerSearchResults.id, id))
+    .get()!;
+}
+
+export async function listSearchResultsForRun(userId: string, searchRunId: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(indexerSearchResults)
+    .where(
+      and(
+        eq(indexerSearchResults.userId, userId),
+        eq(indexerSearchResults.searchRunId, searchRunId),
+      ),
+    )
+    .all();
 }

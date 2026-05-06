@@ -6,14 +6,19 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
   indexerMediaCategories,
+  indexerSearchResultSecrets,
   indexerSecrets,
   users,
 } from "@/lib/database/schema";
 
 import {
+  completeIndexerSearchRun,
   createIndexer,
+  createIndexerSearchRun,
   findIndexerById,
   listEnabledIndexersForMedia,
+  listSearchResultsForRun,
+  recordIndexerSearchResult,
   saveIndexerSecret,
   setIndexerMediaCategories,
 } from "./indexer-repository";
@@ -87,5 +92,64 @@ describe("indexer-repository", () => {
     expect(categories).toHaveLength(3);
     expect(storedCategories).toHaveLength(3);
     expect(enabledTvIndexers.map((entry) => entry.id)).toEqual([indexer.id]);
+  });
+
+  it("persists search runs, safe result metadata, and encrypted result links", async () => {
+    const userId = await seedUser();
+    const indexer = await createIndexer({
+      userId,
+      name: "NZB Scout",
+      protocol: "newznab",
+      baseUrl: "https://indexer.example",
+    });
+
+    expect(indexer).not.toBeNull();
+    if (!indexer) throw new Error("indexer missing");
+
+    const searchRun = await createIndexerSearchRun({
+      userId,
+      indexerId: indexer.id,
+      mediaType: "movie",
+      query: "Arrival 2016",
+      normalizedKey: "arrival::2016",
+      status: "running",
+      expiresAt: new Date("2026-05-06T12:30:00Z"),
+    });
+    const result = await recordIndexerSearchResult({
+      searchRunId: searchRun.id,
+      userId,
+      indexerId: indexer.id,
+      mediaType: "movie",
+      title: "Arrival 2016 2160p WEB-DL",
+      normalizedTitle: "arrival 2016 2160p web-dl",
+      indexerGuid: "guid-arrival-2160p",
+      qualityLabel: "WEB-2160p",
+      releaseGroup: "Nooklet",
+      sizeBytes: 20_000_000_000,
+      publishedAt: new Date("2026-05-06T12:00:00Z"),
+      ageMinutes: 12,
+      encryptedDownloadUrl: "encrypted-download-url",
+      maskedDownloadUrl: "https://indexer.example/...",
+    });
+    const completedRun = await completeIndexerSearchRun({
+      searchRunId: searchRun.id,
+      status: "succeeded",
+      resultCount: 1,
+      completedAt: new Date("2026-05-06T12:01:00Z"),
+    });
+    const safeResults = await listSearchResultsForRun(userId, searchRun.id);
+    const storedSecret = ensureDatabaseReady()
+      .select()
+      .from(indexerSearchResultSecrets)
+      .where(eq(indexerSearchResultSecrets.resultId, result.id))
+      .get();
+
+    expect(completedRun.status).toBe("succeeded");
+    expect(completedRun.resultCount).toBe(1);
+    expect(result.qualityLabel).toBe("WEB-2160p");
+    expect("encryptedDownloadUrl" in result).toBe(false);
+    expect(safeResults.map((entry) => entry.indexerGuid)).toEqual(["guid-arrival-2160p"]);
+    expect(storedSecret?.encryptedDownloadUrl).toBe("encrypted-download-url");
+    expect(storedSecret?.maskedDownloadUrl).toBe("https://indexer.example/...");
   });
 });
