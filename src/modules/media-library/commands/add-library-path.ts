@@ -5,6 +5,7 @@ import {
   addMediaLibraryPath,
   createMediaLibrary,
   findMediaLibraryByName,
+  findMediaLibraryPathByUserPath,
 } from "@/modules/media-library/repositories/media-library-repository";
 import {
   addLibraryPathInputSchema,
@@ -15,7 +16,7 @@ import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 export class LibraryPathCommandError extends Error {
   constructor(
     message: string,
-    public readonly code: "folder_not_found",
+    public readonly code: "folder_not_found" | "path_already_exists",
   ) {
     super(message);
     this.name = "LibraryPathCommandError";
@@ -40,6 +41,15 @@ export async function addLibraryPathCommand(
     throw new LibraryPathCommandError(
       "Library folder does not exist or is not readable by Nooklet.",
       "folder_not_found",
+    );
+  }
+
+  const existingPath = await findMediaLibraryPathByUserPath(userId, parsed.path);
+
+  if (existingPath) {
+    throw new LibraryPathCommandError(
+      "That folder is already attached to your library.",
+      "path_already_exists",
     );
   }
 

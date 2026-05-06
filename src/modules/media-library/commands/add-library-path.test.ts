@@ -71,4 +71,23 @@ describe("addLibraryPathCommand", () => {
       label: "TV root",
     })).rejects.toThrow(LibraryPathCommandError);
   });
+
+  it("rejects a folder that is already attached", async () => {
+    const userId = await seedUser();
+    const libraryFolder = fs.mkdtempSync(path.join(os.tmpdir(), "nooklet-library-"));
+
+    await addLibraryPathCommand(userId, {
+      mediaType: "movie",
+      libraryName: "Movies",
+      path: libraryFolder,
+      label: "Movie root",
+    });
+
+    await expect(addLibraryPathCommand(userId, {
+      mediaType: "movie",
+      libraryName: "Movies",
+      path: libraryFolder,
+      label: "Movie root",
+    })).rejects.toMatchObject({ code: "path_already_exists" });
+  });
 });

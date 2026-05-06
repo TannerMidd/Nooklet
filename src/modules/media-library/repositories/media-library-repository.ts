@@ -95,6 +95,16 @@ export async function addMediaLibraryPath(input: {
   return database.select().from(mediaLibraryPaths).where(eq(mediaLibraryPaths.id, id)).get()!;
 }
 
+export async function findMediaLibraryPathByUserPath(userId: string, path: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(mediaLibraryPaths)
+    .where(and(eq(mediaLibraryPaths.userId, userId), eq(mediaLibraryPaths.path, path)))
+    .get() ?? null;
+}
+
 export async function upsertMediaTitle(input: {
   userId: string;
   libraryId?: string | null;
