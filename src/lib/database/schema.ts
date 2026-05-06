@@ -151,7 +151,252 @@ export const serviceSecrets = sqliteTable("service_secrets", {
     .default(sql`(unixepoch() * 1000)`),
 });
 
-  export const recommendationMediaTypes = ["tv", "movie"] as const;
+export const recommendationMediaTypes = ["tv", "movie"] as const;
+
+export const mediaLibraryPathStatuses = ["active", "disabled"] as const;
+export const mediaTitleStatuses = ["requested", "available", "missing"] as const;
+export const mediaTitleExternalIdSources = ["tmdb", "tvdb", "imdb"] as const;
+export const mediaFileKinds = ["movie", "episode", "extra", "unknown"] as const;
+export const mediaScanRunStatuses = ["pending", "running", "succeeded", "failed"] as const;
+
+export const mediaLibraries = sqliteTable(
+  "media_libraries",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mediaType: text("media_type", { enum: recommendationMediaTypes }).notNull(),
+    name: text("name").notNull(),
+    isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    uniqueIndex("media_libraries_user_media_name_unique").on(
+      table.userId,
+      table.mediaType,
+      table.name,
+    ),
+    index("media_libraries_user_media_idx").on(table.userId, table.mediaType),
+  ],
+);
+
+export const mediaLibraryPaths = sqliteTable(
+  "media_library_paths",
+  {
+    id: text("id").primaryKey(),
+    libraryId: text("library_id")
+      .notNull()
+      .references(() => mediaLibraries.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    path: text("path").notNull(),
+    label: text("label").notNull(),
+    status: text("status", { enum: mediaLibraryPathStatuses })
+      .notNull()
+      .default("active"),
+    freeSpaceBytes: integer("free_space_bytes"),
+    totalSpaceBytes: integer("total_space_bytes"),
+    lastScannedAt: integer("last_scanned_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    uniqueIndex("media_library_paths_user_path_unique").on(table.userId, table.path),
+    index("media_library_paths_library_idx").on(table.libraryId),
+    index("media_library_paths_user_status_idx").on(table.userId, table.status),
+  ],
+);
+
+export const mediaTitles = sqliteTable(
+  "media_titles",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    libraryId: text("library_id").references(() => mediaLibraries.id, { onDelete: "set null" }),
+    mediaType: text("media_type", { enum: recommendationMediaTypes }).notNull(),
+    title: text("title").notNull(),
+    sortTitle: text("sort_title").notNull(),
+    year: integer("year"),
+    normalizedKey: text("normalized_key").notNull(),
+    status: text("status", { enum: mediaTitleStatuses })
+      .notNull()
+      .default("missing"),
+    monitored: integer("monitored", { mode: "boolean" }).notNull().default(true),
+    overview: text("overview"),
+    posterUrl: text("poster_url"),
+    backdropUrl: text("backdrop_url"),
+    runtimeMinutes: integer("runtime_minutes"),
+    originalLanguage: text("original_language"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    uniqueIndex("media_titles_user_media_key_unique").on(
+      table.userId,
+      table.mediaType,
+      table.normalizedKey,
+    ),
+    index("media_titles_library_status_idx").on(table.libraryId, table.status),
+    index("media_titles_user_media_status_idx").on(table.userId, table.mediaType, table.status),
+  ],
+);
+
+export const mediaTitleExternalIds = sqliteTable(
+  "media_title_external_ids",
+  {
+    titleId: text("title_id")
+      .notNull()
+      .references(() => mediaTitles.id, { onDelete: "cascade" }),
+    source: text("source", { enum: mediaTitleExternalIdSources }).notNull(),
+    value: text("value").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    primaryKey({ columns: [table.titleId, table.source] }),
+    index("media_title_external_ids_source_value_idx").on(table.source, table.value),
+  ],
+);
+
+export const tvSeasons = sqliteTable(
+  "tv_seasons",
+  {
+    id: text("id").primaryKey(),
+    titleId: text("title_id")
+      .notNull()
+      .references(() => mediaTitles.id, { onDelete: "cascade" }),
+    seasonNumber: integer("season_number").notNull(),
+    title: text("title"),
+    monitored: integer("monitored", { mode: "boolean" }).notNull().default(true),
+    episodeCount: integer("episode_count").notNull().default(0),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    uniqueIndex("tv_seasons_title_number_unique").on(table.titleId, table.seasonNumber),
+    index("tv_seasons_title_idx").on(table.titleId),
+  ],
+);
+
+export const tvEpisodes = sqliteTable(
+  "tv_episodes",
+  {
+    id: text("id").primaryKey(),
+    titleId: text("title_id")
+      .notNull()
+      .references(() => mediaTitles.id, { onDelete: "cascade" }),
+    seasonId: text("season_id")
+      .notNull()
+      .references(() => tvSeasons.id, { onDelete: "cascade" }),
+    seasonNumber: integer("season_number").notNull(),
+    episodeNumber: integer("episode_number").notNull(),
+    title: text("title"),
+    airDate: text("air_date"),
+    monitored: integer("monitored", { mode: "boolean" }).notNull().default(true),
+    hasFile: integer("has_file", { mode: "boolean" }).notNull().default(false),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    uniqueIndex("tv_episodes_title_season_episode_unique").on(
+      table.titleId,
+      table.seasonNumber,
+      table.episodeNumber,
+    ),
+    index("tv_episodes_season_idx").on(table.seasonId),
+    index("tv_episodes_title_file_idx").on(table.titleId, table.hasFile),
+  ],
+);
+
+export const mediaFiles = sqliteTable(
+  "media_files",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    titleId: text("title_id")
+      .notNull()
+      .references(() => mediaTitles.id, { onDelete: "cascade" }),
+    libraryPathId: text("library_path_id").references(() => mediaLibraryPaths.id, { onDelete: "set null" }),
+    seasonId: text("season_id").references(() => tvSeasons.id, { onDelete: "set null" }),
+    episodeId: text("episode_id").references(() => tvEpisodes.id, { onDelete: "set null" }),
+    mediaType: text("media_type", { enum: recommendationMediaTypes }).notNull(),
+    fileKind: text("file_kind", { enum: mediaFileKinds }).notNull().default("unknown"),
+    filePath: text("file_path").notNull(),
+    relativePath: text("relative_path").notNull(),
+    sizeBytes: integer("size_bytes"),
+    modifiedAt: integer("modified_at", { mode: "timestamp_ms" }),
+    qualityLabel: text("quality_label"),
+    releaseGroup: text("release_group"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    uniqueIndex("media_files_user_path_unique").on(table.userId, table.filePath),
+    index("media_files_title_idx").on(table.titleId),
+    index("media_files_library_path_idx").on(table.libraryPathId),
+    index("media_files_episode_idx").on(table.episodeId),
+  ],
+);
+
+export const mediaScanRuns = sqliteTable(
+  "media_scan_runs",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    libraryId: text("library_id").references(() => mediaLibraries.id, { onDelete: "set null" }),
+    libraryPathId: text("library_path_id").references(() => mediaLibraryPaths.id, { onDelete: "set null" }),
+    status: text("status", { enum: mediaScanRunStatuses }).notNull().default("pending"),
+    discoveredFileCount: integer("discovered_file_count").notNull().default(0),
+    matchedTitleCount: integer("matched_title_count").notNull().default(0),
+    errorMessage: text("error_message"),
+    startedAt: integer("started_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("media_scan_runs_user_status_started_idx").on(
+      table.userId,
+      table.status,
+      table.startedAt,
+    ),
+    index("media_scan_runs_path_started_idx").on(table.libraryPathId, table.startedAt),
+  ],
+);
 
 export const watchHistorySourceTypes = ["manual", "tautulli", "plex", "trakt"] as const;
 export const watchHistorySyncStatuses = ["pending", "succeeded", "failed"] as const;
@@ -482,6 +727,11 @@ export type PreferenceMediaMode = (typeof preferenceMediaModes)[number];
 export type PreferenceLanguageCode = (typeof preferenceLanguageCodes)[number];
 export type ServiceConnectionType = (typeof serviceConnectionTypes)[number];
 export type ServiceConnectionStatus = (typeof serviceConnectionStatuses)[number];
+export type MediaLibraryPathStatus = (typeof mediaLibraryPathStatuses)[number];
+export type MediaTitleStatus = (typeof mediaTitleStatuses)[number];
+export type MediaTitleExternalIdSource = (typeof mediaTitleExternalIdSources)[number];
+export type MediaFileKind = (typeof mediaFileKinds)[number];
+export type MediaScanRunStatus = (typeof mediaScanRunStatuses)[number];
 export type WatchHistorySourceType = (typeof watchHistorySourceTypes)[number];
 export type WatchHistorySyncStatus = (typeof watchHistorySyncStatuses)[number];
 export type JobType = (typeof jobTypes)[number];
