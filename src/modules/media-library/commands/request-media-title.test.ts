@@ -5,7 +5,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import { auditEvents, mediaTitleExternalIds, users } from "@/lib/database/schema";
-import { createMediaLibrary } from "@/modules/media-library/repositories/media-library-repository";
+import {
+  addMediaLibraryPath,
+  createMediaLibrary,
+} from "@/modules/media-library/repositories/media-library-repository";
 
 import { requestMediaTitleCommand, RequestMediaTitleCommandError } from "./request-media-title";
 
@@ -35,10 +38,17 @@ describe("requestMediaTitleCommand", () => {
   it("adds a title with monitoring, quality profile, metadata, and TMDB external id", async () => {
     const userId = await seedUser();
     const library = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies", isDefault: true });
+    const libraryPath = await addMediaLibraryPath({
+      libraryId: library.id,
+      userId,
+      path: "F:/Media/Movies",
+      label: "Movie drive",
+    });
 
     const title = await requestMediaTitleCommand(userId, {
       mediaType: "movie",
       libraryId: library.id,
+      targetLibraryPathId: libraryPath.id,
       tmdbId: 329865,
       title: "Arrival",
       year: 2016,
@@ -76,6 +86,31 @@ describe("requestMediaTitleCommand", () => {
     });
     expect(externalIds).toEqual([expect.objectContaining({ source: "tmdb", value: "329865" })]);
     expect(auditEvent?.eventType).toBe("media-library.title.requested");
+    expect(JSON.parse(auditEvent?.payloadJson ?? "{}")).toMatchObject({
+      targetLibraryPathId: libraryPath.id,
+    });
+  });
+
+  it("uses the selected target path library when no library is submitted", async () => {
+    const userId = await seedUser();
+    const library = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies", isDefault: true });
+    const libraryPath = await addMediaLibraryPath({
+      libraryId: library.id,
+      userId,
+      path: "F:/Media/Movies",
+      label: "Movie drive",
+    });
+
+    const title = await requestMediaTitleCommand(userId, {
+      mediaType: "movie",
+      targetLibraryPathId: libraryPath.id,
+      title: "Arrival",
+      year: 2016,
+      monitored: true,
+      qualityProfile: "hd-1080p",
+    });
+
+    expect(title.libraryId).toBe(library.id);
   });
 
   it("rejects libraries that do not belong to the user or media type", async () => {
@@ -86,6 +121,26 @@ describe("requestMediaTitleCommand", () => {
     await expect(requestMediaTitleCommand(userId, {
       mediaType: "movie",
       libraryId: library.id,
+      title: "Arrival",
+      year: 2016,
+      monitored: true,
+      qualityProfile: "hd-1080p",
+    })).rejects.toThrow(RequestMediaTitleCommandError);
+  });
+
+  it("rejects target paths that do not match the requested media type", async () => {
+    const userId = await seedUser();
+    const tvLibrary = await createMediaLibrary({ userId, mediaType: "tv", name: "TV", isDefault: true });
+    const tvPath = await addMediaLibraryPath({
+      libraryId: tvLibrary.id,
+      userId,
+      path: "G:/Media/TV",
+      label: "TV drive",
+    });
+
+    await expect(requestMediaTitleCommand(userId, {
+      mediaType: "movie",
+      targetLibraryPathId: tvPath.id,
       title: "Arrival",
       year: 2016,
       monitored: true,

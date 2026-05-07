@@ -154,6 +154,7 @@ export async function queueLibraryItemRelease(
         episodeId: item.episode?.id,
         requestedTitle: requestedTitle(item),
         targetLibraryId: item.title.libraryId,
+        targetLibraryPathId: item.targetLibraryPathId,
       });
 
       return {

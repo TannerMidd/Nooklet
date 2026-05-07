@@ -444,10 +444,12 @@ describe("updateMediaTitlePreferencesAction", () => {
 describe("searchLibraryItemReleasesAction", () => {
   const titleId = "f9cf3e46-c202-46f4-97aa-dd37be8f7766";
   const episodeId = "7f3f45c2-8ebd-40c5-9ce5-2f3283c20c08";
+  const targetLibraryPathId = "0ca60f81-387b-47d0-a9d2-571e8dd7a44d";
 
   function validForm() {
     const form = new FormData();
     form.set("titleId", titleId);
+    form.set("targetLibraryPathId", targetLibraryPathId);
     return form;
   }
 
@@ -487,7 +489,7 @@ describe("searchLibraryItemReleasesAction", () => {
 
     const result = await searchLibraryItemReleasesAction(initialLibraryItemSearchActionState, validForm());
 
-    expect(searchLibraryItemMock).toHaveBeenCalledWith("u1", { titleId });
+    expect(searchLibraryItemMock).toHaveBeenCalledWith("u1", { titleId, targetLibraryPathId });
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(revalidateMock).toHaveBeenCalledWith("/library/movies");
     expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
@@ -516,7 +518,7 @@ describe("searchLibraryItemReleasesAction", () => {
 
     const result = await searchLibraryItemReleasesAction(initialLibraryItemSearchActionState, form);
 
-    expect(searchLibraryItemMock).toHaveBeenCalledWith("u1", { titleId, episodeId });
+    expect(searchLibraryItemMock).toHaveBeenCalledWith("u1", { titleId, episodeId, targetLibraryPathId });
     expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
     expect(revalidateMock).toHaveBeenCalledWith(`/library/tv/${titleId}`);
     expect(result).toMatchObject({

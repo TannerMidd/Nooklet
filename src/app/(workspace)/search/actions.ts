@@ -97,6 +97,7 @@ export async function requestSearchTitleAction(
   const parsed = requestTitleWithReleaseSearchInputSchema.safeParse({
     mediaType: formData.get("mediaType"),
     libraryId: formData.get("libraryId"),
+    targetLibraryPathId: formData.get("targetLibraryPathId"),
     tmdbId: formData.get("tmdbId"),
     title: formData.get("title"),
     year: formData.get("year"),

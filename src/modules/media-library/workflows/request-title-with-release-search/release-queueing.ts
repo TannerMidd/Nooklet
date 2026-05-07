@@ -171,6 +171,7 @@ export async function queueRequestedTitleRelease(
         mediaTitleId: title.id,
         requestedTitle: title.title,
         targetLibraryId: title.libraryId,
+        targetLibraryPathId: request.targetLibraryPathId ?? null,
       });
 
       return {

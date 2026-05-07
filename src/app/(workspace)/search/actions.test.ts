@@ -138,6 +138,7 @@ describe("requestSearchTitleAction", () => {
     const form = new FormData();
     form.set("mediaType", "movie");
     form.set("libraryId", "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9");
+    form.set("targetLibraryPathId", "0ca60f81-387b-47d0-a9d2-571e8dd7a44d");
     form.set("tmdbId", "329865");
     form.set("title", "Arrival");
     form.set("year", "2016");
@@ -171,6 +172,7 @@ describe("requestSearchTitleAction", () => {
       title: "Arrival",
       qualityProfile: "hd-1080p",
       monitored: true,
+      targetLibraryPathId: "0ca60f81-387b-47d0-a9d2-571e8dd7a44d",
       downloadNow: false,
     }));
     expect(searchMock).not.toHaveBeenCalled();

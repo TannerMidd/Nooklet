@@ -47,6 +47,7 @@ const item = {
     libraryId: "e95d5704-d31e-46c2-b1c3-7c1e0c22dbea",
     qualityProfile: "hd-1080p",
   },
+  targetLibraryPathId: "0ca60f81-387b-47d0-a9d2-571e8dd7a44d",
   episode: {
     id: "7f3f45c2-8ebd-40c5-9ce5-2f3283c20c08",
     seasonNumber: 1,
@@ -91,6 +92,7 @@ describe("queueLibraryItemRelease", () => {
       episodeId: "7f3f45c2-8ebd-40c5-9ce5-2f3283c20c08",
       requestedTitle: "Severance S01E02",
       targetLibraryId: "e95d5704-d31e-46c2-b1c3-7c1e0c22dbea",
+      targetLibraryPathId: "0ca60f81-387b-47d0-a9d2-571e8dd7a44d",
     });
     expect(queued).toMatchObject({ queued: true, selectedResultId: "1080-high" });
   });

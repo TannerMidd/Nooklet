@@ -28,6 +28,10 @@ export const requestMediaTitleInputSchema = z.object({
     (value) => (typeof value === "string" && value.trim() === "" ? null : value),
     z.string().uuid().nullable().optional(),
   ),
+  targetLibraryPathId: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+    z.string().uuid().nullable().optional(),
+  ),
   tmdbId: z.preprocess(
     (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
     z.coerce.number().int().positive().optional(),

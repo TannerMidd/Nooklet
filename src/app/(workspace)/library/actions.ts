@@ -271,6 +271,7 @@ export async function searchLibraryItemReleasesAction(
   const parsed = searchLibraryItemReleasesInputSchema.safeParse({
     titleId: formData.get("titleId"),
     episodeId: formData.get("episodeId") || undefined,
+    targetLibraryPathId: formData.get("targetLibraryPathId") || undefined,
   });
 
   if (!parsed.success) {

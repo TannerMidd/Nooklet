@@ -53,6 +53,7 @@ function result(overrides: {
 const request = {
   mediaType: "movie",
   libraryId: "e95d5704-d31e-46c2-b1c3-7c1e0c22dbea",
+  targetLibraryPathId: "0ca60f81-387b-47d0-a9d2-571e8dd7a44d",
   title: "Arrival",
   year: 2016,
   monitored: true,
@@ -109,6 +110,7 @@ describe("queueRequestedTitleRelease", () => {
       mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
       requestedTitle: "Arrival",
       targetLibraryId: "e95d5704-d31e-46c2-b1c3-7c1e0c22dbea",
+      targetLibraryPathId: "0ca60f81-387b-47d0-a9d2-571e8dd7a44d",
     });
     expect(queued).toMatchObject({ queued: true, selectedResultId: "1080-high" });
   });

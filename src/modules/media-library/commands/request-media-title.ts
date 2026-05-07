@@ -1,5 +1,6 @@
 import {
   findMediaLibraryByIdForUser,
+  findMediaLibraryPathByIdForUser,
   setMediaTitleExternalIds,
   upsertMediaTitle,
   type MediaTitleRecord,
@@ -13,7 +14,7 @@ import { recordAuditEvent } from "@/modules/users/commands/record-audit-event";
 export class RequestMediaTitleCommandError extends Error {
   constructor(
     message: string,
-    public readonly code: "library_not_found" | "title_not_created",
+    public readonly code: "library_not_found" | "target_path_not_found" | "title_not_created",
   ) {
     super(message);
     this.name = "RequestMediaTitleCommandError";
@@ -33,7 +34,37 @@ export async function requestMediaTitleCommand(
   input: RequestMediaTitleInput,
 ): Promise<MediaTitleRecord> {
   const parsed = requestMediaTitleInputSchema.parse(input);
-  const library = parsed.libraryId ? await findMediaLibraryByIdForUser(userId, parsed.libraryId) : null;
+  const targetPath = parsed.targetLibraryPathId
+    ? await findMediaLibraryPathByIdForUser(userId, parsed.targetLibraryPathId)
+    : null;
+
+  if (parsed.targetLibraryPathId && !targetPath) {
+    throw new RequestMediaTitleCommandError(
+      "Choose a matching active library folder before adding that title.",
+      "target_path_not_found",
+    );
+  }
+
+  const targetPathLibrary = targetPath
+    ? await findMediaLibraryByIdForUser(userId, targetPath.libraryId)
+    : null;
+
+  if (targetPath && (!targetPathLibrary || targetPath.status !== "active" || targetPathLibrary.mediaType !== parsed.mediaType)) {
+    throw new RequestMediaTitleCommandError(
+      "Choose a matching active library folder before adding that title.",
+      "target_path_not_found",
+    );
+  }
+
+  if (targetPathLibrary && parsed.libraryId && parsed.libraryId !== targetPathLibrary.id) {
+    throw new RequestMediaTitleCommandError(
+      "Choose a matching active library folder before adding that title.",
+      "target_path_not_found",
+    );
+  }
+
+  const library = targetPathLibrary
+    ?? (parsed.libraryId ? await findMediaLibraryByIdForUser(userId, parsed.libraryId) : null);
 
   if (parsed.libraryId && (!library || library.mediaType !== parsed.mediaType)) {
     throw new RequestMediaTitleCommandError("Choose a matching library before adding that title.", "library_not_found");
@@ -73,6 +104,7 @@ export async function requestMediaTitleCommand(
     payload: {
       mediaType: parsed.mediaType,
       libraryId: library?.id ?? null,
+      targetLibraryPathId: targetPath?.id ?? null,
       monitored: parsed.monitored,
       qualityProfile: parsed.qualityProfile,
       tmdbId: parsed.tmdbId ?? null,

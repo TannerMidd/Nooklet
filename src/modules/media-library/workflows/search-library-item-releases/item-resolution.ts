@@ -11,6 +11,7 @@ import { type SearchLibraryItemReleasesInput } from "./request-validation";
 export type ResolvedLibrarySearchItem = {
   title: MediaTitleRecord;
   episode: TvEpisodeRecord | null;
+  targetLibraryPathId: string | null;
 };
 
 export async function resolveLibrarySearchItem(
@@ -24,7 +25,7 @@ export async function resolveLibrarySearchItem(
   }
 
   if (!request.episodeId) {
-    return { title, episode: null };
+    return { title, episode: null, targetLibraryPathId: request.targetLibraryPathId ?? null };
   }
 
   const episode = await findTvEpisodeByIdForUser(userId, request.episodeId);
@@ -40,5 +41,5 @@ export async function resolveLibrarySearchItem(
     );
   }
 
-  return { title, episode: episode.episode };
+  return { title, episode: episode.episode, targetLibraryPathId: request.targetLibraryPathId ?? null };
 }
