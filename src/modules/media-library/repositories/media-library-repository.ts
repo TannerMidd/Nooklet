@@ -330,6 +330,26 @@ export async function countMediaTitleExternalIds(titleId: string) {
     .get()?.count ?? 0;
 }
 
+export async function listMediaFileTitleIdsByLibraryPath(userId: string, libraryPathId: string) {
+  const database = ensureDatabaseReady();
+  const rows = database
+    .select({ titleId: mediaFiles.titleId })
+    .from(mediaFiles)
+    .where(and(eq(mediaFiles.userId, userId), eq(mediaFiles.libraryPathId, libraryPathId)))
+    .all();
+
+  return Array.from(new Set(rows.map((row) => row.titleId)));
+}
+
+export async function deleteMediaFilesByLibraryPath(userId: string, libraryPathId: string) {
+  const database = ensureDatabaseReady();
+
+  database
+    .delete(mediaFiles)
+    .where(and(eq(mediaFiles.userId, userId), eq(mediaFiles.libraryPathId, libraryPathId)))
+    .run();
+}
+
 export async function updateMediaTitlePreferences(input: {
   userId: string;
   titleId: string;

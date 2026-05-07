@@ -1,9 +1,11 @@
 import {
   countMediaFilesForTitle,
   countMediaTitleExternalIds,
+  deleteMediaFilesByLibraryPath,
   deleteMediaTitleByIdForUser,
   findMediaFileByUserPath,
   findMediaTitleByIdForUser,
+  listMediaFileTitleIdsByLibraryPath,
   type MediaTitleRecord,
   upsertMediaFile,
   upsertMediaTitle,
@@ -71,9 +73,31 @@ async function deleteOrphanedScannerTitle(userId: string, titleId: string) {
   }
 }
 
+async function clearSuccessfullyScannedPathFiles(userId: string, scan: NormalizedLibraryScan) {
+  const failedPathIds = new Set(scan.failedPaths.map((failedPath) => failedPath.source.path.id));
+  const clearedPathIds = new Set<string>();
+  const staleTitleIds = new Set<string>();
+
+  for (const source of scan.sources) {
+    if (failedPathIds.has(source.path.id) || clearedPathIds.has(source.path.id)) {
+      continue;
+    }
+
+    for (const titleId of await listMediaFileTitleIdsByLibraryPath(userId, source.path.id)) {
+      staleTitleIds.add(titleId);
+    }
+
+    await deleteMediaFilesByLibraryPath(userId, source.path.id);
+    clearedPathIds.add(source.path.id);
+  }
+
+  return staleTitleIds;
+}
+
 export async function mergeLibraryScanFiles(userId: string, scan: NormalizedLibraryScan): Promise<MergedLibraryScan> {
   const pathStats = new Map<string, { libraryId: string; libraryPathId: string; fileCount: number; titleIds: Set<string> }>();
   const matchedTitleIds = new Set<string>();
+  const staleTitleIds = await clearSuccessfullyScannedPathFiles(userId, scan);
 
   for (const file of scan.files) {
     const title = await upsertMediaTitle({
@@ -133,6 +157,10 @@ export async function mergeLibraryScanFiles(userId: string, scan: NormalizedLibr
     stats.fileCount += 1;
     stats.titleIds.add(title.id);
     matchedTitleIds.add(title.id);
+  }
+
+  for (const titleId of staleTitleIds) {
+    await deleteOrphanedScannerTitle(userId, titleId);
   }
 
   return {

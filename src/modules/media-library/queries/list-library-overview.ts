@@ -100,7 +100,9 @@ export async function listLibraryOverview(userId: string): Promise<LibraryOvervi
       fileCount: pathSummaries.reduce((total, entry) => total + entry.fileCount, 0),
       paths: pathSummaries,
     } satisfies LibrarySummary;
-  });
+  }).filter(
+    (library) => library.pathCount > 0 || library.titleCount > 0 || library.fileCount > 0,
+  );
 
   return {
     libraries: summaries,

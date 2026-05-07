@@ -40,6 +40,7 @@ describe("listLibraryOverview", () => {
     const userId = await seedUser();
     const otherUserId = await seedUser();
     const library = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies" });
+    await createMediaLibrary({ userId, mediaType: "movie", name: "Detached" });
     const libraryPath = await addMediaLibraryPath({
       libraryId: library.id,
       userId,

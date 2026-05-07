@@ -9,7 +9,9 @@ import {
   addMediaLibraryPath,
   createMediaLibrary,
   findMediaTitleByNormalizedKey,
+  recordMediaFile,
   updateMediaLibraryPath,
+  upsertMediaTitle,
 } from "@/modules/media-library/repositories/media-library-repository";
 
 import { mergeLibraryScanFiles } from "./merge-deduplication";
@@ -171,8 +173,118 @@ describe("mergeLibraryScanFiles", () => {
       .where(and(eq(mediaTitles.userId, userId), eq(mediaTitles.id, staleMovieTitle!.id)))
       .get();
     const tvTitle = await findMediaTitleByNormalizedKey(userId, "tv", "severance::unknown");
+    const staleMovieFiles = ensureDatabaseReady()
+      .select()
+      .from(mediaFiles)
+      .where(and(eq(mediaFiles.userId, userId), eq(mediaFiles.mediaType, "movie")))
+      .all();
+    const tvFiles = ensureDatabaseReady()
+      .select()
+      .from(mediaFiles)
+      .where(and(eq(mediaFiles.userId, userId), eq(mediaFiles.mediaType, "tv")))
+      .all();
 
     expect(deletedMovieTitle).toBeUndefined();
     expect(tvTitle?.title).toBe("Severance");
+    expect(staleMovieFiles).toHaveLength(0);
+    expect(tvFiles).toHaveLength(1);
+  });
+
+  it("removes files that disappeared from a successfully scanned path", async () => {
+    const userId = await seedUser();
+    const library = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies", isDefault: true });
+    const libraryPath = await addMediaLibraryPath({
+      userId,
+      libraryId: library.id,
+      path: "E:/Plex Media/Movies",
+      label: "Movies",
+    });
+    const title = await upsertMediaTitle({
+      userId,
+      libraryId: library.id,
+      mediaType: "movie",
+      title: "Arrival",
+      sortTitle: "arrival",
+      normalizedKey: "arrival::2016",
+      year: 2016,
+      status: "available",
+    });
+
+    if (!title) throw new Error("title missing");
+
+    await recordMediaFile({
+      userId,
+      titleId: title.id,
+      libraryPathId: libraryPath.id,
+      mediaType: "movie",
+      fileKind: "movie",
+      filePath: "E:/Plex Media/Movies/Arrival (2016)/Arrival.mkv",
+      relativePath: "Arrival (2016)/Arrival.mkv",
+    });
+
+    await mergeLibraryScanFiles(userId, {
+      sources: [{ library, path: libraryPath }],
+      failedPaths: [],
+      files: [],
+    });
+
+    const remainingFiles = ensureDatabaseReady()
+      .select()
+      .from(mediaFiles)
+      .where(eq(mediaFiles.userId, userId))
+      .all();
+    const deletedTitle = await findMediaTitleByNormalizedKey(userId, "movie", "arrival::2016");
+
+    expect(remainingFiles).toHaveLength(0);
+    expect(deletedTitle).toBeNull();
+  });
+
+  it("keeps files for paths that fail to scan", async () => {
+    const userId = await seedUser();
+    const library = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies", isDefault: true });
+    const libraryPath = await addMediaLibraryPath({
+      userId,
+      libraryId: library.id,
+      path: "E:/Plex Media/Movies",
+      label: "Movies",
+    });
+    const title = await upsertMediaTitle({
+      userId,
+      libraryId: library.id,
+      mediaType: "movie",
+      title: "Arrival",
+      sortTitle: "arrival",
+      normalizedKey: "arrival::2016",
+      year: 2016,
+      status: "available",
+    });
+
+    if (!title) throw new Error("title missing");
+
+    await recordMediaFile({
+      userId,
+      titleId: title.id,
+      libraryPathId: libraryPath.id,
+      mediaType: "movie",
+      fileKind: "movie",
+      filePath: "E:/Plex Media/Movies/Arrival (2016)/Arrival.mkv",
+      relativePath: "Arrival (2016)/Arrival.mkv",
+    });
+
+    await mergeLibraryScanFiles(userId, {
+      sources: [{ library, path: libraryPath }],
+      failedPaths: [{ source: { library, path: libraryPath }, errorMessage: "Folder could not be read." }],
+      files: [],
+    });
+
+    const remainingFiles = ensureDatabaseReady()
+      .select()
+      .from(mediaFiles)
+      .where(eq(mediaFiles.userId, userId))
+      .all();
+    const keptTitle = await findMediaTitleByNormalizedKey(userId, "movie", "arrival::2016");
+
+    expect(remainingFiles).toHaveLength(1);
+    expect(keptTitle?.id).toBe(title.id);
   });
 });
