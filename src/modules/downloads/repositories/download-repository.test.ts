@@ -23,9 +23,12 @@ import {
   findDownloadClientById,
   findDownloadClientByServiceConnectionId,
   listDownloadRequestsByStatus,
+  listActiveDownloadRequestsForImport,
+  listUsersWithActiveDownloadRequests,
   listImportedFilesForRun,
   recordDownloadImportedFile,
   recordDownloadQueueItem,
+  updateDownloadQueueItemStatus,
   updateDownloadRequestStatus,
 } from "./download-repository";
 
@@ -184,6 +187,77 @@ describe("download-repository", () => {
     expect(queuedRequests.map((entry) => entry.id)).toEqual([request.id]);
     expect(storedQueueItem?.progressPercent).toBe(42.5);
     expect(storedQueueItem?.category).toBe("nooklet-movies");
+
+    const completedQueueItem = await updateDownloadQueueItemStatus({
+      userId,
+      queueItemId: queueItem.id,
+      status: "completed",
+      progressPercent: 100,
+      completedAt: new Date("2026-05-07T00:00:00Z"),
+    });
+
+    expect(completedQueueItem?.status).toBe("completed");
+    expect(completedQueueItem?.progressPercent).toBe(100);
+    expect(completedQueueItem?.completedAt).toEqual(new Date("2026-05-07T00:00:00Z"));
+  });
+
+  it("lists active requests that can be matched to SABnzbd history", async () => {
+    const userId = await seedUser();
+    const otherUserId = await seedUser();
+    const serviceConnectionId = seedSabnzbdConnection(userId);
+    const client = await createDownloadClient({
+      userId,
+      serviceConnectionId,
+      clientType: "sabnzbd",
+      displayName: "SABnzbd",
+      status: "verified",
+      isDefault: true,
+    });
+
+    if (!client) throw new Error("download client missing");
+
+    const request = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Arrival",
+      clientId: client.id,
+      status: "queued",
+    });
+    const queueItem = await recordDownloadQueueItem({
+      requestId: request.id,
+      userId,
+      clientId: client.id,
+      externalQueueId: "SABnzbd_nzo_1",
+      status: "queued",
+    });
+    const completedRequest = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Blade Runner",
+      clientId: client.id,
+      status: "succeeded",
+    });
+    await recordDownloadQueueItem({
+      requestId: completedRequest.id,
+      userId,
+      clientId: client.id,
+      externalQueueId: "SABnzbd_nzo_2",
+      status: "completed",
+    });
+    await createDownloadRequest({
+      userId: otherUserId,
+      mediaType: "movie",
+      requestedTitle: "Other",
+      status: "queued",
+    });
+
+    const activeRequests = await listActiveDownloadRequestsForImport(userId, client.id);
+    const activeUserIds = await listUsersWithActiveDownloadRequests();
+
+    expect(activeRequests).toHaveLength(1);
+    expect(activeRequests[0]?.request.id).toBe(request.id);
+    expect(activeRequests[0]?.queueItem.id).toBe(queueItem.id);
+    expect(activeUserIds).toEqual(expect.arrayContaining([userId, otherUserId]));
   });
 
   it("persists a download import run and imported files", async () => {

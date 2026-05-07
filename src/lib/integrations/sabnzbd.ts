@@ -28,6 +28,22 @@ export type SabnzbdQueueSnapshot = {
   items: SabnzbdQueueItem[];
 };
 
+export type SabnzbdHistoryItem = {
+  id: string;
+  title: string;
+  status: string;
+  category: string | null;
+  storagePath: string | null;
+  completedAt: Date | null;
+  failMessage: string | null;
+  sizeLabel: string | null;
+  totalMb: number | null;
+};
+
+export type SabnzbdHistorySnapshot = {
+  items: SabnzbdHistoryItem[];
+};
+
 type SabnzbdStatusResponse = {
   status?: unknown;
   nzo_ids?: unknown;
@@ -53,6 +69,12 @@ type SabnzbdQueueResponse = {
     timeleft?: unknown;
     noofslots?: unknown;
     noofslots_total?: unknown;
+    slots?: unknown;
+  };
+};
+
+type SabnzbdHistoryResponse = {
+  history?: {
     slots?: unknown;
   };
 };
@@ -364,4 +386,75 @@ export async function verifySabnzbdConnection(input: {
     limit: 20,
     timeoutMs: input.timeoutMs,
   });
+}
+
+function normalizeDate(value: unknown) {
+  const parsed = normalizeNumber(value);
+
+  if (parsed === null || parsed <= 0) {
+    return null;
+  }
+
+  return new Date(parsed > 10_000_000_000 ? parsed : parsed * 1000);
+}
+
+function normalizeSabnzbdHistoryItem(value: unknown): SabnzbdHistoryItem | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const item = value as Record<string, unknown>;
+  const id = normalizeNullableString(item.nzo_id);
+  const title = normalizeNullableString(item.name)
+    ?? normalizeNullableString(item.nzb_name)
+    ?? normalizeNullableString(item.filename);
+  const byteCount = normalizeNumber(item.bytes);
+
+  if (!id || !title) {
+    return null;
+  }
+
+  return {
+    id,
+    title,
+    status: normalizeNullableString(item.status) ?? "Unknown",
+    category: normalizeNullableString(item.cat) ?? normalizeNullableString(item.category),
+    storagePath: normalizeNullableString(item.storage) ?? normalizeNullableString(item.path),
+    completedAt: normalizeDate(item.completed) ?? normalizeDate(item.completed_at),
+    failMessage: normalizeNullableString(item.fail_message),
+    sizeLabel: normalizeNullableString(item.size),
+    totalMb: byteCount !== null
+      ? byteCount / (1024 * 1024)
+      : normalizeNumber(item.mb),
+  } satisfies SabnzbdHistoryItem;
+}
+
+function normalizeSabnzbdHistorySnapshot(payload: SabnzbdHistoryResponse): SabnzbdHistorySnapshot {
+  const items = Array.isArray(payload.history?.slots)
+    ? payload.history.slots
+        .map((entry) => normalizeSabnzbdHistoryItem(entry))
+        .filter((entry): entry is SabnzbdHistoryItem => entry !== null)
+    : [];
+
+  return { items } satisfies SabnzbdHistorySnapshot;
+}
+
+export async function listSabnzbdHistory(input: {
+  baseUrl: string;
+  apiKey: string;
+  limit?: number;
+  timeoutMs?: number;
+}) {
+  const url = buildSabnzbdApiUrl(input.baseUrl, {
+    mode: "history",
+    limit: input.limit,
+  });
+
+  setSabnzbdApiKey(url, input.apiKey);
+
+  const payload = await fetchSabnzbdJson<SabnzbdHistoryResponse>(url, {
+    timeoutMs: input.timeoutMs,
+  });
+
+  return normalizeSabnzbdHistorySnapshot(payload);
 }

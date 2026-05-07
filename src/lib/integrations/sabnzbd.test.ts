@@ -8,6 +8,7 @@ import { safeFetch } from "@/lib/security/safe-fetch";
 
 import {
   addSabnzbdUrlToQueue,
+  listSabnzbdHistory,
   listSabnzbdQueue,
   moveSabnzbdQueueItemToPosition,
   pauseSabnzbdQueue,
@@ -126,6 +127,75 @@ describe("listSabnzbdQueue", () => {
     });
 
     expect(mockedSafeFetch.mock.calls[0]?.[1]).toMatchObject({ timeoutMs: 20000 });
+  });
+
+  it("normalizes SABnzbd history items with completed storage paths", async () => {
+    mockedSafeFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          history: {
+            slots: [
+              {
+                nzo_id: "SABnzbd_nzo_3",
+                name: "Movie.Name.2024.1080p",
+                status: "Completed",
+                cat: "movies",
+                storage: "C:/Downloads/complete/Movie.Name.2024.1080p",
+                completed: 1_778_112_000,
+                size: "12 GB",
+                bytes: 12_884_901_888,
+              },
+              {
+                nzo_id: "SABnzbd_nzo_4",
+                nzb_name: "Show.Name.S01E01.1080p",
+                status: "Failed",
+                path: "C:/Downloads/incomplete/Show.Name.S01E01.1080p",
+                fail_message: "Repair failed",
+              },
+            ],
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const snapshot = await listSabnzbdHistory({
+      baseUrl: "http://localhost:8080",
+      apiKey: "secret",
+      limit: 10,
+    });
+
+    expect(snapshot.items).toEqual([
+      {
+        id: "SABnzbd_nzo_3",
+        title: "Movie.Name.2024.1080p",
+        status: "Completed",
+        category: "movies",
+        storagePath: "C:/Downloads/complete/Movie.Name.2024.1080p",
+        completedAt: new Date("2026-05-07T00:00:00.000Z"),
+        failMessage: null,
+        sizeLabel: "12 GB",
+        totalMb: 12288,
+      },
+      {
+        id: "SABnzbd_nzo_4",
+        title: "Show.Name.S01E01.1080p",
+        status: "Failed",
+        category: null,
+        storagePath: "C:/Downloads/incomplete/Show.Name.S01E01.1080p",
+        completedAt: null,
+        failMessage: "Repair failed",
+        sizeLabel: null,
+        totalMb: null,
+      },
+    ]);
+
+    const requestUrl = mockedSafeFetch.mock.calls[0]?.[0];
+
+    expect(requestUrl).toBeInstanceOf(URL);
+    expect((requestUrl as URL).toString()).toBe(
+      "http://localhost:8080/api?mode=history&output=json&limit=10&apikey=secret",
+    );
   });
 
   it("sends a pause command for a queue item", async () => {

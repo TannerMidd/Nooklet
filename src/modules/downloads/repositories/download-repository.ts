@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
@@ -182,6 +182,37 @@ export async function recordDownloadQueueItem(input: {
     .get()!;
 }
 
+export async function updateDownloadQueueItemStatus(input: {
+  userId: string;
+  queueItemId: string;
+  status: DownloadQueueItemStatus;
+  progressPercent?: number;
+  remainingBytes?: number | null;
+  etaSeconds?: number | null;
+  completedAt?: Date | null;
+}) {
+  const database = ensureDatabaseReady();
+
+  database
+    .update(downloadQueueItems)
+    .set({
+      status: input.status,
+      ...(input.progressPercent === undefined ? {} : { progressPercent: input.progressPercent }),
+      ...(input.remainingBytes === undefined ? {} : { remainingBytes: input.remainingBytes }),
+      ...(input.etaSeconds === undefined ? {} : { etaSeconds: input.etaSeconds }),
+      completedAt: input.completedAt ?? null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(downloadQueueItems.userId, input.userId), eq(downloadQueueItems.id, input.queueItemId)))
+    .run();
+
+  return database
+    .select()
+    .from(downloadQueueItems)
+    .where(and(eq(downloadQueueItems.userId, input.userId), eq(downloadQueueItems.id, input.queueItemId)))
+    .get() ?? null;
+}
+
 export async function listDownloadRequestsByStatus(userId: string, status: DownloadRequestStatus) {
   const database = ensureDatabaseReady();
 
@@ -191,6 +222,34 @@ export async function listDownloadRequestsByStatus(userId: string, status: Downl
     .where(and(eq(downloadRequests.userId, userId), eq(downloadRequests.status, status)))
     .orderBy(desc(downloadRequests.createdAt))
     .all();
+}
+
+export async function listActiveDownloadRequestsForImport(userId: string, clientId: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({ request: downloadRequests, queueItem: downloadQueueItems })
+    .from(downloadQueueItems)
+    .innerJoin(downloadRequests, eq(downloadRequests.id, downloadQueueItems.requestId))
+    .where(and(
+      eq(downloadRequests.userId, userId),
+      eq(downloadRequests.clientId, clientId),
+      inArray(downloadRequests.status, ["queued", "downloading"]),
+      inArray(downloadQueueItems.status, ["queued", "downloading"]),
+    ))
+    .orderBy(desc(downloadRequests.createdAt))
+    .all();
+}
+
+export async function listUsersWithActiveDownloadRequests() {
+  const database = ensureDatabaseReady();
+  const rows = database
+    .select({ userId: downloadRequests.userId })
+    .from(downloadRequests)
+    .where(inArray(downloadRequests.status, ["queued", "downloading"]))
+    .all();
+
+  return Array.from(new Set(rows.map((row) => row.userId)));
 }
 
 export async function createDownloadImportRun(input: {
