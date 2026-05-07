@@ -1,0 +1,2 @@
+CREATE INDEX `media_files_user_media_title_idx` ON `media_files` (`user_id`,`media_type`,`title_id`);--> statement-breakpoint
+CREATE INDEX `media_titles_user_media_sort_idx` ON `media_titles` (`user_id`,`media_type`,`sort_title`,`id`);

@@ -275,6 +275,7 @@ export const mediaTitles = sqliteTable(
     ),
     index("media_titles_library_status_idx").on(table.libraryId, table.status),
     index("media_titles_user_media_status_idx").on(table.userId, table.mediaType, table.status),
+    index("media_titles_user_media_sort_idx").on(table.userId, table.mediaType, table.sortTitle, table.id),
   ],
 );
 
@@ -385,6 +386,7 @@ export const mediaFiles = sqliteTable(
   (table) => [
     uniqueIndex("media_files_user_path_unique").on(table.userId, table.filePath),
     index("media_files_title_idx").on(table.titleId),
+    index("media_files_user_media_title_idx").on(table.userId, table.mediaType, table.titleId),
     index("media_files_library_path_idx").on(table.libraryPathId),
     index("media_files_episode_idx").on(table.episodeId),
   ],
