@@ -29,7 +29,7 @@ const workerGlobals = globalThis as typeof globalThis & {
 const sharedWorkerState = workerGlobals.__nookletWorker ?? {};
 workerGlobals.__nookletWorker = sharedWorkerState;
 
-const workerIntervalMs = 60_000;
+const workerIntervalMs = 15_000;
 
 async function runPlexJob(job: StoredJob) {
   const source = await findWatchHistorySourceByType(job.userId, "plex");
