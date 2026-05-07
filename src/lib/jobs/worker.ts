@@ -7,7 +7,7 @@ import {
 import { parsePlexWatchHistorySourceMetadata } from "@/modules/watch-history/plex-watch-history-source-metadata";
 import { executeQueuedRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
 import { parseWatchHistorySourceMetadataJson } from "@/modules/watch-history/source-metadata";
-import { findWatchHistorySourceByType } from "@/modules/watch-history/repositories/watch-history-repository";
+import { findWatchHistorySourceByType } from "@/modules/watch-history/queries/find-watch-history-source-by-type";
 import { syncPlexWatchHistory } from "@/modules/watch-history/workflows/sync-plex-watch-history";
 import { parseTautulliWatchHistorySourceMetadata } from "@/modules/watch-history/tautulli-watch-history-source-metadata";
 import { syncTautulliWatchHistory } from "@/modules/watch-history/workflows/sync-tautulli-watch-history";
@@ -153,7 +153,7 @@ async function executeJob(job: StoredJob) {
   }
 }
 
-async function runDueJobs() {
+export async function runDueJobs() {
   if (sharedWorkerState.running) {
     return;
   }
