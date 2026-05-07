@@ -11,6 +11,7 @@ import {
 import { searchDiscoverTitlesInputSchema } from "@/modules/discover/schemas/title-search";
 import { searchDiscoverTitles } from "@/modules/discover/queries/search-discover-titles";
 import { RequestMediaTitleCommandError } from "@/modules/media-library/commands/request-media-title";
+import { getMediaQualityProfileLabel } from "@/modules/media-library/queries/list-media-quality-profiles";
 import {
   requestTitleWithReleaseSearchInputSchema,
   requestTitleWithReleaseSearchWorkflow,
@@ -120,12 +121,26 @@ export async function requestSearchTitleAction(
     revalidatePath("/library");
     revalidatePath(parsed.data.mediaType === "tv" ? "/library/tv" : "/library/movies");
 
+    if (requested.queuedDownload.queued) {
+      revalidatePath("/in-progress");
+
+      return {
+        status: "success",
+        message: "Added to your library and queued a matching release in SABnzbd.",
+        titleId: requested.title.id,
+        searchRunId: requested.releaseSearch.searched ? requested.releaseSearch.searchRun.id : null,
+        downloadRequestId: requested.queuedDownload.download.downloadRequest.id,
+        results: [],
+      };
+    }
+
     if (!requested.releaseSearch.searched) {
       return {
         status: "success",
         message: "Added to your library.",
         titleId: requested.title.id,
         searchRunId: null,
+        downloadRequestId: null,
         results: [],
       };
     }
@@ -136,15 +151,39 @@ export async function requestSearchTitleAction(
         message: requested.releaseSearch.searchRun.errorMessage ?? "Added to your library, but release search failed.",
         titleId: requested.title.id,
         searchRunId: requested.releaseSearch.searchRun.id,
+        downloadRequestId: null,
         results: [],
+      };
+    }
+
+    if (requested.queuedDownload.reason === "no_matching_release") {
+      return {
+        status: "success",
+        message: `Added to your library, but no releases matched ${getMediaQualityProfileLabel(parsed.data.qualityProfile)}.`,
+        titleId: requested.title.id,
+        searchRunId: requested.releaseSearch.searchRun.id,
+        downloadRequestId: null,
+        results: mapSearchResults(requested.releaseSearch.results),
+      };
+    }
+
+    if (requested.queuedDownload.reason === "queue_failed") {
+      return {
+        status: "success",
+        message: `Added to your library, but ${requested.queuedDownload.message ?? "Nooklet could not queue a matching release."}`,
+        titleId: requested.title.id,
+        searchRunId: requested.releaseSearch.searchRun.id,
+        downloadRequestId: null,
+        results: mapSearchResults(requested.releaseSearch.results),
       };
     }
 
     return {
       status: "success",
-      message: `${requested.releaseSearch.results.length} release${requested.releaseSearch.results.length === 1 ? "" : "s"} found for ${parsed.data.title}.`,
+      message: `Added to your library, but no release was queued for ${parsed.data.title}.`,
       titleId: requested.title.id,
       searchRunId: requested.releaseSearch.searchRun.id,
+      downloadRequestId: null,
       results: mapSearchResults(requested.releaseSearch.results),
     };
   } catch (error) {

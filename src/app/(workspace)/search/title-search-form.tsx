@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, DatabaseZap, Download, HardDrive, Plus, Search } from "lucide-react";
+import { CalendarDays, DatabaseZap, Download, HardDrive, Search } from "lucide-react";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -72,8 +72,8 @@ function AddTitleButton() {
 
   return (
     <Button type="submit" className="w-full sm:w-auto" disabled={pending}>
-      {pending ? <Download aria-hidden="true" size={17} /> : <Plus aria-hidden="true" size={17} />}
-      {pending ? "Adding..." : "Add title"}
+      <Download aria-hidden="true" size={17} />
+      {pending ? "Adding..." : "Add & download"}
     </Button>
   );
 }
@@ -188,6 +188,7 @@ function RequestTitleForm({
       <input type="hidden" name="backdropUrl" value={title.backdropUrl ?? ""} />
       <input type="hidden" name="runtimeMinutes" value="" />
       <input type="hidden" name="originalLanguage" value={title.originalLanguage ?? ""} />
+      <input type="hidden" name="downloadNow" value="on" />
       <StatusBanner state={state} />
       <div className="grid gap-3 lg:grid-cols-2">
         <label className="space-y-1 text-sm">
@@ -220,10 +221,6 @@ function RequestTitleForm({
         <label className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2">
           <input type="checkbox" name="monitored" defaultChecked className="h-4 w-4 accent-accent" />
           Monitor
-        </label>
-        <label className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2">
-          <input type="checkbox" name="downloadNow" className="h-4 w-4 accent-accent" />
-          Search releases now
         </label>
       </div>
       <AddTitleButton />

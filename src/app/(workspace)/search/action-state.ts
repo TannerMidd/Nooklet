@@ -40,6 +40,7 @@ export type RequestSearchTitleActionState = {
   message: string | null;
   titleId: string | null;
   searchRunId: string | null;
+  downloadRequestId: string | null;
   results: SearchResultView[];
 };
 
@@ -48,6 +49,7 @@ export const initialRequestSearchTitleActionState: RequestSearchTitleActionState
   message: null,
   titleId: null,
   searchRunId: null,
+  downloadRequestId: null,
   results: [],
 };
 

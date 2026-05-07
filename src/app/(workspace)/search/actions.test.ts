@@ -161,6 +161,7 @@ describe("requestSearchTitleAction", () => {
     requestTitleWorkflowMock.mockResolvedValue({
       title: { id: "title1" },
       releaseSearch: { searched: false },
+      queuedDownload: { queued: false, reason: "not_requested" },
     } as never);
 
     const result = await requestSearchTitleAction(initialRequestSearchTitleActionState, validForm());
@@ -180,11 +181,12 @@ describe("requestSearchTitleAction", () => {
       message: "Added to your library.",
       titleId: "title1",
       searchRunId: null,
+      downloadRequestId: null,
       results: [],
     });
   });
 
-  it("searches indexer releases when download now is requested", async () => {
+  it("queues an automatically selected release when download now is requested", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
     requestTitleWorkflowMock.mockResolvedValue({
       title: { id: "title1" },
@@ -203,6 +205,11 @@ describe("requestSearchTitleAction", () => {
           grabs: 4,
         }],
       },
+      queuedDownload: {
+        queued: true,
+        download: { downloadRequest: { id: "download1" } },
+        selectedResultId: "result1",
+      },
     } as never);
 
     const result = await requestSearchTitleAction(initialRequestSearchTitleActionState, validForm(true));
@@ -213,9 +220,45 @@ describe("requestSearchTitleAction", () => {
       status: "success",
       titleId: "title1",
       searchRunId: "run1",
-      results: [{ id: "result1", publishedAt: "2024-01-02T03:04:05.000Z" }],
+      downloadRequestId: "download1",
+      results: [],
     });
+    expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
     expect(JSON.stringify(result)).not.toContain("downloadUrl");
+  });
+
+  it("returns release candidates when no result matches the quality profile", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    requestTitleWorkflowMock.mockResolvedValue({
+      title: { id: "title1" },
+      releaseSearch: {
+        searched: true,
+        searchRun: { id: "run1", status: "succeeded" },
+        results: [{
+          id: "result1",
+          title: "Arrival 2016 720p",
+          mediaType: "movie",
+          qualityLabel: "HD",
+          sizeBytes: 123,
+          publishedAt: null,
+          seeders: 10,
+          leechers: 2,
+          grabs: 4,
+        }],
+      },
+      queuedDownload: { queued: false, reason: "no_matching_release" },
+    } as never);
+
+    const result = await requestSearchTitleAction(initialRequestSearchTitleActionState, validForm(true));
+
+    expect(result).toMatchObject({
+      status: "success",
+      message: "Added to your library, but no releases matched HD 1080p.",
+      titleId: "title1",
+      searchRunId: "run1",
+      downloadRequestId: null,
+      results: [{ id: "result1" }],
+    });
   });
 
   it("maps request command errors to the action state", async () => {
@@ -231,6 +274,7 @@ describe("requestSearchTitleAction", () => {
       message: "Choose a matching library before adding that title.",
       titleId: null,
       searchRunId: null,
+      downloadRequestId: null,
       results: [],
     });
   });

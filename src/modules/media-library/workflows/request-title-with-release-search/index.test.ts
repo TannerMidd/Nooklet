@@ -13,7 +13,11 @@ vi.mock("./title-request", () => ({
 vi.mock("./release-search", () => ({
   searchRequestedTitleReleases: vi.fn(),
 }));
+vi.mock("./release-queueing", () => ({
+  queueRequestedTitleRelease: vi.fn(),
+}));
 
+import { queueRequestedTitleRelease } from "./release-queueing";
 import { searchRequestedTitleReleases } from "./release-search";
 import { requestTitleWithReleaseSearchWorkflow } from "./index";
 import { validateRequestTitleWithReleaseSearchRequest } from "./request-validation";
@@ -22,13 +26,14 @@ import { requestWorkflowMediaTitle } from "./title-request";
 const validateMock = vi.mocked(validateRequestTitleWithReleaseSearchRequest);
 const titleRequestMock = vi.mocked(requestWorkflowMediaTitle);
 const releaseSearchMock = vi.mocked(searchRequestedTitleReleases);
+const releaseQueueMock = vi.mocked(queueRequestedTitleRelease);
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe("requestTitleWithReleaseSearchWorkflow", () => {
-  it("calls phases in order and propagates the title and release search", async () => {
+  it("calls phases in order and propagates the title, release search, and queued download", async () => {
     const calls: string[] = [];
     const request = {
       mediaType: "movie",
@@ -40,6 +45,7 @@ describe("requestTitleWithReleaseSearchWorkflow", () => {
     } as const;
     const title = { id: "title1" };
     const releaseSearch = { searched: true, searchRun: { id: "run1" }, results: [] };
+    const queuedDownload = { queued: false, reason: "no_matching_release" };
 
     validateMock.mockImplementation(() => {
       calls.push("validate");
@@ -53,13 +59,18 @@ describe("requestTitleWithReleaseSearchWorkflow", () => {
       calls.push("search-releases");
       return releaseSearch as never;
     });
+    releaseQueueMock.mockImplementation(async () => {
+      calls.push("queue-release");
+      return queuedDownload as never;
+    });
 
     const result = await requestTitleWithReleaseSearchWorkflow("u1", request);
 
-    expect(calls).toEqual(["validate", "request-title", "search-releases"]);
+    expect(calls).toEqual(["validate", "request-title", "search-releases", "queue-release"]);
     expect(validateMock).toHaveBeenCalledWith(request);
     expect(titleRequestMock).toHaveBeenCalledWith("u1", request);
     expect(releaseSearchMock).toHaveBeenCalledWith("u1", request);
-    expect(result).toEqual({ title, releaseSearch });
+    expect(releaseQueueMock).toHaveBeenCalledWith("u1", request, title, releaseSearch);
+    expect(result).toEqual({ title, releaseSearch, queuedDownload });
   });
 });
