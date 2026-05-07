@@ -95,12 +95,15 @@ function PaginationControls({
 
 function TitleCard({
   title,
+  mediaType,
   qualityProfiles,
 }: {
   title: MediaLibraryTitleSummary;
+  mediaType: RecommendationMediaType;
   qualityProfiles: readonly MediaQualityProfileOption[];
 }) {
   const qualityLabel = title.qualityLabels.length > 0 ? title.qualityLabels.join(" / ") : "No quality tag";
+  const titleHref = mediaType === "tv" ? `/library/tv/${title.id}` : null;
 
   return (
     <li className="rounded-lg border border-line/70 bg-panel-strong/60 p-4">
@@ -108,9 +111,15 @@ function TitleCard({
         <RecommendationPoster title={title.title} posterUrl={title.posterUrl} />
         <div className="min-w-0 flex-1 space-y-3">
           <div className="min-w-0 space-y-1">
-            <p className="break-words font-heading text-lg leading-tight text-foreground">
-              {title.title}{title.year ? ` (${title.year})` : ""}
-            </p>
+            {titleHref ? (
+              <Link href={titleHref} className="break-words font-heading text-lg leading-tight text-foreground hover:text-accent">
+                {title.title}{title.year ? ` (${title.year})` : ""}
+              </Link>
+            ) : (
+              <p className="break-words font-heading text-lg leading-tight text-foreground">
+                {title.title}{title.year ? ` (${title.year})` : ""}
+              </p>
+            )}
             <p className="text-sm text-muted">
               {title.libraryName ?? "Unassigned"} / {title.fileCount} file{title.fileCount === 1 ? "" : "s"}
             </p>
@@ -131,6 +140,14 @@ function TitleCard({
             ) : null}
           </div>
           {title.overview ? <p className="line-clamp-2 text-sm leading-6 text-muted">{title.overview}</p> : null}
+          {titleHref ? (
+            <Link
+              href={titleHref}
+              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-line/75 bg-panel-strong/70 px-3 py-2 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
+            >
+              Open series
+            </Link>
+          ) : null}
           <MediaTitlePreferencesForm
             titleId={title.id}
             monitored={title.monitored}
@@ -210,7 +227,7 @@ export async function LibraryTitlePage({
             <PaginationControls mediaType={mediaType} query={query} pagination={library.pagination} />
             <ul className="grid gap-3 xl:grid-cols-2">
               {library.titles.map((title) => (
-                <TitleCard key={title.id} title={title} qualityProfiles={qualityProfiles} />
+                <TitleCard key={title.id} title={title} mediaType={mediaType} qualityProfiles={qualityProfiles} />
               ))}
             </ul>
             <PaginationControls mediaType={mediaType} query={query} pagination={library.pagination} />
