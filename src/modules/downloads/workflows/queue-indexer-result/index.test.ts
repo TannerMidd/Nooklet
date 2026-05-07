@@ -7,6 +7,9 @@ vi.mock("./request-validation", () => ({
 vi.mock("./result-resolution", () => ({
   resolveQueueIndexerResult: vi.fn(),
 }));
+vi.mock("./target-resolution", () => ({
+  resolveQueueIndexerResultTarget: vi.fn(),
+}));
 vi.mock("./client-resolution", () => ({
   resolveSabnzbdDownloadClient: vi.fn(),
 }));
@@ -26,10 +29,12 @@ import { submitIndexerResultToSabnzbd } from "./download-submission";
 import { persistQueuedIndexerResultDownload } from "./persistence";
 import { validateQueueIndexerResultRequest } from "./request-validation";
 import { resolveQueueIndexerResult } from "./result-resolution";
+import { resolveQueueIndexerResultTarget } from "./target-resolution";
 import { queueIndexerResultWorkflow } from "./index";
 
 const validateMock = vi.mocked(validateQueueIndexerResultRequest);
 const resolveResultMock = vi.mocked(resolveQueueIndexerResult);
+const resolveTargetMock = vi.mocked(resolveQueueIndexerResultTarget);
 const resolveClientMock = vi.mocked(resolveSabnzbdDownloadClient);
 const submitMock = vi.mocked(submitIndexerResultToSabnzbd);
 const persistMock = vi.mocked(persistQueuedIndexerResultDownload);
@@ -48,8 +53,10 @@ describe("queueIndexerResultWorkflow", () => {
       episodeId: "7f3f45c2-8ebd-40c5-9ce5-2f3283c20c08",
       requestedTitle: "Arrival",
       targetLibraryId: "e95d5704-d31e-46c2-b1c3-7c1e0c22dbea",
+      targetLibraryPathId: "0ca60f81-387b-47d0-a9d2-571e8dd7a44d",
     };
     const resolvedResult = { result: { id: request.resultId, title: "Arrival" } };
+    const target = { path: { id: request.targetLibraryPathId }, library: { id: request.targetLibraryId } };
     const downloadClient = { client: { id: "client1" }, baseUrl: "http://localhost:8080" };
     const submission = { queueIds: ["SABnzbd_nzo_1"], category: "movies" };
     const queuedDownload = { downloadRequest: { id: "request1" }, queueItem: null, queueIds: submission.queueIds };
@@ -61,6 +68,10 @@ describe("queueIndexerResultWorkflow", () => {
     resolveResultMock.mockImplementation(async () => {
       calls.push("resolve-result");
       return resolvedResult as never;
+    });
+    resolveTargetMock.mockImplementation(async () => {
+      calls.push("resolve-target");
+      return target as never;
     });
     resolveClientMock.mockImplementation(async () => {
       calls.push("resolve-client");
@@ -80,11 +91,12 @@ describe("queueIndexerResultWorkflow", () => {
 
     const result = await queueIndexerResultWorkflow("user1", request);
 
-    expect(calls).toEqual(["validate", "resolve-result", "resolve-client", "submit", "persist", "audit"]);
+    expect(calls).toEqual(["validate", "resolve-result", "resolve-target", "resolve-client", "submit", "persist", "audit"]);
     expect(resolveResultMock).toHaveBeenCalledWith("user1", request);
+    expect(resolveTargetMock).toHaveBeenCalledWith("user1", request, resolvedResult);
     expect(resolveClientMock).toHaveBeenCalledWith("user1");
     expect(submitMock).toHaveBeenCalledWith(resolvedResult, downloadClient);
-    expect(persistMock).toHaveBeenCalledWith({ userId: "user1", request, resolvedResult, downloadClient, submission });
+    expect(persistMock).toHaveBeenCalledWith({ userId: "user1", request, resolvedResult, target, downloadClient, submission });
     expect(auditMock).toHaveBeenCalledWith({ userId: "user1", resolvedResult, queuedDownload });
     expect(result).toBe(queuedDownload);
   });

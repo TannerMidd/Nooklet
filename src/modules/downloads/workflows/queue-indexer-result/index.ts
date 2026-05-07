@@ -7,16 +7,19 @@ import {
   type QueueIndexerResultInput,
 } from "./request-validation";
 import { resolveQueueIndexerResult } from "./result-resolution";
+import { resolveQueueIndexerResultTarget } from "./target-resolution";
 
 export async function queueIndexerResultWorkflow(userId: string, input: QueueIndexerResultInput) {
   const request = validateQueueIndexerResultRequest(input);
   const resolvedResult = await resolveQueueIndexerResult(userId, request);
+  const target = await resolveQueueIndexerResultTarget(userId, request, resolvedResult);
   const downloadClient = await resolveSabnzbdDownloadClient(userId);
   const submission = await submitIndexerResultToSabnzbd(resolvedResult, downloadClient);
   const queuedDownload = await persistQueuedIndexerResultDownload({
     userId,
     request,
     resolvedResult,
+    target,
     downloadClient,
     submission,
   });

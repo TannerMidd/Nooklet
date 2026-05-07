@@ -3,6 +3,7 @@ export type QueueIndexerResultErrorCode =
   | "sabnzbd_not_connected"
   | "sabnzbd_not_verified"
   | "sabnzbd_enqueue_failed"
+  | "target_path_not_found"
   | "download_request_failed";
 
 export class QueueIndexerResultWorkflowError extends Error {
