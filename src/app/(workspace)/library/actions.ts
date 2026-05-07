@@ -65,13 +65,9 @@ function mediaTypeLibraryPath(mediaType: "movie" | "tv") {
   return mediaType === "tv" ? "/library/tv" : "/library/movies";
 }
 
-function revalidateMediaTitlePages(mediaType: "movie" | "tv", titleId?: string) {
+function revalidateMediaTitlePages(mediaType: "movie" | "tv") {
   revalidatePath("/library");
   revalidatePath(mediaTypeLibraryPath(mediaType));
-
-  if (mediaType === "tv" && titleId) {
-    revalidatePath(`/library/tv/${titleId}`);
-  }
 }
 
 export async function addLibraryPathAction(
@@ -283,7 +279,7 @@ export async function searchLibraryItemReleasesAction(
     const result = await searchLibraryItemReleasesWorkflow(session.user.id, parsed.data);
     const title = result.item.title;
 
-    revalidateMediaTitlePages(title.mediaType, title.id);
+    revalidateMediaTitlePages(title.mediaType);
 
     if (result.queuedDownload.queued) {
       revalidatePath("/in-progress");
@@ -353,7 +349,7 @@ export async function removeMediaTitleAction(
   try {
     const removedTitle = await removeMediaTitleCommand(session.user.id, parsed.data);
 
-    revalidateMediaTitlePages(removedTitle.mediaType, removedTitle.id);
+    revalidateMediaTitlePages(removedTitle.mediaType);
 
     return { status: "success", message: "Library title removed." };
   } catch (error) {
@@ -390,10 +386,9 @@ export async function updateTvEpisodeMonitoringAction(
   }
 
   try {
-    const result = await updateTvEpisodeMonitoringCommand(session.user.id, parsed.data);
+    await updateTvEpisodeMonitoringCommand(session.user.id, parsed.data);
 
-    revalidatePath("/library/tv");
-    revalidatePath(`/library/tv/${result.title.id}`);
+    revalidateMediaTitlePages("tv");
 
     return { status: "success", message: "Episode monitoring updated." };
   } catch (error) {

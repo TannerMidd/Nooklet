@@ -7,14 +7,22 @@ export const dynamic = "force-dynamic";
 const searchParamsSchema = z.object({
   q: z.string().trim().max(120).optional(),
   page: z.coerce.number().int().min(1).catch(1),
+  details: z.string().uuid().optional(),
 });
 
 type LibraryMoviesPageProps = {
-  searchParams?: Promise<{ q?: string; page?: string }>;
+  searchParams?: Promise<{ q?: string; page?: string; details?: string }>;
 };
 
 export default async function LibraryMoviesPage({ searchParams }: LibraryMoviesPageProps) {
   const resolvedSearchParams = searchParamsSchema.parse(await searchParams ?? {});
 
-  return <LibraryTitlePage mediaType="movie" query={resolvedSearchParams.q} page={resolvedSearchParams.page} />;
+  return (
+    <LibraryTitlePage
+      mediaType="movie"
+      query={resolvedSearchParams.q}
+      page={resolvedSearchParams.page}
+      detailsTitleId={resolvedSearchParams.details}
+    />
+  );
 }

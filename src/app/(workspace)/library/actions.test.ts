@@ -500,7 +500,7 @@ describe("searchLibraryItemReleasesAction", () => {
     });
   });
 
-  it("queues a matching episode release and revalidates the TV title page", async () => {
+  it("queues a matching episode release and revalidates TV library pages", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
     const form = validForm();
     form.set("episodeId", episodeId);
@@ -519,8 +519,10 @@ describe("searchLibraryItemReleasesAction", () => {
     const result = await searchLibraryItemReleasesAction(initialLibraryItemSearchActionState, form);
 
     expect(searchLibraryItemMock).toHaveBeenCalledWith("u1", { titleId, episodeId, targetLibraryPathId });
+    expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
-    expect(revalidateMock).toHaveBeenCalledWith(`/library/tv/${titleId}`);
+    // Per-title routes were removed; dialog content is rendered from the list page.
+    expect(revalidateMock).not.toHaveBeenCalledWith(`/library/tv/${titleId}`);
     expect(result).toMatchObject({
       status: "success",
       message: "Queued a matching episode release in SABnzbd.",
@@ -613,7 +615,8 @@ describe("removeMediaTitleAction", () => {
     expect(removeMediaTitleMock).toHaveBeenCalledWith("u1", { titleId });
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
-    expect(revalidateMock).toHaveBeenCalledWith(`/library/tv/${titleId}`);
+    // Per-title routes were removed; dialog content is rendered from the list page.
+    expect(revalidateMock).not.toHaveBeenCalledWith(`/library/tv/${titleId}`);
     expect(result).toEqual({ status: "success", message: "Library title removed." });
   });
 });
@@ -669,8 +672,10 @@ describe("updateTvEpisodeMonitoringAction", () => {
       episodeId,
       monitored: true,
     });
+    expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
-    expect(revalidateMock).toHaveBeenCalledWith("/library/tv/title1");
+    // Per-title routes were removed; dialog content is rendered from the list page.
+    expect(revalidateMock).not.toHaveBeenCalledWith("/library/tv/title1");
     expect(result).toEqual({ status: "success", message: "Episode monitoring updated." });
   });
 });

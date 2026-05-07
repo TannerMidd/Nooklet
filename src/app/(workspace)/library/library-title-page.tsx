@@ -6,12 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
+import { LibraryTitleDialog } from "@/app/(workspace)/library/library-title-dialog";
+import { getMediaLibraryMovieTitleDetails } from "@/modules/media-library/queries/get-media-library-movie-title-details";
+import { getMediaLibraryTvTitleDetails } from "@/modules/media-library/queries/get-media-library-tv-title-details";
+import { listMediaLibraryPathOptions } from "@/modules/media-library/queries/list-media-library-path-options";
 import {
   listMediaLibraryTitles,
   type MediaLibraryTitleSummary,
 } from "@/modules/media-library/queries/list-media-library-titles";
 import {
   getMediaQualityProfileLabel,
+  listMediaQualityProfiles,
 } from "@/modules/media-library/queries/list-media-quality-profiles";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 
@@ -24,7 +29,12 @@ function titleCountLabel(mediaType: RecommendationMediaType, count: number) {
   return `${count} ${label}${count === 1 ? "" : "s"}`;
 }
 
-function buildLibraryPageHref(mediaType: RecommendationMediaType, query: string | null | undefined, page: number) {
+function buildLibraryPageHref(
+  mediaType: RecommendationMediaType,
+  query: string | null | undefined,
+  page: number,
+  detailsTitleId?: string | null,
+) {
   const params = new URLSearchParams();
   const trimmedQuery = query?.trim();
 
@@ -36,14 +46,14 @@ function buildLibraryPageHref(mediaType: RecommendationMediaType, query: string 
     params.set("page", String(page));
   }
 
+  if (detailsTitleId) {
+    params.set("details", detailsTitleId);
+  }
+
   const queryString = params.toString();
   const pathname = mediaType === "tv" ? "/library/tv" : "/library/movies";
 
   return queryString ? `${pathname}?${queryString}` : pathname;
-}
-
-function buildTitleHref(mediaType: RecommendationMediaType, titleId: string) {
-  return mediaType === "tv" ? `/library/tv/${titleId}` : `/library/movies/${titleId}`;
 }
 
 function PaginationControls({
@@ -97,11 +107,15 @@ function PaginationControls({
 function TitleRow({
   title,
   mediaType,
+  query,
+  page,
 }: {
   title: MediaLibraryTitleSummary;
   mediaType: RecommendationMediaType;
+  query?: string | null;
+  page: number;
 }) {
-  const titleHref = buildTitleHref(mediaType, title.id);
+  const titleHref = buildLibraryPageHref(mediaType, query, page, title.id);
   const fileLabel = `${title.fileCount} file${title.fileCount === 1 ? "" : "s"}`;
   const updatedLabel = title.lastFileModifiedAt?.toLocaleDateString() ?? "No files yet";
 
@@ -109,6 +123,7 @@ function TitleRow({
     <li>
       <Link
         href={titleHref}
+        scroll={false}
         className="grid gap-3 px-4 py-3 text-sm transition hover:bg-panel-strong/55 md:grid-cols-[minmax(0,1.8fr)_minmax(140px,0.8fr)_120px_120px_120px] md:items-center"
       >
         <div className="min-w-0">
@@ -142,9 +157,13 @@ function TitleRow({
 function TitleRows({
   titles,
   mediaType,
+  query,
+  page,
 }: {
   titles: MediaLibraryTitleSummary[];
   mediaType: RecommendationMediaType;
+  query?: string | null;
+  page: number;
 }) {
   return (
     <div className="overflow-hidden rounded-lg border border-line/70 bg-background/15">
@@ -157,7 +176,7 @@ function TitleRows({
       </div>
       <ul className="divide-y divide-line/55">
         {titles.map((title) => (
-          <TitleRow key={title.id} title={title} mediaType={mediaType} />
+          <TitleRow key={title.id} title={title} mediaType={mediaType} query={query} page={page} />
         ))}
       </ul>
     </div>
@@ -184,10 +203,12 @@ export async function LibraryTitlePage({
   mediaType,
   query,
   page,
+  detailsTitleId,
 }: {
   mediaType: RecommendationMediaType;
   query?: string | null;
   page?: number | null;
+  detailsTitleId?: string | null;
 }) {
   const session = await auth();
 
@@ -196,6 +217,22 @@ export async function LibraryTitlePage({
   }
 
   const library = await listMediaLibraryTitles(session.user.id, mediaType, { query, page });
+  const selectedTvTitle = detailsTitleId && mediaType === "tv"
+    ? await getMediaLibraryTvTitleDetails(session.user.id, detailsTitleId)
+    : null;
+  const selectedMovieTitle = detailsTitleId && mediaType === "movie"
+    ? await getMediaLibraryMovieTitleDetails(session.user.id, detailsTitleId)
+    : null;
+  const selectedLibraryId = selectedTvTitle?.libraryId ?? selectedMovieTitle?.libraryId ?? null;
+  const hasSelectedTitle = Boolean(selectedTvTitle ?? selectedMovieTitle);
+  const qualityProfiles = hasSelectedTitle ? listMediaQualityProfiles() : [];
+  const targetPathOptions = hasSelectedTitle
+    ? (await listMediaLibraryPathOptions(session.user.id)).filter((option) => (
+        option.mediaType === mediaType && (selectedLibraryId ? option.libraryId === selectedLibraryId : true)
+      ))
+    : [];
+  const currentPage = library.pagination.page;
+  const closeDetailsHref = buildLibraryPageHref(mediaType, query, currentPage);
 
   return (
     <div className="space-y-6">
@@ -227,11 +264,30 @@ export async function LibraryTitlePage({
         ) : (
           <div className="space-y-5">
             <PaginationControls mediaType={mediaType} query={query} pagination={library.pagination} />
-            <TitleRows titles={library.titles} mediaType={mediaType} />
+            <TitleRows titles={library.titles} mediaType={mediaType} query={query} page={currentPage} />
             <PaginationControls mediaType={mediaType} query={query} pagination={library.pagination} />
           </div>
         )}
       </Panel>
+
+      {selectedTvTitle ? (
+        <LibraryTitleDialog
+          mediaType="tv"
+          title={selectedTvTitle}
+          closeHref={closeDetailsHref}
+          qualityProfiles={qualityProfiles}
+          targetPathOptions={targetPathOptions}
+        />
+      ) : null}
+      {selectedMovieTitle ? (
+        <LibraryTitleDialog
+          mediaType="movie"
+          title={selectedMovieTitle}
+          closeHref={closeDetailsHref}
+          qualityProfiles={qualityProfiles}
+          targetPathOptions={targetPathOptions}
+        />
+      ) : null}
     </div>
   );
 }
