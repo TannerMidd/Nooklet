@@ -5,6 +5,7 @@ import {
 } from "@/modules/media-library/queries/resolve-media-library-import-item";
 
 import { type MatchedCompletedDownload } from "./request-matching";
+import { mapCompletedDownloadSourcePath } from "./source-path-mapping";
 
 export type FailedCompletedDownloadResolution = {
   kind: "failed";
@@ -83,7 +84,7 @@ export async function resolveCompletedDownloadDestinations(
       target,
       title: importItem.title,
       episode: importItem.episode,
-      sourceRootPath: match.historyItem.storagePath,
+      sourceRootPath: mapCompletedDownloadSourcePath(match.historyItem.storagePath),
     });
   }
 

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, or } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
@@ -17,6 +17,26 @@ import {
   type DownloadRequestStatus,
   type RecommendationMediaType,
 } from "@/lib/database/schema";
+
+const localImportRetryCooldownMs = 60_000;
+
+function localImportRetryCutoff() {
+  return new Date(Date.now() - localImportRetryCooldownMs);
+}
+
+function importableRequestPredicate() {
+  return or(
+    and(
+      inArray(downloadRequests.status, ["queued", "downloading"]),
+      inArray(downloadQueueItems.status, ["queued", "downloading"]),
+    ),
+    and(
+      eq(downloadRequests.status, "failed"),
+      eq(downloadQueueItems.status, "completed"),
+      lte(downloadRequests.updatedAt, localImportRetryCutoff()),
+    ),
+  );
+}
 
 export async function createDownloadClient(input: {
   userId: string;
@@ -235,8 +255,7 @@ export async function listActiveDownloadRequestsForImport(userId: string, client
     .where(and(
       eq(downloadRequests.userId, userId),
       eq(downloadRequests.clientId, clientId),
-      inArray(downloadRequests.status, ["queued", "downloading"]),
-      inArray(downloadQueueItems.status, ["queued", "downloading"]),
+      importableRequestPredicate(),
     ))
     .orderBy(desc(downloadRequests.createdAt))
     .all();
@@ -244,13 +263,23 @@ export async function listActiveDownloadRequestsForImport(userId: string, client
 
 export async function listUsersWithActiveDownloadRequests() {
   const database = ensureDatabaseReady();
-  const rows = database
+  const activeRows = database
     .select({ userId: downloadRequests.userId })
     .from(downloadRequests)
     .where(inArray(downloadRequests.status, ["queued", "downloading"]))
     .all();
+  const localImportRetryRows = database
+    .select({ userId: downloadRequests.userId })
+    .from(downloadQueueItems)
+    .innerJoin(downloadRequests, eq(downloadRequests.id, downloadQueueItems.requestId))
+    .where(and(
+      eq(downloadRequests.status, "failed"),
+      eq(downloadQueueItems.status, "completed"),
+      lte(downloadRequests.updatedAt, localImportRetryCutoff()),
+    ))
+    .all();
 
-  return Array.from(new Set(rows.map((row) => row.userId)));
+  return Array.from(new Set([...activeRows, ...localImportRetryRows].map((row) => row.userId)));
 }
 
 export async function listDownloadRequestReleaseExclusionsForItem(input: {

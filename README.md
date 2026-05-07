@@ -185,6 +185,7 @@ The canonical environment list lives in [`.env.example`](.env.example).
 | `APP_PORT` | ⛔ | Docker host port to publish. Defaults to `42021`. |
 | `SECRET_BOX_KEY` | ⛔ | Separate encryption key for stored service secrets. Falls back to `AUTH_SECRET`. |
 | `ALLOW_PRIVATE_SERVICE_HOSTS` | ⛔ | Defaults to `true`. Set `false` for cloud deployments that must block private-network service URLs. |
+| `SABNZBD_PATH_MAPPINGS` | ⛔ | Maps SABnzbd-reported completed paths to paths Nooklet can read, e.g. `/downloads=F:\Usenet\Downloads`. Separate multiple mappings with semicolons. |
 
 ---
 

@@ -7,6 +7,7 @@ import { ensureDatabaseReady } from "@/lib/database/client";
 import {
   downloadImportRuns,
   downloadQueueItems,
+  downloadRequests,
   indexerSearchResults,
   indexerSearchRuns,
   mediaFiles,
@@ -301,7 +302,7 @@ describe("download-repository", () => {
     expect(completedQueueItem?.completedAt).toEqual(new Date("2026-05-07T00:00:00Z"));
   });
 
-  it("lists active requests that can be matched to SABnzbd history", async () => {
+  it("lists active and failed local-import requests that can be matched to SABnzbd history", async () => {
     const userId = await seedUser();
     const otherUserId = await seedUser();
     const serviceConnectionId = seedSabnzbdConnection(userId);
@@ -344,6 +345,39 @@ describe("download-repository", () => {
       externalQueueId: "SABnzbd_nzo_2",
       status: "completed",
     });
+    const failedImportRequest = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Solaris",
+      clientId: client.id,
+      status: "failed",
+    });
+    const failedImportQueueItem = await recordDownloadQueueItem({
+      requestId: failedImportRequest.id,
+      userId,
+      clientId: client.id,
+      externalQueueId: "SABnzbd_nzo_3",
+      status: "completed",
+    });
+    ensureDatabaseReady()
+      .update(downloadRequests)
+      .set({ updatedAt: new Date("2026-05-07T00:00:00Z") })
+      .where(eq(downloadRequests.id, failedImportRequest.id))
+      .run();
+    const recentFailedImportRequest = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Too Recent",
+      clientId: client.id,
+      status: "failed",
+    });
+    await recordDownloadQueueItem({
+      requestId: recentFailedImportRequest.id,
+      userId,
+      clientId: client.id,
+      externalQueueId: "SABnzbd_nzo_4",
+      status: "completed",
+    });
     await createDownloadRequest({
       userId: otherUserId,
       mediaType: "movie",
@@ -354,9 +388,12 @@ describe("download-repository", () => {
     const activeRequests = await listActiveDownloadRequestsForImport(userId, client.id);
     const activeUserIds = await listUsersWithActiveDownloadRequests();
 
-    expect(activeRequests).toHaveLength(1);
-    expect(activeRequests[0]?.request.id).toBe(request.id);
-    expect(activeRequests[0]?.queueItem.id).toBe(queueItem.id);
+    expect(activeRequests).toHaveLength(2);
+    expect(activeRequests.map((entry) => entry.request.id)).toContain(request.id);
+    expect(activeRequests.map((entry) => entry.queueItem.id)).toContain(queueItem.id);
+    expect(activeRequests.map((entry) => entry.request.id)).toContain(failedImportRequest.id);
+    expect(activeRequests.map((entry) => entry.queueItem.id)).toContain(failedImportQueueItem.id);
+    expect(activeRequests.map((entry) => entry.request.id)).not.toContain(recentFailedImportRequest.id);
     expect(activeUserIds).toEqual(expect.arrayContaining([userId, otherUserId]));
   });
 
