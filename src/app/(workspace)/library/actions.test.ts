@@ -494,6 +494,7 @@ describe("searchLibraryItemReleasesAction", () => {
       episodeId: undefined,
       targetLibraryPathId,
       excludedResultIds: [],
+      excludedReleaseKeys: [],
     });
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(revalidateMock).toHaveBeenCalledWith("/library/movies");
@@ -528,6 +529,7 @@ describe("searchLibraryItemReleasesAction", () => {
       episodeId,
       targetLibraryPathId,
       excludedResultIds: [],
+      excludedReleaseKeys: [],
     });
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
