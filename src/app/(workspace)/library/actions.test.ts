@@ -489,7 +489,12 @@ describe("searchLibraryItemReleasesAction", () => {
 
     const result = await searchLibraryItemReleasesAction(initialLibraryItemSearchActionState, validForm());
 
-    expect(searchLibraryItemMock).toHaveBeenCalledWith("u1", { titleId, targetLibraryPathId });
+    expect(searchLibraryItemMock).toHaveBeenCalledWith("u1", {
+      titleId,
+      episodeId: undefined,
+      targetLibraryPathId,
+      excludedResultIds: [],
+    });
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(revalidateMock).toHaveBeenCalledWith("/library/movies");
     expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
@@ -518,7 +523,12 @@ describe("searchLibraryItemReleasesAction", () => {
 
     const result = await searchLibraryItemReleasesAction(initialLibraryItemSearchActionState, form);
 
-    expect(searchLibraryItemMock).toHaveBeenCalledWith("u1", { titleId, episodeId, targetLibraryPathId });
+    expect(searchLibraryItemMock).toHaveBeenCalledWith("u1", {
+      titleId,
+      episodeId,
+      targetLibraryPathId,
+      excludedResultIds: [],
+    });
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
     // Per-title routes were removed; dialog content is rendered from the list page.
