@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
@@ -205,9 +206,10 @@ export async function LibraryTitlePage({
         actions={(
           <Link
             href="/library"
-            className="inline-flex min-h-11 items-center justify-center rounded-lg border border-line/75 bg-panel-strong/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line/75 bg-panel-strong/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
           >
-            Manage folders
+            <ArrowLeft aria-hidden="true" size={16} />
+            Library home
           </Link>
         )}
       />
