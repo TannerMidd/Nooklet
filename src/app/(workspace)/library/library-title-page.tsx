@@ -14,6 +14,10 @@ import {
   type MediaLibraryTitleSummary,
 } from "@/modules/media-library/queries/list-media-library-titles";
 import {
+  listMediaLibraryPathOptions,
+  type MediaLibraryPathOption,
+} from "@/modules/media-library/queries/list-media-library-path-options";
+import {
   getMediaQualityProfileLabel,
   listMediaQualityProfiles,
   type MediaQualityProfileOption,
@@ -99,10 +103,12 @@ function TitleCard({
   title,
   mediaType,
   qualityProfiles,
+  targetPathOptions,
 }: {
   title: MediaLibraryTitleSummary;
   mediaType: RecommendationMediaType;
   qualityProfiles: readonly MediaQualityProfileOption[];
+  targetPathOptions: MediaLibraryPathOption[];
 }) {
   const qualityLabel = title.qualityLabels.length > 0 ? title.qualityLabels.join(" / ") : "No quality tag";
   const titleHref = mediaType === "tv" ? `/library/tv/${title.id}` : null;
@@ -146,6 +152,7 @@ function TitleCard({
             <LibraryItemSearchForm
               titleId={title.id}
               label={mediaType === "tv" ? "Search series" : "Search movie"}
+              targetPathOptions={targetPathOptions}
             />
             {titleHref ? (
               <Link
@@ -184,8 +191,12 @@ export async function LibraryTitlePage({
     return null;
   }
 
-  const library = await listMediaLibraryTitles(session.user.id, mediaType, { query, page });
+  const [library, pathOptions] = await Promise.all([
+    listMediaLibraryTitles(session.user.id, mediaType, { query, page }),
+    listMediaLibraryPathOptions(session.user.id),
+  ]);
   const qualityProfiles = listMediaQualityProfiles();
+  const mediaTypePathOptions = pathOptions.filter((option) => option.mediaType === mediaType);
 
   return (
     <div className="space-y-6">
@@ -236,7 +247,15 @@ export async function LibraryTitlePage({
             <PaginationControls mediaType={mediaType} query={query} pagination={library.pagination} />
             <ul className="grid gap-3 xl:grid-cols-2">
               {library.titles.map((title) => (
-                <TitleCard key={title.id} title={title} mediaType={mediaType} qualityProfiles={qualityProfiles} />
+                <TitleCard
+                  key={title.id}
+                  title={title}
+                  mediaType={mediaType}
+                  qualityProfiles={qualityProfiles}
+                  targetPathOptions={mediaTypePathOptions.filter((option) => (
+                    title.libraryId ? option.libraryId === title.libraryId : true
+                  ))}
+                />
               ))}
             </ul>
             <PaginationControls mediaType={mediaType} query={query} pagination={library.pagination} />

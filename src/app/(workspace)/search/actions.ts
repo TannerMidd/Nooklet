@@ -131,6 +131,7 @@ export async function requestSearchTitleAction(
         titleId: requested.title.id,
         searchRunId: requested.releaseSearch.searched ? requested.releaseSearch.searchRun.id : null,
         downloadRequestId: requested.queuedDownload.download.downloadRequest.id,
+        targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
         results: [],
       };
     }
@@ -142,6 +143,7 @@ export async function requestSearchTitleAction(
         titleId: requested.title.id,
         searchRunId: null,
         downloadRequestId: null,
+        targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
         results: [],
       };
     }
@@ -153,6 +155,7 @@ export async function requestSearchTitleAction(
         titleId: requested.title.id,
         searchRunId: requested.releaseSearch.searchRun.id,
         downloadRequestId: null,
+        targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
         results: [],
       };
     }
@@ -164,6 +167,7 @@ export async function requestSearchTitleAction(
         titleId: requested.title.id,
         searchRunId: requested.releaseSearch.searchRun.id,
         downloadRequestId: null,
+        targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
         results: mapSearchResults(requested.releaseSearch.results),
       };
     }
@@ -175,6 +179,7 @@ export async function requestSearchTitleAction(
         titleId: requested.title.id,
         searchRunId: requested.releaseSearch.searchRun.id,
         downloadRequestId: null,
+        targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
         results: mapSearchResults(requested.releaseSearch.results),
       };
     }
@@ -185,6 +190,7 @@ export async function requestSearchTitleAction(
       titleId: requested.title.id,
       searchRunId: requested.releaseSearch.searchRun.id,
       downloadRequestId: null,
+      targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
       results: mapSearchResults(requested.releaseSearch.results),
     };
   } catch (error) {
@@ -212,6 +218,7 @@ export async function queueIndexerResultAction(
 
   const parsed = queueIndexerResultInputSchema.safeParse({
     resultId: formData.get("resultId"),
+    targetLibraryPathId: formData.get("targetLibraryPathId") || undefined,
   });
 
   if (!parsed.success) {

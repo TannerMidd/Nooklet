@@ -184,6 +184,7 @@ describe("requestSearchTitleAction", () => {
       titleId: "title1",
       searchRunId: null,
       downloadRequestId: null,
+      targetLibraryPathId: "0ca60f81-387b-47d0-a9d2-571e8dd7a44d",
       results: [],
     });
   });
@@ -277,6 +278,7 @@ describe("requestSearchTitleAction", () => {
       titleId: null,
       searchRunId: null,
       downloadRequestId: null,
+      targetLibraryPathId: null,
       results: [],
     });
   });
@@ -284,10 +286,12 @@ describe("requestSearchTitleAction", () => {
 
 describe("queueIndexerResultAction", () => {
   const resultId = "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9";
+  const targetLibraryPathId = "0ca60f81-387b-47d0-a9d2-571e8dd7a44d";
 
   function validForm() {
     const form = new FormData();
     form.set("resultId", resultId);
+    form.set("targetLibraryPathId", targetLibraryPathId);
     return form;
   }
 
@@ -317,7 +321,7 @@ describe("queueIndexerResultAction", () => {
 
     const result = await queueIndexerResultAction(initialQueueIndexerResultActionState, validForm());
 
-    expect(queueMock).toHaveBeenCalledWith("u1", { resultId });
+    expect(queueMock).toHaveBeenCalledWith("u1", { resultId, targetLibraryPathId });
     expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
     expect(result).toEqual({
       status: "success",

@@ -41,6 +41,7 @@ export type RequestSearchTitleActionState = {
   titleId: string | null;
   searchRunId: string | null;
   downloadRequestId: string | null;
+  targetLibraryPathId: string | null;
   results: SearchResultView[];
 };
 
@@ -50,6 +51,7 @@ export const initialRequestSearchTitleActionState: RequestSearchTitleActionState
   titleId: null,
   searchRunId: null,
   downloadRequestId: null,
+  targetLibraryPathId: null,
   results: [],
 };
 

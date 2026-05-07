@@ -3,6 +3,7 @@ import { TitleSearchForm } from "@/app/(workspace)/search/title-search-form";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { listLibraryOverview } from "@/modules/media-library/queries/list-library-overview";
+import { listMediaLibraryPathOptions } from "@/modules/media-library/queries/list-media-library-path-options";
 import { listMediaQualityProfiles } from "@/modules/media-library/queries/list-media-quality-profiles";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,10 @@ export default async function SearchPage() {
     return null;
   }
 
-  const libraryOverview = await listLibraryOverview(session.user.id);
+  const [libraryOverview, pathOptions] = await Promise.all([
+    listLibraryOverview(session.user.id),
+    listMediaLibraryPathOptions(session.user.id),
+  ]);
   const qualityProfiles = listMediaQualityProfiles();
 
   return (
@@ -33,6 +37,7 @@ export default async function SearchPage() {
             mediaType: library.mediaType,
           }))}
           qualityProfiles={qualityProfiles}
+          pathOptions={pathOptions}
         />
       </Panel>
     </div>

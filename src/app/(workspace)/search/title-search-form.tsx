@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarDays, DatabaseZap, Download, HardDrive, Search } from "lucide-react";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -21,6 +21,7 @@ import { RecommendationPoster } from "@/components/recommendations/recommendatio
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type MediaQualityProfile, type RecommendationMediaType } from "@/lib/database/schema";
+import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
 
 type LibraryOption = {
   id: string;
@@ -36,7 +37,12 @@ type QualityProfileOption = {
 type TitleSearchFormProps = {
   libraries: LibraryOption[];
   qualityProfiles: readonly QualityProfileOption[];
+  pathOptions: MediaLibraryPathOption[];
 };
+
+function pathOptionLabel(option: MediaLibraryPathOption) {
+  return `${option.label} - ${option.path}`;
+}
 
 function StatusBanner({ state }: { state: TitleSearchActionState | RequestSearchTitleActionState }) {
   if (state.status === "idle" || !state.message) {
@@ -124,7 +130,13 @@ function TitleMeta({ title }: { title: TitleSearchResultView }) {
   );
 }
 
-function ReleaseResults({ results }: { results: SearchResultView[] }) {
+function ReleaseResults({
+  results,
+  targetLibraryPathId,
+}: {
+  results: SearchResultView[];
+  targetLibraryPathId: string | null;
+}) {
   if (results.length === 0) {
     return null;
   }
@@ -156,7 +168,7 @@ function ReleaseResults({ results }: { results: SearchResultView[] }) {
                   </span>
                 </div>
               </div>
-              <QueueResultButton resultId={result.id} />
+              <QueueResultButton resultId={result.id} targetLibraryPathId={targetLibraryPathId} />
             </div>
           </li>
         ))}
@@ -169,13 +181,31 @@ function RequestTitleForm({
   title,
   libraries,
   qualityProfiles,
+  pathOptions,
 }: {
   title: TitleSearchResultView;
   libraries: LibraryOption[];
   qualityProfiles: readonly QualityProfileOption[];
+  pathOptions: MediaLibraryPathOption[];
 }) {
   const [state, formAction] = useActionState(requestSearchTitleAction, initialRequestSearchTitleActionState);
   const matchingLibraries = libraries.filter((library) => library.mediaType === title.mediaType);
+  const matchingPathOptions = pathOptions.filter((option) => option.mediaType === title.mediaType);
+  const initialLibraryId = matchingLibraries[0]?.id ?? "";
+  const initialTargetPathId = initialLibraryId
+    ? matchingPathOptions.find((option) => option.libraryId === initialLibraryId)?.id ?? ""
+    : matchingPathOptions[0]?.id ?? "";
+  const [selectedLibraryId, setSelectedLibraryId] = useState(initialLibraryId);
+  const [selectedTargetPathId, setSelectedTargetPathId] = useState(initialTargetPathId);
+  const visiblePathOptions = matchingPathOptions.filter((option) => (
+    selectedLibraryId ? option.libraryId === selectedLibraryId : true
+  ));
+
+  function handleLibraryChange(value: string) {
+    setSelectedLibraryId(value);
+    const nextPathOptions = matchingPathOptions.filter((option) => (value ? option.libraryId === value : true));
+    setSelectedTargetPathId(nextPathOptions[0]?.id ?? "");
+  }
 
   return (
     <div className="space-y-3">
@@ -191,18 +221,37 @@ function RequestTitleForm({
         <input type="hidden" name="originalLanguage" value={title.originalLanguage ?? ""} />
         <input type="hidden" name="downloadNow" value="on" />
         <StatusBanner state={state} />
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid gap-3 lg:grid-cols-3">
           <label className="space-y-1 text-sm">
             <span className="font-medium text-foreground">Library</span>
             <select
               name="libraryId"
-              defaultValue={matchingLibraries[0]?.id ?? ""}
+              value={selectedLibraryId}
+              onChange={(event) => handleLibraryChange(event.target.value)}
               className="min-h-11 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
             >
               <option value="">Unassigned</option>
               {matchingLibraries.map((library) => (
                 <option key={library.id} value={library.id}>{library.name}</option>
               ))}
+            </select>
+          </label>
+          <label className="space-y-1 text-sm">
+            <span className="font-medium text-foreground">Destination folder</span>
+            <select
+              name="targetLibraryPathId"
+              value={selectedTargetPathId}
+              onChange={(event) => setSelectedTargetPathId(event.target.value)}
+              disabled={visiblePathOptions.length === 0}
+              className="min-h-11 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25 disabled:opacity-60"
+            >
+              {visiblePathOptions.length === 0 ? (
+                <option value="">No active folders</option>
+              ) : (
+                visiblePathOptions.map((option) => (
+                  <option key={option.id} value={option.id}>{pathOptionLabel(option)}</option>
+                ))
+              )}
             </select>
           </label>
           <label className="space-y-1 text-sm">
@@ -226,7 +275,7 @@ function RequestTitleForm({
         </div>
         <AddTitleButton />
       </form>
-      <ReleaseResults results={state.results} />
+      <ReleaseResults results={state.results} targetLibraryPathId={state.targetLibraryPathId} />
     </div>
   );
 }
@@ -235,10 +284,12 @@ function TitleResultCard({
   title,
   libraries,
   qualityProfiles,
+  pathOptions,
 }: {
   title: TitleSearchResultView;
   libraries: LibraryOption[];
   qualityProfiles: readonly QualityProfileOption[];
+  pathOptions: MediaLibraryPathOption[];
 }) {
   return (
     <li className="rounded-lg border border-line/70 bg-panel-strong/60 p-4">
@@ -252,7 +303,12 @@ function TitleResultCard({
             </p>
             {title.overview ? <p className="line-clamp-3 text-sm leading-6 text-muted">{title.overview}</p> : null}
           </div>
-          <RequestTitleForm title={title} libraries={libraries} qualityProfiles={qualityProfiles} />
+          <RequestTitleForm
+            title={title}
+            libraries={libraries}
+            qualityProfiles={qualityProfiles}
+            pathOptions={pathOptions}
+          />
         </div>
       </div>
     </li>
@@ -263,6 +319,7 @@ function TitleResults({
   state,
   libraries,
   qualityProfiles,
+  pathOptions,
 }: TitleSearchFormProps & { state: TitleSearchActionState }) {
   if (state.status === "idle") {
     return (
@@ -288,13 +345,14 @@ function TitleResults({
           title={title}
           libraries={libraries}
           qualityProfiles={qualityProfiles}
+          pathOptions={pathOptions}
         />
       ))}
     </ul>
   );
 }
 
-export function TitleSearchForm({ libraries, qualityProfiles }: TitleSearchFormProps) {
+export function TitleSearchForm({ libraries, qualityProfiles, pathOptions }: TitleSearchFormProps) {
   const [state, formAction] = useActionState(searchTitlesAction, initialTitleSearchActionState);
 
   return (
@@ -321,7 +379,7 @@ export function TitleSearchForm({ libraries, qualityProfiles }: TitleSearchFormP
         </div>
       </form>
 
-      <TitleResults state={state} libraries={libraries} qualityProfiles={qualityProfiles} />
+      <TitleResults state={state} libraries={libraries} qualityProfiles={qualityProfiles} pathOptions={pathOptions} />
     </div>
   );
 }

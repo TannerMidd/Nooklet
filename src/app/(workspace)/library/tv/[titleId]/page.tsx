@@ -10,6 +10,7 @@ import { RecommendationPoster } from "@/components/recommendations/recommendatio
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { getMediaLibraryTvTitleDetails } from "@/modules/media-library/queries/get-media-library-tv-title-details";
+import { listMediaLibraryPathOptions } from "@/modules/media-library/queries/list-media-library-path-options";
 import {
   getMediaQualityProfileLabel,
   listMediaQualityProfiles,
@@ -44,6 +45,9 @@ export default async function LibraryTvTitlePage({ params }: LibraryTvTitlePageP
   }
 
   const qualityProfiles = listMediaQualityProfiles();
+  const targetPathOptions = (await listMediaLibraryPathOptions(session.user.id)).filter((option) => (
+    option.mediaType === "tv" && (title.libraryId ? option.libraryId === title.libraryId : true)
+  ));
 
   return (
     <div className="space-y-6">
@@ -102,7 +106,11 @@ export default async function LibraryTvTitlePage({ params }: LibraryTvTitlePageP
               qualityProfile={title.qualityProfile}
               qualityProfiles={qualityProfiles}
             />
-            <LibraryItemSearchForm titleId={title.id} label="Search series" />
+            <LibraryItemSearchForm
+              titleId={title.id}
+              label="Search series"
+              targetPathOptions={targetPathOptions}
+            />
           </div>
         </div>
       </Panel>
@@ -160,6 +168,7 @@ export default async function LibraryTvTitlePage({ params }: LibraryTvTitlePageP
                               titleId={title.id}
                               episodeId={episode.id}
                               label="Search episode"
+                              targetPathOptions={targetPathOptions}
                             />
                           </div>
                         </div>
