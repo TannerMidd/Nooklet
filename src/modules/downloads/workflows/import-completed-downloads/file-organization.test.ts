@@ -1,6 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, stat, writeFile } from "node:fs/promises";
 
 import { describe, expect, it } from "vitest";
 
@@ -67,6 +67,106 @@ describe("organizeCompletedDownloadFiles", () => {
     await expect(stat(moviePath)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(readFile(samplePath, "utf8")).resolves.toBe("tiny");
     await expect(readFile(destinationPath, "utf8")).resolves.toBe("this is the actual movie file");
+  });
+
+  it("reuses an existing matching movie destination instead of creating a numbered duplicate", async () => {
+    const sourceRoot = await tempRoot("movie-retry-source");
+    const targetRoot = await tempRoot("movie-retry-target");
+    const moviePath = path.join(sourceRoot, "Arrival.2016.1080p.mkv");
+    const destinationFolder = path.join(targetRoot, "Arrival (2016)");
+    const destinationPath = path.join(destinationFolder, "Arrival (2016).mkv");
+
+    await mkdir(destinationFolder, { recursive: true });
+    await writeFile(moviePath, "this is the actual movie file");
+    await writeFile(destinationPath, "this is the actual movie file");
+
+    const organized = await organizeCompletedDownloadFiles([
+      {
+        kind: "ready",
+        source: {
+          kind: "importable",
+          sourceRootPath: sourceRoot,
+          title: {
+            title: "Arrival",
+            year: 2016,
+          },
+          episode: null,
+          target: {
+            path: { path: targetRoot },
+          },
+          match: {
+            request: { mediaType: "movie", requestedTitle: "Arrival", episodeId: null },
+          },
+        },
+        files: [
+          {
+            sourcePath: moviePath,
+            relativePath: "Arrival.2016.1080p.mkv",
+            sizeBytes: 29,
+            modifiedAt: new Date(),
+          },
+        ],
+      } as never,
+    ]);
+
+    expect(organized).toMatchObject([
+      {
+        kind: "organized",
+        files: [{ sourcePath: moviePath, destinationPath }],
+      },
+    ]);
+    await expect(readFile(moviePath, "utf8")).resolves.toBe("this is the actual movie file");
+    await expect(readdir(destinationFolder)).resolves.toEqual(["Arrival (2016).mkv"]);
+  });
+
+  it("fails an import collision instead of creating a numbered duplicate", async () => {
+    const sourceRoot = await tempRoot("movie-collision-source");
+    const targetRoot = await tempRoot("movie-collision-target");
+    const moviePath = path.join(sourceRoot, "Arrival.2016.1080p.mkv");
+    const destinationFolder = path.join(targetRoot, "Arrival (2016)");
+    const destinationPath = path.join(destinationFolder, "Arrival (2016).mkv");
+
+    await mkdir(destinationFolder, { recursive: true });
+    await writeFile(moviePath, "new movie file");
+    await writeFile(destinationPath, "different existing movie file");
+
+    const organized = await organizeCompletedDownloadFiles([
+      {
+        kind: "ready",
+        source: {
+          kind: "importable",
+          sourceRootPath: sourceRoot,
+          title: {
+            title: "Arrival",
+            year: 2016,
+          },
+          episode: null,
+          target: {
+            path: { path: targetRoot },
+          },
+          match: {
+            request: { mediaType: "movie", requestedTitle: "Arrival", episodeId: null },
+          },
+        },
+        files: [
+          {
+            sourcePath: moviePath,
+            relativePath: "Arrival.2016.1080p.mkv",
+            sizeBytes: 14,
+            modifiedAt: new Date(),
+          },
+        ],
+      } as never,
+    ]);
+
+    expect(organized).toMatchObject([
+      {
+        kind: "failed",
+        message: `Destination file already exists: ${destinationPath}`,
+      },
+    ]);
+    await expect(readFile(moviePath, "utf8")).resolves.toBe("new movie file");
+    await expect(readdir(destinationFolder)).resolves.toEqual(["Arrival (2016).mkv"]);
   });
 
   it("names a completed episode inside a season folder", async () => {

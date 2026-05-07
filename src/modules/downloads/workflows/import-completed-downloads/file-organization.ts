@@ -1,5 +1,5 @@
 import path from "node:path";
-import { access, copyFile, mkdir, rename, unlink } from "node:fs/promises";
+import { access, copyFile, mkdir, rename, stat, unlink } from "node:fs/promises";
 
 import { type InspectedCompletedDownload, type InspectedDownloadFile, type ReadyInspectedDownload } from "./file-inspection";
 
@@ -101,25 +101,33 @@ function destinationPathForFile(download: ReadyInspectedDownload, file: Inspecte
   return path.join(targetRoot, folderLabel, ...sanitizedRelativePath(file.relativePath));
 }
 
-async function uniqueDestinationPath(destinationPath: string) {
-  const parsed = path.parse(destinationPath);
-  let candidate = destinationPath;
-  let suffix = 2;
+async function hasSameSize(sourcePath: string, destinationPath: string) {
+  const [source, destination] = await Promise.all([stat(sourcePath), stat(destinationPath)]);
 
-  while (true) {
-    try {
-      await mkdir(path.dirname(candidate), { recursive: true });
-      await access(candidate);
-      candidate = path.join(parsed.dir, `${parsed.name} (${suffix})${parsed.ext}`);
-      suffix += 1;
-    } catch (error) {
-      if (hasErrorCode(error, "ENOENT")) {
-        return candidate;
-      }
+  return source.isFile() && destination.isFile() && source.size === destination.size;
+}
 
-      throw error;
+async function resolveDestinationPath(sourcePath: string, destinationPath: string) {
+  await mkdir(path.dirname(destinationPath), { recursive: true });
+
+  try {
+    await access(destinationPath);
+  } catch (error) {
+    if (hasErrorCode(error, "ENOENT")) {
+      return { kind: "ready", destinationPath } as const;
     }
+
+    throw error;
   }
+
+  if (await hasSameSize(sourcePath, destinationPath)) {
+    return { kind: "already-present", destinationPath } as const;
+  }
+
+  return {
+    kind: "failed",
+    message: `Destination file already exists: ${destinationPath}`,
+  } as const;
 }
 
 async function moveFile(sourcePath: string, destinationPath: string) {
@@ -147,14 +155,21 @@ async function organizeReadyDownload(download: ReadyInspectedDownload): Promise<
 
   try {
     for (const file of selectedFiles(download)) {
-      const destination = await uniqueDestinationPath(destinationPathForFile(download, file));
+      const destination = await resolveDestinationPath(file.sourcePath, destinationPathForFile(download, file));
 
-      if (!ensureChildPath(targetRoot, destination)) {
+      if (destination.kind === "failed") {
+        return { kind: "failed", source: download, message: destination.message };
+      }
+
+      if (!ensureChildPath(targetRoot, destination.destinationPath)) {
         return { kind: "failed", source: download, message: "Resolved destination escaped the library folder." };
       }
 
-      await moveFile(file.sourcePath, destination);
-      importedFiles.push({ sourcePath: file.sourcePath, destinationPath: destination });
+      if (destination.kind === "ready") {
+        await moveFile(file.sourcePath, destination.destinationPath);
+      }
+
+      importedFiles.push({ sourcePath: file.sourcePath, destinationPath: destination.destinationPath });
     }
 
     return {
