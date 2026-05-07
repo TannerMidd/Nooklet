@@ -42,7 +42,12 @@ beforeEach(() => {
 describe("queueIndexerResultWorkflow", () => {
   it("calls phases in order and returns the queued download", async () => {
     const calls: string[] = [];
-    const request = { resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9" };
+    const request = {
+      resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9",
+      mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+      requestedTitle: "Arrival",
+      targetLibraryId: "e95d5704-d31e-46c2-b1c3-7c1e0c22dbea",
+    };
     const resolvedResult = { result: { id: request.resultId, title: "Arrival" } };
     const downloadClient = { client: { id: "client1" }, baseUrl: "http://localhost:8080" };
     const submission = { queueIds: ["SABnzbd_nzo_1"], category: "movies" };
@@ -78,7 +83,7 @@ describe("queueIndexerResultWorkflow", () => {
     expect(resolveResultMock).toHaveBeenCalledWith("user1", request);
     expect(resolveClientMock).toHaveBeenCalledWith("user1");
     expect(submitMock).toHaveBeenCalledWith(resolvedResult, downloadClient);
-    expect(persistMock).toHaveBeenCalledWith({ userId: "user1", resolvedResult, downloadClient, submission });
+    expect(persistMock).toHaveBeenCalledWith({ userId: "user1", request, resolvedResult, downloadClient, submission });
     expect(auditMock).toHaveBeenCalledWith({ userId: "user1", resolvedResult, queuedDownload });
     expect(result).toBe(queuedDownload);
   });

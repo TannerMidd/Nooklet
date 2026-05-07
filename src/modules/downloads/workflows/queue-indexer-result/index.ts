@@ -15,6 +15,7 @@ export async function queueIndexerResultWorkflow(userId: string, input: QueueInd
   const submission = await submitIndexerResultToSabnzbd(resolvedResult, downloadClient);
   const queuedDownload = await persistQueuedIndexerResultDownload({
     userId,
+    request,
     resolvedResult,
     downloadClient,
     submission,
