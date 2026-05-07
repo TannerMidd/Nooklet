@@ -76,9 +76,18 @@ describe("listMediaLibraryTitles", () => {
       qualityLabel: "1080P",
     });
 
-    const result = await listMediaLibraryTitles(userId, "movie", "arri");
+    const result = await listMediaLibraryTitles(userId, "movie", { query: "arri" });
 
     expect(result.totals).toEqual({ titles: 1, files: 1, monitored: 1, missing: 0 });
+    expect(result.pagination).toEqual({
+      page: 1,
+      pageSize: 100,
+      pageCount: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+      firstItem: 1,
+      lastItem: 1,
+    });
     expect(result.titles[0]).toEqual(expect.objectContaining({
       title: "Arrival",
       year: 2016,
@@ -87,6 +96,121 @@ describe("listMediaLibraryTitles", () => {
       qualityLabels: ["1080P"],
       qualityProfile: "uhd-2160p",
       posterUrl: "https://images.example/arrival.jpg",
+    }));
+  });
+
+  it("returns a bounded page while keeping filtered totals database-backed", async () => {
+    const userId = await seedUser();
+    const movieLibrary = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies", isDefault: true });
+    const alpha = await upsertMediaTitle({
+      userId,
+      libraryId: movieLibrary.id,
+      mediaType: "movie",
+      title: "Alpha",
+      sortTitle: "alpha",
+      year: 2026,
+      normalizedKey: "alpha::2026",
+      status: "available",
+      monitored: true,
+    });
+    await upsertMediaTitle({
+      userId,
+      libraryId: movieLibrary.id,
+      mediaType: "movie",
+      title: "Beta",
+      sortTitle: "beta",
+      year: 2026,
+      normalizedKey: "beta::2026",
+      status: "missing",
+      monitored: false,
+    });
+    const gamma = await upsertMediaTitle({
+      userId,
+      libraryId: movieLibrary.id,
+      mediaType: "movie",
+      title: "Gamma",
+      sortTitle: "gamma",
+      year: 2026,
+      normalizedKey: "gamma::2026",
+      status: "available",
+      monitored: true,
+    });
+
+    await recordMediaFile({
+      userId,
+      titleId: alpha!.id,
+      libraryPathId: null,
+      mediaType: "movie",
+      fileKind: "movie",
+      filePath: "F:/Movies/Alpha/Alpha.mkv",
+      relativePath: "Alpha/Alpha.mkv",
+      sizeBytes: 100,
+      modifiedAt: new Date("2026-05-06T13:00:00Z"),
+      qualityLabel: "1080P",
+    });
+    await recordMediaFile({
+      userId,
+      titleId: gamma!.id,
+      libraryPathId: null,
+      mediaType: "movie",
+      fileKind: "movie",
+      filePath: "F:/Movies/Gamma/Gamma.mkv",
+      relativePath: "Gamma/Gamma.mkv",
+      sizeBytes: 100,
+      modifiedAt: new Date("2026-05-06T14:00:00Z"),
+      qualityLabel: "2160P",
+    });
+
+    const result = await listMediaLibraryTitles(userId, "movie", { page: 2, pageSize: 2 });
+
+    expect(result.titles).toHaveLength(1);
+    expect(result.titles[0]).toEqual(expect.objectContaining({
+      title: "Gamma",
+      fileCount: 1,
+      qualityLabels: ["2160P"],
+    }));
+    expect(result.totals).toEqual({ titles: 3, files: 2, monitored: 2, missing: 1 });
+    expect(result.pagination).toEqual({
+      page: 2,
+      pageSize: 2,
+      pageCount: 2,
+      hasNextPage: false,
+      hasPreviousPage: true,
+      firstItem: 3,
+      lastItem: 3,
+    });
+  });
+
+  it("caps page size to protect large libraries from unbounded renders", async () => {
+    const userId = await seedUser();
+    const movieLibrary = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies", isDefault: true });
+
+    for (let index = 0; index < 101; index += 1) {
+      const titleNumber = String(index).padStart(3, "0");
+
+      await upsertMediaTitle({
+        userId,
+        libraryId: movieLibrary.id,
+        mediaType: "movie",
+        title: `Title ${titleNumber}`,
+        sortTitle: `title ${titleNumber}`,
+        year: 2026,
+        normalizedKey: `title-${titleNumber}::2026`,
+      });
+    }
+
+    const result = await listMediaLibraryTitles(userId, "movie", { pageSize: 1_000 });
+
+    expect(result.titles).toHaveLength(100);
+    expect(result.totals.titles).toBe(101);
+    expect(result.pagination).toEqual(expect.objectContaining({
+      page: 1,
+      pageSize: 100,
+      pageCount: 2,
+      hasNextPage: true,
+      hasPreviousPage: false,
+      firstItem: 1,
+      lastItem: 100,
     }));
   });
 });

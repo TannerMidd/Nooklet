@@ -14,6 +14,7 @@ import {
 import {
   getMediaQualityProfileLabel,
   listMediaQualityProfiles,
+  type MediaQualityProfileOption,
 } from "@/modules/media-library/queries/list-media-quality-profiles";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 
@@ -26,9 +27,80 @@ function titleCountLabel(mediaType: RecommendationMediaType, count: number) {
   return `${count} ${label}${count === 1 ? "" : "s"}`;
 }
 
-function TitleCard({ title }: { title: MediaLibraryTitleSummary }) {
+function buildLibraryPageHref(mediaType: RecommendationMediaType, query: string | null | undefined, page: number) {
+  const params = new URLSearchParams();
+  const trimmedQuery = query?.trim();
+
+  if (trimmedQuery) {
+    params.set("q", trimmedQuery);
+  }
+
+  if (page > 1) {
+    params.set("page", String(page));
+  }
+
+  const queryString = params.toString();
+  const pathname = mediaType === "tv" ? "/library/tv" : "/library/movies";
+
+  return queryString ? `${pathname}?${queryString}` : pathname;
+}
+
+function PaginationControls({
+  mediaType,
+  query,
+  pagination,
+}: {
+  mediaType: RecommendationMediaType;
+  query?: string | null;
+  pagination: Awaited<ReturnType<typeof listMediaLibraryTitles>>["pagination"];
+}) {
+  const rangeLabel = pagination.firstItem === 0
+    ? "No titles"
+    : `Showing ${pagination.firstItem}-${pagination.lastItem}`;
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-line/60 pt-4 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
+      <p>
+        {rangeLabel} / page {pagination.page} of {pagination.pageCount}
+      </p>
+      <div className="flex gap-2">
+        {pagination.hasPreviousPage ? (
+          <Link
+            href={buildLibraryPageHref(mediaType, query, pagination.page - 1)}
+            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-line/75 bg-panel-strong/70 px-3 py-2 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
+          >
+            Previous
+          </Link>
+        ) : (
+          <span className="inline-flex min-h-10 items-center justify-center rounded-lg border border-line/50 bg-background/20 px-3 py-2 text-xs font-semibold text-muted opacity-60">
+            Previous
+          </span>
+        )}
+        {pagination.hasNextPage ? (
+          <Link
+            href={buildLibraryPageHref(mediaType, query, pagination.page + 1)}
+            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-line/75 bg-panel-strong/70 px-3 py-2 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
+          >
+            Next
+          </Link>
+        ) : (
+          <span className="inline-flex min-h-10 items-center justify-center rounded-lg border border-line/50 bg-background/20 px-3 py-2 text-xs font-semibold text-muted opacity-60">
+            Next
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TitleCard({
+  title,
+  qualityProfiles,
+}: {
+  title: MediaLibraryTitleSummary;
+  qualityProfiles: readonly MediaQualityProfileOption[];
+}) {
   const qualityLabel = title.qualityLabels.length > 0 ? title.qualityLabels.join(" / ") : "No quality tag";
-  const qualityProfiles = listMediaQualityProfiles();
 
   return (
     <li className="rounded-lg border border-line/70 bg-panel-strong/60 p-4">
@@ -74,9 +146,11 @@ function TitleCard({ title }: { title: MediaLibraryTitleSummary }) {
 export async function LibraryTitlePage({
   mediaType,
   query,
+  page,
 }: {
   mediaType: RecommendationMediaType;
   query?: string | null;
+  page?: number | null;
 }) {
   const session = await auth();
 
@@ -84,7 +158,8 @@ export async function LibraryTitlePage({
     return null;
   }
 
-  const library = await listMediaLibraryTitles(session.user.id, mediaType, query);
+  const library = await listMediaLibraryTitles(session.user.id, mediaType, { query, page });
+  const qualityProfiles = listMediaQualityProfiles();
 
   return (
     <div className="space-y-6">
@@ -131,9 +206,15 @@ export async function LibraryTitlePage({
             No titles found.
           </p>
         ) : (
-          <ul className="grid gap-3 xl:grid-cols-2">
-            {library.titles.map((title) => <TitleCard key={title.id} title={title} />)}
-          </ul>
+          <div className="space-y-5">
+            <PaginationControls mediaType={mediaType} query={query} pagination={library.pagination} />
+            <ul className="grid gap-3 xl:grid-cols-2">
+              {library.titles.map((title) => (
+                <TitleCard key={title.id} title={title} qualityProfiles={qualityProfiles} />
+              ))}
+            </ul>
+            <PaginationControls mediaType={mediaType} query={query} pagination={library.pagination} />
+          </div>
         )}
       </Panel>
     </div>
