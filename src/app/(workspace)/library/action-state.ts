@@ -27,3 +27,13 @@ export const initialLibraryPathMutationActionState: LibraryPathMutationActionSta
   status: "idle",
   message: null,
 };
+
+export type MediaTitlePreferenceActionState = {
+  status: "idle" | "success" | "error";
+  message: string | null;
+};
+
+export const initialMediaTitlePreferenceActionState: MediaTitlePreferenceActionState = {
+  status: "idle",
+  message: null,
+};

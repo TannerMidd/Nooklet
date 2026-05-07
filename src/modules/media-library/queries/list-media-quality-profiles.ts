@@ -5,6 +5,8 @@ import {
 
 export { getMediaQualityProfileLabel };
 
+export type MediaQualityProfileOption = (typeof mediaQualityProfileOptions)[number];
+
 export function listMediaQualityProfiles() {
   return mediaQualityProfileOptions;
 }

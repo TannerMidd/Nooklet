@@ -16,19 +16,26 @@ import {
   UpdateLibraryPathCommandError,
 } from "@/modules/media-library/commands/update-library-path";
 import {
+  updateMediaTitlePreferencesCommand,
+  UpdateMediaTitlePreferencesCommandError,
+} from "@/modules/media-library/commands/update-media-title-preferences";
+import {
   addLibraryPathInputSchema,
   removeLibraryPathInputSchema,
   updateLibraryPathInputSchema,
 } from "@/modules/media-library/schemas/library-path";
+import { updateMediaTitlePreferencesInputSchema } from "@/modules/media-library/schemas/media-title-preferences";
 import {
   scanMediaLibraryInputSchema,
   scanMediaLibraryWorkflow,
   ScanMediaLibraryWorkflowError,
 } from "@/modules/media-library/workflows/scan-library";
 import {
+  initialMediaTitlePreferenceActionState,
   initialScanLibraryActionState,
   type LibraryPathActionState,
   type LibraryPathMutationActionState,
+  type MediaTitlePreferenceActionState,
   type ScanLibraryActionState,
 } from "./action-state";
 
@@ -173,4 +180,45 @@ export async function removeLibraryPathAction(
 
   revalidatePath("/library");
   return { status: "success", message: "Library folder removed." };
+}
+
+export async function updateMediaTitlePreferencesAction(
+  _previous: MediaTitlePreferenceActionState,
+  formData: FormData,
+): Promise<MediaTitlePreferenceActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { ...initialMediaTitlePreferenceActionState, status: "error", message: "You need to sign in again." };
+  }
+
+  const parsed = updateMediaTitlePreferencesInputSchema.safeParse({
+    titleId: formData.get("titleId"),
+    monitored: formData.get("monitored") === "on",
+    qualityProfile: formData.get("qualityProfile"),
+  });
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]?.message ?? "Review the title options and try again.";
+    return { ...initialMediaTitlePreferenceActionState, status: "error", message: firstIssue };
+  }
+
+  try {
+    const title = await updateMediaTitlePreferencesCommand(session.user.id, parsed.data);
+
+    revalidatePath("/library");
+    revalidatePath(title.mediaType === "tv" ? "/library/tv" : "/library/movies");
+
+    return { status: "success", message: "Title preferences updated." };
+  } catch (error) {
+    if (error instanceof UpdateMediaTitlePreferencesCommandError) {
+      return { ...initialMediaTitlePreferenceActionState, status: "error", message: error.message };
+    }
+
+    return {
+      ...initialMediaTitlePreferenceActionState,
+      status: "error",
+      message: "Nooklet could not update that title.",
+    };
+  }
 }

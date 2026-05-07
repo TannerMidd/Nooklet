@@ -279,6 +279,38 @@ export async function findMediaTitleByNormalizedKey(
     .get() ?? null;
 }
 
+export async function findMediaTitleByIdForUser(userId: string, titleId: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(mediaTitles)
+    .where(and(eq(mediaTitles.userId, userId), eq(mediaTitles.id, titleId)))
+    .get() ?? null;
+}
+
+export async function updateMediaTitlePreferences(input: {
+  userId: string;
+  titleId: string;
+  monitored: boolean;
+  qualityProfile: MediaQualityProfile;
+}) {
+  const database = ensureDatabaseReady();
+  const updatedAt = new Date();
+
+  database
+    .update(mediaTitles)
+    .set({
+      monitored: input.monitored,
+      qualityProfile: input.qualityProfile,
+      updatedAt,
+    })
+    .where(and(eq(mediaTitles.userId, input.userId), eq(mediaTitles.id, input.titleId)))
+    .run();
+
+  return findMediaTitleByIdForUser(input.userId, input.titleId);
+}
+
 export async function setMediaTitleExternalIds(
   titleId: string,
   externalIds: Array<{ source: MediaTitleExternalIdSource; value: string }>,

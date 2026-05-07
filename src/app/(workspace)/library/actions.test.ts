@@ -54,6 +54,22 @@ vi.mock("@/modules/media-library/commands/update-library-path", () => {
     UpdateLibraryPathCommandError,
   };
 });
+vi.mock("@/modules/media-library/commands/update-media-title-preferences", () => {
+  class UpdateMediaTitlePreferencesCommandError extends Error {
+    constructor(
+      message: string,
+      public readonly code: "title_not_found",
+    ) {
+      super(message);
+      this.name = "UpdateMediaTitlePreferencesCommandError";
+    }
+  }
+
+  return {
+    updateMediaTitlePreferencesCommand: vi.fn(),
+    UpdateMediaTitlePreferencesCommandError,
+  };
+});
 vi.mock("@/modules/media-library/workflows/scan-library", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/media-library/workflows/scan-library")>();
   return {
@@ -78,6 +94,10 @@ import {
   UpdateLibraryPathCommandError,
 } from "@/modules/media-library/commands/update-library-path";
 import {
+  updateMediaTitlePreferencesCommand,
+  UpdateMediaTitlePreferencesCommandError,
+} from "@/modules/media-library/commands/update-media-title-preferences";
+import {
   scanMediaLibraryWorkflow,
   ScanMediaLibraryWorkflowError,
 } from "@/modules/media-library/workflows/scan-library";
@@ -87,12 +107,18 @@ import {
   removeLibraryPathAction,
   scanLibraryAction,
   updateLibraryPathAction,
+  updateMediaTitlePreferencesAction,
 } from "./actions";
-import { initialLibraryPathActionState, initialLibraryPathMutationActionState } from "./action-state";
+import {
+  initialLibraryPathActionState,
+  initialLibraryPathMutationActionState,
+  initialMediaTitlePreferenceActionState,
+} from "./action-state";
 
 const authMock = vi.mocked(auth);
 const addLibraryPathMock = vi.mocked(addLibraryPathCommand);
 const updateLibraryPathMock = vi.mocked(updateLibraryPathCommand);
+const updateMediaTitlePreferencesMock = vi.mocked(updateMediaTitlePreferencesCommand);
 const removeLibraryPathMock = vi.mocked(removeLibraryPathCommand);
 const scanLibraryMock = vi.mocked(scanMediaLibraryWorkflow);
 const revalidateMock = vi.mocked(revalidatePath);
@@ -293,5 +319,64 @@ describe("removeLibraryPathAction", () => {
     expect(removeLibraryPathMock).toHaveBeenCalledWith("u1", { pathId: "path1" });
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(result).toEqual({ status: "success", message: "Library folder removed." });
+  });
+});
+
+describe("updateMediaTitlePreferencesAction", () => {
+  const titleId = "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9";
+
+  function validForm() {
+    const form = new FormData();
+    form.set("titleId", titleId);
+    form.set("qualityProfile", "uhd-2160p");
+    form.set("monitored", "on");
+    return form;
+  }
+
+  it("returns sign-in error when there is no session", async () => {
+    authMock.mockResolvedValue(null as never);
+
+    const result = await updateMediaTitlePreferencesAction(initialMediaTitlePreferenceActionState, validForm());
+
+    expect(result).toEqual({ status: "error", message: "You need to sign in again." });
+    expect(updateMediaTitlePreferencesMock).not.toHaveBeenCalled();
+  });
+
+  it("validates submitted quality profiles", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    const form = validForm();
+    form.set("qualityProfile", "dvd");
+
+    const result = await updateMediaTitlePreferencesAction(initialMediaTitlePreferenceActionState, form);
+
+    expect(result.status).toBe("error");
+    expect(updateMediaTitlePreferencesMock).not.toHaveBeenCalled();
+  });
+
+  it("maps command errors to friendly messages", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    updateMediaTitlePreferencesMock.mockRejectedValue(
+      new UpdateMediaTitlePreferencesCommandError("Library title was not found.", "title_not_found"),
+    );
+
+    const result = await updateMediaTitlePreferencesAction(initialMediaTitlePreferenceActionState, validForm());
+
+    expect(result).toEqual({ status: "error", message: "Library title was not found." });
+  });
+
+  it("updates preferences and revalidates the matching library page", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    updateMediaTitlePreferencesMock.mockResolvedValue({ mediaType: "tv" } as never);
+
+    const result = await updateMediaTitlePreferencesAction(initialMediaTitlePreferenceActionState, validForm());
+
+    expect(updateMediaTitlePreferencesMock).toHaveBeenCalledWith("u1", {
+      titleId,
+      monitored: true,
+      qualityProfile: "uhd-2160p",
+    });
+    expect(revalidateMock).toHaveBeenCalledWith("/library");
+    expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
+    expect(result).toEqual({ status: "success", message: "Title preferences updated." });
   });
 });

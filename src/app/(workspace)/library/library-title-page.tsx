@@ -6,11 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
+import { MediaTitlePreferencesForm } from "@/app/(workspace)/library/media-title-preferences-form";
 import {
   listMediaLibraryTitles,
   type MediaLibraryTitleSummary,
 } from "@/modules/media-library/queries/list-media-library-titles";
-import { getMediaQualityProfileLabel } from "@/modules/media-library/queries/list-media-quality-profiles";
+import {
+  getMediaQualityProfileLabel,
+  listMediaQualityProfiles,
+} from "@/modules/media-library/queries/list-media-quality-profiles";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 
 function mediaTypeLabel(mediaType: RecommendationMediaType) {
@@ -24,6 +28,7 @@ function titleCountLabel(mediaType: RecommendationMediaType, count: number) {
 
 function TitleCard({ title }: { title: MediaLibraryTitleSummary }) {
   const qualityLabel = title.qualityLabels.length > 0 ? title.qualityLabels.join(" / ") : "No quality tag";
+  const qualityProfiles = listMediaQualityProfiles();
 
   return (
     <li className="rounded-lg border border-line/70 bg-panel-strong/60 p-4">
@@ -54,6 +59,12 @@ function TitleCard({ title }: { title: MediaLibraryTitleSummary }) {
             ) : null}
           </div>
           {title.overview ? <p className="line-clamp-2 text-sm leading-6 text-muted">{title.overview}</p> : null}
+          <MediaTitlePreferencesForm
+            titleId={title.id}
+            monitored={title.monitored}
+            qualityProfile={title.qualityProfile}
+            qualityProfiles={qualityProfiles}
+          />
         </div>
       </div>
     </li>
