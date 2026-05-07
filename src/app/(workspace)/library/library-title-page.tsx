@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
+import { LibraryItemSearchForm } from "@/app/(workspace)/library/library-item-search-form";
 import { MediaTitlePreferencesForm } from "@/app/(workspace)/library/media-title-preferences-form";
+import { RemoveMediaTitleForm } from "@/app/(workspace)/library/remove-media-title-form";
 import {
   listMediaLibraryTitles,
   type MediaLibraryTitleSummary,
@@ -140,14 +142,21 @@ function TitleCard({
             ) : null}
           </div>
           {title.overview ? <p className="line-clamp-2 text-sm leading-6 text-muted">{title.overview}</p> : null}
-          {titleHref ? (
-            <Link
-              href={titleHref}
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-line/75 bg-panel-strong/70 px-3 py-2 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
-            >
-              Open series
-            </Link>
-          ) : null}
+          <div className="flex flex-wrap items-start gap-2">
+            <LibraryItemSearchForm
+              titleId={title.id}
+              label={mediaType === "tv" ? "Search series" : "Search movie"}
+            />
+            {titleHref ? (
+              <Link
+                href={titleHref}
+                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-line/75 bg-panel-strong/70 px-3 py-2 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
+              >
+                Open series
+              </Link>
+            ) : null}
+            <RemoveMediaTitleForm titleId={title.id} />
+          </div>
           <MediaTitlePreferencesForm
             titleId={title.id}
             monitored={title.monitored}

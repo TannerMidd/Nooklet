@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 
 import { auth } from "@/auth";
+import { LibraryItemSearchForm } from "@/app/(workspace)/library/library-item-search-form";
 import { MediaTitlePreferencesForm } from "@/app/(workspace)/library/media-title-preferences-form";
 import { TvEpisodeMonitoringForm } from "@/app/(workspace)/library/tv-episode-monitoring-form";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
@@ -101,6 +102,7 @@ export default async function LibraryTvTitlePage({ params }: LibraryTvTitlePageP
               qualityProfile={title.qualityProfile}
               qualityProfiles={qualityProfiles}
             />
+            <LibraryItemSearchForm titleId={title.id} label="Search series" />
           </div>
         </div>
       </Panel>
@@ -152,7 +154,14 @@ export default async function LibraryTvTitlePage({ params }: LibraryTvTitlePageP
                               {episode.monitored ? "Monitored" : "Unmonitored"}
                             </span>
                           </div>
-                          <TvEpisodeMonitoringForm episodeId={episode.id} monitored={episode.monitored} />
+                          <div className="flex flex-wrap items-start gap-2">
+                            <TvEpisodeMonitoringForm episodeId={episode.id} monitored={episode.monitored} />
+                            <LibraryItemSearchForm
+                              titleId={title.id}
+                              episodeId={episode.id}
+                              label="Search episode"
+                            />
+                          </div>
                         </div>
                       </li>
                     );
