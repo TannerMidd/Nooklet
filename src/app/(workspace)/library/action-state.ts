@@ -37,3 +37,13 @@ export const initialMediaTitlePreferenceActionState: MediaTitlePreferenceActionS
   status: "idle",
   message: null,
 };
+
+export type TvEpisodeMonitoringActionState = {
+  status: "idle" | "success" | "error";
+  message: string | null;
+};
+
+export const initialTvEpisodeMonitoringActionState: TvEpisodeMonitoringActionState = {
+  status: "idle",
+  message: null,
+};

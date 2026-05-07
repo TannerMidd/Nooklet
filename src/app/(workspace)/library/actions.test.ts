@@ -70,6 +70,22 @@ vi.mock("@/modules/media-library/commands/update-media-title-preferences", () =>
     UpdateMediaTitlePreferencesCommandError,
   };
 });
+vi.mock("@/modules/media-library/commands/update-tv-episode-monitoring", () => {
+  class UpdateTvEpisodeMonitoringCommandError extends Error {
+    constructor(
+      message: string,
+      public readonly code: "episode_not_found",
+    ) {
+      super(message);
+      this.name = "UpdateTvEpisodeMonitoringCommandError";
+    }
+  }
+
+  return {
+    updateTvEpisodeMonitoringCommand: vi.fn(),
+    UpdateTvEpisodeMonitoringCommandError,
+  };
+});
 vi.mock("@/modules/media-library/workflows/scan-library", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/media-library/workflows/scan-library")>();
   return {
@@ -98,6 +114,10 @@ import {
   UpdateMediaTitlePreferencesCommandError,
 } from "@/modules/media-library/commands/update-media-title-preferences";
 import {
+  updateTvEpisodeMonitoringCommand,
+  UpdateTvEpisodeMonitoringCommandError,
+} from "@/modules/media-library/commands/update-tv-episode-monitoring";
+import {
   scanMediaLibraryWorkflow,
   ScanMediaLibraryWorkflowError,
 } from "@/modules/media-library/workflows/scan-library";
@@ -108,17 +128,20 @@ import {
   scanLibraryAction,
   updateLibraryPathAction,
   updateMediaTitlePreferencesAction,
+  updateTvEpisodeMonitoringAction,
 } from "./actions";
 import {
   initialLibraryPathActionState,
   initialLibraryPathMutationActionState,
   initialMediaTitlePreferenceActionState,
+  initialTvEpisodeMonitoringActionState,
 } from "./action-state";
 
 const authMock = vi.mocked(auth);
 const addLibraryPathMock = vi.mocked(addLibraryPathCommand);
 const updateLibraryPathMock = vi.mocked(updateLibraryPathCommand);
 const updateMediaTitlePreferencesMock = vi.mocked(updateMediaTitlePreferencesCommand);
+const updateTvEpisodeMonitoringMock = vi.mocked(updateTvEpisodeMonitoringCommand);
 const removeLibraryPathMock = vi.mocked(removeLibraryPathCommand);
 const scanLibraryMock = vi.mocked(scanMediaLibraryWorkflow);
 const revalidateMock = vi.mocked(revalidatePath);
@@ -378,5 +401,62 @@ describe("updateMediaTitlePreferencesAction", () => {
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
     expect(result).toEqual({ status: "success", message: "Title preferences updated." });
+  });
+});
+
+describe("updateTvEpisodeMonitoringAction", () => {
+  const episodeId = "episode1";
+
+  function validForm() {
+    const form = new FormData();
+    form.set("episodeId", episodeId);
+    form.set("monitored", "on");
+    return form;
+  }
+
+  it("returns sign-in error when there is no session", async () => {
+    authMock.mockResolvedValue(null as never);
+
+    const result = await updateTvEpisodeMonitoringAction(initialTvEpisodeMonitoringActionState, validForm());
+
+    expect(result).toEqual({ status: "error", message: "You need to sign in again." });
+    expect(updateTvEpisodeMonitoringMock).not.toHaveBeenCalled();
+  });
+
+  it("validates submitted episode ids", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    const form = validForm();
+    form.set("episodeId", "");
+
+    const result = await updateTvEpisodeMonitoringAction(initialTvEpisodeMonitoringActionState, form);
+
+    expect(result.status).toBe("error");
+    expect(updateTvEpisodeMonitoringMock).not.toHaveBeenCalled();
+  });
+
+  it("maps command errors to friendly messages", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    updateTvEpisodeMonitoringMock.mockRejectedValue(
+      new UpdateTvEpisodeMonitoringCommandError("Episode was not found.", "episode_not_found"),
+    );
+
+    const result = await updateTvEpisodeMonitoringAction(initialTvEpisodeMonitoringActionState, validForm());
+
+    expect(result).toEqual({ status: "error", message: "Episode was not found." });
+  });
+
+  it("updates monitoring and revalidates TV library pages", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    updateTvEpisodeMonitoringMock.mockResolvedValue({ title: { id: "title1" } } as never);
+
+    const result = await updateTvEpisodeMonitoringAction(initialTvEpisodeMonitoringActionState, validForm());
+
+    expect(updateTvEpisodeMonitoringMock).toHaveBeenCalledWith("u1", {
+      episodeId,
+      monitored: true,
+    });
+    expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
+    expect(revalidateMock).toHaveBeenCalledWith("/library/tv/title1");
+    expect(result).toEqual({ status: "success", message: "Episode monitoring updated." });
   });
 });

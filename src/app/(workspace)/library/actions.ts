@@ -20,11 +20,16 @@ import {
   UpdateMediaTitlePreferencesCommandError,
 } from "@/modules/media-library/commands/update-media-title-preferences";
 import {
+  updateTvEpisodeMonitoringCommand,
+  UpdateTvEpisodeMonitoringCommandError,
+} from "@/modules/media-library/commands/update-tv-episode-monitoring";
+import {
   addLibraryPathInputSchema,
   removeLibraryPathInputSchema,
   updateLibraryPathInputSchema,
 } from "@/modules/media-library/schemas/library-path";
 import { updateMediaTitlePreferencesInputSchema } from "@/modules/media-library/schemas/media-title-preferences";
+import { updateTvEpisodeMonitoringInputSchema } from "@/modules/media-library/schemas/tv-episode-preferences";
 import {
   scanMediaLibraryInputSchema,
   scanMediaLibraryWorkflow,
@@ -33,10 +38,12 @@ import {
 import {
   initialMediaTitlePreferenceActionState,
   initialScanLibraryActionState,
+  initialTvEpisodeMonitoringActionState,
   type LibraryPathActionState,
   type LibraryPathMutationActionState,
   type MediaTitlePreferenceActionState,
   type ScanLibraryActionState,
+  type TvEpisodeMonitoringActionState,
 } from "./action-state";
 
 export async function addLibraryPathAction(
@@ -219,6 +226,46 @@ export async function updateMediaTitlePreferencesAction(
       ...initialMediaTitlePreferenceActionState,
       status: "error",
       message: "Nooklet could not update that title.",
+    };
+  }
+}
+
+export async function updateTvEpisodeMonitoringAction(
+  _previous: TvEpisodeMonitoringActionState,
+  formData: FormData,
+): Promise<TvEpisodeMonitoringActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { ...initialTvEpisodeMonitoringActionState, status: "error", message: "You need to sign in again." };
+  }
+
+  const parsed = updateTvEpisodeMonitoringInputSchema.safeParse({
+    episodeId: formData.get("episodeId"),
+    monitored: formData.get("monitored") === "on",
+  });
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]?.message ?? "Review the episode options and try again.";
+    return { ...initialTvEpisodeMonitoringActionState, status: "error", message: firstIssue };
+  }
+
+  try {
+    const result = await updateTvEpisodeMonitoringCommand(session.user.id, parsed.data);
+
+    revalidatePath("/library/tv");
+    revalidatePath(`/library/tv/${result.title.id}`);
+
+    return { status: "success", message: "Episode monitoring updated." };
+  } catch (error) {
+    if (error instanceof UpdateTvEpisodeMonitoringCommandError) {
+      return { ...initialTvEpisodeMonitoringActionState, status: "error", message: error.message };
+    }
+
+    return {
+      ...initialTvEpisodeMonitoringActionState,
+      status: "error",
+      message: "Nooklet could not update that episode.",
     };
   }
 }

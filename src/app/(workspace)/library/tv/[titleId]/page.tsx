@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { auth } from "@/auth";
 import { MediaTitlePreferencesForm } from "@/app/(workspace)/library/media-title-preferences-form";
+import { TvEpisodeMonitoringForm } from "@/app/(workspace)/library/tv-episode-monitoring-form";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
@@ -151,6 +152,7 @@ export default async function LibraryTvTitlePage({ params }: LibraryTvTitlePageP
                               {episode.monitored ? "Monitored" : "Unmonitored"}
                             </span>
                           </div>
+                          <TvEpisodeMonitoringForm episodeId={episode.id} monitored={episode.monitored} />
                         </div>
                       </li>
                     );
