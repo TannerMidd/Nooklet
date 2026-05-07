@@ -8,6 +8,7 @@ vi.mock("./file-inspection", () => ({ inspectCompletedDownloadFiles: vi.fn() }))
 vi.mock("./file-organization", () => ({ organizeCompletedDownloadFiles: vi.fn() }));
 vi.mock("./request-matching", () => ({ matchFinishedHistoryToDownloads: vi.fn() }));
 vi.mock("./persistence", () => ({ persistCompletedDownloadImports: vi.fn() }));
+vi.mock("./retry-handling", () => ({ retryFailedCompletedDownloads: vi.fn() }));
 vi.mock("./request-validation", () => ({
   importCompletedDownloadsInputSchema: { safeParse: vi.fn() },
   validateImportCompletedDownloadsRequest: vi.fn(),
@@ -22,6 +23,7 @@ import { inspectCompletedDownloadFiles } from "./file-inspection";
 import { organizeCompletedDownloadFiles } from "./file-organization";
 import { matchFinishedHistoryToDownloads } from "./request-matching";
 import { persistCompletedDownloadImports } from "./persistence";
+import { retryFailedCompletedDownloads } from "./retry-handling";
 import { validateImportCompletedDownloadsRequest } from "./request-validation";
 import { triggerCompletedDownloadDiscovery } from "./scan-trigger";
 import { importCompletedDownloadsWorkflow } from "./index";
@@ -34,6 +36,7 @@ const inspectMock = vi.mocked(inspectCompletedDownloadFiles);
 const organizeMock = vi.mocked(organizeCompletedDownloadFiles);
 const matchMock = vi.mocked(matchFinishedHistoryToDownloads);
 const persistMock = vi.mocked(persistCompletedDownloadImports);
+const retryMock = vi.mocked(retryFailedCompletedDownloads);
 const validateMock = vi.mocked(validateImportCompletedDownloadsRequest);
 const scanMock = vi.mocked(triggerCompletedDownloadDiscovery);
 
@@ -58,6 +61,7 @@ describe("importCompletedDownloadsWorkflow", () => {
       importedFileCount: 1,
       affectedLibraryPathIds: ["path1"],
     };
+    const retry = { attemptedCount: 0, queuedCount: 0, failedCount: 0 };
     const discovery = { attempted: true, ok: true, message: null };
 
     validateMock.mockImplementation(() => {
@@ -92,6 +96,10 @@ describe("importCompletedDownloadsWorkflow", () => {
       calls.push("persist");
       return persisted;
     });
+    retryMock.mockImplementation(async () => {
+      calls.push("retry");
+      return retry;
+    });
     scanMock.mockImplementation(async () => {
       calls.push("scan");
       return discovery;
@@ -111,6 +119,7 @@ describe("importCompletedDownloadsWorkflow", () => {
       "inspect",
       "organize",
       "persist",
+      "retry",
       "scan",
       "audit",
     ]);
@@ -120,8 +129,9 @@ describe("importCompletedDownloadsWorkflow", () => {
     expect(inspectMock).toHaveBeenCalledWith(resolved);
     expect(organizeMock).toHaveBeenCalledWith(inspected);
     expect(persistMock).toHaveBeenCalledWith("user1", organized);
+    expect(retryMock).toHaveBeenCalledWith("user1", organized);
     expect(scanMock).toHaveBeenCalledWith("user1", persisted);
-    expect(auditMock).toHaveBeenCalledWith({ userId: "user1", persisted, discovery });
-    expect(result).toEqual({ ...persisted, discovery });
+    expect(auditMock).toHaveBeenCalledWith({ userId: "user1", persisted, retry, discovery });
+    expect(result).toEqual({ ...persisted, retry, discovery });
   });
 });

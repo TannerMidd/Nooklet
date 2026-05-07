@@ -69,6 +69,19 @@ describe("selectLibraryItemReleaseCandidates", () => {
 
     expect(candidates.map((candidate) => candidate.id)).toEqual(["1080-high", "1080-low"]);
   });
+
+  it("excludes previously attempted result ids", () => {
+    const candidates = selectLibraryItemReleaseCandidates(
+      item,
+      [
+        result({ id: "1080-low", title: "Severance S01E02 1080p", seeders: 5 }),
+        result({ id: "1080-high", title: "Severance S01E02 1080p", seeders: 20 }),
+      ],
+      { excludedResultIds: ["1080-high"] },
+    );
+
+    expect(candidates.map((candidate) => candidate.id)).toEqual(["1080-low"]);
+  });
 });
 
 
@@ -95,6 +108,28 @@ describe("queueLibraryItemRelease", () => {
       targetLibraryPathId: "0ca60f81-387b-47d0-a9d2-571e8dd7a44d",
     });
     expect(queued).toMatchObject({ queued: true, selectedResultId: "1080-high" });
+  });
+
+  it("skips excluded release ids before queueing", async () => {
+    queueMock.mockResolvedValue({ downloadRequest: { id: "download1" } } as never);
+
+    const queued = await queueLibraryItemRelease(
+      "u1",
+      item,
+      {
+        searched: true,
+        query: "Severance S01E02",
+        searchRun: { id: "run1", status: "succeeded" },
+        results: [
+          result({ id: "1080-low", title: "Severance S01E02 1080p", seeders: 5 }),
+          result({ id: "1080-high", title: "Severance S01E02 1080p", seeders: 20 }),
+        ],
+      } as never,
+      { excludedResultIds: ["1080-high"] },
+    );
+
+    expect(queueMock).toHaveBeenCalledWith("u1", expect.objectContaining({ resultId: "1080-low" }));
+    expect(queued).toMatchObject({ queued: true, selectedResultId: "1080-low" });
   });
 
   it("tries the next matching release when SABnzbd rejects a candidate", async () => {

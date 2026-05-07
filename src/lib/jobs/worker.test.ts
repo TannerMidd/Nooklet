@@ -31,6 +31,7 @@ beforeEach(() => {
     failedCount: 0,
     importedFileCount: 0,
     affectedLibraryPathIds: [],
+    retry: { attemptedCount: 0, queuedCount: 0, failedCount: 0 },
     discovery: { attempted: false, ok: true, message: null },
   });
   claimDueJobsMock.mockResolvedValue([]);
@@ -61,6 +62,7 @@ describe("runDueJobs", () => {
         failedCount: 0,
         importedFileCount: 0,
         affectedLibraryPathIds: [],
+        retry: { attemptedCount: 0, queuedCount: 0, failedCount: 0 },
         discovery: { attempted: false, ok: true, message: null },
       };
     });

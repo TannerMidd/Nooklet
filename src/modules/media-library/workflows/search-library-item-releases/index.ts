@@ -31,7 +31,9 @@ export async function searchLibraryItemReleasesWorkflow(
   const request = validateSearchLibraryItemReleasesRequest(input);
   const item = await resolveLibrarySearchItem(userId, request);
   const releaseSearch = await searchLibraryItemReleases(userId, item);
-  const queuedDownload = await queueLibraryItemRelease(userId, item, releaseSearch);
+  const queuedDownload = await queueLibraryItemRelease(userId, item, releaseSearch, {
+    excludedResultIds: request.excludedResultIds,
+  });
 
   return { item, releaseSearch, queuedDownload };
 }

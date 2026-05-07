@@ -6,6 +6,7 @@ import { inspectCompletedDownloadFiles } from "./file-inspection";
 import { organizeCompletedDownloadFiles } from "./file-organization";
 import { matchFinishedHistoryToDownloads } from "./request-matching";
 import { persistCompletedDownloadImports } from "./persistence";
+import { retryFailedCompletedDownloads } from "./retry-handling";
 import {
   validateImportCompletedDownloadsRequest,
   type ImportCompletedDownloadsInput,
@@ -24,11 +25,12 @@ export async function importCompletedDownloadsWorkflow(
   const inspected = await inspectCompletedDownloadFiles(resolved);
   const organized = await organizeCompletedDownloadFiles(inspected);
   const persisted = await persistCompletedDownloadImports(userId, organized);
+  const retry = await retryFailedCompletedDownloads(userId, organized);
   const discovery = await triggerCompletedDownloadDiscovery(userId, persisted);
 
-  await recordCompletedDownloadImportAudit({ userId, persisted, discovery });
+  await recordCompletedDownloadImportAudit({ userId, persisted, retry, discovery });
 
-  return { ...persisted, discovery };
+  return { ...persisted, retry, discovery };
 }
 
 export { importCompletedDownloadsInputSchema } from "./request-validation";

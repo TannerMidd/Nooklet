@@ -7,11 +7,15 @@ import { ensureDatabaseReady } from "@/lib/database/client";
 import {
   downloadImportRuns,
   downloadQueueItems,
+  indexerSearchResults,
+  indexerSearchRuns,
   mediaFiles,
   mediaLibraries,
   mediaLibraryPaths,
   mediaTitles,
   serviceConnections,
+  tvEpisodes,
+  tvSeasons,
   users,
 } from "@/lib/database/schema";
 
@@ -24,6 +28,7 @@ import {
   findDownloadClientByServiceConnectionId,
   listDownloadRequestsByStatus,
   listActiveDownloadRequestsForImport,
+  listDownloadRequestSearchResultIdsForItem,
   listUsersWithActiveDownloadRequests,
   listImportedFilesForRun,
   recordDownloadImportedFile,
@@ -119,6 +124,96 @@ function seedImportedMovieFile(userId: string) {
     .run();
 
   return { libraryPathId, mediaFileId };
+}
+
+function seedTitleAndEpisode(userId: string) {
+  const database = ensureDatabaseReady();
+  const movieLibraryId = randomUUID();
+  const tvLibraryId = randomUUID();
+  const movieTitleId = randomUUID();
+  const episodeTitleId = randomUUID();
+  const seasonId = randomUUID();
+  const episodeId = randomUUID();
+
+  database.insert(mediaLibraries).values({ id: movieLibraryId, userId, mediaType: "movie", name: "Movies" }).run();
+  database.insert(mediaLibraries).values({ id: tvLibraryId, userId, mediaType: "tv", name: "TV" }).run();
+  database
+    .insert(mediaTitles)
+    .values({
+      id: movieTitleId,
+      userId,
+      libraryId: movieLibraryId,
+      mediaType: "movie",
+      title: "Arrival",
+      sortTitle: "arrival",
+      year: 2016,
+      normalizedKey: "arrival::2016",
+      status: "missing",
+    })
+    .run();
+  database
+    .insert(mediaTitles)
+    .values({
+      id: episodeTitleId,
+      userId,
+      libraryId: tvLibraryId,
+      mediaType: "tv",
+      title: "Severance",
+      sortTitle: "severance",
+      year: 2022,
+      normalizedKey: "severance::2022",
+      status: "missing",
+    })
+    .run();
+  database
+    .insert(tvSeasons)
+    .values({ id: seasonId, titleId: episodeTitleId, seasonNumber: 1 })
+    .run();
+  database
+    .insert(tvEpisodes)
+    .values({
+      id: episodeId,
+      titleId: episodeTitleId,
+      seasonId,
+      seasonNumber: 1,
+      episodeNumber: 2,
+      title: "Half Loop",
+    })
+    .run();
+
+  return { movieTitleId, episodeTitleId, episodeId };
+}
+
+function seedSearchResult(userId: string, mediaType: "movie" | "tv", title: string) {
+  const database = ensureDatabaseReady();
+  const searchRunId = randomUUID();
+  const resultId = randomUUID();
+
+  database
+    .insert(indexerSearchRuns)
+    .values({
+      id: searchRunId,
+      userId,
+      mediaType,
+      query: title,
+      status: "succeeded",
+      expiresAt: new Date("2026-05-08T00:00:00Z"),
+    })
+    .run();
+  database
+    .insert(indexerSearchResults)
+    .values({
+      id: resultId,
+      searchRunId,
+      userId,
+      mediaType,
+      title,
+      normalizedTitle: title.toLowerCase(),
+      indexerGuid: resultId,
+    })
+    .run();
+
+  return resultId;
 }
 
 beforeEach(() => {
@@ -258,6 +353,62 @@ describe("download-repository", () => {
     expect(activeRequests[0]?.request.id).toBe(request.id);
     expect(activeRequests[0]?.queueItem.id).toBe(queueItem.id);
     expect(activeUserIds).toEqual(expect.arrayContaining([userId, otherUserId]));
+  });
+
+  it("lists attempted search result ids for a movie or episode", async () => {
+    const userId = await seedUser();
+    const { movieTitleId, episodeTitleId, episodeId } = seedTitleAndEpisode(userId);
+
+    await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Arrival",
+      mediaTitleId: movieTitleId,
+      searchResultId: seedSearchResult(userId, "movie", "Arrival 2016 1080p"),
+      status: "failed",
+    });
+    const secondMovieResultId = seedSearchResult(userId, "movie", "Arrival 2016 2160p");
+    const secondMovieRequest = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Arrival",
+      mediaTitleId: movieTitleId,
+      searchResultId: secondMovieResultId,
+      status: "queued",
+    });
+    const episodeResultId = seedSearchResult(userId, "tv", "Severance S01E02 1080p");
+    const episodeRequest = await createDownloadRequest({
+      userId,
+      mediaType: "tv",
+      requestedTitle: "Severance S01E02",
+      mediaTitleId: episodeTitleId,
+      episodeId,
+      searchResultId: episodeResultId,
+      status: "failed",
+    });
+    await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Arrival",
+      mediaTitleId: movieTitleId,
+      searchResultId: null,
+      status: "failed",
+    });
+
+    const movieResultIds = await listDownloadRequestSearchResultIdsForItem({ userId, mediaTitleId: movieTitleId });
+    const episodeResultIds = await listDownloadRequestSearchResultIdsForItem({
+      userId,
+      mediaTitleId: episodeTitleId,
+      episodeId,
+    });
+
+    expect(movieResultIds).toEqual(expect.arrayContaining([
+      secondMovieResultId,
+    ]));
+    expect(movieResultIds).toHaveLength(2);
+    expect(secondMovieRequest.searchResultId).toBe(secondMovieResultId);
+    expect(episodeRequest.searchResultId).toBe(episodeResultId);
+    expect(episodeResultIds).toEqual([episodeResultId]);
   });
 
   it("persists a download import run and imported files", async () => {

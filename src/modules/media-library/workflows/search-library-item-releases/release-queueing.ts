@@ -29,6 +29,10 @@ export type LibraryItemQueuedDownload =
       download: QueuedIndexerResultDownload;
     };
 
+type ReleaseQueueingOptions = {
+  excludedResultIds?: string[];
+};
+
 function releaseText(result: ReleaseSearchResult) {
   return `${result.title} ${result.qualityLabel ?? ""}`.toLowerCase();
 }
@@ -73,9 +77,12 @@ function resultTime(value: Date | null) {
 export function selectLibraryItemReleaseCandidates(
   item: ResolvedLibrarySearchItem,
   results: ReleaseSearchResult[],
+  options: ReleaseQueueingOptions = {},
 ) {
+  const excludedResultIds = new Set(options.excludedResultIds ?? []);
+
   return results
-    .filter((result) => releaseMatchesQualityProfile(item, result))
+    .filter((result) => releaseMatchesQualityProfile(item, result) && !excludedResultIds.has(result.id))
     .sort((left, right) => {
       const seeders = (right.seeders ?? -1) - (left.seeders ?? -1);
 
@@ -118,6 +125,7 @@ export async function queueLibraryItemRelease(
   userId: string,
   item: ResolvedLibrarySearchItem,
   releaseSearch: LibraryItemReleaseSearch,
+  options: ReleaseQueueingOptions = {},
 ): Promise<LibraryItemQueuedDownload> {
   if (releaseSearch.searchRun.status === "failed") {
     return {
@@ -130,7 +138,7 @@ export async function queueLibraryItemRelease(
     };
   }
 
-  const candidates = selectLibraryItemReleaseCandidates(item, releaseSearch.results);
+  const candidates = selectLibraryItemReleaseCandidates(item, releaseSearch.results, options);
 
   if (candidates.length === 0) {
     return {

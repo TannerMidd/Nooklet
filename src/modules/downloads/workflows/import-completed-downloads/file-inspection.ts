@@ -5,6 +5,8 @@ import { type ResolvedCompletedDownload, type ImportableCompletedDownload } from
 
 const mediaExtensions = new Set([".avi", ".m4v", ".mkv", ".mov", ".mp4", ".mpeg", ".mpg", ".ts", ".wmv"]);
 
+export const noMediaFilesFoundMessage = "No media files were found in the completed download.";
+
 export type InspectedDownloadFile = {
   sourcePath: string;
   relativePath: string;
@@ -70,7 +72,7 @@ async function inspectImportableDownload(source: ImportableCompletedDownload): P
       : await walkMediaFiles(source.sourceRootPath, source.sourceRootPath);
 
     if (files.length === 0) {
-      return { kind: "failed", source, message: "No media files were found in the completed download." };
+      return { kind: "failed", source, message: noMediaFilesFoundMessage };
     }
 
     return { kind: "ready", source, files };

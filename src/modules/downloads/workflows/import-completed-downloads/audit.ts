@@ -1,11 +1,13 @@
 import { recordAuditEvent } from "@/modules/users/commands/record-audit-event";
 
+import { type CompletedDownloadRetryResult } from "./retry-handling";
 import { type CompletedDownloadDiscoveryResult } from "./scan-trigger";
 import { type PersistedCompletedDownloadImports } from "./persistence";
 
 export async function recordCompletedDownloadImportAudit(input: {
   userId: string;
   persisted: PersistedCompletedDownloadImports;
+  retry: CompletedDownloadRetryResult;
   discovery: CompletedDownloadDiscoveryResult;
 }) {
   if (input.persisted.matchedCount === 0) {
@@ -23,6 +25,7 @@ export async function recordCompletedDownloadImportAudit(input: {
       failedCount: input.persisted.failedCount,
       importedFileCount: input.persisted.importedFileCount,
       affectedLibraryPathIds: input.persisted.affectedLibraryPathIds,
+      retry: input.retry,
       discovery: input.discovery,
     },
   });

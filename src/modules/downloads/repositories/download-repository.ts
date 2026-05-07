@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
@@ -250,6 +250,28 @@ export async function listUsersWithActiveDownloadRequests() {
     .all();
 
   return Array.from(new Set(rows.map((row) => row.userId)));
+}
+
+export async function listDownloadRequestSearchResultIdsForItem(input: {
+  userId: string;
+  mediaTitleId: string;
+  episodeId?: string | null;
+}) {
+  const database = ensureDatabaseReady();
+  const rows = database
+    .select({ searchResultId: downloadRequests.searchResultId })
+    .from(downloadRequests)
+    .where(and(
+      eq(downloadRequests.userId, input.userId),
+      eq(downloadRequests.mediaTitleId, input.mediaTitleId),
+      input.episodeId
+        ? eq(downloadRequests.episodeId, input.episodeId)
+        : isNull(downloadRequests.episodeId),
+      isNotNull(downloadRequests.searchResultId),
+    ))
+    .all();
+
+  return rows.flatMap((row) => row.searchResultId ? [row.searchResultId] : []);
 }
 
 export async function createDownloadImportRun(input: {

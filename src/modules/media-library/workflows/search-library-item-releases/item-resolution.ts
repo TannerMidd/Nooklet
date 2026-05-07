@@ -6,7 +6,11 @@ import {
 } from "@/modules/media-library/repositories/media-library-repository";
 
 import { SearchLibraryItemReleasesWorkflowError } from "./errors";
-import { type SearchLibraryItemReleasesInput } from "./request-validation";
+type ResolveLibrarySearchItemRequest = {
+  titleId: string;
+  episodeId?: string;
+  targetLibraryPathId?: string | null;
+};
 
 export type ResolvedLibrarySearchItem = {
   title: MediaTitleRecord;
@@ -16,7 +20,7 @@ export type ResolvedLibrarySearchItem = {
 
 export async function resolveLibrarySearchItem(
   userId: string,
-  request: SearchLibraryItemReleasesInput,
+  request: ResolveLibrarySearchItemRequest,
 ): Promise<ResolvedLibrarySearchItem> {
   const title = await findMediaTitleByIdForUser(userId, request.titleId);
 
