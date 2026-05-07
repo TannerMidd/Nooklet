@@ -28,6 +28,7 @@ export async function persistQueuedIndexerResultDownload(input: {
     mediaType: input.resolvedResult.result.mediaType,
     requestedTitle: input.request.requestedTitle ?? input.resolvedResult.result.title,
     mediaTitleId: input.request.mediaTitleId ?? null,
+    episodeId: input.request.episodeId ?? null,
     releaseTitle: input.resolvedResult.result.title,
     searchResultId: input.resolvedResult.result.id,
     clientId: input.downloadClient.client.id,

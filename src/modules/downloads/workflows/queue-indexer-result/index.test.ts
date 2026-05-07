@@ -45,6 +45,7 @@ describe("queueIndexerResultWorkflow", () => {
     const request = {
       resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9",
       mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+      episodeId: "7f3f45c2-8ebd-40c5-9ce5-2f3283c20c08",
       requestedTitle: "Arrival",
       targetLibraryId: "e95d5704-d31e-46c2-b1c3-7c1e0c22dbea",
     };
