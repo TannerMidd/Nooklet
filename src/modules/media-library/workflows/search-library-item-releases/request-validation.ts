@@ -5,6 +5,7 @@ export const searchLibraryItemReleasesInputSchema = z.object({
   episodeId: z.string().uuid("Choose an episode.").optional(),
   targetLibraryPathId: z.string().uuid("Choose a library folder.").nullable().optional(),
   excludedResultIds: z.array(z.string().uuid()).default([]),
+  excludedReleaseKeys: z.array(z.string().min(1)).default([]),
 });
 
 export type SearchLibraryItemReleasesInput = z.input<typeof searchLibraryItemReleasesInputSchema>;

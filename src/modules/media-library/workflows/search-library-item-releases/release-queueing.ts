@@ -31,7 +31,12 @@ export type LibraryItemQueuedDownload =
 
 type ReleaseQueueingOptions = {
   excludedResultIds?: string[];
+  excludedReleaseKeys?: string[];
 };
+
+function releaseKeys(result: ReleaseSearchResult) {
+  return [`guid:${result.indexerGuid}`, `title:${result.normalizedTitle}`];
+}
 
 function releaseText(result: ReleaseSearchResult) {
   return `${result.title} ${result.qualityLabel ?? ""}`.toLowerCase();
@@ -80,9 +85,12 @@ export function selectLibraryItemReleaseCandidates(
   options: ReleaseQueueingOptions = {},
 ) {
   const excludedResultIds = new Set(options.excludedResultIds ?? []);
+  const excludedReleaseKeys = new Set(options.excludedReleaseKeys ?? []);
 
   return results
-    .filter((result) => releaseMatchesQualityProfile(item, result) && !excludedResultIds.has(result.id))
+    .filter((result) => releaseMatchesQualityProfile(item, result)
+      && !excludedResultIds.has(result.id)
+      && releaseKeys(result).every((key) => !excludedReleaseKeys.has(key)))
     .sort((left, right) => {
       const seeders = (right.seeders ?? -1) - (left.seeders ?? -1);
 

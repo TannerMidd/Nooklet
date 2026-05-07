@@ -28,7 +28,7 @@ import {
   findDownloadClientByServiceConnectionId,
   listDownloadRequestsByStatus,
   listActiveDownloadRequestsForImport,
-  listDownloadRequestSearchResultIdsForItem,
+  listDownloadRequestReleaseExclusionsForItem,
   listUsersWithActiveDownloadRequests,
   listImportedFilesForRun,
   recordDownloadImportedFile,
@@ -184,7 +184,12 @@ function seedTitleAndEpisode(userId: string) {
   return { movieTitleId, episodeTitleId, episodeId };
 }
 
-function seedSearchResult(userId: string, mediaType: "movie" | "tv", title: string) {
+function seedSearchResult(input: {
+  userId: string;
+  mediaType: "movie" | "tv";
+  title: string;
+  indexerGuid?: string;
+}) {
   const database = ensureDatabaseReady();
   const searchRunId = randomUUID();
   const resultId = randomUUID();
@@ -193,9 +198,9 @@ function seedSearchResult(userId: string, mediaType: "movie" | "tv", title: stri
     .insert(indexerSearchRuns)
     .values({
       id: searchRunId,
-      userId,
-      mediaType,
-      query: title,
+      userId: input.userId,
+      mediaType: input.mediaType,
+      query: input.title,
       status: "succeeded",
       expiresAt: new Date("2026-05-08T00:00:00Z"),
     })
@@ -205,11 +210,11 @@ function seedSearchResult(userId: string, mediaType: "movie" | "tv", title: stri
     .values({
       id: resultId,
       searchRunId,
-      userId,
-      mediaType,
-      title,
-      normalizedTitle: title.toLowerCase(),
-      indexerGuid: resultId,
+      userId: input.userId,
+      mediaType: input.mediaType,
+      title: input.title,
+      normalizedTitle: input.title.toLowerCase(),
+      indexerGuid: input.indexerGuid ?? resultId,
     })
     .run();
 
@@ -355,7 +360,7 @@ describe("download-repository", () => {
     expect(activeUserIds).toEqual(expect.arrayContaining([userId, otherUserId]));
   });
 
-  it("lists attempted search result ids for a movie or episode", async () => {
+  it("lists attempted release exclusions for a movie or episode", async () => {
     const userId = await seedUser();
     const { movieTitleId, episodeTitleId, episodeId } = seedTitleAndEpisode(userId);
 
@@ -364,10 +369,20 @@ describe("download-repository", () => {
       mediaType: "movie",
       requestedTitle: "Arrival",
       mediaTitleId: movieTitleId,
-      searchResultId: seedSearchResult(userId, "movie", "Arrival 2016 1080p"),
+      searchResultId: seedSearchResult({
+        userId,
+        mediaType: "movie",
+        title: "Arrival 2016 1080p",
+        indexerGuid: "indexer1:arrival-1080p",
+      }),
       status: "failed",
     });
-    const secondMovieResultId = seedSearchResult(userId, "movie", "Arrival 2016 2160p");
+    const secondMovieResultId = seedSearchResult({
+      userId,
+      mediaType: "movie",
+      title: "Arrival 2016 2160p",
+      indexerGuid: "indexer1:arrival-2160p",
+    });
     const secondMovieRequest = await createDownloadRequest({
       userId,
       mediaType: "movie",
@@ -376,7 +391,12 @@ describe("download-repository", () => {
       searchResultId: secondMovieResultId,
       status: "queued",
     });
-    const episodeResultId = seedSearchResult(userId, "tv", "Severance S01E02 1080p");
+    const episodeResultId = seedSearchResult({
+      userId,
+      mediaType: "tv",
+      title: "Severance S01E02 1080p",
+      indexerGuid: "indexer1:severance-s01e02-1080p",
+    });
     const episodeRequest = await createDownloadRequest({
       userId,
       mediaType: "tv",
@@ -395,20 +415,30 @@ describe("download-repository", () => {
       status: "failed",
     });
 
-    const movieResultIds = await listDownloadRequestSearchResultIdsForItem({ userId, mediaTitleId: movieTitleId });
-    const episodeResultIds = await listDownloadRequestSearchResultIdsForItem({
+    const movieExclusions = await listDownloadRequestReleaseExclusionsForItem({ userId, mediaTitleId: movieTitleId });
+    const episodeExclusions = await listDownloadRequestReleaseExclusionsForItem({
       userId,
       mediaTitleId: episodeTitleId,
       episodeId,
     });
 
-    expect(movieResultIds).toEqual(expect.arrayContaining([
+    expect(movieExclusions.resultIds).toEqual(expect.arrayContaining([
       secondMovieResultId,
     ]));
-    expect(movieResultIds).toHaveLength(2);
+    expect(movieExclusions.resultIds).toHaveLength(2);
+    expect(movieExclusions.releaseKeys).toEqual(expect.arrayContaining([
+      "guid:indexer1:arrival-1080p",
+      "guid:indexer1:arrival-2160p",
+      "title:arrival 2016 1080p",
+      "title:arrival 2016 2160p",
+    ]));
     expect(secondMovieRequest.searchResultId).toBe(secondMovieResultId);
     expect(episodeRequest.searchResultId).toBe(episodeResultId);
-    expect(episodeResultIds).toEqual([episodeResultId]);
+    expect(episodeExclusions.resultIds).toEqual([episodeResultId]);
+    expect(episodeExclusions.releaseKeys).toEqual(expect.arrayContaining([
+      "guid:indexer1:severance-s01e02-1080p",
+      "title:severance s01e02 1080p",
+    ]));
   });
 
   it("persists a download import run and imported files", async () => {

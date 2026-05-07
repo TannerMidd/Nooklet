@@ -33,6 +33,7 @@ export async function searchLibraryItemReleasesWorkflow(
   const releaseSearch = await searchLibraryItemReleases(userId, item);
   const queuedDownload = await queueLibraryItemRelease(userId, item, releaseSearch, {
     excludedResultIds: request.excludedResultIds,
+    excludedReleaseKeys: request.excludedReleaseKeys,
   });
 
   return { item, releaseSearch, queuedDownload };

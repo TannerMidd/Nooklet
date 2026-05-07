@@ -1,4 +1,4 @@
-import { listDownloadRequestSearchResultIdsForItem } from "@/modules/downloads/repositories/download-repository";
+import { listDownloadRequestReleaseExclusionsForItem } from "@/modules/downloads/repositories/download-repository";
 import { searchLibraryItemReleasesWorkflow } from "@/modules/media-library/workflows/search-library-item-releases";
 
 import { type MatchedCompletedDownload } from "./request-matching";
@@ -38,6 +38,7 @@ export async function retryFailedCompletedDownloads(
   let attemptedCount = 0;
   let queuedCount = 0;
   let failedCount = 0;
+  const retriedItemKeys = new Set<string>();
 
   for (const download of downloads) {
     const match = retryableFailureMatch(download);
@@ -46,10 +47,18 @@ export async function retryFailedCompletedDownloads(
       continue;
     }
 
+    const itemKey = `${match.request.mediaTitleId}:${match.request.episodeId ?? "movie"}`;
+
+    if (retriedItemKeys.has(itemKey)) {
+      continue;
+    }
+
+    retriedItemKeys.add(itemKey);
+
     attemptedCount += 1;
 
     try {
-      const excludedResultIds = await listDownloadRequestSearchResultIdsForItem({
+      const exclusions = await listDownloadRequestReleaseExclusionsForItem({
         userId,
         mediaTitleId: match.request.mediaTitleId,
         episodeId: match.request.episodeId,
@@ -58,7 +67,8 @@ export async function retryFailedCompletedDownloads(
         titleId: match.request.mediaTitleId,
         episodeId: match.request.episodeId ?? undefined,
         targetLibraryPathId: match.request.targetLibraryPathId,
-        excludedResultIds,
+        excludedResultIds: exclusions.resultIds,
+        excludedReleaseKeys: exclusions.releaseKeys,
       });
 
       if (retry.queuedDownload.queued) {

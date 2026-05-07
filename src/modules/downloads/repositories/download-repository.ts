@@ -9,6 +9,7 @@ import {
   downloadImportRuns,
   downloadQueueItems,
   downloadRequests,
+  indexerSearchResults,
   type DownloadClientStatus,
   type DownloadClientType,
   type DownloadImportRunStatus,
@@ -252,15 +253,20 @@ export async function listUsersWithActiveDownloadRequests() {
   return Array.from(new Set(rows.map((row) => row.userId)));
 }
 
-export async function listDownloadRequestSearchResultIdsForItem(input: {
+export async function listDownloadRequestReleaseExclusionsForItem(input: {
   userId: string;
   mediaTitleId: string;
   episodeId?: string | null;
 }) {
   const database = ensureDatabaseReady();
   const rows = database
-    .select({ searchResultId: downloadRequests.searchResultId })
+    .select({
+      searchResultId: downloadRequests.searchResultId,
+      indexerGuid: indexerSearchResults.indexerGuid,
+      normalizedTitle: indexerSearchResults.normalizedTitle,
+    })
     .from(downloadRequests)
+    .leftJoin(indexerSearchResults, eq(indexerSearchResults.id, downloadRequests.searchResultId))
     .where(and(
       eq(downloadRequests.userId, input.userId),
       eq(downloadRequests.mediaTitleId, input.mediaTitleId),
@@ -271,7 +277,13 @@ export async function listDownloadRequestSearchResultIdsForItem(input: {
     ))
     .all();
 
-  return rows.flatMap((row) => row.searchResultId ? [row.searchResultId] : []);
+  return {
+    resultIds: rows.flatMap((row) => row.searchResultId ? [row.searchResultId] : []),
+    releaseKeys: Array.from(new Set(rows.flatMap((row) => [
+      row.indexerGuid ? `guid:${row.indexerGuid}` : null,
+      row.normalizedTitle ? `title:${row.normalizedTitle}` : null,
+    ].filter((key): key is string => key !== null)))),
+  };
 }
 
 export async function createDownloadImportRun(input: {

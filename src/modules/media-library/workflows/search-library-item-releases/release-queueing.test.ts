@@ -26,6 +26,7 @@ function result(overrides: {
   title: string;
   qualityLabel?: string | null;
   seeders?: number | null;
+  indexerGuid?: string;
 }) {
   return {
     id: overrides.id,
@@ -37,6 +38,8 @@ function result(overrides: {
     seeders: overrides.seeders ?? null,
     leechers: null,
     grabs: null,
+    indexerGuid: overrides.indexerGuid ?? `indexer1:${overrides.id}`,
+    normalizedTitle: overrides.title.toLowerCase(),
   } as never;
 }
 
@@ -81,6 +84,19 @@ describe("selectLibraryItemReleaseCandidates", () => {
     );
 
     expect(candidates.map((candidate) => candidate.id)).toEqual(["1080-low"]);
+  });
+
+  it("excludes previously attempted stable release identities", () => {
+    const candidates = selectLibraryItemReleaseCandidates(
+      item,
+      [
+        result({ id: "new-row-for-bad-release", title: "Severance S01E02 1080p", seeders: 20 }),
+        result({ id: "different-release", title: "Severance S01E02 1080p PROPER", seeders: 10 }),
+      ],
+      { excludedReleaseKeys: ["title:severance s01e02 1080p"] },
+    );
+
+    expect(candidates.map((candidate) => candidate.id)).toEqual(["different-release"]);
   });
 });
 

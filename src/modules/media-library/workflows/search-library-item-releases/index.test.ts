@@ -39,6 +39,7 @@ describe("searchLibraryItemReleasesWorkflow", () => {
       titleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
       episodeId: "7f3f45c2-8ebd-40c5-9ce5-2f3283c20c08",
       excludedResultIds: ["d5ec489b-4888-43c1-a095-fd9bbf612144"],
+      excludedReleaseKeys: ["title:severance s01e02 1080p"],
     };
     const item = { title: { id: request.titleId }, episode: { id: request.episodeId } };
     const releaseSearch = { searched: true, searchRun: { id: "run1" }, results: [] };
@@ -69,6 +70,7 @@ describe("searchLibraryItemReleasesWorkflow", () => {
     expect(releaseSearchMock).toHaveBeenCalledWith("u1", item);
     expect(releaseQueueMock).toHaveBeenCalledWith("u1", item, releaseSearch, {
       excludedResultIds: ["d5ec489b-4888-43c1-a095-fd9bbf612144"],
+      excludedReleaseKeys: ["title:severance s01e02 1080p"],
     });
     expect(result).toEqual({ item, releaseSearch, queuedDownload });
   });
