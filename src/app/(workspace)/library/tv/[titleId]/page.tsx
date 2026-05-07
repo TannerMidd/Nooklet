@@ -5,6 +5,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { LibraryItemSearchForm } from "@/app/(workspace)/library/library-item-search-form";
 import { MediaTitlePreferencesForm } from "@/app/(workspace)/library/media-title-preferences-form";
+import { RemoveMediaTitleForm } from "@/app/(workspace)/library/remove-media-title-form";
 import { TvEpisodeMonitoringForm } from "@/app/(workspace)/library/tv-episode-monitoring-form";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { PageHeader } from "@/components/ui/page-header";
@@ -100,18 +101,23 @@ export default async function LibraryTvTitlePage({ params }: LibraryTvTitlePageP
                 <p className="mt-1 font-heading text-2xl text-foreground">{title.totals.files}</p>
               </div>
             </div>
-            <MediaTitlePreferencesForm
-              titleId={title.id}
-              monitored={title.monitored}
-              qualityProfile={title.qualityProfile}
-              qualityProfiles={qualityProfiles}
-            />
-            <LibraryItemSearchForm
-              titleId={title.id}
-              label="Search series"
-              targetPathOptions={targetPathOptions}
-            />
           </div>
+        </div>
+      </Panel>
+
+      <Panel eyebrow="Controls" title="Settings and search">
+        <div className="space-y-4">
+          <MediaTitlePreferencesForm
+            titleId={title.id}
+            monitored={title.monitored}
+            qualityProfile={title.qualityProfile}
+            qualityProfiles={qualityProfiles}
+          />
+          <LibraryItemSearchForm
+            titleId={title.id}
+            label="Search series"
+            targetPathOptions={targetPathOptions}
+          />
         </div>
       </Panel>
 
@@ -180,6 +186,10 @@ export default async function LibraryTvTitlePage({ params }: LibraryTvTitlePageP
             ))}
           </div>
         )}
+      </Panel>
+
+      <Panel eyebrow="Remove" title="Library record">
+        <RemoveMediaTitleForm titleId={title.id} />
       </Panel>
     </div>
   );

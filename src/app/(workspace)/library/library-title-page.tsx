@@ -1,26 +1,16 @@
 import Link from "next/link";
 
 import { auth } from "@/auth";
-import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
-import { LibraryItemSearchForm } from "@/app/(workspace)/library/library-item-search-form";
-import { MediaTitlePreferencesForm } from "@/app/(workspace)/library/media-title-preferences-form";
-import { RemoveMediaTitleForm } from "@/app/(workspace)/library/remove-media-title-form";
 import {
   listMediaLibraryTitles,
   type MediaLibraryTitleSummary,
 } from "@/modules/media-library/queries/list-media-library-titles";
 import {
-  listMediaLibraryPathOptions,
-  type MediaLibraryPathOption,
-} from "@/modules/media-library/queries/list-media-library-path-options";
-import {
   getMediaQualityProfileLabel,
-  listMediaQualityProfiles,
-  type MediaQualityProfileOption,
 } from "@/modules/media-library/queries/list-media-quality-profiles";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 
@@ -49,6 +39,10 @@ function buildLibraryPageHref(mediaType: RecommendationMediaType, query: string 
   const pathname = mediaType === "tv" ? "/library/tv" : "/library/movies";
 
   return queryString ? `${pathname}?${queryString}` : pathname;
+}
+
+function buildTitleHref(mediaType: RecommendationMediaType, titleId: string) {
+  return mediaType === "tv" ? `/library/tv/${titleId}` : `/library/movies/${titleId}`;
 }
 
 function PaginationControls({
@@ -99,80 +93,89 @@ function PaginationControls({
   );
 }
 
-function TitleCard({
+function TitleRow({
   title,
   mediaType,
-  qualityProfiles,
-  targetPathOptions,
 }: {
   title: MediaLibraryTitleSummary;
   mediaType: RecommendationMediaType;
-  qualityProfiles: readonly MediaQualityProfileOption[];
-  targetPathOptions: MediaLibraryPathOption[];
 }) {
-  const qualityLabel = title.qualityLabels.length > 0 ? title.qualityLabels.join(" / ") : "No quality tag";
-  const titleHref = mediaType === "tv" ? `/library/tv/${title.id}` : null;
+  const titleHref = buildTitleHref(mediaType, title.id);
+  const fileLabel = `${title.fileCount} file${title.fileCount === 1 ? "" : "s"}`;
+  const updatedLabel = title.lastFileModifiedAt?.toLocaleDateString() ?? "No files yet";
 
   return (
-    <li className="rounded-lg border border-line/70 bg-panel-strong/60 p-4">
-      <div className="flex gap-4">
-        <RecommendationPoster title={title.title} posterUrl={title.posterUrl} />
-        <div className="min-w-0 flex-1 space-y-3">
-          <div className="min-w-0 space-y-1">
-            {titleHref ? (
-              <Link href={titleHref} className="break-words font-heading text-lg leading-tight text-foreground hover:text-accent">
-                {title.title}{title.year ? ` (${title.year})` : ""}
-              </Link>
-            ) : (
-              <p className="break-words font-heading text-lg leading-tight text-foreground">
-                {title.title}{title.year ? ` (${title.year})` : ""}
-              </p>
-            )}
-            <p className="text-sm text-muted">
-              {title.libraryName ?? "Unassigned"} / {title.fileCount} file{title.fileCount === 1 ? "" : "s"}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2 text-xs text-muted">
-            <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1 capitalize">{title.status}</span>
-            <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">
-              {title.monitored ? "Monitored" : "Unmonitored"}
-            </span>
-            <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">
-              {getMediaQualityProfileLabel(title.qualityProfile)}
-            </span>
-            <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">{qualityLabel}</span>
-            {title.lastFileModifiedAt ? (
-              <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">
-                {title.lastFileModifiedAt.toLocaleDateString()}
-              </span>
-            ) : null}
-          </div>
-          {title.overview ? <p className="line-clamp-2 text-sm leading-6 text-muted">{title.overview}</p> : null}
-          <div className="flex flex-wrap items-start gap-2">
-            <LibraryItemSearchForm
-              titleId={title.id}
-              label={mediaType === "tv" ? "Search series" : "Search movie"}
-              targetPathOptions={targetPathOptions}
-            />
-            {titleHref ? (
-              <Link
-                href={titleHref}
-                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-line/75 bg-panel-strong/70 px-3 py-2 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
-              >
-                Open series
-              </Link>
-            ) : null}
-            <RemoveMediaTitleForm titleId={title.id} />
-          </div>
-          <MediaTitlePreferencesForm
-            titleId={title.id}
-            monitored={title.monitored}
-            qualityProfile={title.qualityProfile}
-            qualityProfiles={qualityProfiles}
-          />
+    <li>
+      <Link
+        href={titleHref}
+        className="grid gap-3 px-4 py-3 text-sm transition hover:bg-panel-strong/55 md:grid-cols-[minmax(0,1.8fr)_minmax(140px,0.8fr)_120px_120px_120px] md:items-center"
+      >
+        <div className="min-w-0">
+          <p className="truncate font-medium text-foreground">
+            {title.title}{title.year ? ` (${title.year})` : ""}
+          </p>
+          <p className="truncate text-xs text-muted md:hidden">
+            {title.libraryName ?? "Unassigned"} / {getMediaQualityProfileLabel(title.qualityProfile)} / {fileLabel}
+          </p>
         </div>
-      </div>
+        <p className="hidden truncate text-muted md:block">{title.libraryName ?? "Unassigned"}</p>
+        <p className="hidden text-muted md:block">{getMediaQualityProfileLabel(title.qualityProfile)}</p>
+        <div className="hidden items-center gap-2 md:flex">
+          <span className={title.status === "missing" ? "h-2 w-2 rounded-full bg-amber-400" : "h-2 w-2 rounded-full bg-emerald-400"} />
+          <span className="capitalize text-muted">{title.status}</span>
+        </div>
+        <div className="hidden text-muted md:block">
+          <p>{fileLabel}</p>
+          <p className="text-xs">{updatedLabel}</p>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted md:hidden">
+          <span className="capitalize">{title.status}</span>
+          <span>{title.monitored ? "Monitored" : "Unmonitored"}</span>
+          <span>{updatedLabel}</span>
+        </div>
+      </Link>
     </li>
+  );
+}
+
+function TitleRows({
+  titles,
+  mediaType,
+}: {
+  titles: MediaLibraryTitleSummary[];
+  mediaType: RecommendationMediaType;
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-line/70 bg-background/15">
+      <div className="hidden border-b border-line/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted md:grid md:grid-cols-[minmax(0,1.8fr)_minmax(140px,0.8fr)_120px_120px_120px]">
+        <span>Title</span>
+        <span>Library</span>
+        <span>Profile</span>
+        <span>Status</span>
+        <span>Files</span>
+      </div>
+      <ul className="divide-y divide-line/55">
+        {titles.map((title) => (
+          <TitleRow key={title.id} title={title} mediaType={mediaType} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function LibrarySummary({
+  mediaType,
+  totals,
+}: {
+  mediaType: RecommendationMediaType;
+  totals: Awaited<ReturnType<typeof listMediaLibraryTitles>>["totals"];
+}) {
+  const titleLabel = titleCountLabel(mediaType, totals.titles);
+
+  return (
+    <p className="text-sm text-muted">
+      {titleLabel} / {totals.files} files / {totals.monitored} monitored / {totals.missing} missing
+    </p>
   );
 }
 
@@ -191,12 +194,7 @@ export async function LibraryTitlePage({
     return null;
   }
 
-  const [library, pathOptions] = await Promise.all([
-    listMediaLibraryTitles(session.user.id, mediaType, { query, page }),
-    listMediaLibraryPathOptions(session.user.id),
-  ]);
-  const qualityProfiles = listMediaQualityProfiles();
-  const mediaTypePathOptions = pathOptions.filter((option) => option.mediaType === mediaType);
+  const library = await listMediaLibraryTitles(session.user.id, mediaType, { query, page });
 
   return (
     <div className="space-y-6">
@@ -214,27 +212,9 @@ export async function LibraryTitlePage({
         )}
       />
 
-      <div className="grid gap-4 sm:grid-cols-4">
-        <div className="rounded-lg border border-line/70 bg-panel/90 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Titles</p>
-          <p className="mt-2 font-heading text-3xl text-foreground">{library.totals.titles}</p>
-        </div>
-        <div className="rounded-lg border border-line/70 bg-panel/90 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Files</p>
-          <p className="mt-2 font-heading text-3xl text-foreground">{library.totals.files}</p>
-        </div>
-        <div className="rounded-lg border border-line/70 bg-panel/90 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Monitored</p>
-          <p className="mt-2 font-heading text-3xl text-foreground">{library.totals.monitored}</p>
-        </div>
-        <div className="rounded-lg border border-line/70 bg-panel/90 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Missing</p>
-          <p className="mt-2 font-heading text-3xl text-foreground">{library.totals.missing}</p>
-        </div>
-      </div>
-
       <Panel eyebrow="Browse" title={titleCountLabel(mediaType, library.totals.titles)}>
-        <form className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]" action={mediaType === "tv" ? "/library/tv" : "/library/movies"}>
+        <LibrarySummary mediaType={mediaType} totals={library.totals} />
+        <form className="mb-5 mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]" action={mediaType === "tv" ? "/library/tv" : "/library/movies"}>
           <Input name="q" defaultValue={query ?? ""} placeholder={mediaType === "tv" ? "Filter series" : "Filter movies"} />
           <Button type="submit" variant="secondary">Filter</Button>
         </form>
@@ -245,19 +225,7 @@ export async function LibraryTitlePage({
         ) : (
           <div className="space-y-5">
             <PaginationControls mediaType={mediaType} query={query} pagination={library.pagination} />
-            <ul className="grid gap-3 xl:grid-cols-2">
-              {library.titles.map((title) => (
-                <TitleCard
-                  key={title.id}
-                  title={title}
-                  mediaType={mediaType}
-                  qualityProfiles={qualityProfiles}
-                  targetPathOptions={mediaTypePathOptions.filter((option) => (
-                    title.libraryId ? option.libraryId === title.libraryId : true
-                  ))}
-                />
-              ))}
-            </ul>
+            <TitleRows titles={library.titles} mediaType={mediaType} />
             <PaginationControls mediaType={mediaType} query={query} pagination={library.pagination} />
           </div>
         )}
