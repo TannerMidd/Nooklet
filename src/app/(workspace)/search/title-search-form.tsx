@@ -178,54 +178,56 @@ function RequestTitleForm({
   const matchingLibraries = libraries.filter((library) => library.mediaType === title.mediaType);
 
   return (
-    <form action={formAction} className="space-y-3 rounded-lg border border-line/70 bg-background/15 p-3">
-      <input type="hidden" name="mediaType" value={title.mediaType} />
-      <input type="hidden" name="tmdbId" value={title.tmdbId} />
-      <input type="hidden" name="title" value={title.title} />
-      <input type="hidden" name="year" value={title.year ?? ""} />
-      <input type="hidden" name="overview" value={title.overview ?? ""} />
-      <input type="hidden" name="posterUrl" value={title.posterUrl ?? ""} />
-      <input type="hidden" name="backdropUrl" value={title.backdropUrl ?? ""} />
-      <input type="hidden" name="runtimeMinutes" value="" />
-      <input type="hidden" name="originalLanguage" value={title.originalLanguage ?? ""} />
-      <input type="hidden" name="downloadNow" value="on" />
-      <StatusBanner state={state} />
-      <div className="grid gap-3 lg:grid-cols-2">
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-foreground">Library</span>
-          <select
-            name="libraryId"
-            defaultValue={matchingLibraries[0]?.id ?? ""}
-            className="min-h-11 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
-          >
-            <option value="">Unassigned</option>
-            {matchingLibraries.map((library) => (
-              <option key={library.id} value={library.id}>{library.name}</option>
-            ))}
-          </select>
-        </label>
-        <label className="space-y-1 text-sm">
-          <span className="font-medium text-foreground">Quality profile</span>
-          <select
-            name="qualityProfile"
-            defaultValue="hd-1080p"
-            className="min-h-11 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
-          >
-            {qualityProfiles.map((profile) => (
-              <option key={profile.value} value={profile.value}>{profile.label}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div className="flex flex-wrap gap-3 text-sm text-muted">
-        <label className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2">
-          <input type="checkbox" name="monitored" defaultChecked className="h-4 w-4 accent-accent" />
-          Monitor
-        </label>
-      </div>
-      <AddTitleButton />
+    <div className="space-y-3">
+      <form action={formAction} className="space-y-3 rounded-lg border border-line/70 bg-background/15 p-3">
+        <input type="hidden" name="mediaType" value={title.mediaType} />
+        <input type="hidden" name="tmdbId" value={title.tmdbId} />
+        <input type="hidden" name="title" value={title.title} />
+        <input type="hidden" name="year" value={title.year ?? ""} />
+        <input type="hidden" name="overview" value={title.overview ?? ""} />
+        <input type="hidden" name="posterUrl" value={title.posterUrl ?? ""} />
+        <input type="hidden" name="backdropUrl" value={title.backdropUrl ?? ""} />
+        <input type="hidden" name="runtimeMinutes" value="" />
+        <input type="hidden" name="originalLanguage" value={title.originalLanguage ?? ""} />
+        <input type="hidden" name="downloadNow" value="on" />
+        <StatusBanner state={state} />
+        <div className="grid gap-3 lg:grid-cols-2">
+          <label className="space-y-1 text-sm">
+            <span className="font-medium text-foreground">Library</span>
+            <select
+              name="libraryId"
+              defaultValue={matchingLibraries[0]?.id ?? ""}
+              className="min-h-11 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
+            >
+              <option value="">Unassigned</option>
+              {matchingLibraries.map((library) => (
+                <option key={library.id} value={library.id}>{library.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-1 text-sm">
+            <span className="font-medium text-foreground">Quality profile</span>
+            <select
+              name="qualityProfile"
+              defaultValue="hd-1080p"
+              className="min-h-11 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
+            >
+              {qualityProfiles.map((profile) => (
+                <option key={profile.value} value={profile.value}>{profile.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-3 text-sm text-muted">
+          <label className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2">
+            <input type="checkbox" name="monitored" defaultChecked className="h-4 w-4 accent-accent" />
+            Monitor
+          </label>
+        </div>
+        <AddTitleButton />
+      </form>
       <ReleaseResults results={state.results} />
-    </form>
+    </div>
   );
 }
 

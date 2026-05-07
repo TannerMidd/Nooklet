@@ -80,6 +80,15 @@ describe("selectRequestedTitleReleaseCandidates", () => {
 
     expect(candidates.map((candidate) => candidate.id)).toEqual(["1080-high", "1080-low"]);
   });
+
+  it("uses broad HD indexer categories as 1080p fallback candidates", () => {
+    const candidates = selectRequestedTitleReleaseCandidates(request, [
+      result({ id: "explicit-720", title: "Arrival 2016 720p WEB-DL", qualityLabel: "Movies HD", seeders: 20 }),
+      result({ id: "category-hd", title: "Arrival 2016 BluRay", qualityLabel: "Movies HD", seeders: 10 }),
+    ]);
+
+    expect(candidates.map((candidate) => candidate.id)).toEqual(["category-hd"]);
+  });
 });
 
 describe("queueRequestedTitleRelease", () => {

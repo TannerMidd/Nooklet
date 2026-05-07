@@ -10,6 +10,7 @@ import { type RequestedTitleReleaseSearch } from "./release-search";
 
 type QueueableReleaseErrorCode = "result_not_found" | "sabnzbd_enqueue_failed";
 type ReleaseSearchResult = Extract<RequestedTitleReleaseSearch, { searched: true }>["results"][number];
+type DetectedReleaseQuality = "hd-720p" | "hd-1080p" | "uhd-2160p" | "hd" | null;
 
 export type RequestedTitleQueuedDownload =
   | {
@@ -33,19 +34,23 @@ function releaseText(result: ReleaseSearchResult) {
   return `${result.title} ${result.qualityLabel ?? ""}`.toLowerCase();
 }
 
-function detectReleaseQuality(result: ReleaseSearchResult) {
+function detectReleaseQuality(result: ReleaseSearchResult): DetectedReleaseQuality {
   const text = releaseText(result);
 
-  if (/\b(2160p|uhd|4k)\b/.test(text)) {
+  if (/\b(2160p|2160|uhd|4k|3840[ ._-]?x[ ._-]?2160)\b/.test(text)) {
     return "uhd-2160p";
   }
 
-  if (/\b(1080p|full[ ._-]?hd)\b/.test(text)) {
+  if (/\b(1080p|1080i|1080|full[ ._-]?hd|fhd|1920[ ._-]?x[ ._-]?1080)\b/.test(text)) {
     return "hd-1080p";
   }
 
-  if (/\b720p\b/.test(text)) {
+  if (/\b(720p|720|1280[ ._-]?x[ ._-]?720)\b/.test(text)) {
     return "hd-720p";
+  }
+
+  if (/\b(hd|high[ ._-]?definition)\b/.test(text)) {
+    return "hd";
   }
 
   return null;
@@ -59,7 +64,10 @@ function releaseMatchesQualityProfile(
     return true;
   }
 
-  return detectReleaseQuality(result) === request.qualityProfile;
+  const detectedQuality = detectReleaseQuality(result);
+
+  return detectedQuality === request.qualityProfile
+    || (detectedQuality === "hd" && request.qualityProfile === "hd-1080p");
 }
 
 function resultTime(value: Date | null) {
