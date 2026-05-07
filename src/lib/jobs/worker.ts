@@ -4,6 +4,8 @@ import {
   failJobRun,
   type StoredJob,
 } from "@/modules/jobs/repositories/job-repository";
+import { listUsersWithActiveDownloadRequestsForImport } from "@/modules/downloads/queries/list-users-with-active-download-requests";
+import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
 import { parsePlexWatchHistorySourceMetadata } from "@/modules/watch-history/plex-watch-history-source-metadata";
 import { executeQueuedRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
 import { parseWatchHistorySourceMetadataJson } from "@/modules/watch-history/source-metadata";
@@ -153,6 +155,18 @@ async function executeJob(job: StoredJob) {
   }
 }
 
+async function runCompletedDownloadImportPass() {
+  const userIds = await listUsersWithActiveDownloadRequestsForImport();
+
+  for (const userId of userIds) {
+    try {
+      await importCompletedDownloadsWorkflow(userId);
+    } catch {
+      // Download imports retry on the next worker tick while the request remains active.
+    }
+  }
+}
+
 export async function runDueJobs() {
   if (sharedWorkerState.running) {
     return;
@@ -161,6 +175,8 @@ export async function runDueJobs() {
   sharedWorkerState.running = true;
 
   try {
+    await runCompletedDownloadImportPass();
+
     const dueJobs = [
       ...(await claimDueJobs("watch-history-sync", new Date(), 4)),
       ...(await claimDueJobs("recommendation-run", new Date(), 2)),
