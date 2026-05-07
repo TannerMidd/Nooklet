@@ -38,6 +38,22 @@ vi.mock("@/modules/media-library/commands/remove-library-path", () => {
     RemoveLibraryPathCommandError,
   };
 });
+vi.mock("@/modules/media-library/commands/remove-media-title", () => {
+  class RemoveMediaTitleCommandError extends Error {
+    constructor(
+      message: string,
+      public readonly code: "title_not_found",
+    ) {
+      super(message);
+      this.name = "RemoveMediaTitleCommandError";
+    }
+  }
+
+  return {
+    removeMediaTitleCommand: vi.fn(),
+    RemoveMediaTitleCommandError,
+  };
+});
 vi.mock("@/modules/media-library/commands/update-library-path", () => {
   class UpdateLibraryPathCommandError extends Error {
     constructor(
@@ -93,6 +109,13 @@ vi.mock("@/modules/media-library/workflows/scan-library", async (importOriginal)
     scanMediaLibraryWorkflow: vi.fn(),
   };
 });
+vi.mock("@/modules/media-library/workflows/search-library-item-releases", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/media-library/workflows/search-library-item-releases")>();
+  return {
+    ...actual,
+    searchLibraryItemReleasesWorkflow: vi.fn(),
+  };
+});
 
 import { revalidatePath } from "next/cache";
 
@@ -105,6 +128,10 @@ import {
   removeLibraryPathCommand,
   RemoveLibraryPathCommandError,
 } from "@/modules/media-library/commands/remove-library-path";
+import {
+  removeMediaTitleCommand,
+  RemoveMediaTitleCommandError,
+} from "@/modules/media-library/commands/remove-media-title";
 import {
   updateLibraryPathCommand,
   UpdateLibraryPathCommandError,
@@ -121,19 +148,27 @@ import {
   scanMediaLibraryWorkflow,
   ScanMediaLibraryWorkflowError,
 } from "@/modules/media-library/workflows/scan-library";
+import {
+  searchLibraryItemReleasesWorkflow,
+  SearchLibraryItemReleasesWorkflowError,
+} from "@/modules/media-library/workflows/search-library-item-releases";
 
 import {
   addLibraryPathAction,
+  removeMediaTitleAction,
   removeLibraryPathAction,
   scanLibraryAction,
+  searchLibraryItemReleasesAction,
   updateLibraryPathAction,
   updateMediaTitlePreferencesAction,
   updateTvEpisodeMonitoringAction,
 } from "./actions";
 import {
+  initialLibraryItemSearchActionState,
   initialLibraryPathActionState,
   initialLibraryPathMutationActionState,
   initialMediaTitlePreferenceActionState,
+  initialRemoveMediaTitleActionState,
   initialTvEpisodeMonitoringActionState,
 } from "./action-state";
 
@@ -143,7 +178,9 @@ const updateLibraryPathMock = vi.mocked(updateLibraryPathCommand);
 const updateMediaTitlePreferencesMock = vi.mocked(updateMediaTitlePreferencesCommand);
 const updateTvEpisodeMonitoringMock = vi.mocked(updateTvEpisodeMonitoringCommand);
 const removeLibraryPathMock = vi.mocked(removeLibraryPathCommand);
+const removeMediaTitleMock = vi.mocked(removeMediaTitleCommand);
 const scanLibraryMock = vi.mocked(scanMediaLibraryWorkflow);
+const searchLibraryItemMock = vi.mocked(searchLibraryItemReleasesWorkflow);
 const revalidateMock = vi.mocked(revalidatePath);
 
 beforeEach(() => {
@@ -401,6 +438,181 @@ describe("updateMediaTitlePreferencesAction", () => {
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
     expect(result).toEqual({ status: "success", message: "Title preferences updated." });
+  });
+});
+
+describe("searchLibraryItemReleasesAction", () => {
+  const titleId = "f9cf3e46-c202-46f4-97aa-dd37be8f7766";
+  const episodeId = "7f3f45c2-8ebd-40c5-9ce5-2f3283c20c08";
+
+  function validForm() {
+    const form = new FormData();
+    form.set("titleId", titleId);
+    return form;
+  }
+
+  it("returns sign-in error when there is no session", async () => {
+    authMock.mockResolvedValue(null as never);
+
+    const result = await searchLibraryItemReleasesAction(initialLibraryItemSearchActionState, validForm());
+
+    expect(result.status).toBe("error");
+    expect(searchLibraryItemMock).not.toHaveBeenCalled();
+  });
+
+  it("validates submitted title ids", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    const form = validForm();
+    form.set("titleId", "not-a-title");
+
+    const result = await searchLibraryItemReleasesAction(initialLibraryItemSearchActionState, form);
+
+    expect(result.status).toBe("error");
+    expect(searchLibraryItemMock).not.toHaveBeenCalled();
+  });
+
+  it("queues a matching title release and revalidates library pages", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    searchLibraryItemMock.mockResolvedValue({
+      item: {
+        title: { id: titleId, mediaType: "movie", qualityProfile: "hd-1080p" },
+        episode: null,
+      },
+      releaseSearch: { searchRun: { id: "run1", status: "succeeded" } },
+      queuedDownload: {
+        queued: true,
+        download: { downloadRequest: { id: "download1" } },
+      },
+    } as never);
+
+    const result = await searchLibraryItemReleasesAction(initialLibraryItemSearchActionState, validForm());
+
+    expect(searchLibraryItemMock).toHaveBeenCalledWith("u1", { titleId });
+    expect(revalidateMock).toHaveBeenCalledWith("/library");
+    expect(revalidateMock).toHaveBeenCalledWith("/library/movies");
+    expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
+    expect(result).toEqual({
+      status: "success",
+      message: "Queued a matching title release in SABnzbd.",
+      downloadRequestId: "download1",
+    });
+  });
+
+  it("queues a matching episode release and revalidates the TV title page", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    const form = validForm();
+    form.set("episodeId", episodeId);
+    searchLibraryItemMock.mockResolvedValue({
+      item: {
+        title: { id: titleId, mediaType: "tv", qualityProfile: "hd-1080p" },
+        episode: { id: episodeId },
+      },
+      releaseSearch: { searchRun: { id: "run1", status: "succeeded" } },
+      queuedDownload: {
+        queued: true,
+        download: { downloadRequest: { id: "download2" } },
+      },
+    } as never);
+
+    const result = await searchLibraryItemReleasesAction(initialLibraryItemSearchActionState, form);
+
+    expect(searchLibraryItemMock).toHaveBeenCalledWith("u1", { titleId, episodeId });
+    expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
+    expect(revalidateMock).toHaveBeenCalledWith(`/library/tv/${titleId}`);
+    expect(result).toMatchObject({
+      status: "success",
+      message: "Queued a matching episode release in SABnzbd.",
+      downloadRequestId: "download2",
+    });
+  });
+
+  it("reports no matching releases without treating the search as a server error", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    searchLibraryItemMock.mockResolvedValue({
+      item: {
+        title: { id: titleId, mediaType: "movie", qualityProfile: "uhd-2160p" },
+        episode: null,
+      },
+      releaseSearch: { searchRun: { id: "run1", status: "succeeded" } },
+      queuedDownload: { queued: false, reason: "no_matching_release" },
+    } as never);
+
+    const result = await searchLibraryItemReleasesAction(initialLibraryItemSearchActionState, validForm());
+
+    expect(result).toEqual({
+      status: "success",
+      message: "Search finished, but no releases matched UHD 2160p.",
+      downloadRequestId: null,
+    });
+  });
+
+  it("maps workflow errors to the action state", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    searchLibraryItemMock.mockRejectedValue(
+      new SearchLibraryItemReleasesWorkflowError("title_not_found", "Library title was not found."),
+    );
+
+    const result = await searchLibraryItemReleasesAction(initialLibraryItemSearchActionState, validForm());
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Library title was not found.",
+      downloadRequestId: null,
+    });
+  });
+});
+
+describe("removeMediaTitleAction", () => {
+  const titleId = "f9cf3e46-c202-46f4-97aa-dd37be8f7766";
+
+  function validForm() {
+    const form = new FormData();
+    form.set("titleId", titleId);
+    return form;
+  }
+
+  it("returns sign-in error when there is no session", async () => {
+    authMock.mockResolvedValue(null as never);
+
+    const result = await removeMediaTitleAction(initialRemoveMediaTitleActionState, validForm());
+
+    expect(result.status).toBe("error");
+    expect(removeMediaTitleMock).not.toHaveBeenCalled();
+  });
+
+  it("validates submitted title ids", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    const form = validForm();
+    form.set("titleId", "bad-title");
+
+    const result = await removeMediaTitleAction(initialRemoveMediaTitleActionState, form);
+
+    expect(result.status).toBe("error");
+    expect(removeMediaTitleMock).not.toHaveBeenCalled();
+  });
+
+  it("maps command errors to friendly messages", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    removeMediaTitleMock.mockRejectedValue(
+      new RemoveMediaTitleCommandError("Library title was not found.", "title_not_found"),
+    );
+
+    const result = await removeMediaTitleAction(initialRemoveMediaTitleActionState, validForm());
+
+    expect(result).toEqual({ status: "error", message: "Library title was not found." });
+  });
+
+  it("removes a title and revalidates the matching library pages", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    removeMediaTitleMock.mockResolvedValue({ id: titleId, mediaType: "tv" } as never);
+
+    const result = await removeMediaTitleAction(initialRemoveMediaTitleActionState, validForm());
+
+    expect(removeMediaTitleMock).toHaveBeenCalledWith("u1", { titleId });
+    expect(revalidateMock).toHaveBeenCalledWith("/library");
+    expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
+    expect(revalidateMock).toHaveBeenCalledWith(`/library/tv/${titleId}`);
+    expect(result).toEqual({ status: "success", message: "Library title removed." });
   });
 });
 

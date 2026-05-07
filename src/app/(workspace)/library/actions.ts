@@ -12,6 +12,10 @@ import {
   RemoveLibraryPathCommandError,
 } from "@/modules/media-library/commands/remove-library-path";
 import {
+  removeMediaTitleCommand,
+  RemoveMediaTitleCommandError,
+} from "@/modules/media-library/commands/remove-media-title";
+import {
   updateLibraryPathCommand,
   UpdateLibraryPathCommandError,
 } from "@/modules/media-library/commands/update-library-path";
@@ -28,23 +32,47 @@ import {
   removeLibraryPathInputSchema,
   updateLibraryPathInputSchema,
 } from "@/modules/media-library/schemas/library-path";
+import { getMediaQualityProfileLabel } from "@/modules/media-library/queries/list-media-quality-profiles";
 import { updateMediaTitlePreferencesInputSchema } from "@/modules/media-library/schemas/media-title-preferences";
+import { removeMediaTitleInputSchema } from "@/modules/media-library/schemas/remove-media-title";
 import { updateTvEpisodeMonitoringInputSchema } from "@/modules/media-library/schemas/tv-episode-preferences";
+import {
+  searchLibraryItemReleasesInputSchema,
+  searchLibraryItemReleasesWorkflow,
+  SearchLibraryItemReleasesWorkflowError,
+} from "@/modules/media-library/workflows/search-library-item-releases";
 import {
   scanMediaLibraryInputSchema,
   scanMediaLibraryWorkflow,
   ScanMediaLibraryWorkflowError,
 } from "@/modules/media-library/workflows/scan-library";
 import {
+  initialLibraryItemSearchActionState,
   initialMediaTitlePreferenceActionState,
+  initialRemoveMediaTitleActionState,
   initialScanLibraryActionState,
   initialTvEpisodeMonitoringActionState,
+  type LibraryItemSearchActionState,
   type LibraryPathActionState,
   type LibraryPathMutationActionState,
   type MediaTitlePreferenceActionState,
+  type RemoveMediaTitleActionState,
   type ScanLibraryActionState,
   type TvEpisodeMonitoringActionState,
 } from "./action-state";
+
+function mediaTypeLibraryPath(mediaType: "movie" | "tv") {
+  return mediaType === "tv" ? "/library/tv" : "/library/movies";
+}
+
+function revalidateMediaTitlePages(mediaType: "movie" | "tv", titleId?: string) {
+  revalidatePath("/library");
+  revalidatePath(mediaTypeLibraryPath(mediaType));
+
+  if (mediaType === "tv" && titleId) {
+    revalidatePath(`/library/tv/${titleId}`);
+  }
+}
 
 export async function addLibraryPathAction(
   _previous: LibraryPathActionState,
@@ -226,6 +254,116 @@ export async function updateMediaTitlePreferencesAction(
       ...initialMediaTitlePreferenceActionState,
       status: "error",
       message: "Nooklet could not update that title.",
+    };
+  }
+}
+
+export async function searchLibraryItemReleasesAction(
+  _previous: LibraryItemSearchActionState,
+  formData: FormData,
+): Promise<LibraryItemSearchActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { ...initialLibraryItemSearchActionState, status: "error", message: "You need to sign in again." };
+  }
+
+  const parsed = searchLibraryItemReleasesInputSchema.safeParse({
+    titleId: formData.get("titleId"),
+    episodeId: formData.get("episodeId") || undefined,
+  });
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]?.message ?? "Choose a library item and try again.";
+    return { ...initialLibraryItemSearchActionState, status: "error", message: firstIssue };
+  }
+
+  try {
+    const result = await searchLibraryItemReleasesWorkflow(session.user.id, parsed.data);
+    const title = result.item.title;
+
+    revalidateMediaTitlePages(title.mediaType, title.id);
+
+    if (result.queuedDownload.queued) {
+      revalidatePath("/in-progress");
+
+      return {
+        status: "success",
+        message: result.item.episode
+          ? "Queued a matching episode release in SABnzbd."
+          : "Queued a matching title release in SABnzbd.",
+        downloadRequestId: result.queuedDownload.download.downloadRequest.id,
+      };
+    }
+
+    if (result.releaseSearch.searchRun.status === "failed") {
+      return {
+        ...initialLibraryItemSearchActionState,
+        status: "error",
+        message: result.releaseSearch.searchRun.errorMessage ?? "Release search failed.",
+      };
+    }
+
+    if (result.queuedDownload.reason === "no_matching_release") {
+      return {
+        ...initialLibraryItemSearchActionState,
+        status: "success",
+        message: `Search finished, but no releases matched ${getMediaQualityProfileLabel(title.qualityProfile)}.`,
+      };
+    }
+
+    return {
+      ...initialLibraryItemSearchActionState,
+      status: "error",
+      message: result.queuedDownload.message ?? "Nooklet could not queue a matching release.",
+    };
+  } catch (error) {
+    if (error instanceof SearchLibraryItemReleasesWorkflowError) {
+      return { ...initialLibraryItemSearchActionState, status: "error", message: error.message };
+    }
+
+    return {
+      ...initialLibraryItemSearchActionState,
+      status: "error",
+      message: "Nooklet could not search that library item.",
+    };
+  }
+}
+
+export async function removeMediaTitleAction(
+  _previous: RemoveMediaTitleActionState,
+  formData: FormData,
+): Promise<RemoveMediaTitleActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { ...initialRemoveMediaTitleActionState, status: "error", message: "You need to sign in again." };
+  }
+
+  const parsed = removeMediaTitleInputSchema.safeParse({
+    titleId: formData.get("titleId"),
+  });
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]?.message ?? "Choose a library title.";
+    return { ...initialRemoveMediaTitleActionState, status: "error", message: firstIssue };
+  }
+
+  try {
+    const removedTitle = await removeMediaTitleCommand(session.user.id, parsed.data);
+
+    revalidateMediaTitlePages(removedTitle.mediaType, removedTitle.id);
+
+    return { status: "success", message: "Library title removed." };
+  } catch (error) {
+    if (error instanceof RemoveMediaTitleCommandError) {
+      return { ...initialRemoveMediaTitleActionState, status: "error", message: error.message };
+    }
+
+    return {
+      ...initialRemoveMediaTitleActionState,
+      status: "error",
+      message: "Nooklet could not remove that title.",
     };
   }
 }

@@ -38,6 +38,28 @@ export const initialMediaTitlePreferenceActionState: MediaTitlePreferenceActionS
   message: null,
 };
 
+export type LibraryItemSearchActionState = {
+  status: "idle" | "success" | "error";
+  message: string | null;
+  downloadRequestId: string | null;
+};
+
+export const initialLibraryItemSearchActionState: LibraryItemSearchActionState = {
+  status: "idle",
+  message: null,
+  downloadRequestId: null,
+};
+
+export type RemoveMediaTitleActionState = {
+  status: "idle" | "success" | "error";
+  message: string | null;
+};
+
+export const initialRemoveMediaTitleActionState: RemoveMediaTitleActionState = {
+  status: "idle",
+  message: null,
+};
+
 export type TvEpisodeMonitoringActionState = {
   status: "idle" | "success" | "error";
   message: string | null;
