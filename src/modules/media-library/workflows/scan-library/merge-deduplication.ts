@@ -1,6 +1,14 @@
 import {
+  countMediaFilesForTitle,
+  countMediaTitleExternalIds,
+  deleteMediaTitleByIdForUser,
+  findMediaFileByUserPath,
+  findMediaTitleByIdForUser,
+  type MediaTitleRecord,
   upsertMediaFile,
   upsertMediaTitle,
+  upsertTvEpisode,
+  upsertTvSeason,
 } from "@/modules/media-library/repositories/media-library-repository";
 
 import { type NormalizedLibraryFile, type NormalizedLibraryScan } from "./normalization";
@@ -39,6 +47,30 @@ function ensurePathStats(
   return created;
 }
 
+function titleHasScannerOnlyMetadata(title: MediaTitleRecord) {
+  return title.status === "available"
+    && title.overview === null
+    && title.posterUrl === null
+    && title.backdropUrl === null
+    && title.runtimeMinutes === null
+    && title.originalLanguage === null;
+}
+
+async function deleteOrphanedScannerTitle(userId: string, titleId: string) {
+  const title = await findMediaTitleByIdForUser(userId, titleId);
+
+  if (!title || !titleHasScannerOnlyMetadata(title)) {
+    return;
+  }
+
+  const fileCount = await countMediaFilesForTitle(titleId);
+  const externalIdCount = await countMediaTitleExternalIds(titleId);
+
+  if (fileCount === 0 && externalIdCount === 0) {
+    await deleteMediaTitleByIdForUser(userId, titleId);
+  }
+}
+
 export async function mergeLibraryScanFiles(userId: string, scan: NormalizedLibraryScan): Promise<MergedLibraryScan> {
   const pathStats = new Map<string, { libraryId: string; libraryPathId: string; fileCount: number; titleIds: Set<string> }>();
   const matchedTitleIds = new Set<string>();
@@ -59,10 +91,31 @@ export async function mergeLibraryScanFiles(userId: string, scan: NormalizedLibr
       continue;
     }
 
+    const existingFile = await findMediaFileByUserPath(userId, file.filePath);
+
+    const season = file.source.library.mediaType === "tv" && file.seasonNumber !== null
+      ? await upsertTvSeason({
+          titleId: title.id,
+          seasonNumber: file.seasonNumber,
+          title: `Season ${file.seasonNumber}`,
+        })
+      : null;
+    const episode = season && file.episodeNumber !== null
+      ? await upsertTvEpisode({
+          titleId: title.id,
+          seasonId: season.id,
+          seasonNumber: file.seasonNumber!,
+          episodeNumber: file.episodeNumber,
+          hasFile: true,
+        })
+      : null;
+
     await upsertMediaFile({
       userId,
       titleId: title.id,
       libraryPathId: file.source.path.id,
+      seasonId: season?.id ?? null,
+      episodeId: episode?.id ?? null,
       mediaType: file.source.library.mediaType,
       fileKind: file.fileKind,
       filePath: file.filePath,
@@ -71,6 +124,10 @@ export async function mergeLibraryScanFiles(userId: string, scan: NormalizedLibr
       modifiedAt: file.modifiedAt,
       qualityLabel: file.qualityLabel,
     });
+
+    if (existingFile?.titleId && existingFile.titleId !== title.id) {
+      await deleteOrphanedScannerTitle(userId, existingFile.titleId);
+    }
 
     const stats = ensurePathStats(pathStats, file);
     stats.fileCount += 1;

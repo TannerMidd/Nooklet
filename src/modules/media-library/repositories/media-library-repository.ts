@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
@@ -289,6 +289,42 @@ export async function findMediaTitleByIdForUser(userId: string, titleId: string)
     .get() ?? null;
 }
 
+export async function deleteMediaTitleByIdForUser(userId: string, titleId: string) {
+  const database = ensureDatabaseReady();
+  const existingTitle = await findMediaTitleByIdForUser(userId, titleId);
+
+  if (!existingTitle) {
+    return null;
+  }
+
+  database
+    .delete(mediaTitles)
+    .where(and(eq(mediaTitles.userId, userId), eq(mediaTitles.id, titleId)))
+    .run();
+
+  return existingTitle;
+}
+
+export async function countMediaFilesForTitle(titleId: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({ count: count(mediaFiles.id) })
+    .from(mediaFiles)
+    .where(eq(mediaFiles.titleId, titleId))
+    .get()?.count ?? 0;
+}
+
+export async function countMediaTitleExternalIds(titleId: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({ count: count(mediaTitleExternalIds.titleId) })
+    .from(mediaTitleExternalIds)
+    .where(eq(mediaTitleExternalIds.titleId, titleId))
+    .get()?.count ?? 0;
+}
+
 export async function updateMediaTitlePreferences(input: {
   userId: string;
   titleId: string;
@@ -372,6 +408,43 @@ export async function createTvSeason(input: {
   return database.select().from(tvSeasons).where(eq(tvSeasons.id, id)).get()!;
 }
 
+export async function upsertTvSeason(input: {
+  titleId: string;
+  seasonNumber: number;
+  title?: string | null;
+  episodeCount?: number;
+}) {
+  const database = ensureDatabaseReady();
+  const id = randomUUID();
+  const values = {
+    id,
+    titleId: input.titleId,
+    seasonNumber: input.seasonNumber,
+    title: input.title ?? null,
+    episodeCount: input.episodeCount ?? 0,
+    updatedAt: new Date(),
+  };
+
+  database
+    .insert(tvSeasons)
+    .values(values)
+    .onConflictDoUpdate({
+      target: [tvSeasons.titleId, tvSeasons.seasonNumber],
+      set: {
+        title: values.title,
+        episodeCount: values.episodeCount,
+        updatedAt: values.updatedAt,
+      },
+    })
+    .run();
+
+  return database
+    .select()
+    .from(tvSeasons)
+    .where(and(eq(tvSeasons.titleId, input.titleId), eq(tvSeasons.seasonNumber, input.seasonNumber)))
+    .get()!;
+}
+
 export async function createTvEpisode(input: {
   titleId: string;
   seasonId: string;
@@ -401,6 +474,55 @@ export async function createTvEpisode(input: {
     .run();
 
   return database.select().from(tvEpisodes).where(eq(tvEpisodes.id, id)).get()!;
+}
+
+export async function upsertTvEpisode(input: {
+  titleId: string;
+  seasonId: string;
+  seasonNumber: number;
+  episodeNumber: number;
+  title?: string | null;
+  airDate?: string | null;
+  hasFile?: boolean;
+}) {
+  const database = ensureDatabaseReady();
+  const id = randomUUID();
+  const values = {
+    id,
+    titleId: input.titleId,
+    seasonId: input.seasonId,
+    seasonNumber: input.seasonNumber,
+    episodeNumber: input.episodeNumber,
+    title: input.title ?? null,
+    airDate: input.airDate ?? null,
+    hasFile: input.hasFile ?? false,
+    updatedAt: new Date(),
+  };
+
+  database
+    .insert(tvEpisodes)
+    .values(values)
+    .onConflictDoUpdate({
+      target: [tvEpisodes.titleId, tvEpisodes.seasonNumber, tvEpisodes.episodeNumber],
+      set: {
+        seasonId: values.seasonId,
+        title: values.title,
+        airDate: values.airDate,
+        hasFile: values.hasFile,
+        updatedAt: values.updatedAt,
+      },
+    })
+    .run();
+
+  return database
+    .select()
+    .from(tvEpisodes)
+    .where(and(
+      eq(tvEpisodes.titleId, input.titleId),
+      eq(tvEpisodes.seasonNumber, input.seasonNumber),
+      eq(tvEpisodes.episodeNumber, input.episodeNumber),
+    ))
+    .get()!;
 }
 
 export async function recordMediaFile(input: {
@@ -506,6 +628,16 @@ export async function upsertMediaFile(input: {
     .from(mediaFiles)
     .where(and(eq(mediaFiles.userId, input.userId), eq(mediaFiles.filePath, input.filePath)))
     .get()!;
+}
+
+export async function findMediaFileByUserPath(userId: string, filePath: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(mediaFiles)
+    .where(and(eq(mediaFiles.userId, userId), eq(mediaFiles.filePath, filePath)))
+    .get() ?? null;
 }
 
 export async function createMediaScanRun(input: {

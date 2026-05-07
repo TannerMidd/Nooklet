@@ -9,6 +9,8 @@ export type NormalizedLibraryFile = FetchedLibraryFile & {
   sortTitle: string;
   normalizedKey: string;
   year: number | null;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
   fileKind: MediaFileKind;
   qualityLabel: string | null;
 };
@@ -50,25 +52,78 @@ function findQualityLabel(value: string) {
   return match?.[1]?.toUpperCase() ?? null;
 }
 
+function removeYear(value: string) {
+  return value.replace(/(?:19|20)\d{2}/, "");
+}
+
+function stripEpisodeSuffix(value: string) {
+  return value
+    .replace(/\bS\d{1,2}E\d{1,3}\b.*$/i, "")
+    .replace(/(?:^|\D)\d{1,2}x\d{1,3}\b.*$/i, "")
+    .trim();
+}
+
+function findTvEpisodePosition(value: string) {
+  const sonarrStyle = value.match(/\bS(\d{1,2})E(\d{1,3})\b/i);
+
+  if (sonarrStyle?.[1] && sonarrStyle[2]) {
+    return {
+      seasonNumber: Number(sonarrStyle[1]),
+      episodeNumber: Number(sonarrStyle[2]),
+    };
+  }
+
+  const shortStyle = value.match(/(?:^|\D)(\d{1,2})x(\d{1,3})(?:\D|$)/i);
+
+  if (shortStyle?.[1] && shortStyle[2]) {
+    return {
+      seasonNumber: Number(shortStyle[1]),
+      episodeNumber: Number(shortStyle[2]),
+    };
+  }
+
+  return { seasonNumber: null, episodeNumber: null };
+}
+
+function findSeasonFolderNumber(segments: string[]) {
+  const seasonSegment = segments.find((segment) => /^season[\s._-]+\d+/i.test(segment));
+  const match = seasonSegment?.match(/\d+/);
+
+  return match?.[0] ? Number(match[0]) : null;
+}
+
 function getMovieTitle(file: FetchedLibraryFile) {
   const parentName = path.basename(path.dirname(file.filePath));
   const fileName = path.basename(file.filePath);
   const sourceName = /(?:19|20)\d{2}/.test(parentName) ? parentName : fileName;
   const year = findYear(sourceName);
-  const title = stripReleaseTokens(normalizeText(sourceName).replace(/(?:19|20)\d{2}/, ""));
+  const title = stripReleaseTokens(normalizeText(removeYear(sourceName)));
 
-  return { title: title || normalizeText(fileName), year };
+  return {
+    title: title || normalizeText(fileName),
+    year,
+    seasonNumber: null,
+    episodeNumber: null,
+  };
 }
 
 function getTvTitle(file: FetchedLibraryFile) {
   const segments = file.relativePath.split("/");
   const seasonIndex = segments.findIndex((segment) => /^season\s+\d+/i.test(segment));
-  const fallback = path.basename(file.filePath).replace(/S\d{1,2}E\d{1,2}.*/i, "");
-  const title = seasonIndex > 0 ? segments[seasonIndex - 1] : fallback;
+  const firstDirectory = segments.length > 1 && !/^season[\s._-]+\d+/i.test(segments[0] ?? "")
+    ? segments[0]
+    : null;
+  const fallback = stripEpisodeSuffix(path.basename(file.filePath));
+  const sourceName = seasonIndex > 0 ? segments[seasonIndex - 1] : firstDirectory ?? fallback;
+  const episodePosition = findTvEpisodePosition(file.relativePath);
+  const seasonNumber = episodePosition.seasonNumber ?? findSeasonFolderNumber(segments);
+  const title = stripReleaseTokens(normalizeText(removeYear(sourceName)));
 
   return {
-    title: stripReleaseTokens(normalizeText(title)) || normalizeText(fallback),
-    year: findYear(title),
+    title: title || normalizeText(fallback),
+    year: findYear(sourceName),
+    seasonNumber,
+    episodeNumber: episodePosition.episodeNumber,
   };
 }
 
@@ -87,6 +142,8 @@ export function normalizeLibraryFiles(fetched: FetchedLibrarySources): Normalize
         sortTitle: normalizedTitle,
         normalizedKey,
         year: parsed.year,
+        seasonNumber: parsed.seasonNumber,
+        episodeNumber: parsed.episodeNumber,
         fileKind: file.source.library.mediaType === "tv" ? "episode" : "movie",
         qualityLabel: findQualityLabel(file.filePath),
       } satisfies NormalizedLibraryFile;
