@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { SabnzbdActivityPanel } from "@/components/recommendations/sabnzbd-activity-panel";
 import { PageHeader } from "@/components/ui/page-header";
-import { getActiveSabnzbdQueue } from "@/modules/service-connections/workflows/get-active-sabnzbd-queue";
+import { refreshSabnzbdQueueActivity } from "@/modules/service-connections/workflows/refresh-sabnzbd-queue-activity";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export default async function InProgressPage() {
     return null;
   }
 
-  const activeSabnzbdQueue = await getActiveSabnzbdQueue(session.user.id);
+  const activeSabnzbdQueue = await refreshSabnzbdQueueActivity(session.user.id);
 
   return (
     <div className="space-y-6">

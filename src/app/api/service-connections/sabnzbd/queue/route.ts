@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { sabnzbdQueueActionSchema } from "@/modules/service-connections/sabnzbd-queue-actions";
 import { applySabnzbdQueueAction } from "@/modules/service-connections/workflows/apply-sabnzbd-queue-action";
-import { getActiveSabnzbdQueue } from "@/modules/service-connections/workflows/get-active-sabnzbd-queue";
+import { refreshSabnzbdQueueActivity } from "@/modules/service-connections/workflows/refresh-sabnzbd-queue-activity";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -15,7 +15,7 @@ export async function GET() {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const queueState = await getActiveSabnzbdQueue(session.user.id);
+  const queueState = await refreshSabnzbdQueueActivity(session.user.id);
 
   return NextResponse.json(queueState, { status: 200 });
 }
