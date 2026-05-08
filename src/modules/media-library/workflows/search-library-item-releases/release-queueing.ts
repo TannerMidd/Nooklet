@@ -7,7 +7,7 @@ import {
 import { type ResolvedLibrarySearchItem } from "./item-resolution";
 import { type LibraryItemReleaseSearch } from "./release-search";
 
-type QueueableReleaseErrorCode = "result_not_found" | "sabnzbd_enqueue_failed";
+type QueueableReleaseErrorCode = "result_not_found";
 type ReleaseSearchResult = LibraryItemReleaseSearch["results"][number];
 type DetectedReleaseQuality = "hd-720p" | "hd-1080p" | "uhd-2160p" | "hd" | null;
 
@@ -117,7 +117,7 @@ export function selectLibraryItemReleaseCandidates(
 function shouldTryNextRelease(error: QueueIndexerResultWorkflowError): error is QueueIndexerResultWorkflowError & {
   code: QueueableReleaseErrorCode;
 } {
-  return error.code === "result_not_found" || error.code === "sabnzbd_enqueue_failed";
+  return error.code === "result_not_found";
 }
 
 function requestedTitle(item: ResolvedLibrarySearchItem) {

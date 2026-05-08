@@ -115,9 +115,9 @@ describe("queueRequestedTitleRelease", () => {
     expect(queued).toMatchObject({ queued: true, selectedResultId: "1080-high" });
   });
 
-  it("tries the next matching release when SABnzbd rejects a candidate", async () => {
+  it("tries the next matching release when a stored search result expires", async () => {
     queueMock
-      .mockRejectedValueOnce(new QueueIndexerResultWorkflowError("sabnzbd_enqueue_failed", "Bad release."))
+      .mockRejectedValueOnce(new QueueIndexerResultWorkflowError("result_not_found", "Search result expired."))
       .mockResolvedValueOnce({ downloadRequest: { id: "download2" } } as never);
 
     const queued = await queueRequestedTitleRelease(userId, request, title, {
@@ -134,6 +134,29 @@ describe("queueRequestedTitleRelease", () => {
       queued: true,
       selectedResultId: "second",
       rejectedResultIds: ["first"],
+    });
+  });
+
+  it("does not try another release when SABnzbd enqueueing is uncertain", async () => {
+    queueMock.mockRejectedValue(
+      new QueueIndexerResultWorkflowError("sabnzbd_enqueue_failed", "SABnzbd could not queue the selected release."),
+    );
+
+    const queued = await queueRequestedTitleRelease(userId, request, title, {
+      searched: true,
+      searchRun: { id: "run1", status: "succeeded" },
+      results: [
+        result({ id: "first", title: "Arrival 2016 1080p", seeders: 20 }),
+        result({ id: "second", title: "Arrival 2016 1080p", seeders: 10 }),
+      ],
+    } as never);
+
+    expect(queueMock).toHaveBeenCalledTimes(1);
+    expect(queued).toMatchObject({
+      queued: false,
+      reason: "queue_failed",
+      message: "SABnzbd could not queue the selected release.",
+      rejectedResultIds: [],
     });
   });
 

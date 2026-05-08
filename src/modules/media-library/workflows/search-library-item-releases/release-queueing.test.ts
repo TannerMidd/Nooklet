@@ -101,6 +101,7 @@ describe("selectLibraryItemReleaseCandidates", () => {
 });
 
 
+
 describe("queueLibraryItemRelease", () => {
   it("queues the best matching episode release with title and episode metadata", async () => {
     queueMock.mockResolvedValue({ downloadRequest: { id: "download1" } } as never);
@@ -148,9 +149,9 @@ describe("queueLibraryItemRelease", () => {
     expect(queued).toMatchObject({ queued: true, selectedResultId: "1080-low" });
   });
 
-  it("tries the next matching release when SABnzbd rejects a candidate", async () => {
+  it("tries the next matching release when a stored search result expires", async () => {
     queueMock
-      .mockRejectedValueOnce(new QueueIndexerResultWorkflowError("sabnzbd_enqueue_failed", "Bad release."))
+      .mockRejectedValueOnce(new QueueIndexerResultWorkflowError("result_not_found", "Search result expired."))
       .mockResolvedValueOnce({ downloadRequest: { id: "download2" } } as never);
 
     const queued = await queueLibraryItemRelease("u1", item, {
@@ -168,6 +169,57 @@ describe("queueLibraryItemRelease", () => {
       queued: true,
       selectedResultId: "second",
       rejectedResultIds: ["first"],
+    });
+  });
+
+  it("does not try another release when SABnzbd enqueueing is uncertain", async () => {
+    queueMock.mockRejectedValue(
+      new QueueIndexerResultWorkflowError("sabnzbd_enqueue_failed", "SABnzbd could not queue the selected release."),
+    );
+
+    const queued = await queueLibraryItemRelease("u1", item, {
+      searched: true,
+      query: "Severance S01E02",
+      searchRun: { id: "run1", status: "succeeded" },
+      results: [
+        result({ id: "first", title: "Severance S01E02 1080p", seeders: 20 }),
+        result({ id: "second", title: "Severance S01E02 1080p", seeders: 10 }),
+      ],
+    } as never);
+
+    expect(queueMock).toHaveBeenCalledTimes(1);
+    expect(queued).toMatchObject({
+      queued: false,
+      reason: "queue_failed",
+      message: "SABnzbd could not queue the selected release.",
+      rejectedResultIds: [],
+    });
+  });
+
+  it("does not try another release when the item already has an active download", async () => {
+    queueMock.mockRejectedValue(
+      new QueueIndexerResultWorkflowError(
+        "active_download_exists",
+        "This library item already has an active download in progress.",
+      ),
+    );
+
+    const queued = await queueLibraryItemRelease("u1", item, {
+      searched: true,
+      query: "Severance S01E02",
+      searchRun: { id: "run1", status: "succeeded" },
+      results: [
+        result({ id: "first", title: "Severance S01E02 1080p", seeders: 20 }),
+        result({ id: "second", title: "Severance S01E02 1080p", seeders: 10 }),
+      ],
+    } as never);
+
+    expect(queueMock).toHaveBeenCalledTimes(1);
+    expect(queued).toMatchObject({
+      queued: false,
+      reason: "queue_failed",
+      message: "This library item already has an active download in progress.",
+      rejectedResultIds: [],
     });
   });
 });

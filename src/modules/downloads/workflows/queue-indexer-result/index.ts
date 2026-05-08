@@ -1,4 +1,5 @@
 import { recordQueuedIndexerResultAudit } from "./audit";
+import { ensureNoActiveDownloadRequest } from "./active-download-guard";
 import { resolveSabnzbdDownloadClient } from "./client-resolution";
 import { submitIndexerResultToSabnzbd } from "./download-submission";
 import { persistQueuedIndexerResultDownload } from "./persistence";
@@ -11,6 +12,7 @@ import { resolveQueueIndexerResultTarget } from "./target-resolution";
 
 export async function queueIndexerResultWorkflow(userId: string, input: QueueIndexerResultInput) {
   const request = validateQueueIndexerResultRequest(input);
+  await ensureNoActiveDownloadRequest(userId, request);
   const resolvedResult = await resolveQueueIndexerResult(userId, request);
   const target = await resolveQueueIndexerResultTarget(userId, request, resolvedResult);
   const downloadClient = await resolveSabnzbdDownloadClient(userId);

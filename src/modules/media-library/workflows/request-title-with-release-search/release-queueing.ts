@@ -8,7 +8,7 @@ import { type MediaTitleRecord } from "@/modules/media-library/repositories/medi
 import { type RequestTitleWithReleaseSearchInput } from "./request-validation";
 import { type RequestedTitleReleaseSearch } from "./release-search";
 
-type QueueableReleaseErrorCode = "result_not_found" | "sabnzbd_enqueue_failed";
+type QueueableReleaseErrorCode = "result_not_found";
 type ReleaseSearchResult = Extract<RequestedTitleReleaseSearch, { searched: true }>["results"][number];
 type DetectedReleaseQuality = "hd-720p" | "hd-1080p" | "uhd-2160p" | "hd" | null;
 
@@ -106,7 +106,7 @@ export function selectRequestedTitleReleaseCandidates(
 function shouldTryNextRelease(error: QueueIndexerResultWorkflowError): error is QueueIndexerResultWorkflowError & {
   code: QueueableReleaseErrorCode;
 } {
-  return error.code === "result_not_found" || error.code === "sabnzbd_enqueue_failed";
+  return error.code === "result_not_found";
 }
 
 export async function queueRequestedTitleRelease(

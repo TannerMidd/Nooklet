@@ -3,6 +3,7 @@ export type QueueIndexerResultErrorCode =
   | "sabnzbd_not_connected"
   | "sabnzbd_not_verified"
   | "sabnzbd_enqueue_failed"
+  | "active_download_exists"
   | "target_path_not_found"
   | "download_request_failed";
 

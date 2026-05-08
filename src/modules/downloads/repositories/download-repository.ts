@@ -19,6 +19,7 @@ import {
 } from "@/lib/database/schema";
 
 const localImportRetryCooldownMs = 60_000;
+const activeDownloadRequestStatuses = ["pending", "queued", "downloading", "importing"] as const;
 
 function localImportRetryCutoff() {
   return new Date(Date.now() - localImportRetryCooldownMs);
@@ -243,6 +244,27 @@ export async function listDownloadRequestsByStatus(userId: string, status: Downl
     .where(and(eq(downloadRequests.userId, userId), eq(downloadRequests.status, status)))
     .orderBy(desc(downloadRequests.createdAt))
     .all();
+}
+
+export async function findActiveDownloadRequestForItem(input: {
+  userId: string;
+  mediaTitleId: string;
+  episodeId?: string | null;
+}) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(downloadRequests)
+    .where(and(
+      eq(downloadRequests.userId, input.userId),
+      eq(downloadRequests.mediaTitleId, input.mediaTitleId),
+      input.episodeId
+        ? eq(downloadRequests.episodeId, input.episodeId)
+        : isNull(downloadRequests.episodeId),
+      inArray(downloadRequests.status, activeDownloadRequestStatuses),
+    ))
+    .get() ?? null;
 }
 
 export async function listActiveDownloadRequestsForImport(userId: string, clientId: string) {

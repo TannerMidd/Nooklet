@@ -25,6 +25,7 @@ import {
   createDownloadClient,
   createDownloadImportRun,
   createDownloadRequest,
+  findActiveDownloadRequestForItem,
   findDownloadClientById,
   findDownloadClientByServiceConnectionId,
   listDownloadRequestsByStatus,
@@ -395,6 +396,48 @@ describe("download-repository", () => {
     expect(activeRequests.map((entry) => entry.queueItem.id)).toContain(failedImportQueueItem.id);
     expect(activeRequests.map((entry) => entry.request.id)).not.toContain(recentFailedImportRequest.id);
     expect(activeUserIds).toEqual(expect.arrayContaining([userId, otherUserId]));
+  });
+
+  it("finds the active download request for one movie or episode", async () => {
+    const userId = await seedUser();
+    const otherUserId = await seedUser();
+    const { movieTitleId, episodeTitleId, episodeId } = seedTitleAndEpisode(userId);
+    const activeMovieRequest = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Arrival",
+      mediaTitleId: movieTitleId,
+      status: "queued",
+    });
+    const completedMovieRequest = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Arrival",
+      mediaTitleId: movieTitleId,
+      status: "succeeded",
+    });
+    const activeEpisodeRequest = await createDownloadRequest({
+      userId,
+      mediaType: "tv",
+      requestedTitle: "Severance S01E02",
+      mediaTitleId: episodeTitleId,
+      episodeId,
+      status: "downloading",
+    });
+    await createDownloadRequest({
+      userId: otherUserId,
+      mediaType: "movie",
+      requestedTitle: "Arrival",
+      mediaTitleId: movieTitleId,
+      status: "queued",
+    });
+
+    const movieRequest = await findActiveDownloadRequestForItem({ userId, mediaTitleId: movieTitleId });
+    const episodeRequest = await findActiveDownloadRequestForItem({ userId, mediaTitleId: episodeTitleId, episodeId });
+
+    expect(movieRequest?.id).toBe(activeMovieRequest.id);
+    expect(movieRequest?.id).not.toBe(completedMovieRequest.id);
+    expect(episodeRequest?.id).toBe(activeEpisodeRequest.id);
   });
 
   it("lists attempted release exclusions for a movie or episode", async () => {
