@@ -72,7 +72,7 @@ describe("listLibraryOverview", () => {
 
     const overview = await listLibraryOverview(userId);
 
-    expect(overview.totals).toEqual({ libraries: 1, paths: 1, titles: 1, files: 1 });
+    expect(overview.totals).toEqual({ libraries: 1, paths: 1, titles: 1, monitored: 1, files: 1 });
     expect(overview.libraries[0]?.name).toBe("Movies");
     expect(overview.libraries[0]?.paths[0]?.fileCount).toBe(1);
   });
