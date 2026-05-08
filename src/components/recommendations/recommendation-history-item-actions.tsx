@@ -12,7 +12,6 @@ import {
   type RecommendationMediaType,
 } from "@/lib/database/schema";
 import { type RecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
-import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 type RecommendationHistoryItemActionsProps = {
   itemId: string;
@@ -23,10 +22,7 @@ type RecommendationHistoryItemActionsProps = {
   existingInLibrary?: boolean;
   isHidden?: boolean | null;
   returnTo: string;
-  libraryConnection: ServiceConnectionSummary | null;
   providerMetadata?: RecommendationProviderMetadata | null;
-  savedRootFolderPath?: string | null;
-  savedQualityProfileId?: number | null;
 };
 
 export function RecommendationHistoryItemActions({
@@ -38,10 +34,7 @@ export function RecommendationHistoryItemActions({
   existingInLibrary,
   isHidden,
   returnTo,
-  libraryConnection,
   providerMetadata,
-  savedRootFolderPath,
-  savedQualityProfileId,
 }: RecommendationHistoryItemActionsProps) {
   const hiddenActionLabel = isHidden ? `Unhide ${title}` : `Hide ${title}`;
   const HiddenIcon = isHidden ? Eye : EyeOff;
@@ -79,13 +72,8 @@ export function RecommendationHistoryItemActions({
 
       <RecommendationAddForm
         itemId={itemId}
-        mediaType={mediaType}
         existingInLibrary={existingInLibrary}
         returnTo={returnTo}
-        connectionSummary={libraryConnection}
-        providerMetadata={providerMetadata}
-        savedRootFolderPath={savedRootFolderPath}
-        savedQualityProfileId={savedQualityProfileId}
       />
     </div>
   );

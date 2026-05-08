@@ -170,8 +170,8 @@ describe("submitRecommendationLibraryAction", () => {
   function validForm() {
     const formData = new FormData();
     formData.set("itemId", ITEM_ID);
-    formData.set("rootFolderPath", "/tv");
-    formData.set("qualityProfileId", "1");
+    formData.set("qualityProfile", "hd-1080p");
+    formData.set("monitored", "true");
     formData.set("returnTo", "/history?run=abc");
     return formData;
   }
@@ -189,8 +189,8 @@ describe("submitRecommendationLibraryAction", () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
     const formData = new FormData();
     formData.set("itemId", ITEM_ID);
-    formData.set("rootFolderPath", "");
-    formData.set("qualityProfileId", "");
+    formData.set("targetLibraryPathId", "not-a-uuid");
+    formData.set("qualityProfile", "dvd-rip");
     formData.set("returnTo", "/history");
 
     const result = await submitRecommendationLibraryAction(
@@ -206,12 +206,12 @@ describe("submitRecommendationLibraryAction", () => {
     expect(libraryMock).not.toHaveBeenCalled();
   });
 
-  it("returns the workflow's error message and projects field=rootFolderPath into fieldErrors when supplied", async () => {
+  it("returns the workflow's error message and projects local field errors when supplied", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
     libraryMock.mockResolvedValue({
       ok: false,
-      message: "Sonarr rejected the request.",
-      field: "rootFolderPath",
+      message: "Choose a matching active library folder before adding that title.",
+      field: "targetLibraryPathId",
     } as never);
 
     const result = await submitRecommendationLibraryAction(
@@ -221,37 +221,18 @@ describe("submitRecommendationLibraryAction", () => {
 
     expect(result).toEqual({
       status: "error",
-      message: "Sonarr rejected the request.",
-      fieldErrors: { rootFolderPath: "Sonarr rejected the request." },
+      message: "Choose a matching active library folder before adding that title.",
+      fieldErrors: {
+        targetLibraryPathId: "Choose a matching active library folder before adding that title.",
+      },
     });
+    expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(revalidateMock).toHaveBeenCalledWith("/history");
-  });
-
-  it("returns success + pendingEpisodeSelection unchanged when the workflow returns one", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-    const pending = { recommendationItemId: "rec-1", seriesId: 7 };
-    libraryMock.mockResolvedValue({
-      ok: true,
-      message: "Pick episodes to monitor",
-      pendingEpisodeSelection: pending,
-    } as never);
-
-    const result = await submitRecommendationLibraryAction(
-      { status: "idle" } as never,
-      validForm(),
-    );
-
-    expect(result).toEqual({
-      status: "success",
-      message: "Pick episodes to monitor",
-      pendingEpisodeSelection: pending,
-    });
-    expect(redirectMock).not.toHaveBeenCalled();
   });
 
   it("returns plain success and revalidates without redirecting on a normal success", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-    libraryMock.mockResolvedValue({ ok: true, message: "Added to Sonarr." } as never);
+    libraryMock.mockResolvedValue({ ok: true, message: "Added to Nooklet." } as never);
 
     const result = await submitRecommendationLibraryAction(
       { status: "idle" } as never,
@@ -260,8 +241,9 @@ describe("submitRecommendationLibraryAction", () => {
 
     expect(result).toEqual({
       status: "success",
-      message: "Added to Sonarr.",
+      message: "Added to Nooklet.",
       fieldErrors: undefined,
     });
+    expect(revalidateMock).toHaveBeenCalledWith("/library");
   });
 });

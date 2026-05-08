@@ -4,15 +4,14 @@ import {
   MINIMUM_LIBRARY_REQUEST_FREE_SPACE_GB,
 } from "@/modules/service-connections/types/library-manager";
 
-import { type AddRecommendationToLibraryInput } from "../schemas/add-to-library";
 import { type LibraryManagerMetadata } from "../../service-connections/library-manager-metadata";
 
-type RecommendationLibrarySelectionInput = Pick<
-  AddRecommendationToLibraryInput,
-  "rootFolderPath" | "qualityProfileId" | "tagIds"
-> & {
-  seasonSelectionMode?: AddRecommendationToLibraryInput["seasonSelectionMode"];
-  seasonNumbers?: AddRecommendationToLibraryInput["seasonNumbers"];
+type RecommendationLibrarySelectionInput = {
+  rootFolderPath: string;
+  qualityProfileId: number;
+  tagIds: number[];
+  seasonSelectionMode?: "all" | "custom" | "episode";
+  seasonNumbers?: number[];
 };
 
 type RecommendationLibrarySelectionDefaults = {

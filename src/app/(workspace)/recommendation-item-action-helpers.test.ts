@@ -37,10 +37,10 @@ describe("recommendation-item-action-helpers", () => {
     const formData = new FormData();
 
     formData.set("itemId", "6abf5bba-aef9-4eef-8f67-c7775e249fd7");
-    formData.set("rootFolderPath", "/library/movies");
-    formData.set("qualityProfileId", "7");
-    formData.append("tagIds", "11");
-    formData.append("tagIds", "12");
+    formData.set("libraryId", "11111111-1111-4111-8111-111111111111");
+    formData.set("targetLibraryPathId", "22222222-2222-4222-8222-222222222222");
+    formData.set("qualityProfile", "uhd-2160p");
+    formData.set("monitored", "false");
     formData.set("returnTo", "/history?page=2");
 
     const result = parseRecommendationLibraryActionFormData(formData);
@@ -53,11 +53,10 @@ describe("recommendation-item-action-helpers", () => {
 
     expect(result.data).toEqual({
       itemId: "6abf5bba-aef9-4eef-8f67-c7775e249fd7",
-      rootFolderPath: "/library/movies",
-      qualityProfileId: 7,
-      seasonSelectionMode: "all",
-      seasonNumbers: [],
-      tagIds: [11, 12],
+      libraryId: "11111111-1111-4111-8111-111111111111",
+      targetLibraryPathId: "22222222-2222-4222-8222-222222222222",
+      qualityProfile: "uhd-2160p",
+      monitored: false,
       returnTo: "/history?page=2",
     });
   });
@@ -65,10 +64,10 @@ describe("recommendation-item-action-helpers", () => {
   it("projects add-to-library field errors from invalid form data", () => {
     const formData = new FormData();
 
-    formData.set("itemId", "not-a-uuid");
-    formData.set("rootFolderPath", "");
-    formData.set("qualityProfileId", "-1");
-    formData.append("tagIds", "-7");
+    formData.set("itemId", "6abf5bba-aef9-4eef-8f67-c7775e249fd7");
+    formData.set("libraryId", "not-a-uuid");
+    formData.set("targetLibraryPathId", "also-not-a-uuid");
+    formData.set("qualityProfile", "dvd-rip");
     formData.set("returnTo", "/history");
 
     const result = parseRecommendationLibraryActionFormData(formData);
@@ -79,10 +78,12 @@ describe("recommendation-item-action-helpers", () => {
       throw new Error("Expected add-to-library form parsing to fail.");
     }
 
-    expect(projectRecommendationLibraryFieldErrors(result.error)).toEqual({
-      rootFolderPath: "Select a root folder.",
-      qualityProfileId: "Select a quality profile.",
-      tagIds: "Too small: expected number to be >=0",
-    });
+    expect(projectRecommendationLibraryFieldErrors(result.error)).toEqual(
+      expect.objectContaining({
+        libraryId: expect.any(String),
+        targetLibraryPathId: expect.any(String),
+        qualityProfile: expect.any(String),
+      }),
+    );
   });
 });

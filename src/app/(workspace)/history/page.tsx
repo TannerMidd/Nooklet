@@ -7,11 +7,9 @@ import { RecommendationTitleOverviewDialog } from "@/components/recommendations/
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
-import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import { listRecommendationHistory } from "@/modules/recommendations/queries/list-recommendation-history";
 import { getRecommendationTitleOverview } from "@/modules/recommendations/queries/get-recommendation-title-overview";
-import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 export const dynamic = "force-dynamic";
 
@@ -63,10 +61,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
     return null;
   }
 
-  const [preferences, connectionSummaries] = await Promise.all([
-    getUserPreferences(session.user.id),
-    listConnectionSummaries(session.user.id),
-  ]);
+  const preferences = await getUserPreferences(session.user.id);
   const resolvedSearchParams = await searchParams;
   const currentView =
     resolvedSearchParams?.view === "tv" || resolvedSearchParams?.view === "movie"
@@ -86,11 +81,6 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
   const selectedOverview = resolvedSearchParams?.details
     ? await getRecommendationTitleOverview(session.user.id, resolvedSearchParams.details)
     : null;
-  const sonarrSummary = connectionSummaries.find((summary) => summary.serviceType === "sonarr") ?? null;
-  const radarrSummary = connectionSummaries.find((summary) => summary.serviceType === "radarr") ?? null;
-  const sonarrDefaults = getLibrarySelectionDefaults(preferences, "sonarr");
-  const radarrDefaults = getLibrarySelectionDefaults(preferences, "radarr");
-
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Recommendation records" title="History" />
@@ -231,18 +221,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                   existingInLibrary={item.existingInLibrary}
                   isHidden={item.isHidden}
                   returnTo={returnTo}
-                  libraryConnection={item.mediaType === "tv" ? sonarrSummary : radarrSummary}
                   providerMetadata={item.providerMetadata}
-                  savedRootFolderPath={
-                    item.mediaType === "tv"
-                      ? sonarrDefaults.rootFolderPath
-                      : radarrDefaults.rootFolderPath
-                  }
-                  savedQualityProfileId={
-                    item.mediaType === "tv"
-                      ? sonarrDefaults.qualityProfileId
-                      : radarrDefaults.qualityProfileId
-                  }
                 />
               </article>
             ))}
@@ -293,8 +272,6 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
       {selectedOverview ? (
         <RecommendationTitleOverviewDialog
           overview={selectedOverview}
-          preferences={preferences}
-          connectionSummaries={connectionSummaries}
           closeHref={returnTo}
           actionReturnHref={appendDetailsParam(returnTo, selectedOverview.item.itemId)}
         />

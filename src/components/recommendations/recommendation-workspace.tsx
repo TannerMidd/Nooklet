@@ -13,7 +13,6 @@ import { RecommendationWatchHistoryModeToggle } from "@/components/recommendatio
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { type RecommendationMediaType } from "@/lib/database/schema";
-import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import {
   formatLanguagePreference,
@@ -127,9 +126,6 @@ export async function RecommendationWorkspace({
 
   const aiProvider = connectionSummaries.find((summary) => summary.serviceType === "ai-provider");
   const tmdb = connectionSummaries.find((summary) => summary.serviceType === "tmdb") ?? null;
-  const relevantLibraryManager = connectionSummaries.find((summary) =>
-    mediaType === "tv" ? summary.serviceType === "sonarr" : summary.serviceType === "radarr",
-  );
   const hasStrictLanguagePreference = preferences.languagePreference !== languagePreferenceAny;
   const hasVerifiedTmdbForLanguage = !hasStrictLanguagePreference || tmdb?.status === "verified";
   const canRequest = Boolean(
@@ -147,10 +143,6 @@ export async function RecommendationWorkspace({
       ? preferences.defaultAiModel
       : aiProvider?.model ?? "gpt-4.1-mini";
   const availableModels = aiProvider?.availableModels ?? [];
-  const librarySelectionDefaults = getLibrarySelectionDefaults(
-    preferences,
-    mediaType === "tv" ? "sonarr" : "radarr",
-  );
   const featuredRun =
     recentRuns.find((run) => run.id === activeRunId) ?? recentRuns[0] ?? null;
   const previousRuns = featuredRun
@@ -269,9 +261,6 @@ export async function RecommendationWorkspace({
                   providerMetadata={item.providerMetadata}
                   routePath={routePath}
                   overviewHref={appendDetailsParam(currentWorkspaceHref, item.id)}
-                  libraryConnection={relevantLibraryManager ?? null}
-                  savedRootFolderPath={librarySelectionDefaults.rootFolderPath}
-                  savedQualityProfileId={librarySelectionDefaults.qualityProfileId}
                   animationDelayMs={index * 90}
                 />
               ))}
@@ -380,12 +369,8 @@ export async function RecommendationWorkspace({
 
                         <RecommendationAddForm
                           itemId={item.id}
-                          mediaType={item.mediaType}
                           existingInLibrary={item.existingInLibrary}
                           returnTo={routePath}
-                          connectionSummary={relevantLibraryManager ?? null}
-                          savedRootFolderPath={librarySelectionDefaults.rootFolderPath}
-                          savedQualityProfileId={librarySelectionDefaults.qualityProfileId}
                           variant="compact"
                           buttonClassName="min-h-10 rounded-lg px-4 py-2 whitespace-nowrap"
                         />
@@ -402,8 +387,6 @@ export async function RecommendationWorkspace({
       {overviewForModal ? (
         <RecommendationTitleOverviewDialog
           overview={overviewForModal}
-          preferences={preferences}
-          connectionSummaries={connectionSummaries}
           closeHref={currentWorkspaceHref}
           actionReturnHref={appendDetailsParam(currentWorkspaceHref, overviewForModal.item.itemId)}
         />

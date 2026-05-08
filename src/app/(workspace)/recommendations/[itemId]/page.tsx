@@ -13,15 +13,12 @@ import {
 } from "@/components/recommendations/recommendation-tmdb-extras";
 import { RecommendationTrailerSection } from "@/components/recommendations/recommendation-trailer-section";
 import { Panel } from "@/components/ui/panel";
-import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
-import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import {
   formatLanguagePreference,
   languagePreferenceCodes,
   type LanguagePreferenceCode,
 } from "@/modules/preferences/language-preferences";
 import { getRecommendationTitleOverview } from "@/modules/recommendations/queries/get-recommendation-title-overview";
-import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 export const dynamic = "force-dynamic";
 
@@ -85,11 +82,7 @@ export default async function RecommendationOverviewPage({
 
   const [{ itemId }, resolvedSearchParams] = await Promise.all([params, searchParams]);
   const returnTo = safeReturnTo(resolvedSearchParams?.returnTo);
-  const [overview, preferences, connectionSummaries] = await Promise.all([
-    getRecommendationTitleOverview(session.user.id, itemId),
-    getUserPreferences(session.user.id),
-    listConnectionSummaries(session.user.id),
-  ]);
+  const overview = await getRecommendationTitleOverview(session.user.id, itemId);
 
   if (!overview) {
     redirect(returnTo);
@@ -105,14 +98,6 @@ export default async function RecommendationOverviewPage({
   const voteLabel = details?.voteAverage
     ? `${details.voteAverage.toFixed(1)} from ${details.voteCount ?? 0} votes`
     : null;
-  const sonarrSummary = connectionSummaries.find((summary) => summary.serviceType === "sonarr") ?? null;
-  const radarrSummary = connectionSummaries.find((summary) => summary.serviceType === "radarr") ?? null;
-  const libraryConnection = item.mediaType === "tv" ? sonarrSummary : radarrSummary;
-  const libraryDefaults = getLibrarySelectionDefaults(
-    preferences,
-    item.mediaType === "tv" ? "sonarr" : "radarr",
-  );
-
   return (
     <div className="space-y-6">
       <header className="relative overflow-hidden rounded-xl border border-line/80 bg-panel">
@@ -189,10 +174,7 @@ export default async function RecommendationOverviewPage({
               existingInLibrary={item.existingInLibrary}
               isHidden={item.isHidden}
               returnTo={`/recommendations/${item.itemId}?returnTo=${encodeURIComponent(returnTo)}`}
-              libraryConnection={libraryConnection}
               providerMetadata={providerMetadata}
-              savedRootFolderPath={libraryDefaults.rootFolderPath}
-              savedQualityProfileId={libraryDefaults.qualityProfileId}
             />
           </div>
         </Panel>

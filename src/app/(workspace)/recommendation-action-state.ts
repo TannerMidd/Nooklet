@@ -37,12 +37,21 @@ export type RecommendationLibraryActionState = {
   status: "idle" | "error" | "success";
   message?: string;
   fieldErrors?: Partial<
-    Record<"rootFolderPath" | "qualityProfileId" | "seasonNumbers" | "tagIds", string>
+    Record<
+      | "rootFolderPath"
+      | "qualityProfileId"
+      | "seasonNumbers"
+      | "tagIds"
+      | "libraryId"
+      | "targetLibraryPathId"
+      | "qualityProfile"
+      | "monitored",
+      string
+    >
   >;
   /**
-   * When the Sonarr add succeeded with seasonSelectionMode="episode", the workflow
-   * leaves the series unmonitored and signals that the client should transition
-   * straight into the in-modal episode picker for this Sonarr series id.
+   * Legacy library-search requests can ask the client to transition straight
+   * into the in-modal episode picker after the series is created.
    */
   pendingEpisodeSelection?: {
     sonarrSeriesId: number;

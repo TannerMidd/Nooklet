@@ -8,7 +8,6 @@ import { RecommendationSabnzbdStatus } from "@/components/recommendations/recomm
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { type RecommendationMediaType, type RecommendationFeedbackValue } from "@/lib/database/schema";
 import { type RecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
-import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 const rationaleClampStyle: CSSProperties = {
   display: "-webkit-box",
@@ -28,9 +27,6 @@ type RecommendationFeaturedCardProps = {
   existingInLibrary?: boolean;
   providerMetadata?: RecommendationProviderMetadata | null;
   routePath: "/tv" | "/movies";
-  libraryConnection: ServiceConnectionSummary | null;
-  savedRootFolderPath?: string | null;
-  savedQualityProfileId?: number | null;
   overviewHref?: string;
   animationDelayMs?: number;
 };
@@ -50,9 +46,6 @@ export function RecommendationFeaturedCard({
   existingInLibrary,
   providerMetadata,
   routePath,
-  libraryConnection,
-  savedRootFolderPath,
-  savedQualityProfileId,
   overviewHref,
   animationDelayMs = 0,
 }: RecommendationFeaturedCardProps) {
@@ -121,13 +114,8 @@ export function RecommendationFeaturedCard({
 
           <RecommendationAddForm
             itemId={itemId}
-            mediaType={mediaType}
             existingInLibrary={existingInLibrary}
             returnTo={routePath}
-            connectionSummary={libraryConnection}
-            providerMetadata={providerMetadata}
-            savedRootFolderPath={savedRootFolderPath}
-            savedQualityProfileId={savedQualityProfileId}
             variant="compact"
             buttonClassName="min-h-10 rounded-lg px-4 py-2 whitespace-nowrap"
           />

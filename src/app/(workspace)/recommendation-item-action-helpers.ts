@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { type RecommendationLibraryActionState } from "./recommendation-action-state";
-import { projectLibraryRequestFieldErrors } from "./library-request-action-helpers";
 import {
   addRecommendationToLibrarySchema,
   type AddRecommendationToLibraryInput,
@@ -28,11 +27,10 @@ export const recommendationLibraryDefaultsActionSchema = z.object({
 export function parseRecommendationLibraryActionFormData(formData: FormData) {
   return addRecommendationToLibrarySchema.safeParse({
     itemId: formData.get("itemId"),
-    rootFolderPath: formData.get("rootFolderPath"),
-    qualityProfileId: formData.get("qualityProfileId"),
-    seasonSelectionMode: formData.get("seasonSelectionMode") ?? undefined,
-    seasonNumbers: formData.getAll("seasonNumbers"),
-    tagIds: formData.getAll("tagIds"),
+    libraryId: formData.get("libraryId") ?? undefined,
+    targetLibraryPathId: formData.get("targetLibraryPathId") ?? undefined,
+    qualityProfile: formData.get("qualityProfile") ?? undefined,
+    monitored: formData.get("monitored") ?? undefined,
     returnTo: formData.get("returnTo"),
   });
 }
@@ -40,5 +38,20 @@ export function parseRecommendationLibraryActionFormData(formData: FormData) {
 export function projectRecommendationLibraryFieldErrors(
   error: z.ZodError<AddRecommendationToLibraryInput>,
 ): RecommendationLibraryActionState["fieldErrors"] {
-  return projectLibraryRequestFieldErrors(error);
+  const fieldErrors: RecommendationLibraryActionState["fieldErrors"] = {};
+
+  for (const issue of error.issues) {
+    const fieldName = issue.path[0];
+
+    if (
+      fieldName === "libraryId" ||
+      fieldName === "targetLibraryPathId" ||
+      fieldName === "qualityProfile" ||
+      fieldName === "monitored"
+    ) {
+      fieldErrors[fieldName] ??= issue.message;
+    }
+  }
+
+  return fieldErrors;
 }

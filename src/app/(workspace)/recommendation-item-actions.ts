@@ -140,16 +140,9 @@ export async function submitRecommendationLibraryAction(
 
   const result = await addRecommendationToLibrary(session.user.id, parsedInput.data);
 
+  revalidatePath("/library");
   revalidatePath("/history");
   revalidatePath(safeRevalidatePath(parsedInput.data.returnTo));
-
-  if (result.ok && result.pendingEpisodeSelection) {
-    return {
-      status: "success",
-      message: result.message,
-      pendingEpisodeSelection: result.pendingEpisodeSelection,
-    };
-  }
 
   return {
     status: result.ok ? "success" : "error",

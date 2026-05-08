@@ -1,40 +1,37 @@
 "use client";
 
+import { useActionState } from "react";
+import { Check, Plus } from "lucide-react";
+
+import {
+  initialRecommendationLibraryActionState,
+} from "@/app/(workspace)/recommendation-action-state";
 import { submitRecommendationLibraryAction } from "@/app/(workspace)/recommendation-item-actions";
-import { LibraryRequestForm } from "@/components/library/library-request-form";
-import { type RecommendationMediaType } from "@/lib/database/schema";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { type RecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
-import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 type RecommendationAddFormProps = {
   itemId: string;
-  mediaType: RecommendationMediaType;
   existingInLibrary?: boolean;
   returnTo: string;
-  connectionSummary: ServiceConnectionSummary | null;
-  providerMetadata?: RecommendationProviderMetadata | null;
-  savedRootFolderPath?: string | null;
-  savedQualityProfileId?: number | null;
   variant?: "default" | "compact";
   buttonClassName?: string;
 };
 
 export function RecommendationAddForm({
   itemId,
-  mediaType,
   existingInLibrary,
   returnTo,
-  connectionSummary,
-  providerMetadata,
-  savedRootFolderPath,
-  savedQualityProfileId,
   variant = "default",
   buttonClassName,
 }: RecommendationAddFormProps) {
-  const availableSeasons = mediaType === "tv" ? providerMetadata?.availableSeasons ?? [] : [];
-
+  const [state, formAction] = useActionState(
+    submitRecommendationLibraryAction,
+    initialRecommendationLibraryActionState,
+  );
   const isCompact = variant === "compact";
+  const isSuccess = state.status === "success";
+  const ButtonIcon = isSuccess ? Check : Plus;
 
   function renderCompactNotice(message: string, tone: "success" | "muted" | "error") {
     return (
@@ -60,35 +57,40 @@ export function RecommendationAddForm({
     );
   }
 
-  if (!connectionSummary || connectionSummary.status !== "verified") {
-    return renderCompactNotice(
-      `Verify ${mediaType === "tv" ? "Sonarr" : "Radarr"} on the connections page before adding recommended titles.`,
-      "muted",
-    );
-  }
-
-  if (connectionSummary.rootFolders.length === 0 || connectionSummary.qualityProfiles.length === 0) {
-    return renderCompactNotice(
-      `Re-run ${connectionSummary.displayName} verification to load root folders and quality profiles.`,
-      "muted",
-    );
-  }
-
   return (
-    <LibraryRequestForm
-      action={submitRecommendationLibraryAction}
-      requestKey={itemId}
-      mediaType={mediaType}
-      connectionSummary={connectionSummary}
-      availableSeasons={availableSeasons}
-      hiddenFields={[
-        { name: "itemId", value: itemId },
-        { name: "returnTo", value: returnTo },
-      ]}
-      savedRootFolderPath={savedRootFolderPath}
-      savedQualityProfileId={savedQualityProfileId}
-      variant={variant}
-      buttonClassName={buttonClassName}
-    />
+    <div className={cn(isCompact ? "space-y-2" : "mt-4 space-y-3")}>
+      {!isCompact ? (
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-foreground">Add to Nooklet</p>
+        </div>
+      ) : null}
+
+      <form action={formAction}>
+        <input type="hidden" name="itemId" value={itemId} />
+        <input type="hidden" name="returnTo" value={returnTo} />
+        <input type="hidden" name="monitored" value="true" />
+        <input type="hidden" name="qualityProfile" value="hd-1080p" />
+        <Button
+          type="submit"
+          className={cn("w-full sm:w-auto", buttonClassName)}
+          disabled={isSuccess}
+        >
+          <ButtonIcon aria-hidden="true" className="h-4 w-4" />
+          <span>{isSuccess ? "Added to Nooklet" : "Add to Nooklet"}</span>
+        </Button>
+      </form>
+
+      {state.message ? (
+        <p
+          className={cn(
+            "rounded-lg px-4 py-3 text-sm leading-6",
+            state.status === "success" && "border border-accent/20 bg-accent/10 text-foreground",
+            state.status === "error" && "border border-highlight/20 bg-highlight/10 text-highlight",
+          )}
+        >
+          {state.message}
+        </p>
+      ) : null}
+    </div>
   );
 }

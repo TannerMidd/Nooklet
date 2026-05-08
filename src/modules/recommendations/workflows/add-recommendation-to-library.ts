@@ -1,29 +1,37 @@
 import { parseRecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
-import { getServiceConnectionDefinition } from "@/modules/service-connections/service-definitions";
 import { type AddRecommendationToLibraryInput } from "@/modules/recommendations/schemas/add-to-library";
+import {
+  RequestMediaTitleCommandError,
+  requestMediaTitleCommand,
+} from "@/modules/media-library/commands/request-media-title";
 import {
   createRecommendationItemTimelineEvent,
   findRecommendationItemForUser,
   markRecommendationItemExistingInLibrary,
-  updateRecommendationItemProviderMetadata,
 } from "@/modules/recommendations/repositories/recommendation-repository";
-import { requestLibraryItem } from "@/modules/service-connections/workflows/request-library-item";
 
 type AddRecommendationToLibraryResult =
   | {
       ok: true;
       message: string;
-      pendingEpisodeSelection?: {
-        sonarrSeriesId: number;
-        seriesTitle: string;
-        recommendationItemId: string;
-      };
     }
   | {
       ok: false;
       message: string;
-      field?: "rootFolderPath" | "qualityProfileId" | "seasonNumbers" | "tagIds";
+      field?: "libraryId" | "targetLibraryPathId" | "qualityProfile";
     };
+
+function fieldForRequestMediaTitleError(error: RequestMediaTitleCommandError) {
+  if (error.code === "target_path_not_found") {
+    return "targetLibraryPathId" as const;
+  }
+
+  if (error.code === "library_not_found") {
+    return "libraryId" as const;
+  }
+
+  return undefined;
+}
 
 export async function addRecommendationToLibrary(
   userId: string,
@@ -45,108 +53,75 @@ export async function addRecommendationToLibrary(
     };
   }
 
-  const itemProviderMetadata = parseRecommendationProviderMetadata(item.providerMetadataJson);
-  const availableSeasonNumbers = itemProviderMetadata?.availableSeasons?.map(
-    (season) => season.seasonNumber,
-  );
+  const providerMetadata = parseRecommendationProviderMetadata(item.providerMetadataJson);
+  const tmdbDetails = providerMetadata?.tmdbDetails;
+  const tmdbDetailsForItem = tmdbDetails?.mediaType === item.mediaType ? tmdbDetails : null;
 
-  const serviceType = item.mediaType === "tv" ? "sonarr" : "radarr";
-  const definition = getServiceConnectionDefinition(serviceType);
-  const result = await requestLibraryItem(userId, {
-    serviceType,
-    title: item.title,
-    year: item.year,
-    rootFolderPath: input.rootFolderPath,
-    qualityProfileId: input.qualityProfileId,
-    seasonSelectionMode: input.seasonSelectionMode,
-    seasonNumbers: input.seasonNumbers,
-    tagIds: input.tagIds,
-  }, {
-    availableSeasonNumbers,
-    subjectType: "recommendation-item",
-    subjectId: item.itemId,
-    eventTypePrefix: "recommendations.item.library-add",
-    configureMessage: `Configure ${definition.displayName} before adding recommended titles.`,
-    verifyMessage: `Verify ${definition.displayName} before adding recommended titles.`,
-    auditPayload: {
-      recommendationItemId: item.itemId,
-    },
-  });
-
-  if (!result.ok) {
-    await createRecommendationItemTimelineEvent({
-      userId,
-      itemId: item.itemId,
-      eventType: "library-add",
-      status: "failed",
-      title: `Add to ${definition.displayName} failed`,
-      message: result.message,
-      metadata: {
-        serviceType,
-        field: result.field,
-      },
+  try {
+    const mediaTitle = await requestMediaTitleCommand(userId, {
+      mediaType: item.mediaType,
+      libraryId: input.libraryId,
+      targetLibraryPathId: input.targetLibraryPathId,
+      tmdbId: tmdbDetailsForItem?.tmdbId,
+      title: tmdbDetailsForItem?.title ?? item.title,
+      year: tmdbDetailsForItem?.year ?? item.year,
+      monitored: input.monitored,
+      qualityProfile: input.qualityProfile,
+      overview: tmdbDetailsForItem?.overview ?? item.rationale,
+      posterUrl: tmdbDetailsForItem?.posterUrl ?? providerMetadata?.posterUrl,
+      backdropUrl: tmdbDetailsForItem?.backdropUrl,
+      runtimeMinutes: tmdbDetailsForItem?.runtimeMinutes,
+      originalLanguage: tmdbDetailsForItem?.originalLanguage,
     });
 
-    return result;
-  }
-
-  const isEpisodeFlow =
-    serviceType === "sonarr" &&
-    input.seasonSelectionMode === "episode" &&
-    typeof result.sonarrSeriesId === "number";
-
-  if (isEpisodeFlow) {
-    const nextMetadata = {
-      ...(itemProviderMetadata ?? {}),
-      sonarrSeriesId: result.sonarrSeriesId,
-      pendingEpisodeSelection: true,
-      pendingEpisodeReturnTo: input.returnTo,
-    };
-
-    await updateRecommendationItemProviderMetadata(
-      item.itemId,
-      JSON.stringify(nextMetadata),
-    );
+    await markRecommendationItemExistingInLibrary(item.itemId, true);
     await createRecommendationItemTimelineEvent({
       userId,
       itemId: item.itemId,
       eventType: "library-add",
-      status: "pending",
-      title: `Added to ${definition.displayName}`,
-      message: `${item.title} was added to ${definition.displayName}. Episode selection is waiting for your choices.`,
+      status: "succeeded",
+      title: "Added to Nooklet",
+      message: `${item.title} was requested in your Nooklet library.`,
       metadata: {
-        serviceType,
-        sonarrSeriesId: result.sonarrSeriesId,
-        seasonSelectionMode: input.seasonSelectionMode,
+        mediaTitleId: mediaTitle.id,
+        libraryId: mediaTitle.libraryId,
+        targetLibraryPathId: input.targetLibraryPathId ?? null,
+        qualityProfile: input.qualityProfile,
+        monitored: input.monitored,
+        tmdbId: tmdbDetailsForItem?.tmdbId ?? null,
       },
     });
 
     return {
       ok: true,
-      message: `${item.title} was added to ${definition.displayName}. Choose episodes to monitor next.`,
-      pendingEpisodeSelection: {
-        sonarrSeriesId: result.sonarrSeriesId as number,
-        seriesTitle: item.title,
-        recommendationItemId: item.itemId,
+      message: `${item.title} was requested in your Nooklet library.`,
+    };
+  } catch (error) {
+    const message = error instanceof RequestMediaTitleCommandError
+      ? error.message
+      : "Nooklet could not add that title.";
+    const field = error instanceof RequestMediaTitleCommandError
+      ? fieldForRequestMediaTitleError(error)
+      : undefined;
+
+    await createRecommendationItemTimelineEvent({
+      userId,
+      itemId: item.itemId,
+      eventType: "library-add",
+      status: "failed",
+      title: "Add to Nooklet failed",
+      message,
+      metadata: {
+        field,
+        qualityProfile: input.qualityProfile,
+        monitored: input.monitored,
       },
+    });
+
+    return {
+      ok: false,
+      message,
+      field,
     };
   }
-
-  await markRecommendationItemExistingInLibrary(item.itemId, true);
-  await createRecommendationItemTimelineEvent({
-    userId,
-    itemId: item.itemId,
-    eventType: "library-add",
-    status: "succeeded",
-    title: `Added to ${definition.displayName}`,
-    message: result.message,
-    metadata: {
-      serviceType,
-      seasonSelectionMode: input.seasonSelectionMode,
-      seasonNumbers: input.seasonNumbers,
-      tagIds: input.tagIds,
-    },
-  });
-
-  return result;
 }

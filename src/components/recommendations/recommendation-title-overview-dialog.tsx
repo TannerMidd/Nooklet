@@ -15,17 +15,12 @@ import {
   formatOriginalLanguage,
   formatRuntime,
 } from "@/components/recommendations/title-overview-helpers";
-import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
-import { type PreferenceRecord } from "@/modules/preferences/queries/get-user-preferences";
 import { type getRecommendationTitleOverview } from "@/modules/recommendations/queries/get-recommendation-title-overview";
-import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 type RecommendationOverview = NonNullable<Awaited<ReturnType<typeof getRecommendationTitleOverview>>>;
 
 type RecommendationTitleOverviewDialogProps = {
   overview: RecommendationOverview;
-  preferences: PreferenceRecord;
-  connectionSummaries: ServiceConnectionSummary[];
   closeHref: string;
   actionReturnHref: string;
 };
@@ -39,8 +34,6 @@ function formatDate(value: Date) {
 
 export function RecommendationTitleOverviewDialog({
   overview,
-  preferences,
-  connectionSummaries,
   closeHref,
   actionReturnHref,
 }: RecommendationTitleOverviewDialogProps) {
@@ -54,13 +47,6 @@ export function RecommendationTitleOverviewDialog({
   const voteLabel = details?.voteAverage
     ? `${details.voteAverage.toFixed(1)} from ${details.voteCount ?? 0} votes`
     : null;
-  const sonarrSummary = connectionSummaries.find((summary) => summary.serviceType === "sonarr") ?? null;
-  const radarrSummary = connectionSummaries.find((summary) => summary.serviceType === "radarr") ?? null;
-  const libraryConnection = item.mediaType === "tv" ? sonarrSummary : radarrSummary;
-  const libraryDefaults = getLibrarySelectionDefaults(
-    preferences,
-    item.mediaType === "tv" ? "sonarr" : "radarr",
-  );
   const titleId = `recommendation-overview-${item.itemId}`;
 
   return (
@@ -134,10 +120,7 @@ export function RecommendationTitleOverviewDialog({
               existingInLibrary={item.existingInLibrary}
               isHidden={item.isHidden}
               returnTo={actionReturnHref}
-              libraryConnection={libraryConnection}
               providerMetadata={providerMetadata}
-              savedRootFolderPath={libraryDefaults.rootFolderPath}
-              savedQualityProfileId={libraryDefaults.qualityProfileId}
             />
           </section>
         </div>

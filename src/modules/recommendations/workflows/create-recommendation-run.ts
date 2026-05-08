@@ -239,7 +239,7 @@ async function executeRecommendationRunGeneration(
       tasteProfile.addedCount === 0
     ) {
       throw new Error(
-        "Enter a prompt, sync watch history, add feedback, or verify Sonarr/Radarr so the app has taste context to work from.",
+        "Enter a prompt, sync watch history, add feedback, or add titles to your Nooklet library so the app has taste context to work from.",
       );
     }
 
