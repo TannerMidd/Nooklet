@@ -95,6 +95,50 @@ describe("retryFailedCompletedDownloads", () => {
     expect(searchLibraryItemReleasesMock).toHaveBeenCalledTimes(1);
   });
 
+  it("does not retry a failed duplicate when the same item imported successfully", async () => {
+    const mediaTitleId = "b411e2d6-3a82-4d8a-bb18-053bb6e44b29";
+    const failedDuplicate = {
+      kind: "failed",
+      message: "SABnzbd reported that the download failed.",
+      source: {
+        kind: "failed",
+        message: "SABnzbd reported that the download failed.",
+        source: {
+          kind: "failed",
+          message: "SABnzbd reported that the download failed.",
+          match: {
+            request: {
+              mediaTitleId,
+              episodeId: null,
+              targetLibraryPathId: "f8496196-4656-48f5-bc51-90a544c89e2a",
+            },
+            historyItem: { statusKind: "failed" },
+          },
+        },
+      },
+    } as never;
+    const successfulImport = {
+      kind: "organized",
+      source: {
+        source: {
+          match: {
+            request: {
+              mediaTitleId,
+              episodeId: null,
+            },
+          },
+        },
+      },
+      destinationRootPath: "F:/Media/Movies/Star Trek (2009)",
+      files: [{ sourcePath: "F:/Downloads/Star Trek.mkv", destinationPath: "F:/Media/Movies/Star Trek (2009).mkv" }],
+    } as never;
+
+    const result = await retryFailedCompletedDownloads("user1", [successfulImport, failedDuplicate]);
+
+    expect(result).toEqual({ attemptedCount: 0, queuedCount: 0, failedCount: 0 });
+    expect(searchLibraryItemReleasesMock).not.toHaveBeenCalled();
+  });
+
   it("does not retry filesystem organization failures", async () => {
     const result = await retryFailedCompletedDownloads("user1", [
       {

@@ -31,6 +31,26 @@ function retryableFailureMatch(download: OrganizedCompletedDownload): MatchedCom
     : null;
 }
 
+function matchItemKey(match: MatchedCompletedDownload) {
+  if (!match.request.mediaTitleId) {
+    return null;
+  }
+
+  return `${match.request.mediaTitleId}:${match.request.episodeId ?? "movie"}`;
+}
+
+function importedItemKeys(downloads: OrganizedCompletedDownload[]) {
+  return new Set(downloads.flatMap((download) => {
+    if (download.kind !== "organized") {
+      return [];
+    }
+
+    const key = matchItemKey(download.source.source.match);
+
+    return key ? [key] : [];
+  }));
+}
+
 export async function retryFailedCompletedDownloads(
   userId: string,
   downloads: OrganizedCompletedDownload[],
@@ -39,17 +59,19 @@ export async function retryFailedCompletedDownloads(
   let queuedCount = 0;
   let failedCount = 0;
   const retriedItemKeys = new Set<string>();
+  const successfulItemKeys = importedItemKeys(downloads);
 
   for (const download of downloads) {
     const match = retryableFailureMatch(download);
 
-    if (!match?.request.mediaTitleId) {
+    if (!match) {
       continue;
     }
 
-    const itemKey = `${match.request.mediaTitleId}:${match.request.episodeId ?? "movie"}`;
+    const mediaTitleId = match.request.mediaTitleId;
+    const itemKey = matchItemKey(match);
 
-    if (retriedItemKeys.has(itemKey)) {
+    if (!mediaTitleId || !itemKey || retriedItemKeys.has(itemKey) || successfulItemKeys.has(itemKey)) {
       continue;
     }
 
@@ -60,11 +82,11 @@ export async function retryFailedCompletedDownloads(
     try {
       const exclusions = await listDownloadRequestReleaseExclusionsForItem({
         userId,
-        mediaTitleId: match.request.mediaTitleId,
+        mediaTitleId,
         episodeId: match.request.episodeId,
       });
       const retry = await searchLibraryItemReleasesWorkflow(userId, {
-        titleId: match.request.mediaTitleId,
+        titleId: mediaTitleId,
         episodeId: match.request.episodeId ?? undefined,
         targetLibraryPathId: match.request.targetLibraryPathId,
         excludedResultIds: exclusions.resultIds,
