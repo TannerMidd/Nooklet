@@ -79,3 +79,16 @@ export const initialLibraryMonitoringActionState: LibraryMonitoringActionState =
   status: "idle",
   message: null,
 };
+
+export type LibraryScanScheduleActionState = {
+  status: "idle" | "success" | "error";
+  message: string | null;
+  fieldErrors?: {
+    intervalMinutes?: string;
+  };
+};
+
+export const initialLibraryScanScheduleActionState: LibraryScanScheduleActionState = {
+  status: "idle",
+  message: null,
+};

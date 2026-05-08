@@ -4,12 +4,14 @@ import { LibraryPathForm } from "@/app/(workspace)/library/library-path-form";
 import { LibraryPathManager } from "@/app/(workspace)/library/library-path-manager";
 import { LibraryMonitoringControls } from "@/app/(workspace)/library/library-monitoring-controls";
 import { LibraryScanButton } from "@/app/(workspace)/library/library-scan-button";
+import { LibraryScanSettingsForm } from "@/app/(workspace)/library/library-scan-settings-form";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import {
   listLibraryOverview,
   type LibrarySummary,
 } from "@/modules/media-library/queries/list-library-overview";
+import { getLibraryScanSettings } from "@/modules/media-library/queries/get-library-scan-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +64,10 @@ export default async function LibraryPage() {
     return null;
   }
 
-  const overview = await listLibraryOverview(session.user.id);
+  const [overview, scanSettings] = await Promise.all([
+    listLibraryOverview(session.user.id),
+    getLibraryScanSettings(session.user.id),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -114,6 +119,10 @@ export default async function LibraryPage() {
           monitoredCount={overview.totals.monitored}
           titleCount={overview.totals.titles}
         />
+      </Panel>
+
+      <Panel eyebrow="Scanning" title="Library scan schedule">
+        <LibraryScanSettingsForm settings={scanSettings} />
       </Panel>
 
       <Panel eyebrow="Folders" title="Attach a library folder">

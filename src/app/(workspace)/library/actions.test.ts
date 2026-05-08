@@ -112,6 +112,9 @@ vi.mock("@/modules/media-library/workflows/scan-library", async (importOriginal)
     scanMediaLibraryWorkflow: vi.fn(),
   };
 });
+vi.mock("@/modules/media-library/workflows/configure-library-scan-schedule", () => ({
+  configureLibraryScanSchedule: vi.fn(),
+}));
 vi.mock("@/modules/media-library/workflows/search-library-item-releases", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/media-library/workflows/search-library-item-releases")>();
   return {
@@ -155,6 +158,9 @@ import {
   ScanMediaLibraryWorkflowError,
 } from "@/modules/media-library/workflows/scan-library";
 import {
+  configureLibraryScanSchedule,
+} from "@/modules/media-library/workflows/configure-library-scan-schedule";
+import {
   searchLibraryItemReleasesWorkflow,
   SearchLibraryItemReleasesWorkflowError,
 } from "@/modules/media-library/workflows/search-library-item-releases";
@@ -167,12 +173,14 @@ import {
   searchLibraryItemReleasesAction,
   updateLibraryPathAction,
   updateLibraryMonitoringAction,
+  updateLibraryScanScheduleAction,
   updateMediaTitlePreferencesAction,
   updateTvEpisodeMonitoringAction,
 } from "./actions";
 import {
   initialLibraryItemSearchActionState,
   initialLibraryMonitoringActionState,
+  initialLibraryScanScheduleActionState,
   initialLibraryPathActionState,
   initialLibraryPathMutationActionState,
   initialMediaTitlePreferenceActionState,
@@ -189,6 +197,7 @@ const updateTvEpisodeMonitoringMock = vi.mocked(updateTvEpisodeMonitoringCommand
 const removeLibraryPathMock = vi.mocked(removeLibraryPathCommand);
 const removeMediaTitleMock = vi.mocked(removeMediaTitleCommand);
 const scanLibraryMock = vi.mocked(scanMediaLibraryWorkflow);
+const configureLibraryScanScheduleMock = vi.mocked(configureLibraryScanSchedule);
 const searchLibraryItemMock = vi.mocked(searchLibraryItemReleasesWorkflow);
 const revalidateMock = vi.mocked(revalidatePath);
 
@@ -287,6 +296,53 @@ describe("scanLibraryAction", () => {
     expect(scanLibraryMock).toHaveBeenCalledWith("u1", {});
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(result).toEqual({ status: "success", message: "Scan finished: 2 files, 1 title." });
+  });
+});
+
+describe("updateLibraryScanScheduleAction", () => {
+  function validForm() {
+    const form = new FormData();
+    form.set("enabled", "on");
+    form.set("intervalMinutes", "120");
+    return form;
+  }
+
+  it("returns sign-in error when there is no session", async () => {
+    authMock.mockResolvedValue(null as never);
+
+    const result = await updateLibraryScanScheduleAction(initialLibraryScanScheduleActionState, validForm());
+
+    expect(result).toEqual({ status: "error", message: "You need to sign in again." });
+    expect(configureLibraryScanScheduleMock).not.toHaveBeenCalled();
+  });
+
+  it("validates interval minutes", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    const form = validForm();
+    form.set("intervalMinutes", "5");
+
+    const result = await updateLibraryScanScheduleAction(initialLibraryScanScheduleActionState, form);
+
+    expect(result.status).toBe("error");
+    expect(result.fieldErrors?.intervalMinutes).toBe("Schedule at least every 15 minutes.");
+    expect(configureLibraryScanScheduleMock).not.toHaveBeenCalled();
+  });
+
+  it("saves the schedule and revalidates the library page", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    configureLibraryScanScheduleMock.mockResolvedValue({
+      ok: true,
+      message: "Library scan enabled every 120 minutes.",
+    });
+
+    const result = await updateLibraryScanScheduleAction(initialLibraryScanScheduleActionState, validForm());
+
+    expect(configureLibraryScanScheduleMock).toHaveBeenCalledWith("u1", {
+      enabled: true,
+      intervalMinutes: 120,
+    });
+    expect(revalidateMock).toHaveBeenCalledWith("/library");
+    expect(result).toEqual({ status: "success", message: "Library scan enabled every 120 minutes." });
   });
 });
 

@@ -11,16 +11,21 @@ vi.mock("@/modules/jobs/repositories/job-repository", () => ({
   completeJobRun: vi.fn(),
   failJobRun: vi.fn(),
 }));
+vi.mock("@/modules/media-library/workflows/scan-library", () => ({
+  scanMediaLibraryWorkflow: vi.fn(),
+}));
 
 import { listUsersWithActiveDownloadRequestsForImport } from "@/modules/downloads/queries/list-users-with-active-download-requests";
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
 import { claimDueJobs } from "@/modules/jobs/repositories/job-repository";
+import { scanMediaLibraryWorkflow } from "@/modules/media-library/workflows/scan-library";
 
 import { runDueJobs } from "./worker";
 
 const listActiveUsersMock = vi.mocked(listUsersWithActiveDownloadRequestsForImport);
 const importCompletedDownloadsMock = vi.mocked(importCompletedDownloadsWorkflow);
 const claimDueJobsMock = vi.mocked(claimDueJobs);
+const scanMediaLibraryMock = vi.mocked(scanMediaLibraryWorkflow);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -35,6 +40,7 @@ beforeEach(() => {
     discovery: { attempted: false, ok: true, message: null },
   });
   claimDueJobsMock.mockResolvedValue([]);
+  scanMediaLibraryMock.mockResolvedValue({ discoveredFileCount: 0, matchedTitleCount: 0 } as never);
 });
 
 describe("runDueJobs", () => {
@@ -46,6 +52,7 @@ describe("runDueJobs", () => {
     expect(importCompletedDownloadsMock).toHaveBeenNthCalledWith(1, "user1");
     expect(importCompletedDownloadsMock).toHaveBeenNthCalledWith(2, "user2");
     expect(claimDueJobsMock).toHaveBeenCalledWith("watch-history-sync", expect.any(Date), 4);
+    expect(claimDueJobsMock).toHaveBeenCalledWith("media-library-scan", expect.any(Date), 2);
     expect(claimDueJobsMock).toHaveBeenCalledWith("recommendation-run", expect.any(Date), 2);
   });
 
@@ -71,6 +78,28 @@ describe("runDueJobs", () => {
 
     expect(importCompletedDownloadsMock).toHaveBeenCalledTimes(2);
     expect(claimDueJobsMock).toHaveBeenCalledWith("watch-history-sync", expect.any(Date), 4);
+    expect(claimDueJobsMock).toHaveBeenCalledWith("media-library-scan", expect.any(Date), 2);
     expect(claimDueJobsMock).toHaveBeenCalledWith("recommendation-run", expect.any(Date), 2);
+  });
+
+  it("runs due media library scan jobs", async () => {
+    claimDueJobsMock.mockImplementation(async (jobType) => {
+      if (jobType !== "media-library-scan") {
+        return [];
+      }
+
+      return [{
+        id: "job1",
+        userId: "user1",
+        jobType: "media-library-scan",
+        targetType: "media-library",
+        targetKey: "all",
+        scheduleMinutes: 120,
+      }] as never;
+    });
+
+    await runDueJobs();
+
+    expect(scanMediaLibraryMock).toHaveBeenCalledWith("user1", {});
   });
 });

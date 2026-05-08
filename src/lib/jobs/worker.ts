@@ -6,6 +6,7 @@ import {
 } from "@/modules/jobs/repositories/job-repository";
 import { listUsersWithActiveDownloadRequestsForImport } from "@/modules/downloads/queries/list-users-with-active-download-requests";
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
+import { scanMediaLibraryWorkflow } from "@/modules/media-library/workflows/scan-library";
 import { parsePlexWatchHistorySourceMetadata } from "@/modules/watch-history/plex-watch-history-source-metadata";
 import { executeQueuedRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
 import { parseWatchHistorySourceMetadataJson } from "@/modules/watch-history/source-metadata";
@@ -134,9 +135,21 @@ async function runRecommendationJob(job: StoredJob) {
   }
 }
 
+async function runMediaLibraryScanJob(job: StoredJob) {
+  if (job.targetType !== "media-library" || job.targetKey !== "all") {
+    throw new Error(`Unsupported media library scan target: ${job.targetType}:${job.targetKey}.`);
+  }
+
+  await scanMediaLibraryWorkflow(job.userId, {});
+}
+
 async function executeJob(job: StoredJob) {
   if (job.jobType === "recommendation-run") {
     return runRecommendationJob(job);
+  }
+
+  if (job.jobType === "media-library-scan") {
+    return runMediaLibraryScanJob(job);
   }
 
   if (job.targetType !== "watch-history-source") {
@@ -179,6 +192,7 @@ export async function runDueJobs() {
 
     const dueJobs = [
       ...(await claimDueJobs("watch-history-sync", new Date(), 4)),
+      ...(await claimDueJobs("media-library-scan", new Date(), 2)),
       ...(await claimDueJobs("recommendation-run", new Date(), 2)),
     ];
 

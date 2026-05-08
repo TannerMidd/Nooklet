@@ -36,6 +36,7 @@ import {
   updateLibraryPathInputSchema,
 } from "@/modules/media-library/schemas/library-path";
 import { getMediaQualityProfileLabel } from "@/modules/media-library/queries/list-media-quality-profiles";
+import { libraryScanScheduleInputSchema } from "@/modules/media-library/schemas/library-scan-schedule";
 import {
   updateMediaLibraryMonitoringInputSchema,
   updateMediaTitlePreferencesInputSchema,
@@ -52,15 +53,18 @@ import {
   scanMediaLibraryWorkflow,
   ScanMediaLibraryWorkflowError,
 } from "@/modules/media-library/workflows/scan-library";
+import { configureLibraryScanSchedule } from "@/modules/media-library/workflows/configure-library-scan-schedule";
 import {
   initialLibraryItemSearchActionState,
   initialLibraryMonitoringActionState,
+  initialLibraryScanScheduleActionState,
   initialMediaTitlePreferenceActionState,
   initialRemoveMediaTitleActionState,
   initialScanLibraryActionState,
   initialTvEpisodeMonitoringActionState,
   type LibraryItemSearchActionState,
   type LibraryMonitoringActionState,
+  type LibraryScanScheduleActionState,
   type LibraryPathActionState,
   type LibraryPathMutationActionState,
   type MediaTitlePreferenceActionState,
@@ -454,4 +458,45 @@ export async function updateLibraryMonitoringAction(
       ? `Monitoring enabled for ${result.titleCount} title${result.titleCount === 1 ? "" : "s"}.`
       : `Monitoring disabled for ${result.titleCount} title${result.titleCount === 1 ? "" : "s"}.`,
   };
+}
+
+export async function updateLibraryScanScheduleAction(
+  _previous: LibraryScanScheduleActionState,
+  formData: FormData,
+): Promise<LibraryScanScheduleActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { ...initialLibraryScanScheduleActionState, status: "error", message: "You need to sign in again." };
+  }
+
+  const parsed = libraryScanScheduleInputSchema.safeParse({
+    intervalMinutes: formData.get("intervalMinutes"),
+    enabled: formData.get("enabled") === "on",
+  });
+
+  if (!parsed.success) {
+    const fieldErrors = parsed.error.flatten().fieldErrors;
+
+    return {
+      status: "error",
+      message: "Review the scan schedule and try again.",
+      fieldErrors: {
+        intervalMinutes: fieldErrors.intervalMinutes?.[0],
+      },
+    };
+  }
+
+  try {
+    const result = await configureLibraryScanSchedule(session.user.id, parsed.data);
+
+    revalidatePath("/library");
+    return { status: "success", message: result.message };
+  } catch {
+    return {
+      ...initialLibraryScanScheduleActionState,
+      status: "error",
+      message: "Nooklet could not update the scan schedule.",
+    };
+  }
 }
