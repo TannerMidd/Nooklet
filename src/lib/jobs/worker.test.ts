@@ -6,6 +6,9 @@ vi.mock("@/modules/downloads/queries/list-users-with-active-download-requests", 
 vi.mock("@/modules/downloads/workflows/import-completed-downloads", () => ({
   importCompletedDownloadsWorkflow: vi.fn(),
 }));
+vi.mock("@/modules/downloads/workflows/reconcile-missing-queue-items", () => ({
+  reconcileMissingSabnzbdQueueItemsWorkflow: vi.fn(),
+}));
 vi.mock("@/modules/jobs/repositories/job-repository", () => ({
   claimDueJobs: vi.fn(),
   completeJobRun: vi.fn(),
@@ -17,6 +20,7 @@ vi.mock("@/modules/media-library/workflows/scan-library", () => ({
 
 import { listUsersWithActiveDownloadRequestsForImport } from "@/modules/downloads/queries/list-users-with-active-download-requests";
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
+import { reconcileMissingSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-missing-queue-items";
 import { claimDueJobs } from "@/modules/jobs/repositories/job-repository";
 import { scanMediaLibraryWorkflow } from "@/modules/media-library/workflows/scan-library";
 
@@ -24,6 +28,7 @@ import { runDueJobs } from "./worker";
 
 const listActiveUsersMock = vi.mocked(listUsersWithActiveDownloadRequestsForImport);
 const importCompletedDownloadsMock = vi.mocked(importCompletedDownloadsWorkflow);
+const reconcileMissingQueueMock = vi.mocked(reconcileMissingSabnzbdQueueItemsWorkflow);
 const claimDueJobsMock = vi.mocked(claimDueJobs);
 const scanMediaLibraryMock = vi.mocked(scanMediaLibraryWorkflow);
 
@@ -39,6 +44,12 @@ beforeEach(() => {
     retry: { attemptedCount: 0, queuedCount: 0, failedCount: 0 },
     discovery: { attempted: false, ok: true, message: null },
   });
+  reconcileMissingQueueMock.mockResolvedValue({
+    missingCount: 0,
+    attemptedCount: 0,
+    queuedCount: 0,
+    failedCount: 0,
+  });
   claimDueJobsMock.mockResolvedValue([]);
   scanMediaLibraryMock.mockResolvedValue({ discoveredFileCount: 0, matchedTitleCount: 0 } as never);
 });
@@ -51,6 +62,8 @@ describe("runDueJobs", () => {
 
     expect(importCompletedDownloadsMock).toHaveBeenNthCalledWith(1, "user1");
     expect(importCompletedDownloadsMock).toHaveBeenNthCalledWith(2, "user2");
+    expect(reconcileMissingQueueMock).toHaveBeenNthCalledWith(1, "user1");
+    expect(reconcileMissingQueueMock).toHaveBeenNthCalledWith(2, "user2");
     expect(claimDueJobsMock).toHaveBeenCalledWith("watch-history-sync", expect.any(Date), 4);
     expect(claimDueJobsMock).toHaveBeenCalledWith("media-library-scan", expect.any(Date), 2);
     expect(claimDueJobsMock).toHaveBeenCalledWith("recommendation-run", expect.any(Date), 2);
@@ -77,6 +90,8 @@ describe("runDueJobs", () => {
     await runDueJobs();
 
     expect(importCompletedDownloadsMock).toHaveBeenCalledTimes(2);
+    expect(reconcileMissingQueueMock).toHaveBeenCalledTimes(1);
+    expect(reconcileMissingQueueMock).toHaveBeenCalledWith("user2");
     expect(claimDueJobsMock).toHaveBeenCalledWith("watch-history-sync", expect.any(Date), 4);
     expect(claimDueJobsMock).toHaveBeenCalledWith("media-library-scan", expect.any(Date), 2);
     expect(claimDueJobsMock).toHaveBeenCalledWith("recommendation-run", expect.any(Date), 2);

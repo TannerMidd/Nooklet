@@ -3,16 +3,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/modules/downloads/workflows/import-completed-downloads", () => ({
   importCompletedDownloadsWorkflow: vi.fn(),
 }));
+vi.mock("@/modules/downloads/workflows/reconcile-missing-queue-items", () => ({
+  reconcileMissingSabnzbdQueueItemsWorkflow: vi.fn(),
+}));
 vi.mock("./get-active-sabnzbd-queue", () => ({
   getActiveSabnzbdQueue: vi.fn(),
 }));
 
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
+import { reconcileMissingSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-missing-queue-items";
 
 import { getActiveSabnzbdQueue } from "./get-active-sabnzbd-queue";
 import { refreshSabnzbdQueueActivity } from "./refresh-sabnzbd-queue-activity";
 
 const importCompletedDownloadsMock = vi.mocked(importCompletedDownloadsWorkflow);
+const reconcileMissingQueueMock = vi.mocked(reconcileMissingSabnzbdQueueItemsWorkflow);
 const getActiveSabnzbdQueueMock = vi.mocked(getActiveSabnzbdQueue);
 
 const verifiedQueueState = {
@@ -32,20 +37,30 @@ const verifiedQueueState = {
 beforeEach(() => {
   vi.clearAllMocks();
   importCompletedDownloadsMock.mockResolvedValue({} as never);
+  reconcileMissingQueueMock.mockResolvedValue({
+    missingCount: 0,
+    attemptedCount: 0,
+    queuedCount: 0,
+    failedCount: 0,
+  });
   getActiveSabnzbdQueueMock.mockResolvedValue(verifiedQueueState as never);
 });
 
 describe("refreshSabnzbdQueueActivity", () => {
-  it("reconciles completed downloads before returning the queue state", async () => {
+  it("loads the queue, imports completed downloads, and reconciles missing queue items", async () => {
     const calls: string[] = [];
 
+    getActiveSabnzbdQueueMock.mockImplementation(async () => {
+      calls.push("queue");
+      return verifiedQueueState as never;
+    });
     importCompletedDownloadsMock.mockImplementation(async () => {
       calls.push("import");
       return {} as never;
     });
-    getActiveSabnzbdQueueMock.mockImplementation(async () => {
-      calls.push("queue");
-      return verifiedQueueState as never;
+    reconcileMissingQueueMock.mockImplementation(async () => {
+      calls.push("missing");
+      return { missingCount: 0, attemptedCount: 0, queuedCount: 0, failedCount: 0 };
     });
 
     const result = await refreshSabnzbdQueueActivity("user1");
@@ -53,7 +68,10 @@ describe("refreshSabnzbdQueueActivity", () => {
     expect(result).toBe(verifiedQueueState);
     expect(importCompletedDownloadsMock).toHaveBeenCalledWith("user1");
     expect(getActiveSabnzbdQueueMock).toHaveBeenCalledWith("user1");
-    expect(calls).toEqual(["import", "queue"]);
+    expect(reconcileMissingQueueMock).toHaveBeenCalledWith("user1", {
+      queueSnapshot: verifiedQueueState.snapshot,
+    });
+    expect(calls).toEqual(["queue", "import", "missing"]);
   });
 
   it("keeps the queue response available when reconciliation fails", async () => {
@@ -83,5 +101,6 @@ describe("refreshSabnzbdQueueActivity", () => {
       statusMessage: "Connect SABnzbd to track active request progress.",
       snapshot: null,
     });
+    expect(reconcileMissingQueueMock).not.toHaveBeenCalled();
   });
 });

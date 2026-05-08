@@ -1,4 +1,5 @@
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
+import { reconcileMissingSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-missing-queue-items";
 
 import { getActiveSabnzbdQueue, type ActiveSabnzbdQueueState } from "./get-active-sabnzbd-queue";
 
@@ -10,14 +11,18 @@ function errorMessage(error: unknown) {
 
 export async function refreshSabnzbdQueueActivity(userId: string): Promise<ActiveSabnzbdQueueState> {
   let importErrorMessage: string | null = null;
+  const queueState = await getActiveSabnzbdQueue(userId);
 
   try {
     await importCompletedDownloadsWorkflow(userId);
+    if (queueState.connectionStatus === "verified") {
+      await reconcileMissingSabnzbdQueueItemsWorkflow(userId, {
+        queueSnapshot: queueState.snapshot,
+      });
+    }
   } catch (error) {
     importErrorMessage = errorMessage(error);
   }
-
-  const queueState = await getActiveSabnzbdQueue(userId);
 
   if (!importErrorMessage || queueState.connectionStatus !== "verified") {
     return queueState;
