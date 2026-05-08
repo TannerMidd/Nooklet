@@ -1,4 +1,5 @@
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
+import { reconcileDuplicateSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-duplicate-queue-items";
 import { reconcileMissingSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-missing-queue-items";
 
 import { getActiveSabnzbdQueue, type ActiveSabnzbdQueueState } from "./get-active-sabnzbd-queue";
@@ -11,7 +12,7 @@ function errorMessage(error: unknown) {
 
 export async function refreshSabnzbdQueueActivity(userId: string): Promise<ActiveSabnzbdQueueState> {
   let importErrorMessage: string | null = null;
-  const queueState = await getActiveSabnzbdQueue(userId);
+  let queueState = await getActiveSabnzbdQueue(userId);
 
   try {
     await importCompletedDownloadsWorkflow(userId);
@@ -19,6 +20,13 @@ export async function refreshSabnzbdQueueActivity(userId: string): Promise<Activ
       await reconcileMissingSabnzbdQueueItemsWorkflow(userId, {
         queueSnapshot: queueState.snapshot,
       });
+      const duplicateResult = await reconcileDuplicateSabnzbdQueueItemsWorkflow(userId, {
+        queueSnapshot: queueState.snapshot,
+      });
+
+      if (duplicateResult.removedCount > 0) {
+        queueState = await getActiveSabnzbdQueue(userId);
+      }
     }
   } catch (error) {
     importErrorMessage = errorMessage(error);

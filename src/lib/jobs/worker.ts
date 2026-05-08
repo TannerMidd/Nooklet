@@ -6,6 +6,7 @@ import {
 } from "@/modules/jobs/repositories/job-repository";
 import { listUsersWithActiveDownloadRequestsForImport } from "@/modules/downloads/queries/list-users-with-active-download-requests";
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
+import { reconcileDuplicateSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-duplicate-queue-items";
 import { reconcileMissingSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-missing-queue-items";
 import { scanMediaLibraryWorkflow } from "@/modules/media-library/workflows/scan-library";
 import { parsePlexWatchHistorySourceMetadata } from "@/modules/watch-history/plex-watch-history-source-metadata";
@@ -176,6 +177,7 @@ async function runCompletedDownloadImportPass() {
     try {
       await importCompletedDownloadsWorkflow(userId);
       await reconcileMissingSabnzbdQueueItemsWorkflow(userId);
+      await reconcileDuplicateSabnzbdQueueItemsWorkflow(userId);
     } catch {
       // Download imports retry on the next worker tick while the request remains active.
     }

@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/modules/downloads/workflows/import-completed-downloads", () => ({
   importCompletedDownloadsWorkflow: vi.fn(),
 }));
+vi.mock("@/modules/downloads/workflows/reconcile-duplicate-queue-items", () => ({
+  reconcileDuplicateSabnzbdQueueItemsWorkflow: vi.fn(),
+}));
 vi.mock("@/modules/downloads/workflows/reconcile-missing-queue-items", () => ({
   reconcileMissingSabnzbdQueueItemsWorkflow: vi.fn(),
 }));
@@ -11,12 +14,14 @@ vi.mock("./get-active-sabnzbd-queue", () => ({
 }));
 
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
+import { reconcileDuplicateSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-duplicate-queue-items";
 import { reconcileMissingSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-missing-queue-items";
 
 import { getActiveSabnzbdQueue } from "./get-active-sabnzbd-queue";
 import { refreshSabnzbdQueueActivity } from "./refresh-sabnzbd-queue-activity";
 
 const importCompletedDownloadsMock = vi.mocked(importCompletedDownloadsWorkflow);
+const reconcileDuplicateQueueMock = vi.mocked(reconcileDuplicateSabnzbdQueueItemsWorkflow);
 const reconcileMissingQueueMock = vi.mocked(reconcileMissingSabnzbdQueueItemsWorkflow);
 const getActiveSabnzbdQueueMock = vi.mocked(getActiveSabnzbdQueue);
 
@@ -43,11 +48,16 @@ beforeEach(() => {
     queuedCount: 0,
     failedCount: 0,
   });
+  reconcileDuplicateQueueMock.mockResolvedValue({
+    duplicateGroupCount: 0,
+    keptCount: 0,
+    removedCount: 0,
+    failedCount: 0,
+  });
   getActiveSabnzbdQueueMock.mockResolvedValue(verifiedQueueState as never);
 });
-
 describe("refreshSabnzbdQueueActivity", () => {
-  it("loads the queue, imports completed downloads, and reconciles missing queue items", async () => {
+  it("loads the queue, imports completed downloads, and reconciles queue items", async () => {
     const calls: string[] = [];
 
     getActiveSabnzbdQueueMock.mockImplementation(async () => {
@@ -62,6 +72,10 @@ describe("refreshSabnzbdQueueActivity", () => {
       calls.push("missing");
       return { missingCount: 0, attemptedCount: 0, queuedCount: 0, failedCount: 0 };
     });
+    reconcileDuplicateQueueMock.mockImplementation(async () => {
+      calls.push("duplicates");
+      return { duplicateGroupCount: 0, keptCount: 0, removedCount: 0, failedCount: 0 };
+    });
 
     const result = await refreshSabnzbdQueueActivity("user1");
 
@@ -71,7 +85,38 @@ describe("refreshSabnzbdQueueActivity", () => {
     expect(reconcileMissingQueueMock).toHaveBeenCalledWith("user1", {
       queueSnapshot: verifiedQueueState.snapshot,
     });
-    expect(calls).toEqual(["queue", "import", "missing"]);
+    expect(reconcileDuplicateQueueMock).toHaveBeenCalledWith("user1", {
+      queueSnapshot: verifiedQueueState.snapshot,
+    });
+    expect(calls).toEqual(["queue", "import", "missing", "duplicates"]);
+  });
+
+  it("refreshes the returned queue after duplicate active downloads are removed", async () => {
+    const refreshedQueueState = {
+      ...verifiedQueueState,
+      statusMessage: "1 active SABnzbd request.",
+      snapshot: {
+        ...verifiedQueueState.snapshot,
+        activeQueueCount: 1,
+        totalQueueCount: 1,
+        items: [{ id: "kept-nzo" }],
+      },
+    } as const;
+
+    reconcileDuplicateQueueMock.mockResolvedValue({
+      duplicateGroupCount: 1,
+      keptCount: 1,
+      removedCount: 1,
+      failedCount: 0,
+    });
+    getActiveSabnzbdQueueMock
+      .mockResolvedValueOnce(verifiedQueueState as never)
+      .mockResolvedValueOnce(refreshedQueueState as never);
+
+    const result = await refreshSabnzbdQueueActivity("user1");
+
+    expect(result).toBe(refreshedQueueState);
+    expect(getActiveSabnzbdQueueMock).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the queue response available when reconciliation fails", async () => {
@@ -102,5 +147,6 @@ describe("refreshSabnzbdQueueActivity", () => {
       snapshot: null,
     });
     expect(reconcileMissingQueueMock).not.toHaveBeenCalled();
+    expect(reconcileDuplicateQueueMock).not.toHaveBeenCalled();
   });
 });
