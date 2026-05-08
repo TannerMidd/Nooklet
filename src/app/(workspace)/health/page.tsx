@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { listUserJobs } from "@/modules/jobs/queries/list-user-jobs";
+import { isVisibleServiceConnectionType } from "@/modules/service-connections/service-visibility";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import { getWatchHistoryOverview } from "@/modules/watch-history/queries/get-watch-history-overview";
 
@@ -44,7 +45,10 @@ export default async function HealthPage() {
     getWatchHistoryOverview(session.user.id),
     listUserJobs(session.user.id),
   ]);
-  const verifiedConnections = connections.filter((connection) => connection.status === "verified").length;
+  const visibleConnections = connections.filter((connection) =>
+    isVisibleServiceConnectionType(connection.serviceType),
+  );
+  const verifiedConnections = visibleConnections.filter((connection) => connection.status === "verified").length;
   const activeJobs = jobs.filter((job) => job.isEnabled || job.lastStatus === "running");
 
   return (
@@ -54,7 +58,7 @@ export default async function HealthPage() {
       <Panel eyebrow="Overview" title="System snapshot">
         <div className="grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-            <span className="font-medium">Verified services:</span> {verifiedConnections}/{connections.length}
+            <span className="font-medium">Verified services:</span> {verifiedConnections}/{visibleConnections.length}
           </div>
           <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
             <span className="font-medium">History items:</span> {watchHistoryOverview.totalCount}
@@ -70,7 +74,7 @@ export default async function HealthPage() {
 
       <Panel eyebrow="Connections" title="Service health">
         <div className="grid gap-3 lg:grid-cols-2">
-          {connections.map((connection) => (
+          {visibleConnections.map((connection) => (
             <article key={connection.serviceType} className={`rounded-2xl border px-4 py-4 text-sm leading-6 ${statusTone(connection.status)}`}>
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div>
