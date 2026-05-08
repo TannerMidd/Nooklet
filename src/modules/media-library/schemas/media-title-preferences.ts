@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { mediaQualityProfiles } from "@/lib/database/schema";
+import { mediaQualityProfiles, recommendationMediaTypes } from "@/lib/database/schema";
 
 export const updateMediaTitlePreferencesInputSchema = z.object({
   titleId: z.string().uuid("Select a title and try again."),
@@ -9,3 +9,10 @@ export const updateMediaTitlePreferencesInputSchema = z.object({
 });
 
 export type UpdateMediaTitlePreferencesInput = z.infer<typeof updateMediaTitlePreferencesInputSchema>;
+
+export const updateMediaLibraryMonitoringInputSchema = z.object({
+  mediaType: z.enum([...recommendationMediaTypes, "all"]).default("all"),
+  monitored: z.boolean(),
+});
+
+export type UpdateMediaLibraryMonitoringInput = z.infer<typeof updateMediaLibraryMonitoringInputSchema>;

@@ -86,6 +86,9 @@ vi.mock("@/modules/media-library/commands/update-media-title-preferences", () =>
     UpdateMediaTitlePreferencesCommandError,
   };
 });
+vi.mock("@/modules/media-library/commands/update-media-library-monitoring", () => ({
+  updateMediaLibraryMonitoringCommand: vi.fn(),
+}));
 vi.mock("@/modules/media-library/commands/update-tv-episode-monitoring", () => {
   class UpdateTvEpisodeMonitoringCommandError extends Error {
     constructor(
@@ -141,6 +144,9 @@ import {
   UpdateMediaTitlePreferencesCommandError,
 } from "@/modules/media-library/commands/update-media-title-preferences";
 import {
+  updateMediaLibraryMonitoringCommand,
+} from "@/modules/media-library/commands/update-media-library-monitoring";
+import {
   updateTvEpisodeMonitoringCommand,
   UpdateTvEpisodeMonitoringCommandError,
 } from "@/modules/media-library/commands/update-tv-episode-monitoring";
@@ -160,11 +166,13 @@ import {
   scanLibraryAction,
   searchLibraryItemReleasesAction,
   updateLibraryPathAction,
+  updateLibraryMonitoringAction,
   updateMediaTitlePreferencesAction,
   updateTvEpisodeMonitoringAction,
 } from "./actions";
 import {
   initialLibraryItemSearchActionState,
+  initialLibraryMonitoringActionState,
   initialLibraryPathActionState,
   initialLibraryPathMutationActionState,
   initialMediaTitlePreferenceActionState,
@@ -175,6 +183,7 @@ import {
 const authMock = vi.mocked(auth);
 const addLibraryPathMock = vi.mocked(addLibraryPathCommand);
 const updateLibraryPathMock = vi.mocked(updateLibraryPathCommand);
+const updateLibraryMonitoringMock = vi.mocked(updateMediaLibraryMonitoringCommand);
 const updateMediaTitlePreferencesMock = vi.mocked(updateMediaTitlePreferencesCommand);
 const updateTvEpisodeMonitoringMock = vi.mocked(updateTvEpisodeMonitoringCommand);
 const removeLibraryPathMock = vi.mocked(removeLibraryPathCommand);
@@ -438,6 +447,57 @@ describe("updateMediaTitlePreferencesAction", () => {
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
     expect(result).toEqual({ status: "success", message: "Title preferences updated." });
+  });
+});
+
+describe("updateLibraryMonitoringAction", () => {
+  function validForm(monitored: boolean) {
+    const form = new FormData();
+    form.set("mediaType", "all");
+    form.set("monitored", String(monitored));
+    return form;
+  }
+
+  it("returns sign-in error when there is no session", async () => {
+    authMock.mockResolvedValue(null as never);
+
+    const result = await updateLibraryMonitoringAction(initialLibraryMonitoringActionState, validForm(false));
+
+    expect(result).toEqual({ status: "error", message: "You need to sign in again." });
+    expect(updateLibraryMonitoringMock).not.toHaveBeenCalled();
+  });
+
+  it("validates the monitoring scope", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    const form = validForm(false);
+    form.set("mediaType", "music");
+
+    const result = await updateLibraryMonitoringAction(initialLibraryMonitoringActionState, form);
+
+    expect(result.status).toBe("error");
+    expect(updateLibraryMonitoringMock).not.toHaveBeenCalled();
+  });
+
+  it("updates all monitoring without triggering a release search", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    updateLibraryMonitoringMock.mockResolvedValue({
+      monitored: false,
+      titleCount: 4,
+      seasonCount: 2,
+      episodeCount: 8,
+    });
+
+    const result = await updateLibraryMonitoringAction(initialLibraryMonitoringActionState, validForm(false));
+
+    expect(updateLibraryMonitoringMock).toHaveBeenCalledWith("u1", {
+      mediaType: "all",
+      monitored: false,
+    });
+    expect(searchLibraryItemMock).not.toHaveBeenCalled();
+    expect(revalidateMock).toHaveBeenCalledWith("/library");
+    expect(revalidateMock).toHaveBeenCalledWith("/library/movies");
+    expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
+    expect(result).toEqual({ status: "success", message: "Monitoring disabled for 4 titles." });
   });
 });
 

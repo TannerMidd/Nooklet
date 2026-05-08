@@ -69,3 +69,13 @@ export const initialTvEpisodeMonitoringActionState: TvEpisodeMonitoringActionSta
   status: "idle",
   message: null,
 };
+
+export type LibraryMonitoringActionState = {
+  status: "idle" | "success" | "error";
+  message: string | null;
+};
+
+export const initialLibraryMonitoringActionState: LibraryMonitoringActionState = {
+  status: "idle",
+  message: null,
+};

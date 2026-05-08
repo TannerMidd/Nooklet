@@ -35,6 +35,7 @@ export type LibraryOverview = {
     libraries: number;
     paths: number;
     titles: number;
+    monitored: number;
     files: number;
   };
 };
@@ -110,6 +111,7 @@ export async function listLibraryOverview(userId: string): Promise<LibraryOvervi
       libraries: summaries.length,
       paths: paths.length,
       titles: titles.length,
+      monitored: titles.filter((title) => title.monitored).length,
       files: files.length,
     },
   };

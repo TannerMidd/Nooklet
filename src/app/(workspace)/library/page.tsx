@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import Link from "next/link";
 import { LibraryPathForm } from "@/app/(workspace)/library/library-path-form";
 import { LibraryPathManager } from "@/app/(workspace)/library/library-path-manager";
+import { LibraryMonitoringControls } from "@/app/(workspace)/library/library-monitoring-controls";
 import { LibraryScanButton } from "@/app/(workspace)/library/library-scan-button";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
@@ -107,6 +108,13 @@ export default async function LibraryPage() {
           <span className="mt-1 block text-muted">Open discovered local series.</span>
         </Link>
       </div>
+
+      <Panel eyebrow="Monitoring" title="Library monitoring">
+        <LibraryMonitoringControls
+          monitoredCount={overview.totals.monitored}
+          titleCount={overview.totals.titles}
+        />
+      </Panel>
 
       <Panel eyebrow="Folders" title="Attach a library folder">
         <LibraryPathForm />

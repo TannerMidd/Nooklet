@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
@@ -370,6 +370,53 @@ export async function updateMediaTitlePreferences(input: {
     .run();
 
   return findMediaTitleByIdForUser(input.userId, input.titleId);
+}
+
+export async function updateMediaLibraryMonitoring(input: {
+  userId: string;
+  mediaType?: RecommendationMediaType;
+  monitored: boolean;
+}) {
+  const database = ensureDatabaseReady();
+  const updatedAt = new Date();
+  const titleFilters = input.mediaType
+    ? and(eq(mediaTitles.userId, input.userId), eq(mediaTitles.mediaType, input.mediaType))
+    : eq(mediaTitles.userId, input.userId);
+  const titles = database.select({ id: mediaTitles.id }).from(mediaTitles).where(titleFilters).all();
+  const titleIds = titles.map((title) => title.id);
+
+  if (titleIds.length === 0) {
+    return { titleCount: 0, seasonCount: 0, episodeCount: 0 };
+  }
+
+  const seasonCount = database
+    .select({ count: count(tvSeasons.id) })
+    .from(tvSeasons)
+    .where(inArray(tvSeasons.titleId, titleIds))
+    .get()?.count ?? 0;
+  const episodeCount = database
+    .select({ count: count(tvEpisodes.id) })
+    .from(tvEpisodes)
+    .where(inArray(tvEpisodes.titleId, titleIds))
+    .get()?.count ?? 0;
+
+  database
+    .update(mediaTitles)
+    .set({ monitored: input.monitored, updatedAt })
+    .where(titleFilters)
+    .run();
+  database
+    .update(tvSeasons)
+    .set({ monitored: input.monitored, updatedAt })
+    .where(inArray(tvSeasons.titleId, titleIds))
+    .run();
+  database
+    .update(tvEpisodes)
+    .set({ monitored: input.monitored, updatedAt })
+    .where(inArray(tvEpisodes.titleId, titleIds))
+    .run();
+
+  return { titleCount: titleIds.length, seasonCount, episodeCount };
 }
 
 export async function setMediaTitleExternalIds(

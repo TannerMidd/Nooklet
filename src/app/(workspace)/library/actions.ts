@@ -24,6 +24,9 @@ import {
   UpdateMediaTitlePreferencesCommandError,
 } from "@/modules/media-library/commands/update-media-title-preferences";
 import {
+  updateMediaLibraryMonitoringCommand,
+} from "@/modules/media-library/commands/update-media-library-monitoring";
+import {
   updateTvEpisodeMonitoringCommand,
   UpdateTvEpisodeMonitoringCommandError,
 } from "@/modules/media-library/commands/update-tv-episode-monitoring";
@@ -33,7 +36,10 @@ import {
   updateLibraryPathInputSchema,
 } from "@/modules/media-library/schemas/library-path";
 import { getMediaQualityProfileLabel } from "@/modules/media-library/queries/list-media-quality-profiles";
-import { updateMediaTitlePreferencesInputSchema } from "@/modules/media-library/schemas/media-title-preferences";
+import {
+  updateMediaLibraryMonitoringInputSchema,
+  updateMediaTitlePreferencesInputSchema,
+} from "@/modules/media-library/schemas/media-title-preferences";
 import { removeMediaTitleInputSchema } from "@/modules/media-library/schemas/remove-media-title";
 import { updateTvEpisodeMonitoringInputSchema } from "@/modules/media-library/schemas/tv-episode-preferences";
 import {
@@ -48,11 +54,13 @@ import {
 } from "@/modules/media-library/workflows/scan-library";
 import {
   initialLibraryItemSearchActionState,
+  initialLibraryMonitoringActionState,
   initialMediaTitlePreferenceActionState,
   initialRemoveMediaTitleActionState,
   initialScanLibraryActionState,
   initialTvEpisodeMonitoringActionState,
   type LibraryItemSearchActionState,
+  type LibraryMonitoringActionState,
   type LibraryPathActionState,
   type LibraryPathMutationActionState,
   type MediaTitlePreferenceActionState,
@@ -402,4 +410,48 @@ export async function updateTvEpisodeMonitoringAction(
       message: "Nooklet could not update that episode.",
     };
   }
+}
+
+export async function updateLibraryMonitoringAction(
+  _previous: LibraryMonitoringActionState,
+  formData: FormData,
+): Promise<LibraryMonitoringActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { ...initialLibraryMonitoringActionState, status: "error", message: "You need to sign in again." };
+  }
+
+  const parsed = updateMediaLibraryMonitoringInputSchema.safeParse({
+    mediaType: formData.get("mediaType") || "all",
+    monitored: formData.get("monitored") === "true",
+  });
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]?.message ?? "Review the monitoring option and try again.";
+    return { ...initialLibraryMonitoringActionState, status: "error", message: firstIssue };
+  }
+
+  let result: Awaited<ReturnType<typeof updateMediaLibraryMonitoringCommand>>;
+
+  try {
+    result = await updateMediaLibraryMonitoringCommand(session.user.id, parsed.data);
+  } catch {
+    return {
+      ...initialLibraryMonitoringActionState,
+      status: "error",
+      message: "Nooklet could not update library monitoring.",
+    };
+  }
+
+  revalidatePath("/library");
+  revalidatePath("/library/movies");
+  revalidatePath("/library/tv");
+
+  return {
+    status: "success",
+    message: result.monitored
+      ? `Monitoring enabled for ${result.titleCount} title${result.titleCount === 1 ? "" : "s"}.`
+      : `Monitoring disabled for ${result.titleCount} title${result.titleCount === 1 ? "" : "s"}.`,
+  };
 }
