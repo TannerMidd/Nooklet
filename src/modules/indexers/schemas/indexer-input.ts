@@ -27,7 +27,13 @@ export const indexerCategoryInputSchema = z.object({
     .optional(),
 });
 
-export const addIndexerInputSchema = z.object({
+const optionalApiKeySchema = z
+  .string()
+  .trim()
+  .min(1, "Provide an indexer API key.")
+  .max(512, "Indexer API key must be 512 characters or fewer.");
+
+const indexerSettingsInputSchema = z.object({
   name: z
     .string()
     .trim()
@@ -42,11 +48,6 @@ export const addIndexerInputSchema = z.object({
     .max(128, "API path must be 128 characters or fewer.")
     .regex(/^\/(?!\/)/, "API path must start with one /.")
     .default("/api"),
-  apiKey: z
-    .string()
-    .trim()
-    .min(1, "Provide an indexer API key.")
-    .max(512, "Indexer API key must be 512 characters or fewer."),
   isEnabled: z.boolean().default(true),
   priority: z.coerce.number().int().min(0).max(100).default(0),
   categories: z
@@ -54,4 +55,19 @@ export const addIndexerInputSchema = z.object({
     .min(1, "Add at least one movie or TV category."),
 });
 
+export const addIndexerInputSchema = indexerSettingsInputSchema.extend({
+  apiKey: optionalApiKeySchema,
+});
+
+export const updateIndexerInputSchema = indexerSettingsInputSchema.extend({
+  id: z.string().trim().min(1, "Choose an indexer to edit."),
+  apiKey: optionalApiKeySchema.optional(),
+});
+
+export const testIndexerInputSchema = z.object({
+  id: z.string().trim().min(1, "Choose an indexer to test."),
+});
+
 export type AddIndexerInput = z.infer<typeof addIndexerInputSchema>;
+export type UpdateIndexerInput = z.infer<typeof updateIndexerInputSchema>;
+export type TestIndexerInput = z.infer<typeof testIndexerInputSchema>;

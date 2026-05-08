@@ -65,6 +65,62 @@ export async function findIndexerById(userId: string, id: string) {
     .get() ?? null;
 }
 
+export async function updateIndexer(input: {
+  userId: string;
+  id: string;
+  name: string;
+  protocol: IndexerProtocol;
+  baseUrl: string;
+  apiPath: string;
+  status: IndexerConnectionStatus;
+  statusMessage?: string | null;
+  isEnabled: boolean;
+  priority: number;
+}) {
+  const database = ensureDatabaseReady();
+
+  database
+    .update(indexers)
+    .set({
+      name: input.name,
+      protocol: input.protocol,
+      baseUrl: input.baseUrl,
+      apiPath: input.apiPath,
+      status: input.status,
+      statusMessage: input.statusMessage ?? null,
+      isEnabled: input.isEnabled,
+      priority: input.priority,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(indexers.userId, input.userId), eq(indexers.id, input.id)))
+    .run();
+
+  return findIndexerById(input.userId, input.id);
+}
+
+export async function updateIndexerConnectionStatus(input: {
+  userId: string;
+  id: string;
+  status: IndexerConnectionStatus;
+  statusMessage: string;
+  lastTestedAt?: Date | null;
+}) {
+  const database = ensureDatabaseReady();
+
+  database
+    .update(indexers)
+    .set({
+      status: input.status,
+      statusMessage: input.statusMessage,
+      lastTestedAt: input.lastTestedAt ?? new Date(),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(indexers.userId, input.userId), eq(indexers.id, input.id)))
+    .run();
+
+  return findIndexerById(input.userId, input.id);
+}
+
 export async function saveIndexerSecret(input: {
   indexerId: string;
   encryptedApiKey: string;
@@ -168,6 +224,16 @@ export async function listIndexerMediaCategories(
         eq(indexerMediaCategories.mediaType, mediaType),
       ),
     )
+    .all();
+}
+
+export async function listIndexerCategories(indexerId: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(indexerMediaCategories)
+    .where(eq(indexerMediaCategories.indexerId, indexerId))
     .all();
 }
 
