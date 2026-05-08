@@ -8,8 +8,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { getDiscoverOverview } from "@/modules/discover/queries/get-discover-overview";
 import { getDiscoverTitleOverview } from "@/modules/discover/queries/get-discover-title-overview";
-import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
-import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 export const dynamic = "force-dynamic";
 
@@ -46,10 +44,8 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
   const detailsTmdbId = parseTmdbId(resolvedSearchParams?.details);
   const detailsMediaType = parseMediaType(resolvedSearchParams?.type);
 
-  const [overview, preferences, connectionSummaries, selectedOverview] = await Promise.all([
+  const [overview, selectedOverview] = await Promise.all([
     getDiscoverOverview(session.user.id),
-    getUserPreferences(session.user.id),
-    listConnectionSummaries(session.user.id),
     detailsTmdbId && detailsMediaType
       ? getDiscoverTitleOverview({
           userId: session.user.id,
@@ -127,8 +123,6 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
       {selectedOverview && selectedOverview.ok ? (
         <DiscoverTitleOverviewDialog
           details={selectedOverview.details}
-          preferences={preferences}
-          connectionSummaries={connectionSummaries}
           closeHref="/discover"
           returnTo={buildOverviewHref(selectedOverview.details.mediaType, selectedOverview.details.tmdbId)}
         />

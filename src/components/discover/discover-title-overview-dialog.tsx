@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-import { LibrarySearchRequestForm } from "@/components/library/library-search-request-form";
+import { DiscoverTitleRequestForm } from "@/components/discover/discover-title-request-form";
 import { RecommendationOverviewModalShell } from "@/components/recommendations/recommendation-overview-modal-shell";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import {
@@ -14,48 +14,26 @@ import {
   formatOriginalLanguage,
   formatRuntime,
 } from "@/components/recommendations/title-overview-helpers";
-import { getLibrarySelectionDefaults } from "@/modules/preferences/queries/get-library-selection-defaults";
-import { type PreferenceRecord } from "@/modules/preferences/queries/get-user-preferences";
 import { type TmdbTitleDetails } from "@/modules/service-connections/types/tmdb-title";
-import { type ServiceConnectionSummary } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 type DiscoverTitleOverviewDialogProps = {
   details: TmdbTitleDetails;
-  preferences: PreferenceRecord;
-  connectionSummaries: ServiceConnectionSummary[];
   closeHref: string;
   returnTo: string;
 };
 
 export function DiscoverTitleOverviewDialog({
   details,
-  preferences,
-  connectionSummaries,
   closeHref,
   returnTo,
 }: DiscoverTitleOverviewDialogProps) {
   const titleId = `discover-overview-${details.mediaType}-${details.tmdbId}`;
-  const sonarrSummary = connectionSummaries.find((summary) => summary.serviceType === "sonarr") ?? null;
-  const radarrSummary = connectionSummaries.find((summary) => summary.serviceType === "radarr") ?? null;
-  const libraryConnection = details.mediaType === "tv" ? sonarrSummary : radarrSummary;
-  const libraryDefaults = getLibrarySelectionDefaults(
-    preferences,
-    details.mediaType === "tv" ? "sonarr" : "radarr",
-  );
   const releaseLabel = details.releaseDate ?? (details.year ? String(details.year) : null);
   const genresLabel = details.genres.length ? details.genres.join(", ") : null;
   const runtimeLabel = formatRuntime(details.runtimeMinutes);
   const voteLabel = details.voteAverage
     ? `${details.voteAverage.toFixed(1)} from ${details.voteCount ?? 0} votes`
     : null;
-  const requestKey = `discover-${details.mediaType}-${details.tmdbId}`;
-  const availableSeasons =
-    details.mediaType === "tv" && details.seasonCount
-      ? Array.from({ length: details.seasonCount }, (_, index) => ({
-          seasonNumber: index + 1,
-          label: `Season ${index + 1}`,
-        }))
-      : [];
 
   return (
     <RecommendationOverviewModalShell titleId={titleId} closeHref={closeHref}>
@@ -108,23 +86,10 @@ export function DiscoverTitleOverviewDialog({
           <section className="space-y-4 text-sm leading-6 text-foreground">
             <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
               <p className="font-heading text-sm italic text-muted">
-                Add to {details.mediaType === "tv" ? "Sonarr" : "Radarr"}
-              </p>
-              <p className="mt-2 text-xs text-muted">
-                Submitting will request {libraryConnection?.displayName ?? (details.mediaType === "tv" ? "Sonarr" : "Radarr")} to look up and import this title.
+                Add to Nooklet
               </p>
               <div className="mt-3">
-                <LibrarySearchRequestForm
-                  requestKey={requestKey}
-                  serviceType={details.mediaType === "tv" ? "sonarr" : "radarr"}
-                  title={details.title}
-                  year={details.year}
-                  availableSeasons={availableSeasons}
-                  returnTo={returnTo}
-                  connectionSummary={libraryConnection}
-                  savedRootFolderPath={libraryDefaults.rootFolderPath}
-                  savedQualityProfileId={libraryDefaults.qualityProfileId}
-                />
+                <DiscoverTitleRequestForm details={details} returnTo={returnTo} />
               </div>
             </div>
           </section>

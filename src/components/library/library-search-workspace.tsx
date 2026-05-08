@@ -244,8 +244,6 @@ export async function LibrarySearchWorkspace({
       {selectedSearchItem && selectedOverview?.ok ? (
         <DiscoverTitleOverviewDialog
           details={selectedOverview.details}
-          preferences={preferences}
-          connectionSummaries={connectionSummaries}
           closeHref={returnTo}
           returnTo={buildSearchPath(routePath, normalizedQuery, selectedSearchItem.resultKey)}
         />
