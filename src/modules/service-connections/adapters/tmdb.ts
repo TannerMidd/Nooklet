@@ -818,6 +818,144 @@ export async function lookupTmdbTitleDetailsByTmdbId(input: TmdbConnectionInput 
   return fetchTmdbDetailsById({ ...input, path: detailsPath });
 }
 
+export type TmdbTvSeasonSummary = {
+  seasonNumber: number;
+  name: string | null;
+  overview: string | null;
+  episodeCount: number;
+  airDate: string | null;
+  posterUrl: string | null;
+};
+
+export type LookupTmdbTvSeasonsResult =
+  | { ok: true; seasons: TmdbTvSeasonSummary[] }
+  | { ok: false; message: string };
+
+type TmdbTvSeasonsPayload = {
+  seasons?: unknown;
+};
+
+function normalizeTmdbTvSeason(value: unknown, imageBaseUrl: string | null): TmdbTvSeasonSummary | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const seasonNumber = readInteger(record.season_number);
+
+  if (seasonNumber === null) {
+    return null;
+  }
+
+  return {
+    seasonNumber,
+    name: readString(record.name),
+    overview: readString(record.overview),
+    episodeCount: readInteger(record.episode_count) ?? 0,
+    airDate: readString(record.air_date),
+    posterUrl: buildImageUrl(imageBaseUrl, record.poster_path, "w500"),
+  };
+}
+
+export async function lookupTmdbTvSeasons(input: TmdbConnectionInput & {
+  tmdbId: number;
+}): Promise<LookupTmdbTvSeasonsResult> {
+  const result = await fetchTmdbJson<TmdbTvSeasonsPayload>({
+    ...input,
+    path: `tv/${input.tmdbId}`,
+    searchParams: { language: "en-US" },
+  });
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      message: `TMDB season list lookup failed with status ${result.status}.`,
+    };
+  }
+
+  const imageBaseUrl = getTmdbImageBaseUrl(input.metadata);
+  const rawSeasons = Array.isArray(result.payload.seasons) ? result.payload.seasons : [];
+  const seasons = rawSeasons
+    .map((entry) => normalizeTmdbTvSeason(entry, imageBaseUrl))
+    .filter((season): season is TmdbTvSeasonSummary => season !== null)
+    .sort((left, right) => left.seasonNumber - right.seasonNumber);
+
+  return { ok: true, seasons };
+}
+
+export type TmdbTvEpisodeSummary = {
+  seasonNumber: number;
+  episodeNumber: number;
+  name: string | null;
+  overview: string | null;
+  airDate: string | null;
+  runtimeMinutes: number | null;
+};
+
+export type LookupTmdbTvSeasonEpisodesResult =
+  | { ok: true; seasonNumber: number; episodes: TmdbTvEpisodeSummary[] }
+  | { ok: false; message: string };
+
+type TmdbTvSeasonEpisodesPayload = {
+  season_number?: unknown;
+  episodes?: unknown;
+};
+
+function normalizeTmdbTvEpisode(
+  value: unknown,
+  fallbackSeasonNumber: number,
+): TmdbTvEpisodeSummary | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const episodeNumber = readInteger(record.episode_number);
+
+  if (episodeNumber === null) {
+    return null;
+  }
+
+  const seasonNumber = readInteger(record.season_number) ?? fallbackSeasonNumber;
+
+  return {
+    seasonNumber,
+    episodeNumber,
+    name: readString(record.name),
+    overview: readString(record.overview),
+    airDate: readString(record.air_date),
+    runtimeMinutes: readInteger(record.runtime),
+  };
+}
+
+export async function lookupTmdbTvSeasonEpisodes(input: TmdbConnectionInput & {
+  tmdbId: number;
+  seasonNumber: number;
+}): Promise<LookupTmdbTvSeasonEpisodesResult> {
+  const result = await fetchTmdbJson<TmdbTvSeasonEpisodesPayload>({
+    ...input,
+    path: `tv/${input.tmdbId}/season/${input.seasonNumber}`,
+    searchParams: { language: "en-US" },
+  });
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      message: `TMDB season episode lookup failed with status ${result.status}.`,
+    };
+  }
+
+  const seasonNumber = readInteger(result.payload.season_number) ?? input.seasonNumber;
+  const rawEpisodes = Array.isArray(result.payload.episodes) ? result.payload.episodes : [];
+  const episodes = rawEpisodes
+    .map((entry) => normalizeTmdbTvEpisode(entry, seasonNumber))
+    .filter((episode): episode is TmdbTvEpisodeSummary => episode !== null)
+    .sort((left, right) => left.episodeNumber - right.episodeNumber);
+
+  return { ok: true, seasonNumber, episodes };
+}
+
+
 export const tmdbDiscoverCategories = ["trending", "popular", "top_rated", "upcoming"] as const;
 export type TmdbDiscoverCategory = (typeof tmdbDiscoverCategories)[number];
 

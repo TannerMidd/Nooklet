@@ -7,7 +7,7 @@ vi.mock("@/lib/integrations/http-helpers", () => ({
 
 import { fetchWithTimeout } from "@/lib/integrations/http-helpers";
 
-import { lookupTmdbTitleDetails, listTmdbDiscoverTitles, verifyTmdbConnection } from "./tmdb";
+import { lookupTmdbTitleDetails, listTmdbDiscoverTitles, lookupTmdbTvSeasonEpisodes, lookupTmdbTvSeasons, verifyTmdbConnection } from "./tmdb";
 import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 
 const fetchWithTimeoutMock = vi.mocked(fetchWithTimeout);
@@ -529,5 +529,105 @@ describe("listTmdbDiscoverTitles", () => {
     });
 
     expect(result).toEqual({ ok: false, message: "TMDB popular lookup failed with status 500." });
+  });
+});
+
+describe("lookupTmdbTvSeasons", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("normalizes the season list and sorts by season number", async () => {
+    fetchWithTimeoutMock.mockResolvedValueOnce(
+      jsonResponse({
+        seasons: [
+          { season_number: 2, name: "Season 2", episode_count: 10, air_date: "2020-01-01", poster_path: "/s2.jpg", overview: "" },
+          { season_number: 0, name: "Specials", episode_count: 3, air_date: null, poster_path: null, overview: "Behind the scenes" },
+          { season_number: 1, name: "Season 1", episode_count: 8, air_date: "2018-05-10", poster_path: "/s1.jpg", overview: null },
+        ],
+      }),
+    );
+
+    const result = await lookupTmdbTvSeasons({
+      baseUrl: "https://api.themoviedb.org/3",
+      secret: "tmdb-key",
+      tmdbId: 99,
+      metadata: { tmdbImageBaseUrl: "https://image.tmdb.org/t/p/" },
+    });
+
+    expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toContain("tv/99");
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.seasons.map((season) => season.seasonNumber)).toEqual([0, 1, 2]);
+    expect(result.seasons[1]).toMatchObject({
+      seasonNumber: 1,
+      name: "Season 1",
+      episodeCount: 8,
+      airDate: "2018-05-10",
+      posterUrl: "https://image.tmdb.org/t/p/w500/s1.jpg",
+    });
+  });
+
+  it("returns an error message on non-ok responses", async () => {
+    fetchWithTimeoutMock.mockResolvedValueOnce(new Response("not found", { status: 404 }));
+
+    const result = await lookupTmdbTvSeasons({
+      baseUrl: "https://api.themoviedb.org/3",
+      secret: "tmdb-key",
+      tmdbId: 99,
+    });
+
+    expect(result).toEqual({ ok: false, message: "TMDB season list lookup failed with status 404." });
+  });
+});
+
+describe("lookupTmdbTvSeasonEpisodes", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns episodes sorted by episode number with the resolved season number", async () => {
+    fetchWithTimeoutMock.mockResolvedValueOnce(
+      jsonResponse({
+        season_number: 1,
+        episodes: [
+          { season_number: 1, episode_number: 2, name: "Two", overview: "", air_date: "2018-05-17", runtime: 47 },
+          { season_number: 1, episode_number: 1, name: "One", overview: "Pilot", air_date: "2018-05-10", runtime: 52 },
+        ],
+      }),
+    );
+
+    const result = await lookupTmdbTvSeasonEpisodes({
+      baseUrl: "https://api.themoviedb.org/3",
+      secret: "tmdb-key",
+      tmdbId: 99,
+      seasonNumber: 1,
+    });
+
+    expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toContain("tv/99/season/1");
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected ok");
+    expect(result.seasonNumber).toBe(1);
+    expect(result.episodes.map((episode) => episode.episodeNumber)).toEqual([1, 2]);
+    expect(result.episodes[0]).toMatchObject({
+      seasonNumber: 1,
+      episodeNumber: 1,
+      name: "One",
+      airDate: "2018-05-10",
+      runtimeMinutes: 52,
+    });
+  });
+
+  it("returns an error message on non-ok responses", async () => {
+    fetchWithTimeoutMock.mockResolvedValueOnce(new Response("server error", { status: 500 }));
+
+    const result = await lookupTmdbTvSeasonEpisodes({
+      baseUrl: "https://api.themoviedb.org/3",
+      secret: "tmdb-key",
+      tmdbId: 99,
+      seasonNumber: 1,
+    });
+
+    expect(result).toEqual({ ok: false, message: "TMDB season episode lookup failed with status 500." });
   });
 });
