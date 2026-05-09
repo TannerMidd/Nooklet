@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
+  activeDownloadRequestStatuses,
   downloadClients,
   downloadImportedFiles,
   downloadImportRuns,
@@ -19,7 +20,6 @@ import {
 } from "@/lib/database/schema";
 
 const localImportRetryCooldownMs = 60_000;
-const activeDownloadRequestStatuses = ["pending", "queued", "downloading", "importing"] as const;
 
 function localImportRetryCutoff() {
   return new Date(Date.now() - localImportRetryCooldownMs);
@@ -444,4 +444,108 @@ export async function listImportedFilesForRun(userId: string, importRunId: strin
     )
     .orderBy(asc(downloadImportedFiles.createdAt))
     .all();
+}
+
+const activeDownloadRequestUniqueIndexName = "download_requests_active_dedup_unique";
+
+export function isActiveDownloadRequestUniqueViolation(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  if (candidate.code !== "SQLITE_CONSTRAINT_UNIQUE") return false;
+  if (typeof candidate.message !== "string") return false;
+  return (
+    candidate.message.includes(activeDownloadRequestUniqueIndexName)
+    || candidate.message.includes("download_requests.dedup_key")
+  );
+}
+
+export async function markDownloadRequestSubmitted(input: {
+  userId: string;
+  requestId: string;
+  status?: Extract<DownloadRequestStatus, "queued" | "downloading">;
+  externalJobId?: string | null;
+  statusMessage?: string | null;
+  submittedAt?: Date;
+}) {
+  const database = ensureDatabaseReady();
+  const now = new Date();
+
+  database
+    .update(downloadRequests)
+    .set({
+      status: input.status ?? "queued",
+      externalJobId: input.externalJobId ?? null,
+      statusMessage: input.statusMessage ?? null,
+      submittedAt: input.submittedAt ?? now,
+      missingTickCount: 0,
+      updatedAt: now,
+    })
+    .where(and(
+      eq(downloadRequests.userId, input.userId),
+      eq(downloadRequests.id, input.requestId),
+    ))
+    .run();
+
+  return database
+    .select()
+    .from(downloadRequests)
+    .where(and(
+      eq(downloadRequests.userId, input.userId),
+      eq(downloadRequests.id, input.requestId),
+    ))
+    .get() ?? null;
+}
+
+export async function incrementDownloadRequestMissingTickCount(input: {
+  userId: string;
+  requestId: string;
+}) {
+  const database = ensureDatabaseReady();
+  database
+    .update(downloadRequests)
+    .set({
+      missingTickCount: sql`${downloadRequests.missingTickCount} + 1`,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(downloadRequests.userId, input.userId),
+      eq(downloadRequests.id, input.requestId),
+    ))
+    .run();
+}
+
+export async function resetDownloadRequestMissingTickCount(input: {
+  userId: string;
+  requestId: string;
+}) {
+  const database = ensureDatabaseReady();
+  database
+    .update(downloadRequests)
+    .set({ missingTickCount: 0, updatedAt: new Date() })
+    .where(and(
+      eq(downloadRequests.userId, input.userId),
+      eq(downloadRequests.id, input.requestId),
+      sql`${downloadRequests.missingTickCount} > 0`,
+    ))
+    .run();
+}
+
+export async function incrementDownloadRequestRetryCount(input: {
+  userId: string;
+  requestId: string;
+}) {
+  const database = ensureDatabaseReady();
+  const now = new Date();
+  database
+    .update(downloadRequests)
+    .set({
+      retryCount: sql`${downloadRequests.retryCount} + 1`,
+      lastRetriedAt: now,
+      updatedAt: now,
+    })
+    .where(and(
+      eq(downloadRequests.userId, input.userId),
+      eq(downloadRequests.id, input.requestId),
+    ))
+    .run();
 }

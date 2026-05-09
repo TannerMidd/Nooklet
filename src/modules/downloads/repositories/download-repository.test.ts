@@ -28,13 +28,18 @@ import {
   findActiveDownloadRequestForItem,
   findDownloadClientById,
   findDownloadClientByServiceConnectionId,
+  incrementDownloadRequestMissingTickCount,
+  incrementDownloadRequestRetryCount,
+  isActiveDownloadRequestUniqueViolation,
   listDownloadRequestsByStatus,
   listActiveDownloadRequestsForImport,
   listDownloadRequestReleaseExclusionsForItem,
   listUsersWithActiveDownloadRequests,
   listImportedFilesForRun,
+  markDownloadRequestSubmitted,
   recordDownloadImportedFile,
   recordDownloadQueueItem,
+  resetDownloadRequestMissingTickCount,
   updateDownloadQueueItemStatus,
   updateDownloadRequestStatus,
 } from "./download-repository";
@@ -567,5 +572,112 @@ describe("download-repository", () => {
     expect(storedRun?.destinationRootPath).toBe("F:/Media/Movies/Arrival (2016)");
     expect(importedFiles.map((entry) => entry.id)).toEqual([importedFile.id]);
     expect(importedFiles[0]?.mediaFileId).toBe(mediaFileId);
+  });
+
+  it("rejects a second active download request for the same title via the unique index", async () => {
+    const userId = await seedUser();
+    const { movieTitleId } = seedTitleAndEpisode(userId);
+
+    await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Arrival",
+      mediaTitleId: movieTitleId,
+      status: "queued",
+    });
+
+    let caught: unknown = null;
+    try {
+      await createDownloadRequest({
+        userId,
+        mediaType: "movie",
+        requestedTitle: "Arrival",
+        mediaTitleId: movieTitleId,
+        status: "pending",
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).not.toBeNull();
+    expect(isActiveDownloadRequestUniqueViolation(caught)).toBe(true);
+    expect(isActiveDownloadRequestUniqueViolation(new Error("unrelated"))).toBe(false);
+  });
+
+  it("allows a fresh active request after the previous one is terminal", async () => {
+    const userId = await seedUser();
+    const { movieTitleId } = seedTitleAndEpisode(userId);
+
+    const first = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Arrival",
+      mediaTitleId: movieTitleId,
+      status: "queued",
+    });
+    await updateDownloadRequestStatus({
+      userId,
+      requestId: first.id,
+      status: "cancelled",
+    });
+
+    const second = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Arrival",
+      mediaTitleId: movieTitleId,
+      status: "pending",
+    });
+
+    expect(second.id).not.toBe(first.id);
+    expect(second.status).toBe("pending");
+  });
+
+  it("tracks submission time, missing-tick count, and retry count", async () => {
+    const userId = await seedUser();
+    const { movieTitleId } = seedTitleAndEpisode(userId);
+    const request = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Arrival",
+      mediaTitleId: movieTitleId,
+      status: "pending",
+    });
+
+    const submitted = await markDownloadRequestSubmitted({
+      userId,
+      requestId: request.id,
+      externalJobId: "sab-job-x",
+    });
+    if (!submitted) throw new Error("submitted request missing");
+    expect(submitted.status).toBe("queued");
+    expect(submitted.submittedAt).not.toBeNull();
+    expect(submitted.missingTickCount).toBe(0);
+
+    await incrementDownloadRequestMissingTickCount({ userId, requestId: request.id });
+    await incrementDownloadRequestMissingTickCount({ userId, requestId: request.id });
+    const afterIncrement = ensureDatabaseReady()
+      .select()
+      .from(downloadRequests)
+      .where(eq(downloadRequests.id, request.id))
+      .get();
+    expect(afterIncrement?.missingTickCount).toBe(2);
+
+    await resetDownloadRequestMissingTickCount({ userId, requestId: request.id });
+    const afterReset = ensureDatabaseReady()
+      .select()
+      .from(downloadRequests)
+      .where(eq(downloadRequests.id, request.id))
+      .get();
+    expect(afterReset?.missingTickCount).toBe(0);
+
+    await incrementDownloadRequestRetryCount({ userId, requestId: request.id });
+    const afterRetry = ensureDatabaseReady()
+      .select()
+      .from(downloadRequests)
+      .where(eq(downloadRequests.id, request.id))
+      .get();
+    expect(afterRetry?.retryCount).toBe(1);
+    expect(afterRetry?.lastRetriedAt).not.toBeNull();
   });
 });
