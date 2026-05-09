@@ -83,7 +83,7 @@ describe("requestTitleWithReleaseSearchWorkflow", () => {
     expect(titleRequestMock).toHaveBeenCalledWith("u1", request);
     expect(persistSelectionsMock).toHaveBeenCalledWith(request, title.id, [{ kind: "all" }]);
     expect(releaseSearchMock).toHaveBeenCalledWith("u1", request, { kind: "all" });
-    expect(releaseQueueMock).toHaveBeenCalledWith("u1", request, title, releaseSearch, { seasonId: null });
+    expect(releaseQueueMock).toHaveBeenCalledWith("u1", request, title, releaseSearch, { seasonId: null, target: { kind: "all" } });
     expect(result).toMatchObject({
       title,
       releaseSearch,

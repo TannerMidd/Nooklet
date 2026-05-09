@@ -90,6 +90,37 @@ describe("selectRequestedTitleReleaseCandidates", () => {
 
     expect(candidates.map((candidate) => candidate.id)).toEqual(["category-hd"]);
   });
+
+  it("filters out single-episode releases when the target is a season", () => {
+    const tvRequest = { ...request, mediaType: "tv" } as const;
+    const candidates = selectRequestedTitleReleaseCandidates(
+      tvRequest,
+      [
+        result({ id: "s01e01", title: "Eureka.S01E01.1080p.WEB-DL", seeders: 50 }),
+        result({ id: "s01e02", title: "Eureka.S01E02.1080p.WEB-DL", seeders: 40 }),
+        result({ id: "s01-pack", title: "Eureka.S01.Complete.1080p.WEB-DL", seeders: 10 }),
+        result({ id: "s02-pack", title: "Eureka Season 2 1080p", seeders: 5 }),
+      ],
+      { kind: "season", season: 1 },
+    );
+
+    expect(candidates.map((candidate) => candidate.id)).toEqual(["s01-pack"]);
+  });
+
+  it("requires the matching SxxExx token when the target is a single episode", () => {
+    const tvRequest = { ...request, mediaType: "tv" } as const;
+    const candidates = selectRequestedTitleReleaseCandidates(
+      tvRequest,
+      [
+        result({ id: "s01e01", title: "Eureka.S01E01.1080p", seeders: 30 }),
+        result({ id: "s01e03", title: "Eureka.S01E03.1080p", seeders: 10 }),
+        result({ id: "s01-pack", title: "Eureka.S01.Complete.1080p", seeders: 50 }),
+      ],
+      { kind: "episode", season: 1, episode: 3 },
+    );
+
+    expect(candidates.map((candidate) => candidate.id)).toEqual(["s01e03"]);
+  });
 });
 
 describe("queueRequestedTitleRelease", () => {

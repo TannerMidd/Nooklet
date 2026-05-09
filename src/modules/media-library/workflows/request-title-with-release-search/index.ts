@@ -55,6 +55,7 @@ export async function requestTitleWithReleaseSearchWorkflow(
     const seasonId = resolveSeasonIdForTarget(target, persistedSelections);
     const queuedDownload = await queueRequestedTitleRelease(userId, request, title, releaseSearch, {
       seasonId,
+      target,
     });
 
     selectionResults.push({ target, releaseSearch, queuedDownload });
