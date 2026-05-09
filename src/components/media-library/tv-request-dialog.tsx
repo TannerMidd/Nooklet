@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   loadTmdbTvSeasonEpisodesAction,
@@ -17,12 +17,11 @@ export type TvSelectionState =
   | { mode: "seasons"; seasons: number[] }
   | { mode: "episodes"; season: number; episodes: number[] };
 
-type TvRequestDialogProps = {
+type TvRequestPickerProps = {
   tmdbId: number;
-  titleLabel: string;
-  initialSelection: TvSelectionState;
-  onConfirm: (selection: TvSelectionState) => void;
-  onClose: () => void;
+  selection: TvSelectionState | null;
+  onSelectionChange: (selection: TvSelectionState | null) => void;
+  monitoredSeasons?: readonly number[];
 };
 
 function summarizeSeasons(season: TmdbTvSeasonSummary) {
@@ -33,29 +32,30 @@ function summarizeSeasons(season: TmdbTvSeasonSummary) {
   return `Season ${season.seasonNumber}`;
 }
 
-export function TvRequestDialog({
+export function TvRequestPicker({
   tmdbId,
-  titleLabel,
-  initialSelection,
-  onConfirm,
-  onClose,
-}: TvRequestDialogProps) {
-  const [mode, setMode] = useState<TvSelectionState["mode"]>(initialSelection.mode);
+  selection,
+  onSelectionChange,
+  monitoredSeasons = [],
+}: TvRequestPickerProps) {
+  const [mode, setMode] = useState<TvSelectionState["mode"]>(selection?.mode ?? "seasons");
   const [seasons, setSeasons] = useState<TmdbTvSeasonSummary[]>([]);
   const [seasonsError, setSeasonsError] = useState<string | null>(null);
   const [seasonsLoading, setSeasonsLoading] = useState(false);
   const [selectedSeasons, setSelectedSeasons] = useState<number[]>(
-    initialSelection.mode === "seasons" ? initialSelection.seasons : [],
+    selection?.mode === "seasons" ? selection.seasons : [],
   );
   const [selectedSeason, setSelectedSeason] = useState<number | null>(
-    initialSelection.mode === "episodes" ? initialSelection.season : null,
+    selection?.mode === "episodes" ? selection.season : null,
   );
   const [episodes, setEpisodes] = useState<TmdbTvEpisodeSummary[]>([]);
   const [episodesError, setEpisodesError] = useState<string | null>(null);
   const [episodesLoading, setEpisodesLoading] = useState(false);
   const [selectedEpisodes, setSelectedEpisodes] = useState<number[]>(
-    initialSelection.mode === "episodes" ? initialSelection.episodes : [],
+    selection?.mode === "episodes" ? selection.episodes : [],
   );
+
+  const monitoredSet = useMemo(() => new Set(monitoredSeasons), [monitoredSeasons]);
 
   useEffect(() => {
     let active = true;
@@ -107,48 +107,202 @@ export function TvRequestDialog({
     };
   }, [mode, selectedSeason, tmdbId]);
 
+  function emit(next: TvSelectionState | null) {
+    onSelectionChange(next);
+  }
+
+  function changeMode(nextMode: TvSelectionState["mode"]) {
+    setMode(nextMode);
+
+    if (nextMode === "all") {
+      emit({ mode: "all" });
+      return;
+    }
+
+    if (nextMode === "seasons") {
+      emit(selectedSeasons.length > 0 ? { mode: "seasons", seasons: selectedSeasons } : null);
+      return;
+    }
+
+    if (selectedSeason !== null && selectedEpisodes.length > 0) {
+      emit({ mode: "episodes", season: selectedSeason, episodes: selectedEpisodes });
+    } else {
+      emit(null);
+    }
+  }
+
   function toggleSeason(seasonNumber: number) {
-    setSelectedSeasons((current) => (
-      current.includes(seasonNumber)
+    setSelectedSeasons((current) => {
+      const next = current.includes(seasonNumber)
         ? current.filter((value) => value !== seasonNumber)
-        : [...current, seasonNumber].sort((a, b) => a - b)
-    ));
+        : [...current, seasonNumber].sort((a, b) => a - b);
+
+      emit(next.length > 0 ? { mode: "seasons", seasons: next } : null);
+      return next;
+    });
+  }
+
+  function pickEpisodeSeason(value: number | null) {
+    setSelectedSeason(value);
+    setSelectedEpisodes([]);
+    emit(null);
   }
 
   function toggleEpisode(episodeNumber: number) {
-    setSelectedEpisodes((current) => (
-      current.includes(episodeNumber)
+    setSelectedEpisodes((current) => {
+      const next = current.includes(episodeNumber)
         ? current.filter((value) => value !== episodeNumber)
-        : [...current, episodeNumber].sort((a, b) => a - b)
-    ));
+        : [...current, episodeNumber].sort((a, b) => a - b);
+
+      if (selectedSeason !== null && next.length > 0) {
+        emit({ mode: "episodes", season: selectedSeason, episodes: next });
+      } else {
+        emit(null);
+      }
+
+      return next;
+    });
   }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2 text-sm">
+        {(["all", "seasons", "episodes"] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => changeMode(value)}
+            className={
+              mode === value
+                ? "rounded-lg border border-accent/60 bg-accent/15 px-3 py-1.5 text-foreground"
+                : "rounded-lg border border-line/60 bg-background/20 px-3 py-1.5 text-muted"
+            }
+          >
+            {value === "all" ? "Entire series" : value === "seasons" ? "Specific seasons" : "Specific episodes"}
+          </button>
+        ))}
+      </div>
+
+      {seasonsLoading ? (
+        <p className="text-sm text-muted">Loading seasons…</p>
+      ) : seasonsError ? (
+        <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+          {seasonsError}
+        </p>
+      ) : null}
+
+      {!seasonsLoading && !seasonsError && mode === "all" ? (
+        <p className="text-sm text-muted">All available seasons and episodes will be requested.</p>
+      ) : null}
+
+      {!seasonsLoading && !seasonsError && mode === "seasons" ? (
+        <ul className="space-y-1.5">
+          {seasons.map((season) => {
+            const seasonNumber = season.seasonNumber!;
+            const alreadyMonitored = monitoredSet.has(seasonNumber);
+
+            return (
+              <li key={seasonNumber}>
+                <label className="flex items-center gap-2 rounded-lg border border-line/50 bg-background/15 px-3 py-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-accent"
+                    checked={selectedSeasons.includes(seasonNumber)}
+                    onChange={() => toggleSeason(seasonNumber)}
+                  />
+                  <span className="text-foreground">{summarizeSeasons(season)}</span>
+                  {season.episodeCount ? (
+                    <span className="text-xs text-muted">{season.episodeCount} episodes</span>
+                  ) : null}
+                  {alreadyMonitored ? (
+                    <span className="ml-auto rounded-md border border-line/50 bg-background/20 px-2 py-0.5 text-xs text-muted">
+                      Monitored
+                    </span>
+                  ) : null}
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+
+      {!seasonsLoading && !seasonsError && mode === "episodes" ? (
+        <div className="space-y-3">
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium text-foreground">Season</span>
+            <select
+              value={selectedSeason ?? ""}
+              onChange={(event) => {
+                const value = event.target.value === "" ? null : Number.parseInt(event.target.value, 10);
+                pickEpisodeSeason(value);
+              }}
+              className="min-h-11 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-2 text-sm text-foreground"
+            >
+              <option value="">Pick a season…</option>
+              {seasons.map((season) => (
+                <option key={season.seasonNumber} value={season.seasonNumber!}>
+                  {summarizeSeasons(season)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {selectedSeason !== null ? (
+            episodesLoading ? (
+              <p className="text-sm text-muted">Loading episodes…</p>
+            ) : episodesError ? (
+              <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                {episodesError}
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {episodes.map((episode) => (
+                  <li key={episode.episodeNumber}>
+                    <label className="flex items-center gap-2 rounded-lg border border-line/50 bg-background/15 px-3 py-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-accent"
+                        checked={selectedEpisodes.includes(episode.episodeNumber)}
+                        onChange={() => toggleEpisode(episode.episodeNumber)}
+                      />
+                      <span className="text-foreground">
+                        E{String(episode.episodeNumber).padStart(2, "0")} — {episode.name ?? "Episode"}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type TvRequestDialogProps = {
+  tmdbId: number;
+  titleLabel: string;
+  initialSelection: TvSelectionState;
+  onConfirm: (selection: TvSelectionState) => void;
+  onClose: () => void;
+};
+
+export function TvRequestDialog({
+  tmdbId,
+  titleLabel,
+  initialSelection,
+  onConfirm,
+  onClose,
+}: TvRequestDialogProps) {
+  const [selection, setSelection] = useState<TvSelectionState | null>(initialSelection);
 
   function handleConfirm() {
-    if (mode === "all") {
-      onConfirm({ mode: "all" });
+    if (!selection) {
       return;
     }
-
-    if (mode === "seasons") {
-      if (selectedSeasons.length === 0) {
-        return;
-      }
-      onConfirm({ mode: "seasons", seasons: selectedSeasons });
-      return;
-    }
-
-    if (selectedSeason === null || selectedEpisodes.length === 0) {
-      return;
-    }
-
-    onConfirm({ mode: "episodes", season: selectedSeason, episodes: selectedEpisodes });
+    onConfirm(selection);
   }
-
-  const confirmDisabled = mode === "seasons"
-    ? selectedSeasons.length === 0
-    : mode === "episodes"
-      ? selectedSeason === null || selectedEpisodes.length === 0
-      : false;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog">
@@ -161,111 +315,11 @@ export function TvRequestDialog({
           <Button variant="ghost" onClick={onClose} type="button">Close</Button>
         </div>
 
-        <div className="mb-4 flex flex-wrap gap-2 text-sm">
-          {(["all", "seasons", "episodes"] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setMode(value)}
-              className={
-                mode === value
-                  ? "rounded-lg border border-accent/60 bg-accent/15 px-3 py-1.5 text-foreground"
-                  : "rounded-lg border border-line/60 bg-background/20 px-3 py-1.5 text-muted"
-              }
-            >
-              {value === "all" ? "Entire series" : value === "seasons" ? "Specific seasons" : "Specific episodes"}
-            </button>
-          ))}
-        </div>
-
-        {seasonsLoading ? (
-          <p className="text-sm text-muted">Loading seasons…</p>
-        ) : seasonsError ? (
-          <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-            {seasonsError}
-          </p>
-        ) : null}
-
-        {!seasonsLoading && !seasonsError && mode === "all" ? (
-          <p className="text-sm text-muted">All available seasons and episodes will be requested.</p>
-        ) : null}
-
-        {!seasonsLoading && !seasonsError && mode === "seasons" ? (
-          <ul className="space-y-1.5">
-            {seasons.map((season) => (
-              <li key={season.seasonNumber}>
-                <label className="flex items-center gap-2 rounded-lg border border-line/50 bg-background/15 px-3 py-2 text-sm">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-accent"
-                    checked={selectedSeasons.includes(season.seasonNumber!)}
-                    onChange={() => toggleSeason(season.seasonNumber!)}
-                  />
-                  <span className="text-foreground">{summarizeSeasons(season)}</span>
-                  {season.episodeCount ? (
-                    <span className="text-xs text-muted">{season.episodeCount} episodes</span>
-                  ) : null}
-                </label>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        {!seasonsLoading && !seasonsError && mode === "episodes" ? (
-          <div className="space-y-3">
-            <label className="block space-y-1 text-sm">
-              <span className="font-medium text-foreground">Season</span>
-              <select
-                value={selectedSeason ?? ""}
-                onChange={(event) => {
-                  const value = event.target.value === "" ? null : Number.parseInt(event.target.value, 10);
-                  setSelectedSeason(value);
-                  setSelectedEpisodes([]);
-                }}
-                className="min-h-11 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-2 text-sm text-foreground"
-              >
-                <option value="">Pick a season…</option>
-                {seasons.map((season) => (
-                  <option key={season.seasonNumber} value={season.seasonNumber!}>
-                    {summarizeSeasons(season)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {selectedSeason !== null ? (
-              episodesLoading ? (
-                <p className="text-sm text-muted">Loading episodes…</p>
-              ) : episodesError ? (
-                <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                  {episodesError}
-                </p>
-              ) : (
-                <ul className="space-y-1.5">
-                  {episodes.map((episode) => (
-                    <li key={episode.episodeNumber}>
-                      <label className="flex items-center gap-2 rounded-lg border border-line/50 bg-background/15 px-3 py-2 text-sm">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 accent-accent"
-                          checked={selectedEpisodes.includes(episode.episodeNumber)}
-                          onChange={() => toggleEpisode(episode.episodeNumber)}
-                        />
-                        <span className="text-foreground">
-                          E{String(episode.episodeNumber).padStart(2, "0")} — {episode.name ?? "Episode"}
-                        </span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              )
-            ) : null}
-          </div>
-        ) : null}
+        <TvRequestPicker tmdbId={tmdbId} selection={selection} onSelectionChange={setSelection} />
 
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="ghost" type="button" onClick={onClose}>Cancel</Button>
-          <Button type="button" onClick={handleConfirm} disabled={confirmDisabled}>
+          <Button type="button" onClick={handleConfirm} disabled={!selection}>
             Use this selection
           </Button>
         </div>

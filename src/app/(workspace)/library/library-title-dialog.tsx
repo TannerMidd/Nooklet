@@ -248,7 +248,12 @@ function TvDialog({
         <div>
           <h3 className="font-heading text-lg text-foreground">Seasons and episodes</h3>
         </div>
-        <RequestMoreContentForm titleId={title.id} tmdbId={title.tmdbId} titleLabel={title.title} />
+        <RequestMoreContentForm
+          titleId={title.id}
+          tmdbId={title.tmdbId}
+          titleLabel={title.title}
+          monitoredSeasons={title.seasons.filter((season) => season.monitored).map((season) => season.seasonNumber)}
+        />
         {title.seasons.length === 0 ? (
           <p className="rounded-lg border border-dashed border-line/75 bg-background/20 p-4 text-sm text-muted">
             No episodes have been discovered for this series yet.

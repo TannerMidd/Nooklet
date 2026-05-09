@@ -1,13 +1,13 @@
 "use client";
 
-import { ListChecks, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { requestExistingTitleContentAction } from "@/app/(workspace)/library/actions";
 import { initialRequestExistingTitleContentActionState } from "@/app/(workspace)/library/action-state";
 import {
-  TvRequestDialog,
+  TvRequestPicker,
   type TvSelectionState,
   describeTvSelection,
 } from "@/components/media-library/tv-request-dialog";
@@ -17,6 +17,7 @@ type RequestMoreContentFormProps = {
   titleId: string;
   tmdbId: number | null;
   titleLabel: string;
+  monitoredSeasons: readonly number[];
 };
 
 function SubmitButton({ disabled }: { disabled: boolean }) {
@@ -25,18 +26,22 @@ function SubmitButton({ disabled }: { disabled: boolean }) {
   return (
     <Button type="submit" disabled={disabled || pending} className="gap-2">
       <Send className="h-4 w-4" aria-hidden />
-      {pending ? "Requesting…" : "Request more"}
+      {pending ? "Requesting…" : "Request selection"}
     </Button>
   );
 }
 
-export function RequestMoreContentForm({ titleId, tmdbId, titleLabel }: RequestMoreContentFormProps) {
+export function RequestMoreContentForm({
+  titleId,
+  tmdbId,
+  titleLabel,
+  monitoredSeasons,
+}: RequestMoreContentFormProps) {
   const [state, formAction] = useActionState(
     requestExistingTitleContentAction,
     initialRequestExistingTitleContentActionState,
   );
   const [selection, setSelection] = useState<TvSelectionState | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
 
   if (tmdbId === null) {
     return (
@@ -47,7 +52,14 @@ export function RequestMoreContentForm({ titleId, tmdbId, titleLabel }: RequestM
   }
 
   return (
-    <form action={formAction} className="space-y-3">
+    <form action={formAction} className="space-y-3 rounded-lg border border-line/60 bg-background/15 p-4">
+      <div>
+        <p className="font-heading text-base text-foreground">Request more from {titleLabel}</p>
+        <p className="text-xs text-muted">
+          Pick any TMDB season or episode below — already-monitored seasons are tagged so you can avoid duplicates.
+        </p>
+      </div>
+
       <input type="hidden" name="titleId" value={titleId} />
       {selection ? <input type="hidden" name="selectionMode" value={selection.mode} /> : null}
       {selection?.mode === "seasons"
@@ -64,11 +76,14 @@ export function RequestMoreContentForm({ titleId, tmdbId, titleLabel }: RequestM
         </>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="ghost" className="gap-2" onClick={() => setDialogOpen(true)}>
-          <ListChecks className="h-4 w-4" aria-hidden />
-          Choose seasons & episodes…
-        </Button>
+      <TvRequestPicker
+        tmdbId={tmdbId}
+        selection={selection}
+        onSelectionChange={setSelection}
+        monitoredSeasons={monitoredSeasons}
+      />
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-sm text-muted">
           {selection ? describeTvSelection(selection) : "No selection yet"}
         </span>
@@ -84,19 +99,6 @@ export function RequestMoreContentForm({ titleId, tmdbId, titleLabel }: RequestM
         <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
           {state.message}
         </p>
-      ) : null}
-
-      {dialogOpen ? (
-        <TvRequestDialog
-          tmdbId={tmdbId}
-          titleLabel={titleLabel}
-          initialSelection={selection ?? { mode: "all" }}
-          onConfirm={(next) => {
-            setSelection(next);
-            setDialogOpen(false);
-          }}
-          onClose={() => setDialogOpen(false)}
-        />
       ) : null}
     </form>
   );
