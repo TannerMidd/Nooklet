@@ -1,5 +1,5 @@
 import {
-  createDownloadRequest,
+  markDownloadRequestSubmitted,
   recordDownloadQueueItem,
   updateDownloadRequestStatus,
 } from "@/modules/downloads/repositories/download-repository";
@@ -7,41 +7,27 @@ import {
 import { type ResolvedSabnzbdDownloadClient } from "./client-resolution";
 import { QueueIndexerResultWorkflowError } from "./errors";
 import { type QueueIndexerResultSubmission } from "./download-submission";
-import { type QueueIndexerResultInput } from "./request-validation";
+import { type ReservedDownloadRequest } from "./reservation";
 import { type ResolvedQueueIndexerResult } from "./result-resolution";
-import { type ResolvedQueueIndexerResultTarget } from "./target-resolution";
 
 export type QueuedIndexerResultDownload = {
-  downloadRequest: NonNullable<Awaited<ReturnType<typeof updateDownloadRequestStatus>>>;
+  downloadRequest: NonNullable<Awaited<ReturnType<typeof markDownloadRequestSubmitted>>>;
   queueItem: Awaited<ReturnType<typeof recordDownloadQueueItem>> | null;
   queueIds: string[];
 };
 
 export async function persistQueuedIndexerResultDownload(input: {
   userId: string;
-  request: QueueIndexerResultInput;
+  reservedRequest: ReservedDownloadRequest;
   resolvedResult: ResolvedQueueIndexerResult;
-  target: ResolvedQueueIndexerResultTarget;
   downloadClient: ResolvedSabnzbdDownloadClient;
   submission: QueueIndexerResultSubmission;
 }): Promise<QueuedIndexerResultDownload> {
-  const request = await createDownloadRequest({
-    userId: input.userId,
-    mediaType: input.resolvedResult.result.mediaType,
-    requestedTitle: input.request.requestedTitle ?? input.resolvedResult.result.title,
-    mediaTitleId: input.request.mediaTitleId ?? null,
-    episodeId: input.request.episodeId ?? null,
-    releaseTitle: input.resolvedResult.result.title,
-    searchResultId: input.resolvedResult.result.id,
-    clientId: input.downloadClient.client.id,
-    targetLibraryId: input.target?.library.id ?? input.request.targetLibraryId ?? null,
-    targetLibraryPathId: input.target?.path.id ?? null,
-    status: "pending",
-  });
   const primaryQueueId = input.submission.queueIds[0] ?? null;
-  const queuedRequest = await updateDownloadRequestStatus({
+
+  const queuedRequest = await markDownloadRequestSubmitted({
     userId: input.userId,
-    requestId: request.id,
+    requestId: input.reservedRequest.id,
     status: "queued",
     externalJobId: primaryQueueId,
     statusMessage: "Queued in SABnzbd.",
@@ -56,7 +42,7 @@ export async function persistQueuedIndexerResultDownload(input: {
 
   const queueItem = primaryQueueId
     ? await recordDownloadQueueItem({
-        requestId: request.id,
+        requestId: input.reservedRequest.id,
         userId: input.userId,
         clientId: input.downloadClient.client.id,
         externalQueueId: primaryQueueId,
@@ -71,4 +57,17 @@ export async function persistQueuedIndexerResultDownload(input: {
     queueItem,
     queueIds: input.submission.queueIds,
   };
+}
+
+export async function failReservedDownloadRequest(input: {
+  userId: string;
+  reservedRequest: ReservedDownloadRequest;
+  reason: string;
+}) {
+  await updateDownloadRequestStatus({
+    userId: input.userId,
+    requestId: input.reservedRequest.id,
+    status: "failed",
+    statusMessage: input.reason,
+  });
 }

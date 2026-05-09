@@ -16,11 +16,15 @@ vi.mock("./target-resolution", () => ({
 vi.mock("./client-resolution", () => ({
   resolveSabnzbdDownloadClient: vi.fn(),
 }));
+vi.mock("./reservation", () => ({
+  reserveDownloadRequest: vi.fn(),
+}));
 vi.mock("./download-submission", () => ({
   submitIndexerResultToSabnzbd: vi.fn(),
 }));
 vi.mock("./persistence", () => ({
   persistQueuedIndexerResultDownload: vi.fn(),
+  failReservedDownloadRequest: vi.fn(),
 }));
 vi.mock("./audit", () => ({
   recordQueuedIndexerResultAudit: vi.fn(),
@@ -30,8 +34,12 @@ import { recordQueuedIndexerResultAudit } from "./audit";
 import { ensureNoActiveDownloadRequest } from "./active-download-guard";
 import { resolveSabnzbdDownloadClient } from "./client-resolution";
 import { submitIndexerResultToSabnzbd } from "./download-submission";
-import { persistQueuedIndexerResultDownload } from "./persistence";
+import {
+  failReservedDownloadRequest,
+  persistQueuedIndexerResultDownload,
+} from "./persistence";
 import { validateQueueIndexerResultRequest } from "./request-validation";
+import { reserveDownloadRequest } from "./reservation";
 import { resolveQueueIndexerResult } from "./result-resolution";
 import { resolveQueueIndexerResultTarget } from "./target-resolution";
 import { queueIndexerResultWorkflow } from "./index";
@@ -41,8 +49,10 @@ const activeGuardMock = vi.mocked(ensureNoActiveDownloadRequest);
 const resolveResultMock = vi.mocked(resolveQueueIndexerResult);
 const resolveTargetMock = vi.mocked(resolveQueueIndexerResultTarget);
 const resolveClientMock = vi.mocked(resolveSabnzbdDownloadClient);
+const reserveMock = vi.mocked(reserveDownloadRequest);
 const submitMock = vi.mocked(submitIndexerResultToSabnzbd);
 const persistMock = vi.mocked(persistQueuedIndexerResultDownload);
+const failReservedMock = vi.mocked(failReservedDownloadRequest);
 const auditMock = vi.mocked(recordQueuedIndexerResultAudit);
 
 beforeEach(() => {
@@ -63,6 +73,7 @@ describe("queueIndexerResultWorkflow", () => {
     const resolvedResult = { result: { id: request.resultId, title: "Arrival" } };
     const target = { path: { id: request.targetLibraryPathId }, library: { id: request.targetLibraryId } };
     const downloadClient = { client: { id: "client1" }, baseUrl: "http://localhost:8080" };
+    const reservedRequest = { id: "request1" };
     const submission = { queueIds: ["SABnzbd_nzo_1"], category: "movies" };
     const queuedDownload = { downloadRequest: { id: "request1" }, queueItem: null, queueIds: submission.queueIds };
 
@@ -85,6 +96,10 @@ describe("queueIndexerResultWorkflow", () => {
       calls.push("resolve-client");
       return downloadClient as never;
     });
+    reserveMock.mockImplementation(async () => {
+      calls.push("reserve");
+      return reservedRequest as never;
+    });
     submitMock.mockImplementation(async () => {
       calls.push("submit");
       return submission;
@@ -99,14 +114,70 @@ describe("queueIndexerResultWorkflow", () => {
 
     const result = await queueIndexerResultWorkflow("user1", request);
 
-    expect(calls).toEqual(["validate", "active-guard", "resolve-result", "resolve-target", "resolve-client", "submit", "persist", "audit"]);
+    expect(calls).toEqual([
+      "validate",
+      "active-guard",
+      "resolve-result",
+      "resolve-target",
+      "resolve-client",
+      "reserve",
+      "submit",
+      "persist",
+      "audit",
+    ]);
     expect(activeGuardMock).toHaveBeenCalledWith("user1", request);
     expect(resolveResultMock).toHaveBeenCalledWith("user1", request);
     expect(resolveTargetMock).toHaveBeenCalledWith("user1", request, resolvedResult);
     expect(resolveClientMock).toHaveBeenCalledWith("user1");
+    expect(reserveMock).toHaveBeenCalledWith({
+      userId: "user1",
+      request,
+      resolvedResult,
+      target,
+      downloadClient,
+    });
     expect(submitMock).toHaveBeenCalledWith(resolvedResult, downloadClient);
-    expect(persistMock).toHaveBeenCalledWith({ userId: "user1", request, resolvedResult, target, downloadClient, submission });
+    expect(persistMock).toHaveBeenCalledWith({
+      userId: "user1",
+      reservedRequest,
+      resolvedResult,
+      downloadClient,
+      submission,
+    });
+    expect(failReservedMock).not.toHaveBeenCalled();
     expect(auditMock).toHaveBeenCalledWith({ userId: "user1", resolvedResult, queuedDownload });
     expect(result).toBe(queuedDownload);
+  });
+
+  it("marks the reserved request as failed when SABnzbd submission throws", async () => {
+    const request = {
+      resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9",
+      mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+      episodeId: null,
+      requestedTitle: "Arrival",
+      targetLibraryId: null,
+      targetLibraryPathId: null,
+    };
+    const resolvedResult = { result: { id: request.resultId, title: "Arrival" } };
+    const reservedRequest = { id: "request2" };
+    const downloadClient = { client: { id: "client1" } };
+
+    validateMock.mockReturnValue(request as never);
+    activeGuardMock.mockResolvedValue(undefined);
+    resolveResultMock.mockResolvedValue(resolvedResult as never);
+    resolveTargetMock.mockResolvedValue(null as never);
+    resolveClientMock.mockResolvedValue(downloadClient as never);
+    reserveMock.mockResolvedValue(reservedRequest as never);
+    const submitError = new Error("sab boom");
+    submitMock.mockRejectedValue(submitError);
+
+    await expect(queueIndexerResultWorkflow("user1", request as never)).rejects.toBe(submitError);
+    expect(failReservedMock).toHaveBeenCalledWith({
+      userId: "user1",
+      reservedRequest,
+      reason: "sab boom",
+    });
+    expect(persistMock).not.toHaveBeenCalled();
+    expect(auditMock).not.toHaveBeenCalled();
   });
 });
