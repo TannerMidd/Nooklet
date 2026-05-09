@@ -27,7 +27,7 @@ function itemKey(entry: ActiveDownloadRequest) {
 }
 
 function isTrackedActiveDownload(entry: ActiveDownloadRequest) {
-  return ["queued", "downloading"].includes(entry.request.status)
+  return ["queued", "downloading", "requeuing"].includes(entry.request.status)
     && ["queued", "downloading"].includes(entry.queueItem.status)
     && Boolean(entry.request.mediaTitleId);
 }
