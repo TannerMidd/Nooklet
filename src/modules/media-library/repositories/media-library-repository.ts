@@ -485,6 +485,7 @@ export async function upsertTvSeason(input: {
   seasonNumber: number;
   title?: string | null;
   episodeCount?: number;
+  monitored?: boolean;
 }) {
   const database = ensureDatabaseReady();
   const id = randomUUID();
@@ -494,6 +495,7 @@ export async function upsertTvSeason(input: {
     seasonNumber: input.seasonNumber,
     title: input.title ?? null,
     episodeCount: input.episodeCount ?? 0,
+    monitored: input.monitored ?? true,
     updatedAt: new Date(),
   };
 
@@ -505,6 +507,7 @@ export async function upsertTvSeason(input: {
       set: {
         title: values.title,
         episodeCount: values.episodeCount,
+        ...(input.monitored === true ? { monitored: true } : {}),
         updatedAt: values.updatedAt,
       },
     })

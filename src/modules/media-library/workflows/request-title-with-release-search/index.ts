@@ -17,6 +17,10 @@ import {
   buildReleaseSelectionTargets,
   type ReleaseSelectionTarget,
 } from "./selection-targets";
+import {
+  persistRequestedTitleSelections,
+  resolveSeasonIdForTarget,
+} from "./season-persistence";
 import { requestWorkflowMediaTitle } from "./title-request";
 
 export { requestTitleWithReleaseSearchInputSchema };
@@ -43,11 +47,15 @@ export async function requestTitleWithReleaseSearchWorkflow(
   const request = validateRequestTitleWithReleaseSearchRequest(input);
   const title = await requestWorkflowMediaTitle(userId, request);
   const targets = buildReleaseSelectionTargets(request);
+  const persistedSelections = await persistRequestedTitleSelections(request, title.id, targets);
   const selectionResults: RequestTitleSelectionResult[] = [];
 
   for (const target of targets) {
     const releaseSearch = await searchRequestedTitleReleasesForTarget(userId, request, target);
-    const queuedDownload = await queueRequestedTitleRelease(userId, request, title, releaseSearch);
+    const seasonId = resolveSeasonIdForTarget(target, persistedSelections);
+    const queuedDownload = await queueRequestedTitleRelease(userId, request, title, releaseSearch, {
+      seasonId,
+    });
 
     selectionResults.push({ target, releaseSearch, queuedDownload });
   }
