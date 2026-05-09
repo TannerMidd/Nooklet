@@ -98,4 +98,49 @@ describe("searchNewznabIndexer", () => {
       categories: [],
     })).rejects.toThrow("HTTP 500");
   });
+
+  it("uses tvsearch with season/ep/tvdbid params when provided", async () => {
+    safeFetchMock.mockResolvedValue(new Response(`<rss><channel></channel></rss>`, { status: 200 }) as never);
+
+    await searchNewznabIndexer({
+      protocol: "newznab",
+      baseUrl: "https://indexer.example",
+      apiPath: "/api",
+      apiKey: "abc123",
+      query: "Severance",
+      categories: ["5000"],
+      searchType: "tvsearch",
+      tvdbId: 123456,
+      season: 1,
+      episode: 2,
+    });
+
+    const requestUrl = safeFetchMock.mock.calls[0]?.[0] as URL;
+    expect(requestUrl.searchParams.get("t")).toBe("tvsearch");
+    expect(requestUrl.searchParams.get("q")).toBe("Severance");
+    expect(requestUrl.searchParams.get("tvdbid")).toBe("123456");
+    expect(requestUrl.searchParams.get("season")).toBe("1");
+    expect(requestUrl.searchParams.get("ep")).toBe("2");
+  });
+
+  it("omits season/episode params when only the season is provided", async () => {
+    safeFetchMock.mockResolvedValue(new Response(`<rss><channel></channel></rss>`, { status: 200 }) as never);
+
+    await searchNewznabIndexer({
+      protocol: "newznab",
+      baseUrl: "https://indexer.example",
+      apiPath: "/api",
+      apiKey: "abc123",
+      query: "Severance",
+      categories: ["5000"],
+      searchType: "tvsearch",
+      season: 2,
+    });
+
+    const requestUrl = safeFetchMock.mock.calls[0]?.[0] as URL;
+    expect(requestUrl.searchParams.get("t")).toBe("tvsearch");
+    expect(requestUrl.searchParams.get("season")).toBe("2");
+    expect(requestUrl.searchParams.get("ep")).toBeNull();
+    expect(requestUrl.searchParams.get("tvdbid")).toBeNull();
+  });
 });

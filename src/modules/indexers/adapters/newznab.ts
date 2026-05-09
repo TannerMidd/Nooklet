@@ -21,6 +21,10 @@ const newznabSearchInputSchema = z.object({
   apiKey: z.string().min(1),
   query: z.string().min(1),
   categories: z.array(z.string().min(1)),
+  searchType: z.enum(["search", "tvsearch"]).default("search"),
+  tvdbId: z.number().int().positive().optional(),
+  season: z.number().int().nonnegative().optional(),
+  episode: z.number().int().positive().optional(),
 });
 
 const newznabSearchResultSchema = z.object({
@@ -36,7 +40,8 @@ const newznabSearchResultSchema = z.object({
   grabs: nullableNonnegativeInt,
 });
 
-export type NewznabSearchInput = z.infer<typeof newznabSearchInputSchema>;
+export type NewznabSearchInput = z.input<typeof newznabSearchInputSchema>;
+type ParsedNewznabSearchInput = z.infer<typeof newznabSearchInputSchema>;
 export type NewznabSearchResult = z.infer<typeof newznabSearchResultSchema>;
 
 const parser = new XMLParser({
@@ -104,15 +109,29 @@ function readAttr(item: ParsedNode, name: string) {
   return null;
 }
 
-function buildSearchUrl(input: NewznabSearchInput) {
+function buildSearchUrl(input: ParsedNewznabSearchInput) {
   const url = new URL(input.apiPath, input.baseUrl.endsWith("/") ? input.baseUrl : `${input.baseUrl}/`);
-  url.searchParams.set("t", "search");
+  url.searchParams.set("t", input.searchType);
   url.searchParams.set("q", input.query);
   url.searchParams.set("apikey", input.apiKey);
   url.searchParams.set("extended", "1");
 
   if (input.categories.length > 0) {
     url.searchParams.set("cat", input.categories.join(","));
+  }
+
+  if (input.searchType === "tvsearch") {
+    if (typeof input.tvdbId === "number") {
+      url.searchParams.set("tvdbid", String(input.tvdbId));
+    }
+
+    if (typeof input.season === "number") {
+      url.searchParams.set("season", String(input.season));
+    }
+
+    if (typeof input.episode === "number") {
+      url.searchParams.set("ep", String(input.episode));
+    }
   }
 
   if (input.protocol === "torznab") {

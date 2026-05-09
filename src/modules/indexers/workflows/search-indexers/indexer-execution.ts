@@ -19,6 +19,9 @@ export async function executeIndexerSearches(
 
   for (const source of sources) {
     try {
+      const isTvSelection =
+        request.mediaType === "tv"
+        && (typeof request.season === "number" || typeof request.episode === "number");
       const results = await searchNewznabIndexer({
         protocol: source.indexer.protocol,
         baseUrl: source.indexer.baseUrl,
@@ -26,6 +29,10 @@ export async function executeIndexerSearches(
         apiKey: source.apiKey,
         query: request.query,
         categories: source.categories,
+        searchType: isTvSelection ? "tvsearch" : "search",
+        ...(typeof request.tvdbId === "number" ? { tvdbId: request.tvdbId } : {}),
+        ...(typeof request.season === "number" ? { season: request.season } : {}),
+        ...(typeof request.episode === "number" ? { episode: request.episode } : {}),
       });
       executions.push({ source, results, errorMessage: null });
     } catch (error) {
