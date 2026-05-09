@@ -291,6 +291,49 @@ describe("requestSearchTitleAction", () => {
     });
   });
 
+  it("summarizes per-selection queue results when multiple TV selections are requested", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    requestTitleWorkflowMock.mockResolvedValue({
+      title: { id: "title1" },
+      releaseSearch: {
+        searched: true,
+        searchRun: { id: "run-s1", status: "succeeded" },
+        results: [],
+      },
+      queuedDownload: {
+        queued: true,
+        download: { downloadRequest: { id: "dl-s1" } },
+      },
+      selections: [
+        {
+          target: { kind: "season", season: 1 },
+          releaseSearch: { searched: true, searchRun: { id: "run-s1", status: "succeeded" }, results: [] },
+          queuedDownload: { queued: true, download: { downloadRequest: { id: "dl-s1" } } },
+        },
+        {
+          target: { kind: "season", season: 2 },
+          releaseSearch: { searched: true, searchRun: { id: "run-s2", status: "succeeded" }, results: [] },
+          queuedDownload: { queued: false, reason: "no_matching_release" },
+        },
+      ],
+    } as never);
+
+    const tvForm = (() => {
+      const form = validForm(true);
+      form.set("mediaType", "tv");
+      form.set("selectionMode", "seasons");
+      form.append("selectedSeasons", "1");
+      form.append("selectedSeasons", "2");
+      return form;
+    })();
+
+    const result = await requestSearchTitleAction(initialRequestSearchTitleActionState, tvForm);
+
+    expect(result.status).toBe("success");
+    expect(result.message).toContain("queued 1 of 2 selections");
+    expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
+  });
+
   it("maps request command errors to the action state", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
     requestTitleWorkflowMock.mockRejectedValue(
