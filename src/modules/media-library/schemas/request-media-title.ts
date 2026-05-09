@@ -22,6 +22,21 @@ const optionalShortTextSchema = z.preprocess(
   z.string().trim().min(2).max(12).nullable().optional(),
 );
 
+const tvSelectionsSchema = z
+  .discriminatedUnion("mode", [
+    z.object({ mode: z.literal("all") }),
+    z.object({
+      mode: z.literal("seasons"),
+      seasons: z.array(z.number().int().nonnegative()).min(1),
+    }),
+    z.object({
+      mode: z.literal("episodes"),
+      season: z.number().int().nonnegative(),
+      episodes: z.array(z.number().int().positive()).min(1),
+    }),
+  ])
+  .optional();
+
 export const requestMediaTitleInputSchema = z.object({
   mediaType: z.enum(recommendationMediaTypes),
   libraryId: z.preprocess(
@@ -45,6 +60,8 @@ export const requestMediaTitleInputSchema = z.object({
   backdropUrl: optionalUrlSchema,
   runtimeMinutes: optionalNumberSchema(z.number().int().positive()),
   originalLanguage: optionalShortTextSchema,
+  selections: tvSelectionsSchema,
 });
 
 export type RequestMediaTitleInput = z.infer<typeof requestMediaTitleInputSchema>;
+export type TvRequestSelections = NonNullable<z.infer<typeof tvSelectionsSchema>>;
