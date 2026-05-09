@@ -190,6 +190,13 @@
       "when": 1778291703260,
       "tag": "0026_shallow_retro_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1778340577085,
+      "tag": "0027_tricky_lady_bullseye",
+      "breakpoints": true
     }
   ]
 }

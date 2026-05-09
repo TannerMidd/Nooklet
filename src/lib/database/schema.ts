@@ -627,6 +627,7 @@ export const downloadRequests = sqliteTable(
       onDelete: "set null",
     }),
     episodeId: text("episode_id").references(() => tvEpisodes.id, { onDelete: "set null" }),
+    seasonId: text("season_id").references(() => tvSeasons.id, { onDelete: "set null" }),
     searchResultId: text("search_result_id").references(() => indexerSearchResults.id, {
       onDelete: "set null",
     }),
@@ -648,7 +649,7 @@ export const downloadRequests = sqliteTable(
     retryCount: integer("retry_count").notNull().default(0),
     lastRetriedAt: integer("last_retried_at", { mode: "timestamp_ms" }),
     dedupKey: text("dedup_key").generatedAlwaysAs(
-      sql`coalesce(episode_id, '__movie__')`,
+      sql`coalesce(episode_id, season_id, '__movie__')`,
     ),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
@@ -666,6 +667,7 @@ export const downloadRequests = sqliteTable(
     ),
     index("download_requests_title_status_idx").on(table.mediaTitleId, table.status),
     index("download_requests_episode_status_idx").on(table.episodeId, table.status),
+    index("download_requests_season_status_idx").on(table.seasonId, table.status),
     index("download_requests_client_status_updated_idx").on(
       table.clientId,
       table.status,
