@@ -169,9 +169,17 @@ export const downloadRequestStatuses = [
   "queued",
   "downloading",
   "importing",
+  "requeuing",
   "succeeded",
   "failed",
   "cancelled",
+] as const;
+export const activeDownloadRequestStatuses = [
+  "pending",
+  "queued",
+  "downloading",
+  "importing",
+  "requeuing",
 ] as const;
 export const downloadQueueItemStatuses = ["queued", "downloading", "paused", "completed", "failed"] as const;
 export const downloadImportRunStatuses = ["pending", "running", "succeeded", "failed", "skipped"] as const;
@@ -635,6 +643,13 @@ export const downloadRequests = sqliteTable(
     releaseTitle: text("release_title"),
     externalJobId: text("external_job_id"),
     statusMessage: text("status_message"),
+    submittedAt: integer("submitted_at", { mode: "timestamp_ms" }),
+    missingTickCount: integer("missing_tick_count").notNull().default(0),
+    retryCount: integer("retry_count").notNull().default(0),
+    lastRetriedAt: integer("last_retried_at", { mode: "timestamp_ms" }),
+    dedupKey: text("dedup_key").generatedAlwaysAs(
+      sql`coalesce(episode_id, '__movie__')`,
+    ),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
@@ -658,6 +673,11 @@ export const downloadRequests = sqliteTable(
     ),
     index("download_requests_search_result_idx").on(table.searchResultId),
     index("download_requests_target_path_status_idx").on(table.targetLibraryPathId, table.status),
+    uniqueIndex("download_requests_active_dedup_unique")
+      .on(table.userId, table.mediaTitleId, table.dedupKey)
+      .where(
+        sql`media_title_id is not null and status in ('pending','queued','downloading','importing','requeuing')`,
+      ),
   ],
 );
 
