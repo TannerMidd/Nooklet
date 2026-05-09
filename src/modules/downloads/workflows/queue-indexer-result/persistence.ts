@@ -13,6 +13,7 @@ import { type ResolvedQueueIndexerResult } from "./result-resolution";
 export type QueuedIndexerResultDownload = {
   downloadRequest: NonNullable<Awaited<ReturnType<typeof markDownloadRequestSubmitted>>>;
   queueItem: Awaited<ReturnType<typeof recordDownloadQueueItem>> | null;
+  queueItems: Awaited<ReturnType<typeof recordDownloadQueueItem>>[];
   queueIds: string[];
 };
 
@@ -40,21 +41,24 @@ export async function persistQueuedIndexerResultDownload(input: {
     );
   }
 
-  const queueItem = primaryQueueId
-    ? await recordDownloadQueueItem({
-        requestId: input.reservedRequest.id,
-        userId: input.userId,
-        clientId: input.downloadClient.client.id,
-        externalQueueId: primaryQueueId,
-        status: "queued",
-        sizeBytes: input.resolvedResult.result.sizeBytes,
-        category: input.submission.category,
-      })
-    : null;
+  const queueItems: Awaited<ReturnType<typeof recordDownloadQueueItem>>[] = [];
+  for (const externalQueueId of input.submission.queueIds) {
+    const item = await recordDownloadQueueItem({
+      requestId: input.reservedRequest.id,
+      userId: input.userId,
+      clientId: input.downloadClient.client.id,
+      externalQueueId,
+      status: "queued",
+      sizeBytes: input.resolvedResult.result.sizeBytes,
+      category: input.submission.category,
+    });
+    queueItems.push(item);
+  }
 
   return {
     downloadRequest: queuedRequest,
-    queueItem,
+    queueItem: queueItems[0] ?? null,
+    queueItems,
     queueIds: input.submission.queueIds,
   };
 }
