@@ -55,6 +55,7 @@ beforeEach(() => {
     queuedCount: 0,
     failedCount: 0,
     graceCount: 0,
+    awaitingImportCount: 0,
   });
   reconcileDuplicateQueueMock.mockResolvedValue({
     duplicateGroupCount: 0,
@@ -104,12 +105,10 @@ describe("runDueJobs", () => {
     await runDueJobs();
 
     expect(importCompletedDownloadsMock).toHaveBeenCalledTimes(2);
-    expect(reconcileMissingQueueMock).toHaveBeenCalledTimes(2);
-    expect(reconcileMissingQueueMock).toHaveBeenNthCalledWith(1, "user1");
-    expect(reconcileMissingQueueMock).toHaveBeenNthCalledWith(2, "user2");
-    expect(reconcileDuplicateQueueMock).toHaveBeenCalledTimes(2);
-    expect(reconcileDuplicateQueueMock).toHaveBeenNthCalledWith(1, "user1");
-    expect(reconcileDuplicateQueueMock).toHaveBeenNthCalledWith(2, "user2");
+    expect(reconcileMissingQueueMock).toHaveBeenCalledTimes(1);
+    expect(reconcileMissingQueueMock).toHaveBeenCalledWith("user2");
+    expect(reconcileDuplicateQueueMock).toHaveBeenCalledTimes(1);
+    expect(reconcileDuplicateQueueMock).toHaveBeenCalledWith("user2");
     expect(claimDueJobsMock).toHaveBeenCalledWith("watch-history-sync", expect.any(Date), 4);
     expect(claimDueJobsMock).toHaveBeenCalledWith("media-library-scan", expect.any(Date), 2);
     expect(claimDueJobsMock).toHaveBeenCalledWith("recommendation-run", expect.any(Date), 2);

@@ -176,15 +176,19 @@ async function runCompletedDownloadImportPass() {
   for (const userId of userIds) {
     try {
       // Order matters:
-      //  1. duplicate-removal first so the missing-queue pass doesn't observe and "retry" a queue
-      //     item that is about to be killed because a sibling is making real progress.
-      //  2. missing-queue pass next so requests that are genuinely gone are flagged, but the
-      //     visibility grace + missing-tick streak inside that workflow prevent premature retries.
-      //  3. import-completed last so anything that just finished downloading is hard-linked into
-      //     the user's library before the next tick.
+      //  1. import-completed first so SAB-history items are matched and the corresponding
+      //     download_requests are promoted to 'succeeded' before any reconciliation pass treats
+      //     their queue rows as "missing". (SAB removes a queue slot the instant post-processing
+      //     starts, so a just-completed item is absent from the queue snapshot before we have had
+      //     a chance to import it.)
+      //  2. duplicate-removal next so redundant active siblings are killed before the missing
+      //     pass observes them, preventing a retry being scheduled for a sibling we are about to
+      //     remove.
+      //  3. missing-queue-retry last; only items genuinely gone from both queue and history will
+      //     remain in the active set at this point.
+      await importCompletedDownloadsWorkflow(userId);
       await reconcileDuplicateSabnzbdQueueItemsWorkflow(userId);
       await reconcileMissingSabnzbdQueueItemsWorkflow(userId);
-      await importCompletedDownloadsWorkflow(userId);
     } catch {
       // Download imports retry on the next worker tick while the request remains active.
     }
