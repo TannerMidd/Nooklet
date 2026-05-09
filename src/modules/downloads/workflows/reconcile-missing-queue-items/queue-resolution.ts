@@ -1,8 +1,6 @@
-import { listSabnzbdQueue, type SabnzbdQueueSnapshot } from "@/lib/integrations/sabnzbd";
+import { listAllSabnzbdQueueItems, type SabnzbdQueueSnapshot } from "@/lib/integrations/sabnzbd";
 
 import { type ResolvedImportSabnzbdClient } from "../import-completed-downloads/client-resolution";
-
-const missingQueueReconciliationLimit = 100;
 
 export async function resolveMissingQueueSnapshot(
   client: ResolvedImportSabnzbdClient,
@@ -12,10 +10,10 @@ export async function resolveMissingQueueSnapshot(
     return snapshot;
   }
 
-  return listSabnzbdQueue({
+  return listAllSabnzbdQueueItems({
     baseUrl: client.baseUrl,
     apiKey: client.apiKey,
-    limit: missingQueueReconciliationLimit,
+    pageSize: 100,
     timeoutMs: 20_000,
   });
 }

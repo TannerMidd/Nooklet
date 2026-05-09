@@ -79,7 +79,10 @@ type SabnzbdHistoryResponse = {
   };
 };
 
-function buildSabnzbdApiUrl(baseUrl: string, input: { mode: string; limit?: number }) {
+function buildSabnzbdApiUrl(
+  baseUrl: string,
+  input: { mode: string; limit?: number; start?: number },
+) {
   const url = new URL(`${trimTrailingSlash(baseUrl)}/api`);
 
   url.searchParams.set("mode", input.mode);
@@ -87,6 +90,10 @@ function buildSabnzbdApiUrl(baseUrl: string, input: { mode: string; limit?: numb
 
   if (typeof input.limit === "number") {
     url.searchParams.set("limit", String(input.limit));
+  }
+
+  if (typeof input.start === "number") {
+    url.searchParams.set("start", String(input.start));
   }
 
   return url;
@@ -266,11 +273,13 @@ export async function listSabnzbdQueue(input: {
   baseUrl: string;
   apiKey: string;
   limit?: number;
+  start?: number;
   timeoutMs?: number;
 }) {
   const url = buildSabnzbdApiUrl(input.baseUrl, {
     mode: "queue",
     limit: input.limit,
+    start: input.start,
   });
 
   setSabnzbdApiKey(url, input.apiKey);
@@ -280,6 +289,54 @@ export async function listSabnzbdQueue(input: {
   });
 
   return normalizeSabnzbdQueueSnapshot(payload);
+}
+
+export async function listAllSabnzbdQueueItems(input: {
+  baseUrl: string;
+  apiKey: string;
+  pageSize?: number;
+  maxItems?: number;
+  timeoutMs?: number;
+}): Promise<SabnzbdQueueSnapshot> {
+  const pageSize = Math.max(1, input.pageSize ?? 100);
+  const maxItems = Math.max(pageSize, input.maxItems ?? 5_000);
+
+  const firstPage = await listSabnzbdQueue({
+    baseUrl: input.baseUrl,
+    apiKey: input.apiKey,
+    limit: pageSize,
+    start: 0,
+    timeoutMs: input.timeoutMs,
+  });
+
+  const collected: SabnzbdQueueItem[] = [...firstPage.items];
+  const totalReported = firstPage.totalQueueCount ?? firstPage.activeQueueCount ?? collected.length;
+  const targetTotal = Math.min(maxItems, totalReported);
+
+  while (collected.length < targetTotal && firstPage.items.length > 0) {
+    const page = await listSabnzbdQueue({
+      baseUrl: input.baseUrl,
+      apiKey: input.apiKey,
+      limit: pageSize,
+      start: collected.length,
+      timeoutMs: input.timeoutMs,
+    });
+
+    if (page.items.length === 0) {
+      break;
+    }
+
+    collected.push(...page.items);
+
+    if (page.items.length < pageSize) {
+      break;
+    }
+  }
+
+  return {
+    ...firstPage,
+    items: collected.slice(0, maxItems),
+  };
 }
 
 export async function pauseSabnzbdQueue(input: {
