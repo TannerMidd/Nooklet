@@ -35,6 +35,10 @@ import {
   UpdateTvSeasonMonitoringCommandError,
 } from "@/modules/media-library/commands/update-tv-season-monitoring";
 import {
+  addContentToExistingTitleWorkflow,
+  AddContentToExistingTitleWorkflowError,
+} from "@/modules/media-library/workflows/add-content-to-existing-title";
+import {
   addLibraryPathInputSchema,
   removeLibraryPathInputSchema,
   updateLibraryPathInputSchema,
@@ -48,6 +52,7 @@ import {
 import { removeMediaTitleInputSchema } from "@/modules/media-library/schemas/remove-media-title";
 import { updateTvEpisodeMonitoringInputSchema } from "@/modules/media-library/schemas/tv-episode-preferences";
 import { updateTvSeasonMonitoringInputSchema } from "@/modules/media-library/schemas/tv-season-preferences";
+import { type TvRequestSelections } from "@/modules/media-library/schemas/request-media-title";
 import {
   searchLibraryItemReleasesInputSchema,
   searchLibraryItemReleasesWorkflow,
@@ -65,6 +70,7 @@ import {
   initialLibraryScanScheduleActionState,
   initialMediaTitlePreferenceActionState,
   initialRemoveMediaTitleActionState,
+  initialRequestExistingTitleContentActionState,
   initialScanLibraryActionState,
   initialTvEpisodeMonitoringActionState,
   initialTvSeasonMonitoringActionState,
@@ -75,6 +81,7 @@ import {
   type LibraryPathMutationActionState,
   type MediaTitlePreferenceActionState,
   type RemoveMediaTitleActionState,
+  type RequestExistingTitleContentActionState,
   type ScanLibraryActionState,
   type TvEpisodeMonitoringActionState,
   type TvSeasonMonitoringActionState,
@@ -458,6 +465,122 @@ export async function updateTvSeasonMonitoringAction(
       ...initialTvSeasonMonitoringActionState,
       status: "error",
       message: "Nooklet could not update that season.",
+    };
+  }
+}
+
+function parseTvSelectionsFromFormData(formData: FormData): TvRequestSelections | undefined {
+  const mode = formData.get("selectionMode");
+
+  if (mode === "seasons") {
+    const seasons = formData
+      .getAll("selectedSeasons")
+      .map((value) => Number.parseInt(String(value), 10))
+      .filter((value) => Number.isFinite(value));
+
+    if (seasons.length === 0) {
+      return undefined;
+    }
+
+    return { mode: "seasons", seasons };
+  }
+
+  if (mode === "episodes") {
+    const seasonValue = Number.parseInt(String(formData.get("selectedSeason") ?? ""), 10);
+    const episodes = formData
+      .getAll("selectedEpisodes")
+      .map((value) => Number.parseInt(String(value), 10))
+      .filter((value) => Number.isFinite(value));
+
+    if (!Number.isFinite(seasonValue) || episodes.length === 0) {
+      return undefined;
+    }
+
+    return { mode: "episodes", season: seasonValue, episodes };
+  }
+
+  if (mode === "all") {
+    return { mode: "all" };
+  }
+
+  return undefined;
+}
+
+export async function requestExistingTitleContentAction(
+  _previous: RequestExistingTitleContentActionState,
+  formData: FormData,
+): Promise<RequestExistingTitleContentActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return {
+      ...initialRequestExistingTitleContentActionState,
+      status: "error",
+      message: "You need to sign in again.",
+    };
+  }
+
+  const titleId = formData.get("titleId");
+  const selections = parseTvSelectionsFromFormData(formData);
+
+  if (typeof titleId !== "string" || titleId.trim() === "") {
+    return {
+      ...initialRequestExistingTitleContentActionState,
+      status: "error",
+      message: "Could not identify the title.",
+    };
+  }
+
+  if (!selections) {
+    return {
+      ...initialRequestExistingTitleContentActionState,
+      status: "error",
+      message: "Pick at least one season or episode to add.",
+      titleId,
+    };
+  }
+
+  try {
+    const result = await addContentToExistingTitleWorkflow(session.user.id, {
+      titleId,
+      selections,
+      downloadNow: true,
+    });
+
+    revalidateMediaTitlePages("tv");
+
+    const queuedCount = result.selections.filter((selection) => selection.queuedDownload.queued).length;
+    const totalCount = result.selections.length;
+
+    if (queuedCount > 0) {
+      revalidatePath("/in-progress");
+    }
+
+    const message = queuedCount > 0
+      ? `Queued ${queuedCount} of ${totalCount} selections.`
+      : `No selections were queued (${totalCount} attempted).`;
+
+    return {
+      status: "success",
+      message,
+      titleId: result.title.id,
+      queuedCount,
+    };
+  } catch (error) {
+    if (error instanceof AddContentToExistingTitleWorkflowError) {
+      return {
+        ...initialRequestExistingTitleContentActionState,
+        status: "error",
+        message: error.message,
+        titleId,
+      };
+    }
+
+    return {
+      ...initialRequestExistingTitleContentActionState,
+      status: "error",
+      message: "Nooklet could not request more content for that title.",
+      titleId,
     };
   }
 }

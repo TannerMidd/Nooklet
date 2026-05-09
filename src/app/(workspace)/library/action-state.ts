@@ -80,6 +80,20 @@ export const initialTvSeasonMonitoringActionState: TvSeasonMonitoringActionState
   message: null,
 };
 
+export type RequestExistingTitleContentActionState = {
+  status: "idle" | "success" | "error";
+  message: string | null;
+  titleId: string | null;
+  queuedCount: number;
+};
+
+export const initialRequestExistingTitleContentActionState: RequestExistingTitleContentActionState = {
+  status: "idle",
+  message: null,
+  titleId: null,
+  queuedCount: 0,
+};
+
 export type LibraryMonitoringActionState = {
   status: "idle" | "success" | "error";
   message: string | null;

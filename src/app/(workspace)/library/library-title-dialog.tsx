@@ -4,6 +4,7 @@ import { MediaTitlePreferencesForm } from "@/app/(workspace)/library/media-title
 import { RemoveMediaTitleForm } from "@/app/(workspace)/library/remove-media-title-form";
 import { TvEpisodeMonitoringForm } from "@/app/(workspace)/library/tv-episode-monitoring-form";
 import { TvSeasonMonitoringForm } from "@/app/(workspace)/library/tv-season-monitoring-form";
+import { RequestMoreContentForm } from "@/app/(workspace)/library/request-more-content-form";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { type MediaLibraryMovieTitleDetails } from "@/modules/media-library/queries/get-media-library-movie-title-details";
 import {
@@ -247,6 +248,7 @@ function TvDialog({
         <div>
           <h3 className="font-heading text-lg text-foreground">Seasons and episodes</h3>
         </div>
+        <RequestMoreContentForm titleId={title.id} tmdbId={title.tmdbId} titleLabel={title.title} />
         {title.seasons.length === 0 ? (
           <p className="rounded-lg border border-dashed border-line/75 bg-background/20 p-4 text-sm text-muted">
             No episodes have been discovered for this series yet.

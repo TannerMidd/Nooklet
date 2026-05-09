@@ -4,6 +4,7 @@ import { ensureDatabaseReady } from "@/lib/database/client";
 import {
   mediaFiles,
   mediaLibraries,
+  mediaTitleExternalIds,
   mediaTitles,
   tvEpisodes,
   tvSeasons,
@@ -45,6 +46,7 @@ export type MediaLibraryTvTitleDetails = {
   qualityProfile: MediaQualityProfile;
   overview: string | null;
   posterUrl: string | null;
+  tmdbId: number | null;
   totals: {
     seasons: number;
     episodes: number;
@@ -73,6 +75,13 @@ export async function getMediaLibraryTvTitleDetails(
   if (!row) {
     return null;
   }
+
+  const tmdbExternalId = database
+    .select({ value: mediaTitleExternalIds.value })
+    .from(mediaTitleExternalIds)
+    .where(and(eq(mediaTitleExternalIds.titleId, row.title.id), eq(mediaTitleExternalIds.source, "tmdb")))
+    .get();
+  const tmdbIdValue = tmdbExternalId ? Number.parseInt(tmdbExternalId.value, 10) : Number.NaN;
 
   const seasons = database
     .select()
@@ -162,6 +171,7 @@ export async function getMediaLibraryTvTitleDetails(
     qualityProfile: row.title.qualityProfile,
     overview: row.title.overview,
     posterUrl: row.title.posterUrl,
+    tmdbId: Number.isFinite(tmdbIdValue) ? tmdbIdValue : null,
     totals: {
       seasons: seasonSummaries.length,
       episodes: episodes.length,
