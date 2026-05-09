@@ -218,6 +218,10 @@ export async function queueIndexerResultAction(
 
   const parsed = queueIndexerResultInputSchema.safeParse({
     resultId: formData.get("resultId"),
+    mediaTitleId: formData.get("mediaTitleId") || undefined,
+    episodeId: formData.get("episodeId") || undefined,
+    requestedTitle: formData.get("requestedTitle") || undefined,
+    targetLibraryId: formData.get("targetLibraryId") || undefined,
     targetLibraryPathId: formData.get("targetLibraryPathId") || undefined,
   });
 

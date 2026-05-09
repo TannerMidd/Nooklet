@@ -132,9 +132,11 @@ function TitleMeta({ title }: { title: TitleSearchResultView }) {
 
 function ReleaseResults({
   results,
+  mediaTitleId,
   targetLibraryPathId,
 }: {
   results: SearchResultView[];
+  mediaTitleId: string | null;
   targetLibraryPathId: string | null;
 }) {
   if (results.length === 0) {
@@ -168,7 +170,11 @@ function ReleaseResults({
                   </span>
                 </div>
               </div>
-              <QueueResultButton resultId={result.id} targetLibraryPathId={targetLibraryPathId} />
+              <QueueResultButton
+                resultId={result.id}
+                mediaTitleId={mediaTitleId}
+                targetLibraryPathId={targetLibraryPathId}
+              />
             </div>
           </li>
         ))}
@@ -275,7 +281,11 @@ function RequestTitleForm({
         </div>
         <AddTitleButton />
       </form>
-      <ReleaseResults results={state.results} targetLibraryPathId={state.targetLibraryPathId} />
+      <ReleaseResults
+        results={state.results}
+        mediaTitleId={state.titleId}
+        targetLibraryPathId={state.targetLibraryPathId}
+      />
     </div>
   );
 }

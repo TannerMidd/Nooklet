@@ -38,9 +38,13 @@ function QueueSubmitButton({ queued }: { queued: boolean }) {
 
 export function QueueResultButton({
   resultId,
+  mediaTitleId,
+  episodeId,
   targetLibraryPathId,
 }: {
   resultId: string;
+  mediaTitleId?: string | null;
+  episodeId?: string | null;
   targetLibraryPathId?: string | null;
 }) {
   const [state, formAction] = useActionState(
@@ -52,6 +56,8 @@ export function QueueResultButton({
   return (
     <form action={formAction} className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
       <input type="hidden" name="resultId" value={resultId} />
+      {mediaTitleId ? <input type="hidden" name="mediaTitleId" value={mediaTitleId} /> : null}
+      {episodeId ? <input type="hidden" name="episodeId" value={episodeId} /> : null}
       {targetLibraryPathId ? <input type="hidden" name="targetLibraryPathId" value={targetLibraryPathId} /> : null}
       <QueueSubmitButton queued={queued} />
       <QueueStatus state={state} />
