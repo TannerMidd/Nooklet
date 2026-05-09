@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, DatabaseZap, Download, HardDrive, Search } from "lucide-react";
+import { CalendarDays, DatabaseZap, Download, HardDrive, ListChecks, Search } from "lucide-react";
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -18,6 +18,11 @@ import {
 } from "@/app/(workspace)/search/action-state";
 import { QueueResultButton } from "@/app/(workspace)/search/queue-result-button";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
+import {
+  TvRequestDialog,
+  describeTvSelection,
+  type TvSelectionState,
+} from "@/components/search/tv-request-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type MediaQualityProfile, type RecommendationMediaType } from "@/lib/database/schema";
@@ -203,9 +208,12 @@ function RequestTitleForm({
     : matchingPathOptions[0]?.id ?? "";
   const [selectedLibraryId, setSelectedLibraryId] = useState(initialLibraryId);
   const [selectedTargetPathId, setSelectedTargetPathId] = useState(initialTargetPathId);
+  const [selection, setSelection] = useState<TvSelectionState>({ mode: "all" });
+  const [dialogOpen, setDialogOpen] = useState(false);
   const visiblePathOptions = matchingPathOptions.filter((option) => (
     selectedLibraryId ? option.libraryId === selectedLibraryId : true
   ));
+  const isTv = title.mediaType === "tv";
 
   function handleLibraryChange(value: string) {
     setSelectedLibraryId(value);
@@ -226,6 +234,34 @@ function RequestTitleForm({
         <input type="hidden" name="runtimeMinutes" value="" />
         <input type="hidden" name="originalLanguage" value={title.originalLanguage ?? ""} />
         <input type="hidden" name="downloadNow" value="on" />
+        {isTv ? (
+          <>
+            <input type="hidden" name="selectionMode" value={selection.mode} />
+            {selection.mode === "seasons"
+              ? selection.seasons.map((seasonNumber) => (
+                  <input
+                    key={`season-${seasonNumber}`}
+                    type="hidden"
+                    name="selectedSeasons"
+                    value={seasonNumber}
+                  />
+                ))
+              : null}
+            {selection.mode === "episodes" ? (
+              <>
+                <input type="hidden" name="selectedSeason" value={selection.season} />
+                {selection.episodes.map((episodeNumber) => (
+                  <input
+                    key={`episode-${episodeNumber}`}
+                    type="hidden"
+                    name="selectedEpisodes"
+                    value={episodeNumber}
+                  />
+                ))}
+              </>
+            ) : null}
+          </>
+        ) : null}
         <StatusBanner state={state} />
         <div className="grid gap-3 lg:grid-cols-3">
           <label className="space-y-1 text-sm">
@@ -278,9 +314,31 @@ function RequestTitleForm({
             <input type="checkbox" name="monitored" defaultChecked className="h-4 w-4 accent-accent" />
             Monitor
           </label>
+          {isTv ? (
+            <button
+              type="button"
+              onClick={() => setDialogOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2 text-foreground"
+            >
+              <ListChecks aria-hidden="true" size={15} />
+              {describeTvSelection(selection)}
+            </button>
+          ) : null}
         </div>
         <AddTitleButton />
       </form>
+      {isTv && dialogOpen ? (
+        <TvRequestDialog
+          tmdbId={title.tmdbId}
+          titleLabel={`${title.title}${title.year ? ` (${title.year})` : ""}`}
+          initialSelection={selection}
+          onConfirm={(next) => {
+            setSelection(next);
+            setDialogOpen(false);
+          }}
+          onClose={() => setDialogOpen(false)}
+        />
+      ) : null}
       <ReleaseResults
         results={state.results}
         mediaTitleId={state.titleId}
