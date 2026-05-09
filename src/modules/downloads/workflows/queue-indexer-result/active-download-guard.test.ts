@@ -40,6 +40,7 @@ describe("ensureNoActiveDownloadRequest", () => {
       userId: "u1",
       mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
       episodeId: "7f3f45c2-8ebd-40c5-9ce5-2f3283c20c08",
+      seasonId: null,
     });
   });
 });

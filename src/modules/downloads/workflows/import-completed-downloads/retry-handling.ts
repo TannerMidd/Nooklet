@@ -84,6 +84,7 @@ export async function retryFailedCompletedDownloads(
         userId,
         mediaTitleId,
         episodeId: match.request.episodeId,
+        seasonId: match.request.seasonId,
       });
       const retry = await searchLibraryItemReleasesWorkflow(userId, {
         titleId: mediaTitleId,

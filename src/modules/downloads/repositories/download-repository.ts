@@ -99,6 +99,7 @@ export async function createDownloadRequest(input: {
   requestedTitle: string;
   mediaTitleId?: string | null;
   episodeId?: string | null;
+  seasonId?: string | null;
   searchResultId?: string | null;
   clientId?: string | null;
   targetLibraryId?: string | null;
@@ -118,6 +119,7 @@ export async function createDownloadRequest(input: {
       requestedTitle: input.requestedTitle,
       mediaTitleId: input.mediaTitleId ?? null,
       episodeId: input.episodeId ?? null,
+      seasonId: input.seasonId ?? null,
       searchResultId: input.searchResultId ?? null,
       clientId: input.clientId ?? null,
       targetLibraryId: input.targetLibraryId ?? null,
@@ -250,6 +252,7 @@ export async function findActiveDownloadRequestForItem(input: {
   userId: string;
   mediaTitleId: string;
   episodeId?: string | null;
+  seasonId?: string | null;
 }) {
   const database = ensureDatabaseReady();
 
@@ -262,6 +265,9 @@ export async function findActiveDownloadRequestForItem(input: {
       input.episodeId
         ? eq(downloadRequests.episodeId, input.episodeId)
         : isNull(downloadRequests.episodeId),
+      input.seasonId
+        ? eq(downloadRequests.seasonId, input.seasonId)
+        : isNull(downloadRequests.seasonId),
       inArray(downloadRequests.status, activeDownloadRequestStatuses),
     ))
     .get() ?? null;
@@ -308,6 +314,7 @@ export async function listDownloadRequestReleaseExclusionsForItem(input: {
   userId: string;
   mediaTitleId: string;
   episodeId?: string | null;
+  seasonId?: string | null;
 }) {
   const database = ensureDatabaseReady();
   const rows = database
@@ -324,6 +331,9 @@ export async function listDownloadRequestReleaseExclusionsForItem(input: {
       input.episodeId
         ? eq(downloadRequests.episodeId, input.episodeId)
         : isNull(downloadRequests.episodeId),
+      input.seasonId
+        ? eq(downloadRequests.seasonId, input.seasonId)
+        : isNull(downloadRequests.seasonId),
       isNotNull(downloadRequests.searchResultId),
     ))
     .all();

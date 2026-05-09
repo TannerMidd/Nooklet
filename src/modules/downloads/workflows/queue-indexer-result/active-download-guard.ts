@@ -12,6 +12,7 @@ export async function ensureNoActiveDownloadRequest(userId: string, request: Que
     userId,
     mediaTitleId: request.mediaTitleId,
     episodeId: request.episodeId ?? null,
+    seasonId: request.seasonId ?? null,
   });
 
   if (activeRequest) {

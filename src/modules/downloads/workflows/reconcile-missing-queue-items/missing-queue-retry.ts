@@ -159,6 +159,7 @@ export async function retryMissingSabnzbdQueueItems(
         userId,
         mediaTitleId,
         episodeId: entry.request.episodeId,
+        seasonId: entry.request.seasonId,
       });
       const retry = await searchLibraryItemReleasesWorkflow(userId, {
         titleId: mediaTitleId,

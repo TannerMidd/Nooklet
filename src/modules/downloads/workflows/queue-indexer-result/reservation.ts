@@ -25,6 +25,7 @@ export async function reserveDownloadRequest(input: {
       requestedTitle: input.request.requestedTitle ?? input.resolvedResult.result.title,
       mediaTitleId: input.request.mediaTitleId ?? null,
       episodeId: input.request.episodeId ?? null,
+      seasonId: input.request.seasonId ?? null,
       releaseTitle: input.resolvedResult.result.title,
       searchResultId: input.resolvedResult.result.id,
       clientId: input.downloadClient.client.id,
