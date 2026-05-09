@@ -15,7 +15,16 @@ import { getMediaQualityProfileLabel } from "@/modules/media-library/queries/lis
 import {
   requestTitleWithReleaseSearchInputSchema,
   requestTitleWithReleaseSearchWorkflow,
+  type RequestTitleSelectionResult,
 } from "@/modules/media-library/workflows/request-title-with-release-search";
+import { describeReleaseSelectionTarget } from "@/modules/media-library/workflows/request-title-with-release-search/selection-targets";
+import { type TvRequestSelections } from "@/modules/media-library/schemas/request-media-title";
+import {
+  getTmdbTvSeasonEpisodesForUser,
+  getTmdbTvSeasonsForUser,
+  type GetTmdbTvSeasonEpisodesResult,
+  type GetTmdbTvSeasonsResult,
+} from "@/modules/service-connections/queries/get-tmdb-tv-seasons";
 import {
   initialQueueIndexerResultActionState,
   initialRequestSearchTitleActionState,
@@ -48,6 +57,91 @@ function mapSearchResults(results: Array<{
     leechers: result.leechers,
     grabs: result.grabs,
   }));
+}
+
+function parseSelectionsFromFormData(formData: FormData): TvRequestSelections | undefined {
+  const mode = formData.get("selectionMode");
+
+  if (mode === "seasons") {
+    const seasons = formData
+      .getAll("selectedSeasons")
+      .map((value) => Number.parseInt(String(value), 10))
+      .filter((value) => Number.isFinite(value));
+
+    if (seasons.length === 0) {
+      return undefined;
+    }
+
+    return { mode: "seasons", seasons };
+  }
+
+  if (mode === "episodes") {
+    const seasonValue = Number.parseInt(String(formData.get("selectedSeason") ?? ""), 10);
+    const episodes = formData
+      .getAll("selectedEpisodes")
+      .map((value) => Number.parseInt(String(value), 10))
+      .filter((value) => Number.isFinite(value));
+
+    if (!Number.isFinite(seasonValue) || episodes.length === 0) {
+      return undefined;
+    }
+
+    return { mode: "episodes", season: seasonValue, episodes };
+  }
+
+  if (mode === "all") {
+    return { mode: "all" };
+  }
+
+  return undefined;
+}
+
+function describeSelectionIssue(
+  selection: RequestTitleSelectionResult,
+  qualityProfile: Parameters<typeof getMediaQualityProfileLabel>[0],
+): string {
+  const targetLabel = describeReleaseSelectionTarget(selection.target);
+
+  if (!selection.releaseSearch.searched) {
+    return `${targetLabel}: not searched.`;
+  }
+
+  if (selection.releaseSearch.searchRun.status === "failed") {
+    return `${targetLabel}: ${selection.releaseSearch.searchRun.errorMessage ?? "release search failed"}.`;
+  }
+
+  if (selection.queuedDownload.reason === "no_matching_release") {
+    return `${targetLabel}: no releases matched ${getMediaQualityProfileLabel(qualityProfile)}.`;
+  }
+
+  if (selection.queuedDownload.reason === "queue_failed") {
+    return `${targetLabel}: ${selection.queuedDownload.message ?? "could not queue a release"}.`;
+  }
+
+  return `${targetLabel}: skipped.`;
+}
+
+export async function loadTmdbTvSeasonsAction(tmdbId: number): Promise<GetTmdbTvSeasonsResult> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { ok: false, reason: "tmdb-error", message: "You need to sign in again." };
+  }
+
+  return getTmdbTvSeasonsForUser(session.user.id, { tmdbId });
+}
+
+export async function loadTmdbTvSeasonEpisodesAction(
+  tmdbId: number,
+  seasonNumber: number,
+): Promise<GetTmdbTvSeasonEpisodesResult> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { ok: false, reason: "tmdb-error", message: "You need to sign in again." };
+  }
+
+  return getTmdbTvSeasonEpisodesForUser(session.user.id, { tmdbId, seasonNumber });
 }
 
 export async function searchTitlesAction(
@@ -94,6 +188,7 @@ export async function requestSearchTitleAction(
   }
 
   const downloadNow = formData.get("downloadNow") === "on";
+  const selections = parseSelectionsFromFormData(formData);
   const parsed = requestTitleWithReleaseSearchInputSchema.safeParse({
     mediaType: formData.get("mediaType"),
     libraryId: formData.get("libraryId"),
@@ -109,6 +204,7 @@ export async function requestSearchTitleAction(
     runtimeMinutes: formData.get("runtimeMinutes"),
     originalLanguage: formData.get("originalLanguage"),
     downloadNow,
+    selections,
   });
 
   if (!parsed.success) {
@@ -121,6 +217,36 @@ export async function requestSearchTitleAction(
 
     revalidatePath("/library");
     revalidatePath(parsed.data.mediaType === "tv" ? "/library/tv" : "/library/movies");
+
+    if (requested.selections.length > 1) {
+      const queuedCount = requested.selections.filter((selection) => selection.queuedDownload.queued).length;
+      const totalCount = requested.selections.length;
+      const issues = requested.selections
+        .filter((selection) => !selection.queuedDownload.queued && requested.queuedDownload.reason !== "not_requested")
+        .map((selection) => describeSelectionIssue(selection, parsed.data.qualityProfile));
+      const summary = queuedCount > 0
+        ? `Added to your library and queued ${queuedCount} of ${totalCount} selections.`
+        : `Added to your library, but no selections were queued (${totalCount} attempted).`;
+      const message = issues.length > 0 ? `${summary} ${issues.join(" ")}` : summary;
+
+      if (queuedCount > 0) {
+        revalidatePath("/in-progress");
+      }
+
+      const primarySearched = requested.selections.find((selection) => selection.releaseSearch.searched);
+
+      return {
+        status: "success",
+        message,
+        titleId: requested.title.id,
+        searchRunId: primarySearched?.releaseSearch.searched ? primarySearched.releaseSearch.searchRun.id : null,
+        downloadRequestId: requested.queuedDownload.queued
+          ? requested.queuedDownload.download.downloadRequest.id
+          : null,
+        targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
+        results: [],
+      };
+    }
 
     if (requested.queuedDownload.queued) {
       revalidatePath("/in-progress");

@@ -163,6 +163,11 @@ describe("requestSearchTitleAction", () => {
       title: { id: "title1" },
       releaseSearch: { searched: false },
       queuedDownload: { queued: false, reason: "not_requested" },
+      selections: [{
+        target: { kind: "all" },
+        releaseSearch: { searched: false },
+        queuedDownload: { queued: false, reason: "not_requested" },
+      }],
     } as never);
 
     const result = await requestSearchTitleAction(initialRequestSearchTitleActionState, validForm());
@@ -213,6 +218,19 @@ describe("requestSearchTitleAction", () => {
         download: { downloadRequest: { id: "download1" } },
         selectedResultId: "result1",
       },
+      selections: [{
+        target: { kind: "all" },
+        releaseSearch: {
+          searched: true,
+          searchRun: { id: "run1", status: "succeeded" },
+          results: [],
+        },
+        queuedDownload: {
+          queued: true,
+          download: { downloadRequest: { id: "download1" } },
+          selectedResultId: "result1",
+        },
+      }],
     } as never);
 
     const result = await requestSearchTitleAction(initialRequestSearchTitleActionState, validForm(true));
@@ -250,6 +268,15 @@ describe("requestSearchTitleAction", () => {
         }],
       },
       queuedDownload: { queued: false, reason: "no_matching_release" },
+      selections: [{
+        target: { kind: "all" },
+        releaseSearch: {
+          searched: true,
+          searchRun: { id: "run1", status: "succeeded" },
+          results: [],
+        },
+        queuedDownload: { queued: false, reason: "no_matching_release" },
+      }],
     } as never);
 
     const result = await requestSearchTitleAction(initialRequestSearchTitleActionState, validForm(true));
