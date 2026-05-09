@@ -33,7 +33,7 @@ describe("reconcileMissingSabnzbdQueueItemsWorkflow", () => {
     const calls: string[] = [];
     const client = { client: { id: "client1" }, baseUrl: "http://sab", apiKey: "secret" };
     const snapshot = { items: [] };
-    const result = { missingCount: 1, attemptedCount: 1, queuedCount: 1, failedCount: 0 };
+    const result = { missingCount: 1, attemptedCount: 1, queuedCount: 1, failedCount: 0, graceCount: 0 };
 
     resolveClientMock.mockImplementation(async () => {
       calls.push("client");

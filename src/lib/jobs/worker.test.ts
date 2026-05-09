@@ -54,6 +54,7 @@ beforeEach(() => {
     attemptedCount: 0,
     queuedCount: 0,
     failedCount: 0,
+    graceCount: 0,
   });
   reconcileDuplicateQueueMock.mockResolvedValue({
     duplicateGroupCount: 0,

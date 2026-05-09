@@ -47,6 +47,7 @@ beforeEach(() => {
     attemptedCount: 0,
     queuedCount: 0,
     failedCount: 0,
+    graceCount: 0,
   });
   reconcileDuplicateQueueMock.mockResolvedValue({
     duplicateGroupCount: 0,
@@ -70,7 +71,7 @@ describe("refreshSabnzbdQueueActivity", () => {
     });
     reconcileMissingQueueMock.mockImplementation(async () => {
       calls.push("missing");
-      return { missingCount: 0, attemptedCount: 0, queuedCount: 0, failedCount: 0 };
+      return { missingCount: 0, attemptedCount: 0, queuedCount: 0, failedCount: 0, graceCount: 0 };
     });
     reconcileDuplicateQueueMock.mockImplementation(async () => {
       calls.push("duplicates");
