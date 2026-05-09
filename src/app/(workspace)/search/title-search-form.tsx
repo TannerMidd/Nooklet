@@ -22,7 +22,7 @@ import {
   TvRequestDialog,
   describeTvSelection,
   type TvSelectionState,
-} from "@/components/search/tv-request-dialog";
+} from "@/components/media-library/tv-request-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type MediaQualityProfile, type RecommendationMediaType } from "@/lib/database/schema";
