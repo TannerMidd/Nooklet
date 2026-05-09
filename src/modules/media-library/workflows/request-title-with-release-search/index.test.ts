@@ -11,21 +11,21 @@ vi.mock("./title-request", () => ({
   requestWorkflowMediaTitle: vi.fn(),
 }));
 vi.mock("./release-search", () => ({
-  searchRequestedTitleReleases: vi.fn(),
+  searchRequestedTitleReleasesForTarget: vi.fn(),
 }));
 vi.mock("./release-queueing", () => ({
   queueRequestedTitleRelease: vi.fn(),
 }));
 
 import { queueRequestedTitleRelease } from "./release-queueing";
-import { searchRequestedTitleReleases } from "./release-search";
+import { searchRequestedTitleReleasesForTarget } from "./release-search";
 import { requestTitleWithReleaseSearchWorkflow } from "./index";
 import { validateRequestTitleWithReleaseSearchRequest } from "./request-validation";
 import { requestWorkflowMediaTitle } from "./title-request";
 
 const validateMock = vi.mocked(validateRequestTitleWithReleaseSearchRequest);
 const titleRequestMock = vi.mocked(requestWorkflowMediaTitle);
-const releaseSearchMock = vi.mocked(searchRequestedTitleReleases);
+const releaseSearchMock = vi.mocked(searchRequestedTitleReleasesForTarget);
 const releaseQueueMock = vi.mocked(queueRequestedTitleRelease);
 
 beforeEach(() => {
@@ -69,8 +69,13 @@ describe("requestTitleWithReleaseSearchWorkflow", () => {
     expect(calls).toEqual(["validate", "request-title", "search-releases", "queue-release"]);
     expect(validateMock).toHaveBeenCalledWith(request);
     expect(titleRequestMock).toHaveBeenCalledWith("u1", request);
-    expect(releaseSearchMock).toHaveBeenCalledWith("u1", request);
+    expect(releaseSearchMock).toHaveBeenCalledWith("u1", request, { kind: "all" });
     expect(releaseQueueMock).toHaveBeenCalledWith("u1", request, title, releaseSearch);
-    expect(result).toEqual({ title, releaseSearch, queuedDownload });
+    expect(result).toMatchObject({
+      title,
+      releaseSearch,
+      queuedDownload,
+      selections: [{ target: { kind: "all" }, releaseSearch, queuedDownload }],
+    });
   });
 });

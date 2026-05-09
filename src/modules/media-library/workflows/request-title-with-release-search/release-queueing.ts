@@ -114,6 +114,7 @@ export async function queueRequestedTitleRelease(
   request: RequestTitleWithReleaseSearchInput,
   title: MediaTitleRecord,
   releaseSearch: RequestedTitleReleaseSearch,
+  options: { seasonId?: string | null } = {},
 ): Promise<RequestedTitleQueuedDownload> {
   if (!request.downloadNow) {
     return {
@@ -172,6 +173,7 @@ export async function queueRequestedTitleRelease(
         requestedTitle: title.title,
         targetLibraryId: title.libraryId,
         targetLibraryPathId: request.targetLibraryPathId ?? null,
+        ...(options.seasonId ? { seasonId: options.seasonId } : {}),
       });
 
       return {
