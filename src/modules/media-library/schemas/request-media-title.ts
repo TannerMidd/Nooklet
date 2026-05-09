@@ -37,6 +37,8 @@ const tvSelectionsSchema = z
   ])
   .optional();
 
+export { tvSelectionsSchema };
+
 export const requestMediaTitleInputSchema = z.object({
   mediaType: z.enum(recommendationMediaTypes),
   libraryId: z.preprocess(
