@@ -55,7 +55,7 @@ describe("addContentToExistingTitleWorkflow", () => {
       selections: { mode: "seasons" as const, seasons: [1, 2] },
       downloadNow: true,
     };
-    const title = { id: parsedInput.titleId, mediaType: "tv" } as never;
+    const title = { id: parsedInput.titleId, mediaType: "tv" } as { id: string; mediaType: "tv" };
     const request = {
       mediaType: "tv",
       title: "Eureka",

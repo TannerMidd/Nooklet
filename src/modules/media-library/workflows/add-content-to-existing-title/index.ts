@@ -19,7 +19,7 @@ import {
 
 import {
   validateAddContentToExistingTitleRequest,
-  type AddContentToExistingTitleInput,
+  type AddContentToExistingTitleParsedInput,
 } from "./request-validation";
 import { loadExistingTitleForAddContent } from "./title-loading";
 
@@ -40,7 +40,7 @@ export type AddContentToExistingTitleResult = {
 
 export async function addContentToExistingTitleWorkflow(
   userId: string,
-  input: AddContentToExistingTitleInput,
+  input: AddContentToExistingTitleParsedInput,
 ): Promise<AddContentToExistingTitleResult> {
   const parsed = validateAddContentToExistingTitleRequest(input);
   const { title, request } = await loadExistingTitleForAddContent(userId, parsed);
