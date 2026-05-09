@@ -1,4 +1,7 @@
-import { type SabnzbdQueueSnapshot } from "@/lib/integrations/sabnzbd";
+import {
+  type SabnzbdHistorySnapshot,
+  type SabnzbdQueueSnapshot,
+} from "@/lib/integrations/sabnzbd";
 import {
   incrementDownloadRequestMissingTickCount,
   incrementDownloadRequestRetryCount,
@@ -20,6 +23,7 @@ export type MissingQueueItemRetryResult = {
   queuedCount: number;
   failedCount: number;
   graceCount: number;
+  awaitingImportCount: number;
 };
 
 const missingQueueMessage =
@@ -56,9 +60,11 @@ export async function retryMissingSabnzbdQueueItems(
   userId: string,
   client: ResolvedImportSabnzbdClient,
   snapshot: SabnzbdQueueSnapshot,
+  history: SabnzbdHistorySnapshot,
 ): Promise<MissingQueueItemRetryResult> {
   const activeRequests = await listActiveDownloadRequestsForImport(userId, client.client.id);
   const currentQueueIds = new Set(snapshot.items.map((item) => item.id));
+  const historyQueueIds = new Set(history.items.map((item) => item.id));
   const retriedItemKeys = new Set<string>();
   const now = Date.now();
   let missingCount = 0;
@@ -66,6 +72,7 @@ export async function retryMissingSabnzbdQueueItems(
   let queuedCount = 0;
   let failedCount = 0;
   let graceCount = 0;
+  let awaitingImportCount = 0;
 
   for (const entry of activeRequests) {
     if (!isTrackedActiveDownload(entry)) {
@@ -74,6 +81,16 @@ export async function retryMissingSabnzbdQueueItems(
 
     if (currentQueueIds.has(entry.queueItem.externalQueueId)) {
       // Item is back / still visible — clear any prior missing-tick streak.
+      if ((entry.request.missingTickCount ?? 0) > 0) {
+        await resetDownloadRequestMissingTickCount({ userId, requestId: entry.request.id });
+      }
+      continue;
+    }
+
+    if (historyQueueIds.has(entry.queueItem.externalQueueId)) {
+      // SAB has moved this item to history (completed/failed/aborted). The import-completed
+      // workflow owns transitioning the request out of the active set; do NOT retry here.
+      awaitingImportCount += 1;
       if ((entry.request.missingTickCount ?? 0) > 0) {
         await resetDownloadRequestMissingTickCount({ userId, requestId: entry.request.id });
       }
@@ -161,5 +178,5 @@ export async function retryMissingSabnzbdQueueItems(
     }
   }
 
-  return { missingCount, attemptedCount, queuedCount, failedCount, graceCount };
+  return { missingCount, attemptedCount, queuedCount, failedCount, graceCount, awaitingImportCount };
 }

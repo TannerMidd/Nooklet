@@ -1,4 +1,8 @@
-import { type SabnzbdQueueSnapshot } from "@/lib/integrations/sabnzbd";
+import {
+  listSabnzbdHistory,
+  type SabnzbdHistorySnapshot,
+  type SabnzbdQueueSnapshot,
+} from "@/lib/integrations/sabnzbd";
 
 import { resolveImportSabnzbdClient } from "../import-completed-downloads/client-resolution";
 import { recordMissingQueueItemAudit } from "./audit";
@@ -7,6 +11,7 @@ import { resolveMissingQueueSnapshot } from "./queue-resolution";
 
 export type ReconcileMissingSabnzbdQueueItemsInput = {
   queueSnapshot?: SabnzbdQueueSnapshot | null;
+  historySnapshot?: SabnzbdHistorySnapshot | null;
 };
 
 export async function reconcileMissingSabnzbdQueueItemsWorkflow(
@@ -15,7 +20,14 @@ export async function reconcileMissingSabnzbdQueueItemsWorkflow(
 ) {
   const client = await resolveImportSabnzbdClient(userId);
   const snapshot = await resolveMissingQueueSnapshot(client, input.queueSnapshot);
-  const result = await retryMissingSabnzbdQueueItems(userId, client, snapshot);
+  const history = input.historySnapshot
+    ?? (await listSabnzbdHistory({
+      baseUrl: client.baseUrl,
+      apiKey: client.apiKey,
+      limit: 200,
+      timeoutMs: 20_000,
+    }));
+  const result = await retryMissingSabnzbdQueueItems(userId, client, snapshot, history);
 
   await recordMissingQueueItemAudit(userId, result);
 

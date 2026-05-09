@@ -45,6 +45,8 @@ beforeEach(() => {
 
 const SUBMITTED_LONG_AGO = new Date(Date.now() - MIN_SAB_VISIBILITY_WINDOW_MS - 60_000);
 
+const EMPTY_HISTORY = { items: [] } as never;
+
 describe("retryMissingSabnzbdQueueItems", () => {
   it("marks missing SAB queue items failed and retries with the previous release excluded once the missing-tick threshold is exceeded", async () => {
     listActiveMock.mockResolvedValue([
@@ -87,6 +89,7 @@ describe("retryMissingSabnzbdQueueItems", () => {
         totalQueueCount: 0,
         items: [],
       },
+      EMPTY_HISTORY,
     );
 
     expect(incrementMissingMock).toHaveBeenCalledWith({ userId: "user1", requestId: "request1" });
@@ -115,6 +118,7 @@ describe("retryMissingSabnzbdQueueItems", () => {
       queuedCount: 1,
       failedCount: 0,
       graceCount: 0,
+      awaitingImportCount: 0,
     });
   });
 
@@ -149,6 +153,7 @@ describe("retryMissingSabnzbdQueueItems", () => {
         totalQueueCount: 1,
         items: [{ id: "active-nzo" } as never],
       },
+      EMPTY_HISTORY,
     );
 
     expect(updateQueueItemMock).not.toHaveBeenCalled();
@@ -160,6 +165,7 @@ describe("retryMissingSabnzbdQueueItems", () => {
       queuedCount: 0,
       failedCount: 0,
       graceCount: 0,
+      awaitingImportCount: 0,
     });
   });
 
@@ -194,6 +200,7 @@ describe("retryMissingSabnzbdQueueItems", () => {
         totalQueueCount: 0,
         items: [],
       },
+      EMPTY_HISTORY,
     );
 
     expect(incrementMissingMock).not.toHaveBeenCalled();
@@ -234,6 +241,7 @@ describe("retryMissingSabnzbdQueueItems", () => {
         totalQueueCount: 0,
         items: [],
       },
+      EMPTY_HISTORY,
     );
 
     expect(incrementMissingMock).toHaveBeenCalledTimes(1);
@@ -242,6 +250,49 @@ describe("retryMissingSabnzbdQueueItems", () => {
     );
     expect(updateQueueItemMock).not.toHaveBeenCalled();
     expect(searchMock).not.toHaveBeenCalled();
+    expect(result.missingCount).toBe(0);
+  });
+
+  it("does not retry queue items SAB has moved to history (waits for import-completed to claim them)", async () => {
+    listActiveMock.mockResolvedValue([
+      {
+        request: {
+          id: "request4",
+          status: "downloading",
+          mediaTitleId: "title4",
+          episodeId: null,
+          submittedAt: SUBMITTED_LONG_AGO,
+          createdAt: SUBMITTED_LONG_AGO,
+          missingTickCount: 2,
+          retryCount: 0,
+        },
+        queueItem: { id: "queue4", status: "downloading", externalQueueId: "completed-nzo" },
+      },
+    ] as never);
+
+    const result = await retryMissingSabnzbdQueueItems(
+      "user1",
+      { client: { id: "client1" }, baseUrl: "http://sab", apiKey: "secret" } as never,
+      {
+        version: null,
+        queueStatus: "Idle",
+        paused: false,
+        speed: null,
+        kbPerSec: null,
+        timeLeft: null,
+        activeQueueCount: 0,
+        totalQueueCount: 0,
+        items: [],
+      },
+      { items: [{ id: "completed-nzo" } as never] } as never,
+    );
+
+    expect(incrementMissingMock).not.toHaveBeenCalled();
+    expect(updateQueueItemMock).not.toHaveBeenCalled();
+    expect(updateRequestMock).not.toHaveBeenCalled();
+    expect(searchMock).not.toHaveBeenCalled();
+    expect(resetMissingMock).toHaveBeenCalledWith({ userId: "user1", requestId: "request4" });
+    expect(result.awaitingImportCount).toBe(1);
     expect(result.missingCount).toBe(0);
   });
 });

@@ -12,7 +12,11 @@ vi.mock("./missing-queue-retry", () => ({
 vi.mock("./audit", () => ({
   recordMissingQueueItemAudit: vi.fn(),
 }));
+vi.mock("@/lib/integrations/sabnzbd", () => ({
+  listSabnzbdHistory: vi.fn(),
+}));
 
+import { listSabnzbdHistory } from "@/lib/integrations/sabnzbd";
 import { resolveImportSabnzbdClient } from "../import-completed-downloads/client-resolution";
 import { recordMissingQueueItemAudit } from "./audit";
 import { reconcileMissingSabnzbdQueueItemsWorkflow } from "./index";
@@ -23,6 +27,7 @@ const resolveClientMock = vi.mocked(resolveImportSabnzbdClient);
 const resolveSnapshotMock = vi.mocked(resolveMissingQueueSnapshot);
 const retryMock = vi.mocked(retryMissingSabnzbdQueueItems);
 const auditMock = vi.mocked(recordMissingQueueItemAudit);
+const listHistoryMock = vi.mocked(listSabnzbdHistory);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -33,7 +38,15 @@ describe("reconcileMissingSabnzbdQueueItemsWorkflow", () => {
     const calls: string[] = [];
     const client = { client: { id: "client1" }, baseUrl: "http://sab", apiKey: "secret" };
     const snapshot = { items: [] };
-    const result = { missingCount: 1, attemptedCount: 1, queuedCount: 1, failedCount: 0, graceCount: 0 };
+    const history = { items: [] };
+    const result = {
+      missingCount: 1,
+      attemptedCount: 1,
+      queuedCount: 1,
+      failedCount: 0,
+      graceCount: 0,
+      awaitingImportCount: 0,
+    };
 
     resolveClientMock.mockImplementation(async () => {
       calls.push("client");
@@ -42,6 +55,10 @@ describe("reconcileMissingSabnzbdQueueItemsWorkflow", () => {
     resolveSnapshotMock.mockImplementation(async () => {
       calls.push("queue");
       return snapshot as never;
+    });
+    listHistoryMock.mockImplementation(async () => {
+      calls.push("history");
+      return history as never;
     });
     retryMock.mockImplementation(async () => {
       calls.push("retry");
@@ -57,8 +74,12 @@ describe("reconcileMissingSabnzbdQueueItemsWorkflow", () => {
 
     expect(resolveClientMock).toHaveBeenCalledWith("user1");
     expect(resolveSnapshotMock).toHaveBeenCalledWith(client, snapshot);
-    expect(retryMock).toHaveBeenCalledWith("user1", client, snapshot);
+    expect(listHistoryMock).toHaveBeenCalledWith(expect.objectContaining({
+      baseUrl: client.baseUrl,
+      apiKey: client.apiKey,
+    }));
+    expect(retryMock).toHaveBeenCalledWith("user1", client, snapshot, history);
     expect(auditMock).toHaveBeenCalledWith("user1", result);
-    expect(calls).toEqual(["client", "queue", "retry", "audit"]);
+    expect(calls).toEqual(["client", "queue", "history", "retry", "audit"]);
   });
 });
