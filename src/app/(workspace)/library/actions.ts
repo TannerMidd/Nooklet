@@ -31,6 +31,10 @@ import {
   UpdateTvEpisodeMonitoringCommandError,
 } from "@/modules/media-library/commands/update-tv-episode-monitoring";
 import {
+  updateTvSeasonMonitoringCommand,
+  UpdateTvSeasonMonitoringCommandError,
+} from "@/modules/media-library/commands/update-tv-season-monitoring";
+import {
   addLibraryPathInputSchema,
   removeLibraryPathInputSchema,
   updateLibraryPathInputSchema,
@@ -43,6 +47,7 @@ import {
 } from "@/modules/media-library/schemas/media-title-preferences";
 import { removeMediaTitleInputSchema } from "@/modules/media-library/schemas/remove-media-title";
 import { updateTvEpisodeMonitoringInputSchema } from "@/modules/media-library/schemas/tv-episode-preferences";
+import { updateTvSeasonMonitoringInputSchema } from "@/modules/media-library/schemas/tv-season-preferences";
 import {
   searchLibraryItemReleasesInputSchema,
   searchLibraryItemReleasesWorkflow,
@@ -62,6 +67,7 @@ import {
   initialRemoveMediaTitleActionState,
   initialScanLibraryActionState,
   initialTvEpisodeMonitoringActionState,
+  initialTvSeasonMonitoringActionState,
   type LibraryItemSearchActionState,
   type LibraryMonitoringActionState,
   type LibraryScanScheduleActionState,
@@ -71,6 +77,7 @@ import {
   type RemoveMediaTitleActionState,
   type ScanLibraryActionState,
   type TvEpisodeMonitoringActionState,
+  type TvSeasonMonitoringActionState,
 } from "./action-state";
 
 function mediaTypeLibraryPath(mediaType: "movie" | "tv") {
@@ -412,6 +419,45 @@ export async function updateTvEpisodeMonitoringAction(
       ...initialTvEpisodeMonitoringActionState,
       status: "error",
       message: "Nooklet could not update that episode.",
+    };
+  }
+}
+
+export async function updateTvSeasonMonitoringAction(
+  _previous: TvSeasonMonitoringActionState,
+  formData: FormData,
+): Promise<TvSeasonMonitoringActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { ...initialTvSeasonMonitoringActionState, status: "error", message: "You need to sign in again." };
+  }
+
+  const parsed = updateTvSeasonMonitoringInputSchema.safeParse({
+    seasonId: formData.get("seasonId"),
+    monitored: formData.get("monitored") === "on",
+  });
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]?.message ?? "Review the season options and try again.";
+    return { ...initialTvSeasonMonitoringActionState, status: "error", message: firstIssue };
+  }
+
+  try {
+    await updateTvSeasonMonitoringCommand(session.user.id, parsed.data);
+
+    revalidateMediaTitlePages("tv");
+
+    return { status: "success", message: "Season monitoring updated." };
+  } catch (error) {
+    if (error instanceof UpdateTvSeasonMonitoringCommandError) {
+      return { ...initialTvSeasonMonitoringActionState, status: "error", message: error.message };
+    }
+
+    return {
+      ...initialTvSeasonMonitoringActionState,
+      status: "error",
+      message: "Nooklet could not update that season.",
     };
   }
 }

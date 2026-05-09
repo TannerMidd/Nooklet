@@ -31,6 +31,11 @@ export type TvEpisodeWithTitleRecord = {
   episode: TvEpisodeRecord;
   title: MediaTitleRecord;
 };
+export type TvSeasonRecord = typeof tvSeasons.$inferSelect;
+export type TvSeasonWithTitleRecord = {
+  season: TvSeasonRecord;
+  title: MediaTitleRecord;
+};
 export type ActiveMediaLibraryPathRecord = {
   library: MediaLibraryRecord;
   path: MediaLibraryPathRecord;
@@ -634,6 +639,42 @@ export async function updateTvEpisodeMonitoring(input: {
     .run();
 
   return findTvEpisodeByIdForUser(input.userId, input.episodeId);
+}
+
+export async function findTvSeasonByIdForUser(
+  userId: string,
+  seasonId: string,
+): Promise<TvSeasonWithTitleRecord | null> {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({ season: tvSeasons, title: mediaTitles })
+    .from(tvSeasons)
+    .innerJoin(mediaTitles, eq(mediaTitles.id, tvSeasons.titleId))
+    .where(and(eq(mediaTitles.userId, userId), eq(tvSeasons.id, seasonId)))
+    .get() ?? null;
+}
+
+export async function updateTvSeasonMonitoring(input: {
+  userId: string;
+  seasonId: string;
+  monitored: boolean;
+}): Promise<TvSeasonWithTitleRecord | null> {
+  const existing = await findTvSeasonByIdForUser(input.userId, input.seasonId);
+
+  if (!existing) {
+    return null;
+  }
+
+  const database = ensureDatabaseReady();
+
+  database
+    .update(tvSeasons)
+    .set({ monitored: input.monitored, updatedAt: new Date() })
+    .where(eq(tvSeasons.id, input.seasonId))
+    .run();
+
+  return findTvSeasonByIdForUser(input.userId, input.seasonId);
 }
 
 export async function recordMediaFile(input: {

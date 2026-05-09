@@ -70,6 +70,16 @@ export const initialTvEpisodeMonitoringActionState: TvEpisodeMonitoringActionSta
   message: null,
 };
 
+export type TvSeasonMonitoringActionState = {
+  status: "idle" | "success" | "error";
+  message: string | null;
+};
+
+export const initialTvSeasonMonitoringActionState: TvSeasonMonitoringActionState = {
+  status: "idle",
+  message: null,
+};
+
 export type LibraryMonitoringActionState = {
   status: "idle" | "success" | "error";
   message: string | null;

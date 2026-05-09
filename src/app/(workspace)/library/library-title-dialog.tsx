@@ -3,6 +3,7 @@ import { LibraryTitleDialogShell } from "@/app/(workspace)/library/library-title
 import { MediaTitlePreferencesForm } from "@/app/(workspace)/library/media-title-preferences-form";
 import { RemoveMediaTitleForm } from "@/app/(workspace)/library/remove-media-title-form";
 import { TvEpisodeMonitoringForm } from "@/app/(workspace)/library/tv-episode-monitoring-form";
+import { TvSeasonMonitoringForm } from "@/app/(workspace)/library/tv-season-monitoring-form";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { type MediaLibraryMovieTitleDetails } from "@/modules/media-library/queries/get-media-library-movie-title-details";
 import {
@@ -167,6 +168,9 @@ function SeasonSection({
           </span>
         </div>
       </summary>
+      <div className="border-t border-line/60 px-4 py-3">
+        <TvSeasonMonitoringForm seasonId={season.id} monitored={season.monitored} />
+      </div>
       <ul className="divide-y divide-line/50 border-t border-line/60">
         {season.episodes.map((episode) => {
           const episodeQualityLabel = qualityLabel(episode.qualityLabels);
