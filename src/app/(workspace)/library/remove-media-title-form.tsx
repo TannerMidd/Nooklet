@@ -32,6 +32,10 @@ export function RemoveMediaTitleForm({ titleId }: RemoveMediaTitleFormProps) {
   return (
     <form action={formAction} className="flex flex-col gap-2">
       <input type="hidden" name="titleId" value={titleId} />
+      <label className="flex items-center gap-2 text-xs text-muted">
+        <input type="checkbox" name="deleteFiles" className="h-4 w-4 accent-red-500" />
+        Also delete files from disk
+      </label>
       <RemoveButton />
       {state.message ? (
         <span className={state.status === "error" ? "text-xs text-red-200" : "text-xs text-muted"}>

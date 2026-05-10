@@ -38,20 +38,20 @@ vi.mock("@/modules/media-library/commands/remove-library-path", () => {
     RemoveLibraryPathCommandError,
   };
 });
-vi.mock("@/modules/media-library/commands/remove-media-title", () => {
-  class RemoveMediaTitleCommandError extends Error {
+vi.mock("@/modules/media-library/workflows/delete-media-title-with-files", () => {
+  class DeleteMediaTitleWithFilesError extends Error {
     constructor(
       message: string,
       public readonly code: "title_not_found",
     ) {
       super(message);
-      this.name = "RemoveMediaTitleCommandError";
+      this.name = "DeleteMediaTitleWithFilesError";
     }
   }
 
   return {
-    removeMediaTitleCommand: vi.fn(),
-    RemoveMediaTitleCommandError,
+    deleteMediaTitleWithFilesWorkflow: vi.fn(),
+    DeleteMediaTitleWithFilesError,
   };
 });
 vi.mock("@/modules/media-library/commands/update-library-path", () => {
@@ -135,9 +135,9 @@ import {
   RemoveLibraryPathCommandError,
 } from "@/modules/media-library/commands/remove-library-path";
 import {
-  removeMediaTitleCommand,
-  RemoveMediaTitleCommandError,
-} from "@/modules/media-library/commands/remove-media-title";
+  deleteMediaTitleWithFilesWorkflow,
+  DeleteMediaTitleWithFilesError,
+} from "@/modules/media-library/workflows/delete-media-title-with-files";
 import {
   updateLibraryPathCommand,
   UpdateLibraryPathCommandError,
@@ -195,7 +195,7 @@ const updateLibraryMonitoringMock = vi.mocked(updateMediaLibraryMonitoringComman
 const updateMediaTitlePreferencesMock = vi.mocked(updateMediaTitlePreferencesCommand);
 const updateTvEpisodeMonitoringMock = vi.mocked(updateTvEpisodeMonitoringCommand);
 const removeLibraryPathMock = vi.mocked(removeLibraryPathCommand);
-const removeMediaTitleMock = vi.mocked(removeMediaTitleCommand);
+const removeMediaTitleMock = vi.mocked(deleteMediaTitleWithFilesWorkflow);
 const scanLibraryMock = vi.mocked(scanMediaLibraryWorkflow);
 const configureLibraryScanScheduleMock = vi.mocked(configureLibraryScanSchedule);
 const searchLibraryItemMock = vi.mocked(searchLibraryItemReleasesWorkflow);
@@ -726,7 +726,7 @@ describe("removeMediaTitleAction", () => {
   it("maps command errors to friendly messages", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
     removeMediaTitleMock.mockRejectedValue(
-      new RemoveMediaTitleCommandError("Library title was not found.", "title_not_found"),
+      new DeleteMediaTitleWithFilesError("Library title was not found.", "title_not_found"),
     );
 
     const result = await removeMediaTitleAction(initialRemoveMediaTitleActionState, validForm());
@@ -736,11 +736,15 @@ describe("removeMediaTitleAction", () => {
 
   it("removes a title and revalidates the matching library pages", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-    removeMediaTitleMock.mockResolvedValue({ id: titleId, mediaType: "tv" } as never);
+    removeMediaTitleMock.mockResolvedValue({
+      removedTitle: { id: titleId, mediaType: "tv" },
+      fileOutcomes: [],
+      filesRequestedForDeletion: false,
+    } as never);
 
     const result = await removeMediaTitleAction(initialRemoveMediaTitleActionState, validForm());
 
-    expect(removeMediaTitleMock).toHaveBeenCalledWith("u1", { titleId });
+    expect(removeMediaTitleMock).toHaveBeenCalledWith("u1", { titleId, deleteFiles: false });
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
     // Per-title routes were removed; dialog content is rendered from the list page.

@@ -12,10 +12,6 @@ import {
   RemoveLibraryPathCommandError,
 } from "@/modules/media-library/commands/remove-library-path";
 import {
-  removeMediaTitleCommand,
-  RemoveMediaTitleCommandError,
-} from "@/modules/media-library/commands/remove-media-title";
-import {
   updateLibraryPathCommand,
   UpdateLibraryPathCommandError,
 } from "@/modules/media-library/commands/update-library-path";
@@ -38,6 +34,10 @@ import {
   addContentToExistingTitleWorkflow,
   AddContentToExistingTitleWorkflowError,
 } from "@/modules/media-library/workflows/add-content-to-existing-title";
+import {
+  deleteMediaTitleWithFilesWorkflow,
+  DeleteMediaTitleWithFilesError,
+} from "@/modules/media-library/workflows/delete-media-title-with-files";
 import { autoLinkMediaTitleTmdb } from "@/modules/media-library/workflows/auto-link-media-title-tmdb";
 import { getMediaLibraryTvSeasonEpisodes } from "@/modules/media-library/queries/get-media-library-tv-season-episodes";
 import { type LoadTvSeasonEpisodesResult } from "@/app/(workspace)/library/tv-seasons-types";
@@ -375,14 +375,27 @@ export async function removeMediaTitleAction(
     return { ...initialRemoveMediaTitleActionState, status: "error", message: firstIssue };
   }
 
+  const deleteFiles = formData.get("deleteFiles") === "on" || formData.get("deleteFiles") === "true";
+
   try {
-    const removedTitle = await removeMediaTitleCommand(session.user.id, parsed.data);
+    const result = await deleteMediaTitleWithFilesWorkflow(session.user.id, {
+      titleId: parsed.data.titleId,
+      deleteFiles,
+    });
 
-    revalidateMediaTitlePages(removedTitle.mediaType);
+    revalidateMediaTitlePages(result.removedTitle.mediaType);
 
-    return { status: "success", message: "Library title removed." };
+    const deletedCount = result.fileOutcomes.filter((outcome) => outcome.status === "deleted").length;
+    const failedCount = result.fileOutcomes.filter((outcome) => outcome.status === "failed").length;
+    const message = deleteFiles
+      ? failedCount > 0
+        ? `Library title removed. Deleted ${deletedCount} files; ${failedCount} could not be removed.`
+        : `Library title removed. Deleted ${deletedCount} files.`
+      : "Library title removed.";
+
+    return { status: "success", message };
   } catch (error) {
-    if (error instanceof RemoveMediaTitleCommandError) {
+    if (error instanceof DeleteMediaTitleWithFilesError) {
       return { ...initialRemoveMediaTitleActionState, status: "error", message: error.message };
     }
 

@@ -346,6 +346,17 @@ export async function listMediaFileTitleIdsByLibraryPath(userId: string, library
   return Array.from(new Set(rows.map((row) => row.titleId)));
 }
 
+export async function listMediaFilePathsForTitle(userId: string, titleId: string) {
+  const database = ensureDatabaseReady();
+  const rows = database
+    .select({ id: mediaFiles.id, filePath: mediaFiles.filePath })
+    .from(mediaFiles)
+    .where(and(eq(mediaFiles.userId, userId), eq(mediaFiles.titleId, titleId)))
+    .all();
+
+  return rows;
+}
+
 export async function deleteMediaFilesByLibraryPath(userId: string, libraryPathId: string) {
   const database = ensureDatabaseReady();
 
