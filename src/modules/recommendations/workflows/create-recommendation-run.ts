@@ -26,7 +26,6 @@ import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workfl
 import {
   buildMissingTmdbLanguageMessage,
   buildStoredRecommendationItems,
-  enrichGeneratedItemsWithLibraryMetadata,
   enrichGeneratedItemsWithTmdbMetadata,
 } from "./create-recommendation-run-enrichment";
 import { getVerifiedTmdbConnection } from "@/modules/service-connections/queries/get-verified-tmdb-connection";
@@ -290,12 +289,7 @@ async function executeRecommendationRunGeneration(
 
     excludedExistingItemCount = generatedItems.excludedExistingItemCount;
     generationAttemptCount = generatedItems.attemptCount;
-    const enrichedItems = await enrichGeneratedItemsWithLibraryMetadata(
-      userId,
-      input.mediaType,
-      generatedItems.items,
-    );
-    const normalizedItems = buildStoredRecommendationItems(input.mediaType, enrichedItems);
+    const normalizedItems = buildStoredRecommendationItems(input.mediaType, generatedItems.items);
 
     if (normalizedItems.length === 0) {
       throw new Error(
