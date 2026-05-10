@@ -204,6 +204,13 @@
       "when": 1778450394609,
       "tag": "0028_drop_sonarr_radarr_preference_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1778536794609,
+      "tag": "0029_drop_sonarr_radarr_service_connections",
+      "breakpoints": true
     }
   ]
 }
