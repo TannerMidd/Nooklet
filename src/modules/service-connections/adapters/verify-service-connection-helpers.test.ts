@@ -2,11 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildAiProviderVerificationResult,
-  buildLibraryManagerVerificationResult,
   buildSabnzbdVerificationResult,
-  mergeLibraryManagerRootFolderFreeSpace,
   normalizeAiProviderModelIds,
-  normalizeLibraryManagerMetadata,
 } from "./verify-service-connection-helpers";
 
 describe("verify-service-connection-helpers", () => {
@@ -84,132 +81,6 @@ describe("verify-service-connection-helpers", () => {
         aiProviderFlavor: "lm-studio-native",
         availableModels: ["google/gemma-4-26b-a4b"],
         model: "google/gemma-4-26b-a4b",
-      },
-    });
-  });
-
-  it("normalizes library manager metadata and drops invalid entries", () => {
-    expect(
-      normalizeLibraryManagerMetadata({
-        rootFolders: [
-          { path: " /tv ", name: " TV " },
-          { path: "", name: "Missing path" },
-        ],
-        qualityProfiles: [
-          { id: 7, name: " HD-1080p " },
-          { id: 8, name: "   " },
-        ],
-        tags: [
-          { id: 11, label: " Recommended " },
-          { label: "Missing id" },
-        ],
-      }),
-    ).toEqual({
-      rootFolders: [
-        {
-          path: "/tv",
-          label: "TV",
-        },
-      ],
-      qualityProfiles: [
-        {
-          id: 7,
-          name: "HD-1080p",
-        },
-      ],
-      tags: [
-        {
-          id: 11,
-          label: "Recommended",
-        },
-      ],
-    });
-  });
-
-  it("normalizes root folder free-space metadata returned by the library manager", () => {
-    expect(
-      normalizeLibraryManagerMetadata({
-        rootFolders: [
-          {
-            path: "D:\\Media\\TV",
-            name: "TV",
-            freeSpace: 600_000_000_000,
-            totalSpace: 1_000_000_000_000,
-          },
-          { path: "/mnt/library/movies", name: "Movies", freeSpace: 125_000_000_000 },
-        ],
-        qualityProfiles: [{ id: 7, name: "HD-1080p" }],
-        tags: [],
-      }),
-    ).toEqual({
-      rootFolders: [
-        {
-          path: "D:\\Media\\TV",
-          label: "TV",
-          freeSpaceBytes: 600_000_000_000,
-          totalSpaceBytes: 1_000_000_000_000,
-        },
-        {
-          path: "/mnt/library/movies",
-          label: "Movies",
-          freeSpaceBytes: 125_000_000_000,
-        },
-      ],
-      qualityProfiles: [{ id: 7, name: "HD-1080p" }],
-      tags: [],
-    });
-  });
-
-  it("refreshes stored root folder free space from exact root-folder responses", () => {
-    expect(
-      mergeLibraryManagerRootFolderFreeSpace(
-        [
-          {
-            path: "/dmedia/Movies",
-            label: "/dmedia/Movies",
-            freeSpaceBytes: 36_000_000_000,
-            totalSpaceBytes: 102_000_000_000,
-          },
-          { path: "/emedia/Movies", label: "/emedia/Movies" },
-        ],
-        [
-          { path: "/dmedia/Movies", freeSpace: 24_000_000_000 },
-          { path: "/emedia/Movies", freeSpace: 838_000_000_000 },
-        ],
-      ),
-    ).toEqual([
-      { path: "/dmedia/Movies", label: "/dmedia/Movies", freeSpaceBytes: 24_000_000_000 },
-      { path: "/emedia/Movies", label: "/emedia/Movies", freeSpaceBytes: 838_000_000_000 },
-    ]);
-  });
-
-  it("fails library manager verification when required metadata is missing", () => {
-    expect(
-      buildLibraryManagerVerificationResult({
-        rootFolders: [],
-        qualityProfiles: [{ id: 7, name: "HD-1080p" }],
-        tags: [],
-      }),
-    ).toEqual({
-      ok: false,
-      message: "Connected, but no root folders were returned by the library manager.",
-    });
-  });
-
-  it("returns a success summary when library metadata is complete", () => {
-    expect(
-      buildLibraryManagerVerificationResult({
-        rootFolders: [{ path: "/tv", label: "TV" }],
-        qualityProfiles: [{ id: 7, name: "HD-1080p" }],
-        tags: [{ id: 11, label: "Recommended" }],
-      }),
-    ).toEqual({
-      ok: true,
-      message: "Connected. Loaded 1 root folders, 1 quality profiles, and 1 tags.",
-      metadata: {
-        rootFolders: [{ path: "/tv", label: "TV" }],
-        qualityProfiles: [{ id: 7, name: "HD-1080p" }],
-        tags: [{ id: 11, label: "Recommended" }],
       },
     });
   });

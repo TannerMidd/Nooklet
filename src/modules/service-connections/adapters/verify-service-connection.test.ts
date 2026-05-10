@@ -3,9 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./verify-ai-provider", () => ({
   verifyAiProvider: vi.fn(),
 }));
-vi.mock("./verify-library-manager", () => ({
-  verifyLibraryManager: vi.fn(),
-}));
 vi.mock("./verify-plex", () => ({
   verifyPlex: vi.fn(),
 }));
@@ -26,7 +23,6 @@ vi.mock("./verify-tvdb", () => ({
 }));
 
 import { verifyAiProvider } from "./verify-ai-provider";
-import { verifyLibraryManager } from "./verify-library-manager";
 import { verifyPlex } from "./verify-plex";
 import { verifySabnzbd } from "./verify-sabnzbd";
 import { verifyServiceConnection } from "./verify-service-connection";
@@ -40,7 +36,6 @@ import { verifyTrakt } from "./verify-trakt";
 import { verifyTvdb } from "./verify-tvdb";
 
 const verifyAiProviderMock = vi.mocked(verifyAiProvider);
-const verifyLibraryManagerMock = vi.mocked(verifyLibraryManager);
 const verifyPlexMock = vi.mocked(verifyPlex);
 const verifySabnzbdMock = vi.mocked(verifySabnzbd);
 const verifyTautulliMock = vi.mocked(verifyTautulli);
@@ -50,7 +45,6 @@ const verifyTvdbMock = vi.mocked(verifyTvdb);
 
 const allMocks = [
   verifyAiProviderMock,
-  verifyLibraryManagerMock,
   verifyPlexMock,
   verifySabnzbdMock,
   verifyTautulliMock,
@@ -84,8 +78,6 @@ describe("verifyServiceConnection dispatcher", () => {
 
   it.each([
     ["ai-provider" as const, () => verifyAiProviderMock],
-    ["sonarr" as const, () => verifyLibraryManagerMock],
-    ["radarr" as const, () => verifyLibraryManagerMock],
     ["tautulli" as const, () => verifyTautulliMock],
     ["plex" as const, () => verifyPlexMock],
     ["sabnzbd" as const, () => verifySabnzbdMock],
@@ -108,17 +100,6 @@ describe("verifyServiceConnection dispatcher", () => {
       if (other === expectedMock) continue;
       expect(other).not.toHaveBeenCalled();
     }
-  });
-
-  it("routes sonarr and radarr to the same library-manager verifier", async () => {
-    verifyLibraryManagerMock.mockResolvedValue(okResult);
-
-    await verifyServiceConnection(buildInput({ serviceType: "sonarr" }));
-    await verifyServiceConnection(buildInput({ serviceType: "radarr" }));
-
-    expect(verifyLibraryManagerMock).toHaveBeenCalledTimes(2);
-    expect(verifyLibraryManagerMock.mock.calls[0]?.[0].serviceType).toBe("sonarr");
-    expect(verifyLibraryManagerMock.mock.calls[1]?.[0].serviceType).toBe("radarr");
   });
 
   it("returns a typed failure for an unsupported service type without invoking any verifier", async () => {

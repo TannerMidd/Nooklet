@@ -1,5 +1,4 @@
 import { verifyAiProvider } from "./verify-ai-provider";
-import { verifyLibraryManager } from "./verify-library-manager";
 import { verifyPlex } from "./verify-plex";
 import { verifySabnzbd } from "./verify-sabnzbd";
 import { verifyTautulli } from "./verify-tautulli";
@@ -23,9 +22,6 @@ export async function verifyServiceConnection(
     switch (input.serviceType) {
       case "ai-provider":
         return await verifyAiProvider(input);
-      case "sonarr":
-      case "radarr":
-        return await verifyLibraryManager(input);
       case "tautulli":
         return await verifyTautulli(input);
       case "plex":
