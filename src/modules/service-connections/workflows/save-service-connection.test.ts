@@ -43,8 +43,8 @@ describe("saveConfiguredServiceConnection", () => {
     findMock.mockResolvedValue(null);
 
     const result = await saveConfiguredServiceConnection(USER_ID, {
-      serviceType: "sonarr",
-      baseUrl: "https://sonarr.test",
+      serviceType: "tautulli",
+      baseUrl: "https://tautulli.test",
       apiKey: "",
     });
 
@@ -59,24 +59,24 @@ describe("saveConfiguredServiceConnection", () => {
 
   it("encrypts and masks the supplied API key, persists the record, and emits an audit event", async () => {
     const result = await saveConfiguredServiceConnection(USER_ID, {
-      serviceType: "sonarr",
-      baseUrl: "https://sonarr.test",
-      apiKey: "  sonarr-key  ",
+      serviceType: "tautulli",
+      baseUrl: "https://tautulli.test",
+      apiKey: "  tautulli-key  ",
     });
 
-    expect(encryptMock).toHaveBeenCalledWith("sonarr-key");
-    expect(maskMock).toHaveBeenCalledWith("sonarr-key");
+    expect(encryptMock).toHaveBeenCalledWith("tautulli-key");
+    expect(maskMock).toHaveBeenCalledWith("tautulli-key");
 
     expect(saveMock).toHaveBeenCalledTimes(1);
     expect(saveMock.mock.calls[0]?.[0]).toMatchObject({
       userId: USER_ID,
-      serviceType: "sonarr",
-      baseUrl: "https://sonarr.test",
+      serviceType: "tautulli",
+      baseUrl: "https://tautulli.test",
       status: "configured",
       statusMessage: "Configuration saved. Run verify to confirm connectivity.",
       secretUpdate: {
-        encryptedValue: "enc(sonarr-key)",
-        maskedValue: "mask(sonarr-key)",
+        encryptedValue: "enc(tautulli-key)",
+        maskedValue: "mask(tautulli-key)",
       },
     });
 
@@ -85,30 +85,30 @@ describe("saveConfiguredServiceConnection", () => {
       actorUserId: USER_ID,
       eventType: "service-connections.saved",
       subjectType: "service-connection",
-      subjectId: "sonarr",
+      subjectId: "tautulli",
       payloadJson: JSON.stringify({
-        serviceType: "sonarr",
-        baseUrl: "https://sonarr.test",
+        serviceType: "tautulli",
+        baseUrl: "https://tautulli.test",
       }),
     });
 
     const auditPayload = auditMock.mock.calls[0]?.[0]?.payloadJson ?? "";
-    expect(auditPayload).not.toContain("sonarr-key");
-    expect(auditPayload).not.toContain("enc(sonarr-key)");
+    expect(auditPayload).not.toContain("tautulli-key");
+    expect(auditPayload).not.toContain("enc(tautulli-key)");
 
     expect(result.ok).toBe(true);
   });
 
   it("preserves existing metadata when the base URL is unchanged and no new secret is supplied", async () => {
     findMock.mockResolvedValue({
-      connection: { baseUrl: "https://sonarr.test" },
+      connection: { baseUrl: "https://tautulli.test" },
       secret: { encryptedValue: "old-enc", maskedValue: "old-mask" },
       metadata: { rootFolders: [{ path: "/tv", label: "TV" }] },
     } as never);
 
     await saveConfiguredServiceConnection(USER_ID, {
-      serviceType: "sonarr",
-      baseUrl: "https://sonarr.test",
+      serviceType: "tautulli",
+      baseUrl: "https://tautulli.test",
       apiKey: "",
     });
 
@@ -119,14 +119,14 @@ describe("saveConfiguredServiceConnection", () => {
 
   it("clears existing metadata when the base URL changes (forces re-verify)", async () => {
     findMock.mockResolvedValue({
-      connection: { baseUrl: "https://old.sonarr.test" },
+      connection: { baseUrl: "https://old.tautulli.test" },
       secret: { encryptedValue: "old-enc", maskedValue: "old-mask" },
       metadata: { rootFolders: [{ path: "/tv", label: "TV" }] },
     } as never);
 
     await saveConfiguredServiceConnection(USER_ID, {
-      serviceType: "sonarr",
-      baseUrl: "https://new.sonarr.test",
+      serviceType: "tautulli",
+      baseUrl: "https://new.tautulli.test",
       apiKey: "",
     });
 
@@ -136,14 +136,14 @@ describe("saveConfiguredServiceConnection", () => {
 
   it("clears existing metadata when a fresh secret is supplied (defense-in-depth)", async () => {
     findMock.mockResolvedValue({
-      connection: { baseUrl: "https://sonarr.test" },
+      connection: { baseUrl: "https://tautulli.test" },
       secret: { encryptedValue: "old-enc", maskedValue: "old-mask" },
       metadata: { rootFolders: [{ path: "/tv", label: "TV" }] },
     } as never);
 
     await saveConfiguredServiceConnection(USER_ID, {
-      serviceType: "sonarr",
-      baseUrl: "https://sonarr.test",
+      serviceType: "tautulli",
+      baseUrl: "https://tautulli.test",
       apiKey: "rotated-key",
     });
 
@@ -197,14 +197,14 @@ describe("saveConfiguredServiceConnection", () => {
 
   it("accepts a save when no new secret is supplied but an existing secret is on file", async () => {
     findMock.mockResolvedValue({
-      connection: { baseUrl: "https://sonarr.test" },
+      connection: { baseUrl: "https://tautulli.test" },
       secret: { encryptedValue: "old-enc", maskedValue: "old-mask" },
       metadata: null,
     } as never);
 
     const result = await saveConfiguredServiceConnection(USER_ID, {
-      serviceType: "sonarr",
-      baseUrl: "https://sonarr.test",
+      serviceType: "tautulli",
+      baseUrl: "https://tautulli.test",
       apiKey: "",
     });
 
@@ -216,8 +216,8 @@ describe("saveConfiguredServiceConnection", () => {
 
   it("returns a service-named success message that does not leak the secret", async () => {
     const result = await saveConfiguredServiceConnection(USER_ID, {
-      serviceType: "sonarr",
-      baseUrl: "https://sonarr.test",
+      serviceType: "tautulli",
+      baseUrl: "https://tautulli.test",
       apiKey: "super-secret-do-not-leak",
     });
 
@@ -226,3 +226,4 @@ describe("saveConfiguredServiceConnection", () => {
     expect(JSON.stringify(result)).not.toContain("super-secret-do-not-leak");
   });
 });
+

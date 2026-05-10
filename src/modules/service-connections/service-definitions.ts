@@ -20,22 +20,6 @@ export const serviceConnectionDefinitions = [
     defaultBaseUrl: "https://api.openai.com/v1",
   },
   {
-    serviceType: "sonarr",
-    displayName: "Sonarr",
-    description:
-      "Connect your TV library so Nooklet can avoid duplicates and add shows for you.",
-    secretLabel: "API key",
-    defaultBaseUrl: "http://localhost:8989",
-  },
-  {
-    serviceType: "radarr",
-    displayName: "Radarr",
-    description:
-      "Connect your movie library so Nooklet can avoid duplicates and add movies for you.",
-    secretLabel: "API key",
-    defaultBaseUrl: "http://localhost:7878",
-  },
-  {
     serviceType: "tautulli",
     displayName: "Tautulli",
     description:

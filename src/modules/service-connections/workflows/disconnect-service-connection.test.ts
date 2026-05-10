@@ -27,18 +27,18 @@ describe("disconnectServiceConnection", () => {
   it("deletes the service connection and emits an audit event when a record was removed", async () => {
     deleteMock.mockResolvedValue(true);
 
-    const result = await disconnectServiceConnection(USER_ID, "sonarr");
+    const result = await disconnectServiceConnection(USER_ID, "tautulli");
 
     expect(deleteMock).toHaveBeenCalledTimes(1);
-    expect(deleteMock).toHaveBeenCalledWith(USER_ID, "sonarr");
+    expect(deleteMock).toHaveBeenCalledWith(USER_ID, "tautulli");
 
     expect(auditMock).toHaveBeenCalledTimes(1);
     expect(auditMock).toHaveBeenCalledWith({
       actorUserId: USER_ID,
       eventType: "service-connections.disconnected",
       subjectType: "service-connection",
-      subjectId: "sonarr",
-      payloadJson: JSON.stringify({ serviceType: "sonarr" }),
+      subjectId: "tautulli",
+      payloadJson: JSON.stringify({ serviceType: "tautulli" }),
     });
 
     expect(result.ok).toBe(true);
@@ -48,7 +48,7 @@ describe("disconnectServiceConnection", () => {
   it("does NOT emit an audit event when there was nothing to delete (idempotent no-op)", async () => {
     deleteMock.mockResolvedValue(false);
 
-    const result = await disconnectServiceConnection(USER_ID, "sonarr");
+    const result = await disconnectServiceConnection(USER_ID, "tautulli");
 
     expect(deleteMock).toHaveBeenCalledTimes(1);
     expect(auditMock).not.toHaveBeenCalled();
@@ -61,8 +61,6 @@ describe("disconnectServiceConnection", () => {
 
   it.each([
     ["ai-provider"],
-    ["sonarr"],
-    ["radarr"],
     ["tautulli"],
     ["plex"],
     ["sabnzbd"],
@@ -81,9 +79,10 @@ describe("disconnectServiceConnection", () => {
   it("does not include any secret-shaped data in the audit payload", async () => {
     deleteMock.mockResolvedValue(true);
 
-    await disconnectServiceConnection(USER_ID, "sonarr");
+    await disconnectServiceConnection(USER_ID, "tautulli");
 
     const payload = auditMock.mock.calls[0]?.[0]?.payloadJson ?? "";
     expect(payload).not.toMatch(/apiKey|secret|encryptedValue|maskedValue/i);
   });
 });
+
