@@ -39,6 +39,8 @@ import {
   AddContentToExistingTitleWorkflowError,
 } from "@/modules/media-library/workflows/add-content-to-existing-title";
 import { autoLinkMediaTitleTmdb } from "@/modules/media-library/workflows/auto-link-media-title-tmdb";
+import { getMediaLibraryTvSeasonEpisodes } from "@/modules/media-library/queries/get-media-library-tv-season-episodes";
+import { type LoadTvSeasonEpisodesResult } from "@/app/(workspace)/library/tv-seasons-types";
 import {
   addLibraryPathInputSchema,
   removeLibraryPathInputSchema,
@@ -695,4 +697,28 @@ export async function linkLibraryTitleTmdbAction(titleId: string): Promise<{ sta
   } catch {
     return { status: "skipped" };
   }
+}
+
+
+export async function loadTvSeasonEpisodesForLibraryAction(
+  titleId: string,
+  seasonNumber: number,
+): Promise<LoadTvSeasonEpisodesResult> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { status: "unauthorized" };
+  }
+
+  if (typeof titleId !== "string" || titleId.length === 0) {
+    return { status: "invalid" };
+  }
+
+  if (!Number.isInteger(seasonNumber) || seasonNumber < 0) {
+    return { status: "invalid" };
+  }
+
+  const episodes = await getMediaLibraryTvSeasonEpisodes(session.user.id, titleId, seasonNumber);
+
+  return { status: "ok", episodes };
 }

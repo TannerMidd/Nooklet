@@ -3,16 +3,11 @@ import { LibraryTitleDialogShell } from "@/app/(workspace)/library/library-title
 import { LinkLibraryTitleTmdbOnMount } from "@/app/(workspace)/library/link-library-title-tmdb-on-mount";
 import { MediaTitlePreferencesForm } from "@/app/(workspace)/library/media-title-preferences-form";
 import { RemoveMediaTitleForm } from "@/app/(workspace)/library/remove-media-title-form";
-import { TvEpisodeMonitoringForm } from "@/app/(workspace)/library/tv-episode-monitoring-form";
-import { TvSeasonMonitoringForm } from "@/app/(workspace)/library/tv-season-monitoring-form";
+import { TvSeasonsList } from "@/app/(workspace)/library/tv-seasons-list";
 import { RequestMoreContentForm } from "@/app/(workspace)/library/request-more-content-form";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { type MediaLibraryMovieTitleDetails } from "@/modules/media-library/queries/get-media-library-movie-title-details";
-import {
-  type MediaLibraryTvEpisodeSummary,
-  type MediaLibraryTvSeasonSummary,
-  type MediaLibraryTvTitleDetails,
-} from "@/modules/media-library/queries/get-media-library-tv-title-details";
+import { type MediaLibraryTvTitleSummary } from "@/modules/media-library/queries/get-media-library-tv-title-summary";
 import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
 import {
   getMediaQualityProfileLabel,
@@ -26,7 +21,7 @@ type LibraryTitleDialogProps = {
   currentLibraryPathId: string | null;
 } & (
   | { mediaType: "movie"; title: MediaLibraryMovieTitleDetails }
-  | { mediaType: "tv"; title: MediaLibraryTvTitleDetails }
+  | { mediaType: "tv"; title: MediaLibraryTvTitleSummary }
 );
 
 function titleLabel(title: { title: string; year: number | null }) {
@@ -152,84 +147,13 @@ function MovieDialog({
   );
 }
 
-function episodeCode(episode: MediaLibraryTvEpisodeSummary) {
-  return `S${String(episode.seasonNumber).padStart(2, "0")}E${String(episode.episodeNumber).padStart(2, "0")}`;
-}
-
-function SeasonSection({
-  season,
-  titleId,
-  targetPathOptions,
-  currentLibraryPathId,
-}: {
-  season: MediaLibraryTvSeasonSummary;
-  titleId: string;
-  targetPathOptions: MediaLibraryPathOption[];
-  currentLibraryPathId: string | null;
-}) {
-  return (
-    <details className="overflow-hidden rounded-lg border border-line/60 bg-background/15" open={season.seasonNumber === 1}>
-      <summary className="cursor-pointer px-4 py-3 transition hover:bg-panel-strong/45">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <span className="font-heading text-lg text-foreground">
-            {season.title ?? `Season ${season.seasonNumber}`}
-          </span>
-          <span className="text-sm text-muted">
-            {season.availableEpisodeCount} of {season.episodeCount} episodes available / {season.monitored ? "Monitored" : "Unmonitored"}
-          </span>
-        </div>
-      </summary>
-      <div className="border-t border-line/60 px-4 py-3">
-        <TvSeasonMonitoringForm seasonId={season.id} monitored={season.monitored} />
-      </div>
-      <ul className="divide-y divide-line/50 border-t border-line/60">
-        {season.episodes.map((episode) => {
-          const episodeQualityLabel = qualityLabel(episode.qualityLabels);
-          const updatedLabel = episode.lastFileModifiedAt ? episode.lastFileModifiedAt.toLocaleDateString() : null;
-
-          return (
-            <li key={episode.id} className="grid gap-3 px-4 py-3 text-sm xl:grid-cols-[120px_minmax(0,1fr)_minmax(260px,auto)] xl:items-start">
-              <span className="font-semibold text-foreground">{episodeCode(episode)}</span>
-              <div className="min-w-0 space-y-1">
-                <p className="truncate text-foreground">{episode.title ?? `Episode ${episode.episodeNumber}`}</p>
-                <p className="text-xs text-muted">
-                  {episode.fileCount} file{episode.fileCount === 1 ? "" : "s"} / {episodeQualityLabel}
-                  {updatedLabel ? ` / ${updatedLabel}` : ""}
-                </p>
-                <div className="flex flex-wrap gap-2 text-xs text-muted">
-                  <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">
-                    {episode.hasFile || episode.fileCount > 0 ? "Available" : "Missing"}
-                  </span>
-                  <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">
-                    {episode.monitored ? "Monitored" : "Unmonitored"}
-                  </span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <TvEpisodeMonitoringForm episodeId={episode.id} monitored={episode.monitored} />
-                <LibraryItemSearchForm
-                  titleId={titleId}
-                  episodeId={episode.id}
-                  label="Search episode"
-                  targetPathOptions={targetPathOptions}
-                  currentLibraryPathId={currentLibraryPathId}
-                />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </details>
-  );
-}
-
 function TvDialog({
   title,
   qualityProfiles,
   targetPathOptions,
   currentLibraryPathId,
 }: {
-  title: MediaLibraryTvTitleDetails;
+  title: MediaLibraryTvTitleSummary;
   qualityProfiles: readonly MediaQualityProfileOption[];
   targetPathOptions: MediaLibraryPathOption[];
   currentLibraryPathId: string | null;
@@ -269,23 +193,12 @@ function TvDialog({
           titleLabel={title.title}
           monitoredSeasons={title.seasons.filter((season) => season.monitored).map((season) => season.seasonNumber)}
         />
-        {title.seasons.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-line/75 bg-background/20 p-4 text-sm text-muted">
-            No episodes have been discovered for this series yet.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {title.seasons.map((season) => (
-              <SeasonSection
-                key={season.id}
-                season={season}
-                titleId={title.id}
-                targetPathOptions={targetPathOptions}
-                currentLibraryPathId={currentLibraryPathId}
-              />
-            ))}
-          </div>
-        )}
+        <TvSeasonsList
+          titleId={title.id}
+          seasons={title.seasons}
+          targetPathOptions={targetPathOptions}
+          currentLibraryPathId={currentLibraryPathId}
+        />
       </section>
 
       <RemoveTitleSection titleId={title.id} />

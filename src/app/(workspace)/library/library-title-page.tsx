@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { LibraryTitleDialog } from "@/app/(workspace)/library/library-title-dialog";
 import { getMediaLibraryMovieTitleDetails } from "@/modules/media-library/queries/get-media-library-movie-title-details";
-import { getMediaLibraryTvTitleDetails } from "@/modules/media-library/queries/get-media-library-tv-title-details";
+import { getMediaLibraryTvTitleSummary } from "@/modules/media-library/queries/get-media-library-tv-title-summary";
 import { getMediaTitleCurrentLibraryPathId } from "@/modules/media-library/queries/get-media-title-current-library-path";
 import { listMediaLibraryPathOptions } from "@/modules/media-library/queries/list-media-library-path-options";
 import {
@@ -220,7 +220,7 @@ export async function LibraryTitlePage({
   const library = await listMediaLibraryTitles(session.user.id, mediaType, { query, page });
 
   const selectedTvTitle = detailsTitleId && mediaType === "tv"
-    ? await getMediaLibraryTvTitleDetails(session.user.id, detailsTitleId)
+    ? await getMediaLibraryTvTitleSummary(session.user.id, detailsTitleId)
     : null;
   const selectedMovieTitle = detailsTitleId && mediaType === "movie"
     ? await getMediaLibraryMovieTitleDetails(session.user.id, detailsTitleId)
