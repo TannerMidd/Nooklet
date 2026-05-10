@@ -132,6 +132,10 @@ export function TvRequestPicker({
   }
 
   function toggleSeason(seasonNumber: number) {
+    if (monitoredSet.has(seasonNumber)) {
+      return;
+    }
+
     setSelectedSeasons((current) => {
       const next = current.includes(seasonNumber)
         ? current.filter((value) => value !== seasonNumber)
@@ -203,11 +207,18 @@ export function TvRequestPicker({
 
             return (
               <li key={seasonNumber}>
-                <label className="flex items-center gap-2 rounded-lg border border-line/50 bg-background/15 px-3 py-2 text-sm">
+                <label
+                  className={
+                    alreadyMonitored
+                      ? "flex items-center gap-2 rounded-lg border border-line/50 bg-background/10 px-3 py-2 text-sm opacity-60"
+                      : "flex items-center gap-2 rounded-lg border border-line/50 bg-background/15 px-3 py-2 text-sm"
+                  }
+                >
                   <input
                     type="checkbox"
                     className="h-4 w-4 accent-accent"
-                    checked={selectedSeasons.includes(seasonNumber)}
+                    checked={alreadyMonitored || selectedSeasons.includes(seasonNumber)}
+                    disabled={alreadyMonitored}
                     onChange={() => toggleSeason(seasonNumber)}
                   />
                   <span className="text-foreground">{summarizeSeasons(season)}</span>
