@@ -20,10 +20,14 @@ vi.mock("./season-persistence", () => ({
   persistRequestedTitleSelections: vi.fn(),
   resolveSeasonIdForTarget: vi.fn(),
 }));
+vi.mock("./episode-monitoring-apply", () => ({
+  applyRequestedTitleMonitoring: vi.fn(),
+}));
 
 import { queueRequestedTitleRelease } from "./release-queueing";
 import { searchRequestedTitleReleasesForTarget } from "./release-search";
 import { persistRequestedTitleSelections, resolveSeasonIdForTarget } from "./season-persistence";
+import { applyRequestedTitleMonitoring } from "./episode-monitoring-apply";
 import { requestTitleWithReleaseSearchWorkflow } from "./index";
 import { validateRequestTitleWithReleaseSearchRequest } from "./request-validation";
 import { requestWorkflowMediaTitle } from "./title-request";
@@ -34,6 +38,7 @@ const releaseSearchMock = vi.mocked(searchRequestedTitleReleasesForTarget);
 const releaseQueueMock = vi.mocked(queueRequestedTitleRelease);
 const persistSelectionsMock = vi.mocked(persistRequestedTitleSelections);
 const resolveSeasonIdMock = vi.mocked(resolveSeasonIdForTarget);
+const applyMonitoringMock = vi.mocked(applyRequestedTitleMonitoring);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -66,6 +71,9 @@ describe("requestTitleWithReleaseSearchWorkflow", () => {
       calls.push("persist-selections");
       return { seasonIdByNumber: new Map(), episodeIdByNumber: new Map() } as never;
     });
+    applyMonitoringMock.mockImplementation(async () => {
+      calls.push("apply-monitoring");
+    });
     resolveSeasonIdMock.mockReturnValue(null);
     releaseSearchMock.mockImplementation(async () => {
       calls.push("search-releases");
@@ -78,10 +86,14 @@ describe("requestTitleWithReleaseSearchWorkflow", () => {
 
     const result = await requestTitleWithReleaseSearchWorkflow("u1", request);
 
-    expect(calls).toEqual(["validate", "request-title", "persist-selections", "search-releases", "queue-release"]);
+    expect(calls).toEqual(["validate", "request-title", "persist-selections", "apply-monitoring", "search-releases", "queue-release"]);
     expect(validateMock).toHaveBeenCalledWith(request);
     expect(titleRequestMock).toHaveBeenCalledWith("u1", request);
     expect(persistSelectionsMock).toHaveBeenCalledWith(request, title.id, [{ kind: "all" }]);
+    expect(applyMonitoringMock).toHaveBeenCalledWith("u1", [{ kind: "all" }], expect.objectContaining({
+      seasonIdByNumber: expect.any(Map),
+      episodeIdByNumber: expect.any(Map),
+    }));
     expect(releaseSearchMock).toHaveBeenCalledWith("u1", request, { kind: "all" });
     expect(releaseQueueMock).toHaveBeenCalledWith("u1", request, title, releaseSearch, { seasonId: null, target: { kind: "all" } });
     expect(result).toMatchObject({

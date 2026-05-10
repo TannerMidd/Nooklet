@@ -5,6 +5,7 @@ import {
   type RequestTitleWithReleaseSearchInput,
   requestTitleWithReleaseSearchInputSchema,
 } from "./request-validation";
+import { applyRequestedTitleMonitoring } from "./episode-monitoring-apply";
 import {
   queueRequestedTitleRelease,
   type RequestedTitleQueuedDownload,
@@ -48,6 +49,7 @@ export async function requestTitleWithReleaseSearchWorkflow(
   const title = await requestWorkflowMediaTitle(userId, request);
   const targets = buildReleaseSelectionTargets(request);
   const persistedSelections = await persistRequestedTitleSelections(request, title.id, targets);
+  await applyRequestedTitleMonitoring(userId, targets, persistedSelections);
   const selectionResults: RequestTitleSelectionResult[] = [];
 
   for (const target of targets) {
