@@ -197,6 +197,13 @@
       "when": 1778340577085,
       "tag": "0027_tricky_lady_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1778450394609,
+      "tag": "0028_drop_sonarr_radarr_preference_columns",
+      "breakpoints": true
     }
   ]
 }
