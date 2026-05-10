@@ -58,12 +58,6 @@ vi.mock("@/modules/notifications/workflows/dispatch-notification", () => ({
   safeDispatchNotificationWorkflow: vi.fn().mockResolvedValue(null),
 }));
 
-vi.mock("@/modules/service-connections/adapters/add-library-item", () => {
-  return {
-    lookupLibraryItemMatch: vi.fn(),
-  };
-});
-
 vi.mock("@/modules/media-library/queries/sample-library-taste", () => ({
   sampleLibraryTasteFromTitles: vi.fn(),
 }));
@@ -76,9 +70,6 @@ import {
   listRecommendationExclusionItems,
   markRecommendationRunFailed,
 } from "@/modules/recommendations/repositories/recommendation-repository";
-import {
-  lookupLibraryItemMatch,
-} from "@/modules/service-connections/adapters/add-library-item";
 import { buildLibraryTasteItemKey } from "@/modules/recommendations/library-taste-key";
 import { sampleLibraryTasteFromTitles } from "@/modules/media-library/queries/sample-library-taste";
 import { lookupTmdbTitleDetails } from "@/modules/service-connections/adapters/tmdb";
@@ -98,7 +89,6 @@ const mockedCreateRecommendationRun = vi.mocked(createRecommendationRun);
 const mockedListRecommendationExclusionItems = vi.mocked(listRecommendationExclusionItems);
 const mockedMarkRecommendationRunFailed = vi.mocked(markRecommendationRunFailed);
 const mockedListSampledLibraryItems = vi.mocked(sampleLibraryTasteFromTitles);
-const mockedLookupLibraryItemMatch = vi.mocked(lookupLibraryItemMatch);
 const mockedLookupTmdbTitleDetails = vi.mocked(lookupTmdbTitleDetails);
 const mockedFindServiceConnectionByType = vi.mocked(findServiceConnectionByType);
 const mockedVerifyConfiguredServiceConnection = vi.mocked(verifyConfiguredServiceConnection);
@@ -162,7 +152,6 @@ describe("createRecommendationRunWorkflow", () => {
       sampledItems: [],
       normalizedKeys: [],
     });
-    mockedLookupLibraryItemMatch.mockResolvedValue({ ok: false, message: "No match" });
     mockedVerifyConfiguredServiceConnection.mockResolvedValue({
       ok: true,
       message: "Verified",
