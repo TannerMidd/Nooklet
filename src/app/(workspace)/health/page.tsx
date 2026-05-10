@@ -4,7 +4,6 @@ import { auth } from "@/auth";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { listUserJobs } from "@/modules/jobs/queries/list-user-jobs";
-import { isVisibleServiceConnectionType } from "@/modules/service-connections/service-visibility";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import { getWatchHistoryOverview } from "@/modules/watch-history/queries/get-watch-history-overview";
 
@@ -45,9 +44,7 @@ export default async function HealthPage() {
     getWatchHistoryOverview(session.user.id),
     listUserJobs(session.user.id),
   ]);
-  const visibleConnections = connections.filter((connection) =>
-    isVisibleServiceConnectionType(connection.serviceType),
-  );
+  const visibleConnections = connections;
   const verifiedConnections = visibleConnections.filter((connection) => connection.status === "verified").length;
   const activeJobs = jobs.filter((job) => job.isEnabled || job.lastStatus === "running");
 

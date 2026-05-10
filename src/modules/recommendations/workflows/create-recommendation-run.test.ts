@@ -247,7 +247,6 @@ describe("createRecommendationRunWorkflow", () => {
 
   it("succeeds with a partial batch when backfill attempts are exhausted", async () => {
     const aiProviderConnection = createConnectionRecord("ai-provider", "verified");
-    const verifiedSonarrConnection = createConnectionRecord("sonarr", "verified");
     const queuedResponses = [
       [
         {
@@ -265,10 +264,6 @@ describe("createRecommendationRunWorkflow", () => {
     mockedFindServiceConnectionByType.mockImplementation(async (_userId, serviceType) => {
       if (serviceType === "ai-provider") {
         return aiProviderConnection;
-      }
-
-      if (serviceType === "sonarr") {
-        return verifiedSonarrConnection;
       }
 
       return null;
@@ -300,15 +295,10 @@ describe("createRecommendationRunWorkflow", () => {
 
   it("allows a request driven only by selected genres when no other taste context exists", async () => {
     const aiProviderConnection = createConnectionRecord("ai-provider", "verified");
-    const verifiedRadarrConnection = createConnectionRecord("radarr", "verified");
 
     mockedFindServiceConnectionByType.mockImplementation(async (_userId, serviceType) => {
       if (serviceType === "ai-provider") {
         return aiProviderConnection;
-      }
-
-      if (serviceType === "radarr") {
-        return verifiedRadarrConnection;
       }
 
       return null;
