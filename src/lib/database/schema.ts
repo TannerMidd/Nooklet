@@ -75,10 +75,6 @@ export const preferences = sqliteTable("preferences", {
   languagePreference: text("language_preference", { enum: preferenceLanguageCodes })
     .notNull()
     .default("any"),
-  defaultSonarrRootFolderPath: text("default_sonarr_root_folder_path"),
-  defaultSonarrQualityProfileId: integer("default_sonarr_quality_profile_id"),
-  defaultRadarrRootFolderPath: text("default_radarr_root_folder_path"),
-  defaultRadarrQualityProfileId: integer("default_radarr_quality_profile_id"),
   watchHistoryOnly: integer("watch_history_only", { mode: "boolean" })
     .notNull()
     .default(false),
