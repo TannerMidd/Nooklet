@@ -4,8 +4,8 @@
 
 Nooklet connects your existing media stack to an OpenAI-compatible chat
 model and turns your library and watch history into thoughtful, duplicate-aware
-TV and movie recommendations — then helps you queue them in Sonarr or Radarr
-with a single click.
+TV and movie recommendations — then helps you queue them through its built-in
+library manager with a single click.
 
 <p align="center">
   <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs">
@@ -58,12 +58,12 @@ with a single click.
 - Pagination, filters, and a full history view across every prior run.
 
 ### Library management
-- Browse your **Sonarr** library with real-time filtering and per-season
-  monitoring controls.
-- Browse your **Radarr** library and request new movies directly from the
-  Radarr search.
-- One-click "send to Sonarr/Radarr" from any recommendation card with saved
-  per-user defaults (root folder, quality profile, monitored, etc.).
+- Browse your TV and movie library with real-time filtering and per-season
+  monitoring controls — backed by Nooklet's own normalized media database.
+- Request new movies and shows directly from search, with episode-level
+  selection and de-duplication against what you already monitor.
+- One-click "request" from any recommendation card with saved per-user
+  defaults (root folder, quality profile, monitored, etc.).
 - **In-progress** view that tracks active SABnzbd downloads.
 
 ### Discover & rich title overviews
@@ -71,8 +71,7 @@ with a single click.
   powered by TMDB.
 - Rich title overview dialogs with TMDB artwork, genres, runtime, cast,
   trailers, watch providers, and similar titles.
-- Add directly to Sonarr or Radarr from any Discover or recommendation
-  overview.
+- Add directly to your library from any Discover or recommendation overview.
 
 ### Notifications
 - Per-user notification channels (**Discord**, **Apprise**, generic
@@ -136,8 +135,7 @@ and [`docs/adr/ADR-0001-architecture-principles.md`](docs/adr/ADR-0001-architect
 
 - Node.js **20** or newer
 - An OpenAI-compatible chat-completions endpoint and API key
-- Optional: Sonarr, Radarr, Plex, Tautulli, Trakt, or SABnzbd reachable from
-  the host
+- Optional: Plex, Tautulli, Trakt, or SABnzbd reachable from the host
 
 **Run locally**
 
@@ -198,8 +196,6 @@ encrypted at rest.
 | Service | Purpose |
 | --- | --- |
 | **OpenAI-compatible** | Chat model used to generate recommendations. |
-| **Sonarr** | Library context, season monitoring, request new shows. |
-| **Radarr** | Library context, search and request new movies. |
 | **TMDB** | Title overviews, artwork, genres, cast, trailers, watch providers, and the Discover rails. |
 | **Plex** | Optional watch-history source. |
 | **Tautulli** | Optional watch-history source with richer history detail. |

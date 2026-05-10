@@ -1,18 +1,15 @@
 import { trimTrailingSlash } from "@/lib/integrations/http-helpers";
 
 /**
- * Shared response helpers for Sonarr/Radarr (and lookalike) adapters.
- *
- * Previously, `extractErrorMessage`, image-URL resolution, and small scalar
- * readers were duplicated across `add-library-item-helpers.ts`,
- * `library-collections.ts`, `sonarr-episodes.ts`, `tmdb.ts`, and a few other
- * spots. They now live here.
+ * Shared response helpers for arr-style JSON HTTP adapters (currently
+ * tmdb, tvdb, and trakt). Centralises error-message extraction, image-URL
+ * resolution, and small scalar readers.
  */
 
 /**
- * Best-effort extraction of an error message from a non-OK arr response.
+ * Best-effort extraction of an error message from a non-OK arr-style response.
  *
- * Handles the three payload shapes Sonarr/Radarr (and friends) return:
+ * Handles three common payload shapes:
  * - a JSON string body
  * - an array of `{ errorMessage?, message? }` objects (or strings)
  * - a single `{ message?, errorMessage? }` object

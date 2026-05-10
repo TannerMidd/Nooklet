@@ -128,8 +128,8 @@ Watch-history sync is a dedicated subsystem with explicit phases:
 Each workflow has a thin orchestrator (`index.ts`) that calls phases in order
 and a wiring test that mocks each phase and asserts order plus propagation.
 
-Built-in media management is a dedicated set of workflow modules, not a
-screen-level replacement for Sonarr or Radarr. Library scanning uses explicit
+Built-in media management is a dedicated set of workflow modules that owns
+library state directly. Library scanning uses explicit
 phases for source validation, file discovery, filename parsing,
 metadata matching, merge/deduplication, scan metadata persistence, and query
 surface. Indexer search uses explicit phases for request validation,
