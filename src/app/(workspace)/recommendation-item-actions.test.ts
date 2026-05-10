@@ -13,9 +13,6 @@ vi.mock("next/cache", () => ({
 vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
-vi.mock("@/modules/preferences/repositories/preferences-repository", () => ({
-  updateLibrarySelectionDefaults: vi.fn(),
-}));
 vi.mock("@/modules/recommendations/workflows/add-recommendation-to-library", () => ({
   addRecommendationToLibrary: vi.fn(),
 }));
@@ -30,7 +27,6 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
-import { updateLibrarySelectionDefaults } from "@/modules/preferences/repositories/preferences-repository";
 import { addRecommendationToLibrary } from "@/modules/recommendations/workflows/add-recommendation-to-library";
 import { updateRecommendationFeedback } from "@/modules/recommendations/workflows/update-recommendation-feedback";
 import { updateRecommendationHiddenState } from "@/modules/recommendations/workflows/update-recommendation-hidden-state";
@@ -39,7 +35,6 @@ import {
   submitRecommendationFeedbackAction,
   submitRecommendationHiddenStateAction,
   submitRecommendationLibraryAction,
-  submitRecommendationLibraryDefaultsAction,
 } from "./recommendation-item-actions";
 
 const authMock = vi.mocked(auth);
@@ -48,7 +43,6 @@ const revalidateMock = vi.mocked(revalidatePath);
 const feedbackMock = vi.mocked(updateRecommendationFeedback);
 const hiddenStateMock = vi.mocked(updateRecommendationHiddenState);
 const libraryMock = vi.mocked(addRecommendationToLibrary);
-const defaultsMock = vi.mocked(updateLibrarySelectionDefaults);
 
 const ITEM_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -135,34 +129,6 @@ describe("submitRecommendationHiddenStateAction", () => {
       /NEXT_REDIRECT/,
     );
     expect(hiddenStateMock).toHaveBeenCalledWith("u1", ITEM_ID, false);
-  });
-});
-
-describe("submitRecommendationLibraryDefaultsAction", () => {
-  it("silently no-ops when there is no session", async () => {
-    authMock.mockResolvedValue(null as never);
-    await submitRecommendationLibraryDefaultsAction({
-      serviceType: "sonarr",
-      rootFolderPath: "/tv",
-      qualityProfileId: 1,
-    });
-    expect(defaultsMock).not.toHaveBeenCalled();
-  });
-
-  it("forwards the parsed input and revalidates each library/path it touches", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-    await submitRecommendationLibraryDefaultsAction({
-      serviceType: "radarr",
-      rootFolderPath: "/movies",
-      qualityProfileId: 7,
-    });
-    expect(defaultsMock).toHaveBeenCalledWith("u1", "radarr", {
-      rootFolderPath: "/movies",
-      qualityProfileId: 7,
-    });
-    for (const path of ["/history", "/tv", "/movies", "/sonarr", "/radarr"]) {
-      expect(revalidateMock).toHaveBeenCalledWith(path);
-    }
   });
 });
 
