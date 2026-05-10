@@ -31,8 +31,7 @@ export async function persistRequestedTitleSelections(
     if (target.kind === "season") {
       seasonsToPersist.set(target.season, { monitored: true });
     } else if (target.kind === "episode") {
-      const existing = seasonsToPersist.get(target.season);
-      seasonsToPersist.set(target.season, { monitored: existing?.monitored ?? false });
+      seasonsToPersist.set(target.season, { monitored: true });
       episodesToPersist.push({ season: target.season, episode: target.episode });
     }
   }
