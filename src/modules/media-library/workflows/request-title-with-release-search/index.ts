@@ -1,4 +1,8 @@
 import { type MediaTitleRecord } from "@/modules/media-library/repositories/media-library-repository";
+import {
+  acquireMediaRequestAttempt,
+  releaseMediaRequestAttempt,
+} from "@/modules/media-library/repositories/media-request-attempts-repository";
 
 import {
   validateRequestTitleWithReleaseSearchRequest,
@@ -6,6 +10,7 @@ import {
   requestTitleWithReleaseSearchInputSchema,
 } from "./request-validation";
 import { applyRequestedTitleMonitoring } from "./episode-monitoring-apply";
+import { buildRequestAttemptKey } from "./request-fingerprint";
 import {
   queueRequestedTitleRelease,
   type RequestedTitleQueuedDownload,
@@ -28,6 +33,13 @@ export { requestTitleWithReleaseSearchInputSchema };
 export type { RequestTitleWithReleaseSearchInput };
 export type { ReleaseSelectionTarget };
 
+export class RequestTitleAlreadyInFlightError extends Error {
+  constructor() {
+    super("A duplicate request for this title is already in flight. Try again shortly.");
+    this.name = "RequestTitleAlreadyInFlightError";
+  }
+}
+
 export type RequestTitleSelectionResult = {
   target: ReleaseSelectionTarget;
   releaseSearch: RequestedTitleReleaseSearch;
@@ -46,36 +58,47 @@ export async function requestTitleWithReleaseSearchWorkflow(
   input: RequestTitleWithReleaseSearchInput,
 ): Promise<RequestTitleWithReleaseSearchResult> {
   const request = validateRequestTitleWithReleaseSearchRequest(input);
-  const title = await requestWorkflowMediaTitle(userId, request);
-  const targets = buildReleaseSelectionTargets(request);
-  const persistedSelections = await persistRequestedTitleSelections(request, title.id, targets);
-  await applyRequestedTitleMonitoring(userId, targets, persistedSelections);
-  const selectionResults: RequestTitleSelectionResult[] = [];
+  const requestKey = buildRequestAttemptKey(request);
+  const acquired = await acquireMediaRequestAttempt(userId, requestKey);
 
-  for (const target of targets) {
-    const releaseSearch = await searchRequestedTitleReleasesForTarget(userId, request, target);
-    const seasonId = resolveSeasonIdForTarget(target, persistedSelections);
-    const queuedDownload = await queueRequestedTitleRelease(userId, request, title, releaseSearch, {
-      seasonId,
-      target,
-    });
-
-    selectionResults.push({ target, releaseSearch, queuedDownload });
+  if (!acquired) {
+    throw new RequestTitleAlreadyInFlightError();
   }
 
-  const primary = selectionResults[0];
+  try {
+    const title = await requestWorkflowMediaTitle(userId, request);
+    const targets = buildReleaseSelectionTargets(request);
+    const persistedSelections = await persistRequestedTitleSelections(request, title.id, targets);
+    await applyRequestedTitleMonitoring(userId, targets, persistedSelections);
+    const selectionResults: RequestTitleSelectionResult[] = [];
 
-  return {
-    title,
-    selections: selectionResults,
-    releaseSearch: primary?.releaseSearch ?? { searched: false },
-    queuedDownload: primary?.queuedDownload ?? {
-      queued: false,
-      reason: "not_requested",
-      message: null,
-      selectedResultId: null,
-      rejectedResultIds: [],
-      download: null,
-    },
-  };
+    for (const target of targets) {
+      const releaseSearch = await searchRequestedTitleReleasesForTarget(userId, request, target);
+      const seasonId = resolveSeasonIdForTarget(target, persistedSelections);
+      const queuedDownload = await queueRequestedTitleRelease(userId, request, title, releaseSearch, {
+        seasonId,
+        target,
+      });
+
+      selectionResults.push({ target, releaseSearch, queuedDownload });
+    }
+
+    const primary = selectionResults[0];
+
+    return {
+      title,
+      selections: selectionResults,
+      releaseSearch: primary?.releaseSearch ?? { searched: false },
+      queuedDownload: primary?.queuedDownload ?? {
+        queued: false,
+        reason: "not_requested",
+        message: null,
+        selectedResultId: null,
+        rejectedResultIds: [],
+        download: null,
+      },
+    };
+  } finally {
+    await releaseMediaRequestAttempt(userId, requestKey);
+  }
 }

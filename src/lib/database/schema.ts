@@ -1038,6 +1038,25 @@ export const rateLimits = sqliteTable("rate_limits", {
   attempts: integer("attempts").notNull().default(0),
 });
 
+export const mediaRequestAttempts = sqliteTable(
+  "media_request_attempts",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    requestKey: text("request_key").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("media_request_attempts_user_key_unique").on(table.userId, table.requestKey),
+    index("media_request_attempts_expires_idx").on(table.expiresAt),
+  ],
+);
+
 export const notificationChannelTypes = ["webhook", "discord", "apprise"] as const;
 export const notificationEventTypes = [
   "recommendation_run_succeeded",

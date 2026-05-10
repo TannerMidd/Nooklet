@@ -15,6 +15,7 @@ import { getMediaQualityProfileLabel } from "@/modules/media-library/queries/lis
 import {
   requestTitleWithReleaseSearchInputSchema,
   requestTitleWithReleaseSearchWorkflow,
+  RequestTitleAlreadyInFlightError,
   type RequestTitleSelectionResult,
 } from "@/modules/media-library/workflows/request-title-with-release-search";
 import { describeReleaseSelectionTarget } from "@/modules/media-library/workflows/request-title-with-release-search/selection-targets";
@@ -320,6 +321,9 @@ export async function requestSearchTitleAction(
       results: mapSearchResults(requested.releaseSearch.results),
     };
   } catch (error) {
+    if (error instanceof RequestTitleAlreadyInFlightError) {
+      return { ...initialRequestSearchTitleActionState, status: "error", message: error.message };
+    }
     if (error instanceof RequestMediaTitleCommandError) {
       return { ...initialRequestSearchTitleActionState, status: "error", message: error.message };
     }
