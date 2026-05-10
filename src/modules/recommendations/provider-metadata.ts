@@ -26,7 +26,6 @@ export type RecommendationProviderMetadata = {
   model?: string;
   temperature?: number;
   posterUrl?: string;
-  posterLookupService?: "sonarr" | "radarr";
   availableSeasons?: RecommendationProviderSeason[];
   tmdbDetails?: TmdbTitleDetails;
 };
@@ -95,10 +94,6 @@ export function parseRecommendationProviderMetadata(
     }
 
     const metadata = parsed as Record<string, unknown>;
-    const posterLookupService =
-      metadata.posterLookupService === "sonarr" || metadata.posterLookupService === "radarr"
-        ? metadata.posterLookupService
-        : undefined;
     const availableSeasons = parseRecommendationProviderSeasons(metadata.availableSeasons);
     const tmdbDetails = parseTmdbTitleDetails(metadata.tmdbDetails);
 
@@ -119,7 +114,6 @@ export function parseRecommendationProviderMetadata(
         typeof metadata.posterUrl === "string" && metadata.posterUrl.trim().length > 0
           ? metadata.posterUrl.trim()
           : undefined,
-      posterLookupService,
       availableSeasons,
       tmdbDetails,
     } satisfies RecommendationProviderMetadata;
