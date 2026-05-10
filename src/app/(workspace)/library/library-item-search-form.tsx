@@ -14,6 +14,7 @@ type LibraryItemSearchFormProps = {
   episodeId?: string;
   label: string;
   targetPathOptions: MediaLibraryPathOption[];
+  currentLibraryPathId?: string | null;
 };
 
 function pathOptionLabel(option: MediaLibraryPathOption) {
@@ -36,11 +37,16 @@ export function LibraryItemSearchForm({
   episodeId,
   label,
   targetPathOptions,
+  currentLibraryPathId,
 }: LibraryItemSearchFormProps) {
   const [state, formAction] = useActionState(
     searchLibraryItemReleasesAction,
     initialLibraryItemSearchActionState,
   );
+  const defaultPathId = currentLibraryPathId
+    && targetPathOptions.some((option) => option.id === currentLibraryPathId)
+    ? currentLibraryPathId
+    : targetPathOptions[0]?.id ?? "";
 
   return (
     <form action={formAction} className="flex flex-col gap-2">
@@ -51,7 +57,7 @@ export function LibraryItemSearchForm({
           <span className="font-medium text-foreground">Destination folder</span>
           <select
             name="targetLibraryPathId"
-            defaultValue={targetPathOptions[0]?.id ?? ""}
+            defaultValue={defaultPathId}
             disabled={targetPathOptions.length === 0}
             className="min-h-10 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-2 text-xs text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25 disabled:opacity-60"
           >

@@ -9,6 +9,7 @@ import { Panel } from "@/components/ui/panel";
 import { LibraryTitleDialog } from "@/app/(workspace)/library/library-title-dialog";
 import { getMediaLibraryMovieTitleDetails } from "@/modules/media-library/queries/get-media-library-movie-title-details";
 import { getMediaLibraryTvTitleDetails } from "@/modules/media-library/queries/get-media-library-tv-title-details";
+import { getMediaTitleCurrentLibraryPathId } from "@/modules/media-library/queries/get-media-title-current-library-path";
 import { listMediaLibraryPathOptions } from "@/modules/media-library/queries/list-media-library-path-options";
 import {
   listMediaLibraryTitles,
@@ -237,6 +238,9 @@ export async function LibraryTitlePage({
         option.mediaType === mediaType && (selectedLibraryId ? option.libraryId === selectedLibraryId : true)
       ))
     : [];
+  const currentLibraryPathId = hasSelectedTitle && detailsTitleId
+    ? await getMediaTitleCurrentLibraryPathId({ userId: session.user.id, titleId: detailsTitleId })
+    : null;
   const currentPage = library.pagination.page;
   const closeDetailsHref = buildLibraryPageHref(mediaType, query, currentPage);
 
@@ -283,6 +287,7 @@ export async function LibraryTitlePage({
           closeHref={closeDetailsHref}
           qualityProfiles={qualityProfiles}
           targetPathOptions={targetPathOptions}
+          currentLibraryPathId={currentLibraryPathId}
         />
       ) : null}
       {selectedMovieTitle ? (
@@ -292,6 +297,7 @@ export async function LibraryTitlePage({
           closeHref={closeDetailsHref}
           qualityProfiles={qualityProfiles}
           targetPathOptions={targetPathOptions}
+          currentLibraryPathId={currentLibraryPathId}
         />
       ) : null}
     </div>

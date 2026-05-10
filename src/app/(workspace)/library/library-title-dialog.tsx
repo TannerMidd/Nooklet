@@ -22,6 +22,7 @@ type LibraryTitleDialogProps = {
   closeHref: string;
   qualityProfiles: readonly MediaQualityProfileOption[];
   targetPathOptions: MediaLibraryPathOption[];
+  currentLibraryPathId: string | null;
 } & (
   | { mediaType: "movie"; title: MediaLibraryMovieTitleDetails }
   | { mediaType: "tv"; title: MediaLibraryTvTitleDetails }
@@ -70,11 +71,13 @@ function DialogControls({
   searchLabel,
   qualityProfiles,
   targetPathOptions,
+  currentLibraryPathId,
 }: {
   title: { id: string; monitored: boolean; qualityProfile: MediaQualityProfileOption["value"] };
   searchLabel: string;
   qualityProfiles: readonly MediaQualityProfileOption[];
   targetPathOptions: MediaLibraryPathOption[];
+  currentLibraryPathId: string | null;
 }) {
   return (
     <section className="space-y-4 rounded-lg border border-line/60 bg-background/15 p-4">
@@ -91,6 +94,7 @@ function DialogControls({
         titleId={title.id}
         label={searchLabel}
         targetPathOptions={targetPathOptions}
+        currentLibraryPathId={currentLibraryPathId}
       />
     </section>
   );
@@ -111,10 +115,12 @@ function MovieDialog({
   title,
   qualityProfiles,
   targetPathOptions,
+  currentLibraryPathId,
 }: {
   title: MediaLibraryMovieTitleDetails;
   qualityProfiles: readonly MediaQualityProfileOption[];
   targetPathOptions: MediaLibraryPathOption[];
+  currentLibraryPathId: string | null;
 }) {
   const modifiedLabel = title.lastFileModifiedAt ? title.lastFileModifiedAt.toLocaleDateString() : "No files yet";
 
@@ -138,6 +144,7 @@ function MovieDialog({
         searchLabel="Search movie"
         qualityProfiles={qualityProfiles}
         targetPathOptions={targetPathOptions}
+        currentLibraryPathId={currentLibraryPathId}
       />
       <RemoveTitleSection titleId={title.id} />
     </div>
@@ -152,10 +159,12 @@ function SeasonSection({
   season,
   titleId,
   targetPathOptions,
+  currentLibraryPathId,
 }: {
   season: MediaLibraryTvSeasonSummary;
   titleId: string;
   targetPathOptions: MediaLibraryPathOption[];
+  currentLibraryPathId: string | null;
 }) {
   return (
     <details className="overflow-hidden rounded-lg border border-line/60 bg-background/15" open={season.seasonNumber === 1}>
@@ -202,6 +211,7 @@ function SeasonSection({
                   episodeId={episode.id}
                   label="Search episode"
                   targetPathOptions={targetPathOptions}
+                  currentLibraryPathId={currentLibraryPathId}
                 />
               </div>
             </li>
@@ -216,10 +226,12 @@ function TvDialog({
   title,
   qualityProfiles,
   targetPathOptions,
+  currentLibraryPathId,
 }: {
   title: MediaLibraryTvTitleDetails;
   qualityProfiles: readonly MediaQualityProfileOption[];
   targetPathOptions: MediaLibraryPathOption[];
+  currentLibraryPathId: string | null;
 }) {
   return (
     <div className="space-y-5 p-5 sm:p-6">
@@ -242,6 +254,7 @@ function TvDialog({
         searchLabel="Search series"
         qualityProfiles={qualityProfiles}
         targetPathOptions={targetPathOptions}
+        currentLibraryPathId={currentLibraryPathId}
       />
 
       <section className="space-y-3">
@@ -266,6 +279,7 @@ function TvDialog({
                 season={season}
                 titleId={title.id}
                 targetPathOptions={targetPathOptions}
+                currentLibraryPathId={currentLibraryPathId}
               />
             ))}
           </div>
@@ -304,12 +318,14 @@ export function LibraryTitleDialog(props: LibraryTitleDialogProps) {
           title={props.title}
           qualityProfiles={props.qualityProfiles}
           targetPathOptions={props.targetPathOptions}
+          currentLibraryPathId={props.currentLibraryPathId}
         />
       ) : (
         <MovieDialog
           title={props.title}
           qualityProfiles={props.qualityProfiles}
           targetPathOptions={props.targetPathOptions}
+          currentLibraryPathId={props.currentLibraryPathId}
         />
       )}
     </LibraryTitleDialogShell>
