@@ -18,6 +18,7 @@ type RequestMoreContentFormProps = {
   tmdbId: number | null;
   titleLabel: string;
   monitoredSeasons: readonly number[];
+  monitoredEpisodes: readonly { season: number; episode: number }[];
 };
 
 function SubmitButton({ disabled }: { disabled: boolean }) {
@@ -36,6 +37,7 @@ export function RequestMoreContentForm({
   tmdbId,
   titleLabel,
   monitoredSeasons,
+  monitoredEpisodes,
 }: RequestMoreContentFormProps) {
   const [state, formAction] = useActionState(
     requestExistingTitleContentAction,
@@ -81,6 +83,7 @@ export function RequestMoreContentForm({
         selection={selection}
         onSelectionChange={setSelection}
         monitoredSeasons={monitoredSeasons}
+        monitoredEpisodes={monitoredEpisodes}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">

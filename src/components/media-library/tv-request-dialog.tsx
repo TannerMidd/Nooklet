@@ -22,6 +22,7 @@ type TvRequestPickerProps = {
   selection: TvSelectionState | null;
   onSelectionChange: (selection: TvSelectionState | null) => void;
   monitoredSeasons?: readonly number[];
+  monitoredEpisodes?: readonly { season: number; episode: number }[];
 };
 
 function summarizeSeasons(season: TmdbTvSeasonSummary) {
@@ -37,6 +38,7 @@ export function TvRequestPicker({
   selection,
   onSelectionChange,
   monitoredSeasons = [],
+  monitoredEpisodes = [],
 }: TvRequestPickerProps) {
   const [mode, setMode] = useState<TvSelectionState["mode"]>(selection?.mode ?? "seasons");
   const [seasons, setSeasons] = useState<TmdbTvSeasonSummary[]>([]);
@@ -56,6 +58,10 @@ export function TvRequestPicker({
   );
 
   const monitoredSet = useMemo(() => new Set(monitoredSeasons), [monitoredSeasons]);
+  const monitoredEpisodeSet = useMemo(
+    () => new Set(monitoredEpisodes.map((entry) => `${entry.season}:${entry.episode}`)),
+    [monitoredEpisodes],
+  );
 
   useEffect(() => {
     let active = true;
@@ -153,6 +159,13 @@ export function TvRequestPicker({
   }
 
   function toggleEpisode(episodeNumber: number) {
+    if (
+      selectedSeason !== null &&
+      monitoredEpisodeSet.has(`${selectedSeason}:${episodeNumber}`)
+    ) {
+      return;
+    }
+
     setSelectedEpisodes((current) => {
       const next = current.includes(episodeNumber)
         ? current.filter((value) => value !== episodeNumber)
@@ -267,21 +280,39 @@ export function TvRequestPicker({
               </p>
             ) : (
               <ul className="space-y-1.5">
-                {episodes.map((episode) => (
-                  <li key={episode.episodeNumber}>
-                    <label className="flex items-center gap-2 rounded-lg border border-line/50 bg-background/15 px-3 py-2 text-sm">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 accent-accent"
-                        checked={selectedEpisodes.includes(episode.episodeNumber)}
-                        onChange={() => toggleEpisode(episode.episodeNumber)}
-                      />
-                      <span className="text-foreground">
-                        E{String(episode.episodeNumber).padStart(2, "0")} — {episode.name ?? "Episode"}
-                      </span>
-                    </label>
-                  </li>
-                ))}
+                {episodes.map((episode) => {
+                  const alreadyMonitored =
+                    selectedSeason !== null &&
+                    monitoredEpisodeSet.has(`${selectedSeason}:${episode.episodeNumber}`);
+
+                  return (
+                    <li key={episode.episodeNumber}>
+                      <label
+                        className={
+                          alreadyMonitored
+                            ? "flex items-center gap-2 rounded-lg border border-line/50 bg-background/10 px-3 py-2 text-sm opacity-60"
+                            : "flex items-center gap-2 rounded-lg border border-line/50 bg-background/15 px-3 py-2 text-sm"
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-accent"
+                          checked={alreadyMonitored || selectedEpisodes.includes(episode.episodeNumber)}
+                          disabled={alreadyMonitored}
+                          onChange={() => toggleEpisode(episode.episodeNumber)}
+                        />
+                        <span className="text-foreground">
+                          E{String(episode.episodeNumber).padStart(2, "0")} — {episode.name ?? "Episode"}
+                        </span>
+                        {alreadyMonitored ? (
+                          <span className="ml-auto rounded-md border border-line/50 bg-background/20 px-2 py-0.5 text-xs text-muted">
+                            Monitored
+                          </span>
+                        ) : null}
+                      </label>
+                    </li>
+                  );
+                })}
               </ul>
             )
           ) : null}

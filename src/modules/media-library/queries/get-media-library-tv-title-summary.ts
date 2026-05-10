@@ -40,6 +40,7 @@ export type MediaLibraryTvTitleSummary = {
     files: number;
   };
   seasons: MediaLibraryTvSeasonOverview[];
+  monitoredEpisodes: { season: number; episode: number }[];
 };
 
 /**
@@ -81,6 +82,8 @@ export async function getMediaLibraryTvTitleSummary(
     .select({
       id: tvEpisodes.id,
       seasonNumber: tvEpisodes.seasonNumber,
+      episodeNumber: tvEpisodes.episodeNumber,
+      monitored: tvEpisodes.monitored,
       hasFile: tvEpisodes.hasFile,
     })
     .from(tvEpisodes)
@@ -151,5 +154,8 @@ export async function getMediaLibraryTvTitleSummary(
       files: totalFiles,
     },
     seasons: seasonOverviews,
+    monitoredEpisodes: episodeRows
+      .filter((episode) => episode.monitored)
+      .map((episode) => ({ season: episode.seasonNumber, episode: episode.episodeNumber })),
   };
 }

@@ -192,6 +192,7 @@ function TvDialog({
           tmdbId={title.tmdbId}
           titleLabel={title.title}
           monitoredSeasons={title.seasons.filter((season) => season.monitored).map((season) => season.seasonNumber)}
+          monitoredEpisodes={title.monitoredEpisodes}
         />
         <TvSeasonsList
           titleId={title.id}
