@@ -1,5 +1,5 @@
 import { type RecommendationMediaType } from "../../../lib/database/schema";
-import { buildLibraryTasteItemKey } from "../../service-connections/adapters/add-library-item";
+import { buildLibraryTasteItemKey } from "../library-taste-key";
 
 type RecommendationIdentity = {
   title: string;

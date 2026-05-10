@@ -6,7 +6,7 @@ import {
   filterRecommendationItemsAgainstExclusions,
   generateBackfilledRecommendationItems,
 } from "./recommendation-generation";
-import { buildLibraryTasteItemKey } from "../../service-connections/adapters/add-library-item";
+import { buildLibraryTasteItemKey } from "../library-taste-key";
 
 describe("recommendation-generation", () => {
   it("returns the base prompt unchanged when no exclusions exist", () => {

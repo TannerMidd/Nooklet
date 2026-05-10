@@ -1,13 +1,9 @@
-import { decryptSecret } from "@/lib/security/secret-box";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { type RecommendationRequestInput } from "@/modules/recommendations/schemas/recommendation-request";
-import {
-  listSampledLibraryItems,
-  type SampledLibraryTasteItem,
-} from "@/modules/service-connections/adapters/add-library-item";
+import { sampleLibraryTasteFromTitles } from "@/modules/media-library/queries/sample-library-taste";
+import { type SampledLibraryTasteItem } from "@/modules/recommendations/library-taste-key";
 import { parseAiProviderFlavor } from "@/modules/service-connections/ai-provider-endpoints";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
-import { getServiceConnectionDefinition } from "@/modules/service-connections/service-definitions";
 import { verifyConfiguredServiceConnection } from "@/modules/service-connections/workflows/verify-configured-service-connection";
 
 export type RecommendationLibraryTasteContext = {
@@ -16,81 +12,23 @@ export type RecommendationLibraryTasteContext = {
   normalizedKeys: string[];
 };
 
-function buildEmptyLibraryTasteContext(): RecommendationLibraryTasteContext {
-  return {
-    totalCount: 0,
-    sampledItems: [],
-    normalizedKeys: [],
-  };
-}
-
 /**
- * Loads a sampled view of the user's verified Sonarr/Radarr library so the
- * recommendation prompt can include taste context and the duplicate
- * suppression layer has known-existing-item keys to exclude. Returns
- * `{ ok: false }` when a saved-but-unverifiable connection should block the
- * run; returns an empty context when the user simply has no library manager
- * configured.
+ * Loads a sampled view of the user's local library so the recommendation
+ * prompt can include taste context and the duplicate suppression layer has
+ * known-existing-item keys to exclude. Reads directly from the local
+ * `mediaTitles` table — no external service calls.
  */
 export async function loadSampledLibraryTasteContext(
   userId: string,
   mediaType: RecommendationMediaType,
-  selectedGenres: RecommendationRequestInput["selectedGenres"],
+  _selectedGenres: RecommendationRequestInput["selectedGenres"],
   sampleSize: number,
 ) {
-  const serviceType = mediaType === "tv" ? "sonarr" : "radarr";
-  const definition = getServiceConnectionDefinition(serviceType);
-  let connection = await findServiceConnectionByType(userId, serviceType);
-
-  if (!connection?.secret) {
-    return {
-      ok: true as const,
-      context: buildEmptyLibraryTasteContext(),
-    };
-  }
-
-  if (connection.connection.status !== "verified") {
-    const verificationResult = await verifyConfiguredServiceConnection(userId, serviceType);
-
-    if (!verificationResult.ok) {
-      return {
-        ok: false as const,
-        message: `${definition.displayName} could not be verified automatically, so Nooklet cannot safely exclude titles that are already in your library. Fix the connection and try again.`,
-      };
-    }
-
-    connection = await findServiceConnectionByType(userId, serviceType);
-  }
-
-  if (
-    !connection?.secret ||
-    connection.connection.status !== "verified" ||
-    !connection.connection.baseUrl
-  ) {
-    return {
-      ok: false as const,
-      message: `${definition.displayName} is not ready, so Nooklet cannot safely exclude titles that are already in your library. Fix the connection and try again.`,
-    };
-  }
-
-  const result = await listSampledLibraryItems({
-    serviceType,
-    baseUrl: connection.connection.baseUrl,
-    apiKey: decryptSecret(connection.secret.encryptedValue),
-    sampleSize,
-    selectedGenres,
-  });
-
-  if (!result.ok) {
-    return {
-      ok: false as const,
-      message: `${definition.displayName} library lookup failed, so Nooklet cannot safely exclude titles that are already in your library. ${result.message}`,
-    };
-  }
+  const context = await sampleLibraryTasteFromTitles(userId, mediaType, sampleSize);
 
   return {
     ok: true as const,
-    context: result,
+    context,
   };
 }
 

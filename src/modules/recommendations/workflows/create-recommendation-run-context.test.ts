@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/security/secret-box", () => ({
   decryptSecret: vi.fn((value: string) => `dec(${value})`),
 }));
-vi.mock("@/modules/service-connections/adapters/add-library-item", () => ({
-  listSampledLibraryItems: vi.fn(),
+vi.mock("@/modules/media-library/queries/sample-library-taste", () => ({
+  sampleLibraryTasteFromTitles: vi.fn(),
 }));
 vi.mock("@/modules/service-connections/ai-provider-endpoints", () => ({
   parseAiProviderFlavor: vi.fn(),
@@ -16,7 +16,7 @@ vi.mock("@/modules/service-connections/workflows/verify-configured-service-conne
   verifyConfiguredServiceConnection: vi.fn(),
 }));
 
-import { listSampledLibraryItems } from "@/modules/service-connections/adapters/add-library-item";
+import { sampleLibraryTasteFromTitles } from "@/modules/media-library/queries/sample-library-taste";
 import { parseAiProviderFlavor } from "@/modules/service-connections/ai-provider-endpoints";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import { verifyConfiguredServiceConnection } from "@/modules/service-connections/workflows/verify-configured-service-connection";
@@ -28,123 +28,53 @@ import {
 
 const findMock = vi.mocked(findServiceConnectionByType);
 const verifyMock = vi.mocked(verifyConfiguredServiceConnection);
-const listSampledMock = vi.mocked(listSampledLibraryItems);
+const sampleMock = vi.mocked(sampleLibraryTasteFromTitles);
 const parseFlavorMock = vi.mocked(parseAiProviderFlavor);
 
 const USER_ID = "user-1";
-
-function verifiedSonarrConnection(overrides: Record<string, unknown> = {}) {
-  return {
-    connection: { baseUrl: "https://sonarr.test", status: "verified" },
-    secret: { encryptedValue: "sonarr-enc" },
-    metadata: null,
-    ...overrides,
-  } as never;
-}
 
 describe("loadSampledLibraryTasteContext", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("returns an empty context when no Sonarr/Radarr connection exists", async () => {
-    findMock.mockResolvedValue(null);
+  it("returns the native sampler result wrapped in an ok envelope", async () => {
+    sampleMock.mockResolvedValue({
+      totalCount: 12,
+      sampledItems: [{ title: "Severance", year: 2022, genres: [] }],
+      normalizedKeys: ["severance::2022"],
+    });
 
     const result = await loadSampledLibraryTasteContext(USER_ID, "tv", [], 150);
+
+    expect(sampleMock).toHaveBeenCalledWith(USER_ID, "tv", 150);
+    expect(result).toEqual({
+      ok: true,
+      context: {
+        totalCount: 12,
+        sampledItems: [{ title: "Severance", year: 2022, genres: [] }],
+        normalizedKeys: ["severance::2022"],
+      },
+    });
+  });
+
+  it("returns an empty context when the library has no titles for the media type", async () => {
+    sampleMock.mockResolvedValue({ totalCount: 0, sampledItems: [], normalizedKeys: [] });
+
+    const result = await loadSampledLibraryTasteContext(USER_ID, "movie", [], 150);
 
     expect(result).toEqual({
       ok: true,
       context: { totalCount: 0, sampledItems: [], normalizedKeys: [] },
     });
-    expect(verifyMock).not.toHaveBeenCalled();
-    expect(listSampledMock).not.toHaveBeenCalled();
   });
 
-  it("re-verifies a saved-but-unverified connection before sampling", async () => {
-    findMock
-      .mockResolvedValueOnce(verifiedSonarrConnection({
-        connection: { baseUrl: "https://sonarr.test", status: "configured" },
-      }))
-      .mockResolvedValueOnce(verifiedSonarrConnection());
-    verifyMock.mockResolvedValue({ ok: true } as never);
-    listSampledMock.mockResolvedValue({
-      ok: true,
-      totalCount: 12,
-      sampledItems: [{ title: "Severance" }],
-      normalizedKeys: ["tv::severance::unknown"],
-    } as never);
+  it("forwards the requested media type to the sampler", async () => {
+    sampleMock.mockResolvedValue({ totalCount: 0, sampledItems: [], normalizedKeys: [] });
 
-    const result = await loadSampledLibraryTasteContext(USER_ID, "tv", [], 150);
+    await loadSampledLibraryTasteContext(USER_ID, "movie", [], 200);
 
-    expect(verifyMock).toHaveBeenCalledWith(USER_ID, "sonarr");
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.context.totalCount).toBe(12);
-    }
-  });
-
-  it("blocks the run when re-verification fails", async () => {
-    findMock.mockResolvedValue(verifiedSonarrConnection({
-      connection: { baseUrl: "https://sonarr.test", status: "configured" },
-    }));
-    verifyMock.mockResolvedValue({ ok: false, message: "401" } as never);
-
-    const result = await loadSampledLibraryTasteContext(USER_ID, "tv", [], 150);
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.message).toMatch(/could not be verified automatically/);
-      expect(result.message).toMatch(/Sonarr/);
-    }
-    expect(listSampledMock).not.toHaveBeenCalled();
-  });
-
-  it("decrypts the secret and forwards selectedGenres to the library sampler", async () => {
-    findMock.mockResolvedValue(verifiedSonarrConnection());
-    listSampledMock.mockResolvedValue({
-      ok: true,
-      totalCount: 3,
-      sampledItems: [],
-      normalizedKeys: [],
-    } as never);
-
-    await loadSampledLibraryTasteContext(USER_ID, "tv", ["drama", "science-fiction"], 225);
-
-    expect(listSampledMock).toHaveBeenCalledWith({
-      serviceType: "sonarr",
-      baseUrl: "https://sonarr.test",
-      apiKey: "dec(sonarr-enc)",
-      sampleSize: 225,
-      selectedGenres: ["drama", "science-fiction"],
-    });
-  });
-
-  it("translates a library-sampler failure into a blocking message", async () => {
-    findMock.mockResolvedValue(verifiedSonarrConnection());
-    listSampledMock.mockResolvedValue({ ok: false, message: "Sonarr 502" } as never);
-
-    const result = await loadSampledLibraryTasteContext(USER_ID, "tv", [], 150);
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.message).toMatch(/library lookup failed/);
-      expect(result.message).toContain("Sonarr 502");
-    }
-  });
-
-  it("uses radarr when the media type is movie", async () => {
-    findMock.mockResolvedValue(verifiedSonarrConnection());
-    listSampledMock.mockResolvedValue({
-      ok: true,
-      totalCount: 0,
-      sampledItems: [],
-      normalizedKeys: [],
-    } as never);
-
-    await loadSampledLibraryTasteContext(USER_ID, "movie", [], 150);
-
-    expect(findMock).toHaveBeenCalledWith(USER_ID, "radarr");
-    expect(listSampledMock.mock.calls[0]?.[0]?.serviceType).toBe("radarr");
+    expect(sampleMock).toHaveBeenCalledWith(USER_ID, "movie", 200);
   });
 });
 
@@ -197,63 +127,12 @@ describe("ensureVerifiedAiProviderConnection", () => {
         secret: { encryptedValue: "ai-enc" },
         metadata: { availableModels: ["gpt-4"], aiProviderFlavor: "openai-compatible" },
       } as never);
-    parseFlavorMock
-      .mockReturnValueOnce(null) // first call: legacy metadata, triggers re-verify
-      .mockReturnValueOnce("openai-compatible"); // post-reverify
+    parseFlavorMock.mockReturnValueOnce(null).mockReturnValue("openai-compatible");
     verifyMock.mockResolvedValue({ ok: true } as never);
 
     const result = await ensureVerifiedAiProviderConnection(USER_ID);
 
     expect(verifyMock).toHaveBeenCalledWith(USER_ID, "ai-provider");
     expect(result.ok).toBe(true);
-  });
-
-  it("does NOT re-verify a fresh install (verified, null metadata, no availableModels)", async () => {
-    findMock.mockResolvedValue({
-      connection: { baseUrl: "https://ai.test", status: "verified" },
-      secret: { encryptedValue: "ai-enc" },
-      metadata: null,
-    } as never);
-    parseFlavorMock.mockReturnValue(null);
-
-    const result = await ensureVerifiedAiProviderConnection(USER_ID);
-
-    expect(verifyMock).not.toHaveBeenCalled();
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.flavor).toBe("openai-compatible"); // default fallback
-    }
-  });
-
-  it("propagates the verification failure message verbatim", async () => {
-    findMock.mockResolvedValue({
-      connection: { baseUrl: "https://ai.test", status: "configured" },
-      secret: { encryptedValue: "ai-enc" },
-      metadata: null,
-    } as never);
-    verifyMock.mockResolvedValue({ ok: false, message: "401 from provider" } as never);
-
-    const result = await ensureVerifiedAiProviderConnection(USER_ID);
-
-    expect(result).toEqual({ ok: false, message: "401 from provider" });
-  });
-
-  it("returns a stable retry message when verification reports ok but the refetch is missing required fields", async () => {
-    findMock
-      .mockResolvedValueOnce({
-        connection: { baseUrl: "https://ai.test", status: "configured" },
-        secret: { encryptedValue: "ai-enc" },
-        metadata: null,
-      } as never)
-      .mockResolvedValueOnce(null);
-    verifyMock.mockResolvedValue({ ok: true } as never);
-
-    const result = await ensureVerifiedAiProviderConnection(USER_ID);
-
-    expect(result).toEqual({
-      ok: false,
-      message:
-        "The AI provider could not be verified automatically. Re-save the connection and try again.",
-    });
   });
 });

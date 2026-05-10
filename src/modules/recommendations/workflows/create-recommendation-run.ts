@@ -17,7 +17,7 @@ import {
   upsertRecommendationRunMetrics,
 } from "@/modules/recommendations/repositories/recommendation-repository";
 import { type RecommendationRequestInput } from "@/modules/recommendations/schemas/recommendation-request";
-import { buildLibraryTasteItemKey } from "@/modules/service-connections/adapters/add-library-item";
+import { buildLibraryTasteItemKey } from "@/modules/recommendations/library-taste-key";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
 import { generateBackfilledRecommendationItems } from "@/modules/recommendations/workflows/recommendation-generation";
@@ -217,10 +217,6 @@ async function executeRecommendationRunGeneration(
       listRecommendationExclusionItems(userId, input.mediaType),
       getRecommendationTasteProfile(userId, input.mediaType),
     ]);
-
-    if (!libraryTasteContextResult.ok) {
-      throw new Error(libraryTasteContextResult.message);
-    }
 
     const libraryTasteContext = libraryTasteContextResult.context;
     const excludedNormalizedKeys = Array.from(

@@ -59,16 +59,14 @@ vi.mock("@/modules/notifications/workflows/dispatch-notification", () => ({
 }));
 
 vi.mock("@/modules/service-connections/adapters/add-library-item", () => {
-  const normalizeTitle = (value: string) =>
-    value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ");
-
   return {
-    buildLibraryTasteItemKey: (item: { title: string; year: number | null }) =>
-      `${normalizeTitle(item.title)}::${item.year ?? "unknown"}`,
-    listSampledLibraryItems: vi.fn(),
     lookupLibraryItemMatch: vi.fn(),
   };
 });
+
+vi.mock("@/modules/media-library/queries/sample-library-taste", () => ({
+  sampleLibraryTasteFromTitles: vi.fn(),
+}));
 
 import { getPreferencesByUserId } from "@/modules/preferences/repositories/preferences-repository";
 import { generateOpenAiCompatibleRecommendations } from "@/modules/recommendations/adapters/openai-compatible-recommendations";
@@ -79,10 +77,10 @@ import {
   markRecommendationRunFailed,
 } from "@/modules/recommendations/repositories/recommendation-repository";
 import {
-  buildLibraryTasteItemKey,
-  listSampledLibraryItems,
   lookupLibraryItemMatch,
 } from "@/modules/service-connections/adapters/add-library-item";
+import { buildLibraryTasteItemKey } from "@/modules/recommendations/library-taste-key";
+import { sampleLibraryTasteFromTitles } from "@/modules/media-library/queries/sample-library-taste";
 import { lookupTmdbTitleDetails } from "@/modules/service-connections/adapters/tmdb";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import { verifyConfiguredServiceConnection } from "@/modules/service-connections/workflows/verify-configured-service-connection";
@@ -99,7 +97,7 @@ const mockedCompleteRecommendationRun = vi.mocked(completeRecommendationRun);
 const mockedCreateRecommendationRun = vi.mocked(createRecommendationRun);
 const mockedListRecommendationExclusionItems = vi.mocked(listRecommendationExclusionItems);
 const mockedMarkRecommendationRunFailed = vi.mocked(markRecommendationRunFailed);
-const mockedListSampledLibraryItems = vi.mocked(listSampledLibraryItems);
+const mockedListSampledLibraryItems = vi.mocked(sampleLibraryTasteFromTitles);
 const mockedLookupLibraryItemMatch = vi.mocked(lookupLibraryItemMatch);
 const mockedLookupTmdbTitleDetails = vi.mocked(lookupTmdbTitleDetails);
 const mockedFindServiceConnectionByType = vi.mocked(findServiceConnectionByType);
@@ -160,7 +158,6 @@ describe("createRecommendationRunWorkflow", () => {
     mockedListRecommendationExclusionItems.mockResolvedValue([]);
     mockedListWatchHistoryContext.mockResolvedValue([]);
     mockedListSampledLibraryItems.mockResolvedValue({
-      ok: true,
       totalCount: 0,
       sampledItems: [],
       normalizedKeys: [],
@@ -173,15 +170,8 @@ describe("createRecommendationRunWorkflow", () => {
     mockedCreateAuditEvent.mockResolvedValue(undefined);
   });
 
-  it("auto-verifies the library manager and excludes library and prior recommendation duplicates", async () => {
+  it("excludes library and prior recommendation duplicates from the prompt and results", async () => {
     const aiProviderConnection = createConnectionRecord("ai-provider", "verified");
-    const configuredRadarrConnection = createConnectionRecord("radarr", "configured");
-    const verifiedRadarrConnection = createConnectionRecord("radarr", "verified");
-    const radarrConnections = [
-      configuredRadarrConnection,
-      verifiedRadarrConnection,
-      verifiedRadarrConnection,
-    ];
     const generationCalls: Array<{ requestPrompt: string; requestedCount: number }> = [];
     const queuedResponses = [
       [
@@ -216,17 +206,12 @@ describe("createRecommendationRunWorkflow", () => {
         return aiProviderConnection;
       }
 
-      if (serviceType === "radarr") {
-        return radarrConnections.shift() ?? verifiedRadarrConnection;
-      }
-
       return null;
     });
     mockedLookupTmdbTitleDetails.mockResolvedValue({ ok: false, message: "No match" });
     mockedListSampledLibraryItems.mockResolvedValue({
-      ok: true,
       totalCount: 1,
-      sampledItems: [{ title: "Arrival", year: 2016, genres: ["Science Fiction"] }],
+      sampledItems: [{ title: "Arrival", year: 2016, genres: [] }],
       normalizedKeys: [buildLibraryTasteItemKey({ title: "Arrival", year: 2016 })],
     });
     mockedListRecommendationExclusionItems.mockResolvedValue([
@@ -251,12 +236,7 @@ describe("createRecommendationRunWorkflow", () => {
     });
 
     expect(result).toEqual({ ok: true, runId: "run-1" });
-    expect(mockedVerifyConfiguredServiceConnection).toHaveBeenCalledWith("user-1", "radarr");
-    expect(mockedListSampledLibraryItems).toHaveBeenCalledWith(
-      expect.objectContaining({
-        selectedGenres: ["science-fiction", "comedy"],
-      }),
-    );
+    expect(mockedListSampledLibraryItems).toHaveBeenCalledWith("user-1", "movie", expect.any(Number));
     expect(mockedGenerateOpenAiCompatibleRecommendations).toHaveBeenCalledTimes(2);
     expect(mockedGenerateOpenAiCompatibleRecommendations).toHaveBeenNthCalledWith(
       1,
@@ -274,47 +254,6 @@ describe("createRecommendationRunWorkflow", () => {
         year: 2009,
       }),
     ]);
-  });
-
-  it("marks the run failed before generation when a saved library connection cannot be verified", async () => {
-    const aiProviderConnection = createConnectionRecord("ai-provider", "verified");
-    const configuredRadarrConnection = createConnectionRecord("radarr", "configured");
-
-    mockedFindServiceConnectionByType.mockImplementation(async (_userId, serviceType) => {
-      if (serviceType === "ai-provider") {
-        return aiProviderConnection;
-      }
-
-      if (serviceType === "radarr") {
-        return configuredRadarrConnection;
-      }
-
-      return null;
-    });
-    mockedVerifyConfiguredServiceConnection.mockResolvedValue({
-      ok: false,
-      message: "Timed out",
-    });
-
-    const result = await createRecommendationRunWorkflow("user-1", {
-      mediaType: "movie",
-      requestPrompt: "Recommend cerebral sci-fi",
-      selectedGenres: [],
-      requestedCount: 1,
-      aiModel: "deepseek/deepseek-v4-pro",
-      temperature: 0.6,
-    });
-
-    expect(result).toMatchObject({ ok: false });
-
-    if (result.ok) {
-      throw new Error("Expected the workflow to fail when the library connection is unverifiable.");
-    }
-
-    expect(result.message).toContain("cannot safely exclude titles that are already in your library");
-    expect(mockedGenerateOpenAiCompatibleRecommendations).not.toHaveBeenCalled();
-    expect(mockedCreateRecommendationRun).toHaveBeenCalledTimes(1);
-    expect(mockedMarkRecommendationRunFailed).toHaveBeenCalledWith("run-1", result.message);
   });
 
   it("succeeds with a partial batch when backfill attempts are exhausted", async () => {
