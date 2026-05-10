@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
+import { LibraryScanButton } from "@/app/(workspace)/library/library-scan-button";
 import { LibraryTitleDialog } from "@/app/(workspace)/library/library-title-dialog";
+import { getLibraryLastScannedAt } from "@/modules/media-library/queries/get-library-last-scanned-at";
 import { getMediaLibraryMovieTitleDetails } from "@/modules/media-library/queries/get-media-library-movie-title-details";
 import { getMediaLibraryTvTitleSummary } from "@/modules/media-library/queries/get-media-library-tv-title-summary";
 import { getMediaTitleCurrentLibraryPathId } from "@/modules/media-library/queries/get-media-title-current-library-path";
@@ -218,6 +220,7 @@ export async function LibraryTitlePage({
   }
 
   const library = await listMediaLibraryTitles(session.user.id, mediaType, { query, page });
+  const lastScannedAt = await getLibraryLastScannedAt(session.user.id, mediaType);
 
   const selectedTvTitle = detailsTitleId && mediaType === "tv"
     ? await getMediaLibraryTvTitleSummary(session.user.id, detailsTitleId)
@@ -246,13 +249,22 @@ export async function LibraryTitlePage({
         title={mediaTypeLabel(mediaType)}
         description={mediaType === "tv" ? "Browse series discovered in local TV folders." : "Browse movies discovered in local movie folders."}
         actions={(
-          <Link
-            href="/library"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line/75 bg-panel-strong/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
-          >
-            <ArrowLeft aria-hidden="true" size={16} />
-            Library home
-          </Link>
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-0 text-xs text-muted sm:text-right">
+              <span>Last synced</span>
+              <span className="font-semibold text-foreground">
+                {lastScannedAt ? lastScannedAt.toLocaleString() : "Never"}
+              </span>
+            </div>
+            <LibraryScanButton />
+            <Link
+              href="/library"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line/75 bg-panel-strong/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
+            >
+              <ArrowLeft aria-hidden="true" size={16} />
+              Library home
+            </Link>
+          </div>
         )}
       />
 
