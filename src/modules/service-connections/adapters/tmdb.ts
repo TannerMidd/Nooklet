@@ -1,12 +1,15 @@
 import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
 import { type RecommendationMediaType } from "@/lib/database/schema";
-import { normalizeTitle } from "@/modules/service-connections/adapters/add-library-item-helpers";
 import {
   readInteger,
   readNumber,
   readString,
 } from "@/modules/service-connections/adapters/arr-response-helpers";
 import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
+
+function normalizeTitle(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ");
+}
 
 type TmdbConnectionInput = {
   baseUrl: string;
