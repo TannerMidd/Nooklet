@@ -19,7 +19,6 @@ import {
   getMediaQualityProfileLabel,
   listMediaQualityProfiles,
 } from "@/modules/media-library/queries/list-media-quality-profiles";
-import { autoLinkMediaTitleTmdb } from "@/modules/media-library/workflows/auto-link-media-title-tmdb";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 
 function mediaTypeLabel(mediaType: RecommendationMediaType) {
@@ -219,10 +218,6 @@ export async function LibraryTitlePage({
   }
 
   const library = await listMediaLibraryTitles(session.user.id, mediaType, { query, page });
-
-  if (detailsTitleId && mediaType === "tv") {
-    await autoLinkMediaTitleTmdb(session.user.id, detailsTitleId);
-  }
 
   const selectedTvTitle = detailsTitleId && mediaType === "tv"
     ? await getMediaLibraryTvTitleDetails(session.user.id, detailsTitleId)

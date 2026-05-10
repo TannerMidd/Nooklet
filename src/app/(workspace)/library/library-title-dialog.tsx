@@ -1,5 +1,6 @@
 import { LibraryItemSearchForm } from "@/app/(workspace)/library/library-item-search-form";
 import { LibraryTitleDialogShell } from "@/app/(workspace)/library/library-title-dialog-shell";
+import { LinkLibraryTitleTmdbOnMount } from "@/app/(workspace)/library/link-library-title-tmdb-on-mount";
 import { MediaTitlePreferencesForm } from "@/app/(workspace)/library/media-title-preferences-form";
 import { RemoveMediaTitleForm } from "@/app/(workspace)/library/remove-media-title-form";
 import { TvEpisodeMonitoringForm } from "@/app/(workspace)/library/tv-episode-monitoring-form";
@@ -235,6 +236,7 @@ function TvDialog({
 }) {
   return (
     <div className="space-y-5 p-5 sm:p-6">
+      <LinkLibraryTitleTmdbOnMount titleId={title.id} hasTmdbId={title.tmdbId !== null} />
       <div className="flex flex-col gap-5 md:flex-row">
         <RecommendationPoster title={title.title} posterUrl={title.posterUrl} />
         <div className="min-w-0 flex-1 space-y-4">

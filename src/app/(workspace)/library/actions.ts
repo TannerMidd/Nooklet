@@ -38,6 +38,7 @@ import {
   addContentToExistingTitleWorkflow,
   AddContentToExistingTitleWorkflowError,
 } from "@/modules/media-library/workflows/add-content-to-existing-title";
+import { autoLinkMediaTitleTmdb } from "@/modules/media-library/workflows/auto-link-media-title-tmdb";
 import {
   addLibraryPathInputSchema,
   removeLibraryPathInputSchema,
@@ -667,5 +668,31 @@ export async function updateLibraryScanScheduleAction(
       status: "error",
       message: "Nooklet could not update the scan schedule.",
     };
+  }
+}
+
+
+export async function linkLibraryTitleTmdbAction(titleId: string): Promise<{ status: "ok" | "skipped" | "unauthorized" }> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { status: "unauthorized" };
+  }
+
+  if (typeof titleId !== "string" || titleId.length === 0) {
+    return { status: "skipped" };
+  }
+
+  try {
+    const result = await autoLinkMediaTitleTmdb(session.user.id, titleId);
+
+    if (result.status === "linked") {
+      revalidateMediaTitlePages("tv");
+      return { status: "ok" };
+    }
+
+    return { status: "skipped" };
+  } catch {
+    return { status: "skipped" };
   }
 }
