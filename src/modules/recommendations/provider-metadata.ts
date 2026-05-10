@@ -29,9 +29,6 @@ export type RecommendationProviderMetadata = {
   posterLookupService?: "sonarr" | "radarr";
   availableSeasons?: RecommendationProviderSeason[];
   tmdbDetails?: TmdbTitleDetails;
-  sonarrSeriesId?: number;
-  pendingEpisodeSelection?: boolean;
-  pendingEpisodeReturnTo?: string;
 };
 
 function buildSeasonLabel(seasonNumber: number, label: unknown) {
@@ -104,18 +101,6 @@ export function parseRecommendationProviderMetadata(
         : undefined;
     const availableSeasons = parseRecommendationProviderSeasons(metadata.availableSeasons);
     const tmdbDetails = parseTmdbTitleDetails(metadata.tmdbDetails);
-    const sonarrSeriesId =
-      typeof metadata.sonarrSeriesId === "number" &&
-      Number.isInteger(metadata.sonarrSeriesId) &&
-      metadata.sonarrSeriesId > 0
-        ? metadata.sonarrSeriesId
-        : undefined;
-    const pendingEpisodeSelection = metadata.pendingEpisodeSelection === true ? true : undefined;
-    const pendingEpisodeReturnTo =
-      typeof metadata.pendingEpisodeReturnTo === "string" &&
-      metadata.pendingEpisodeReturnTo.trim().length > 0
-        ? metadata.pendingEpisodeReturnTo
-        : undefined;
 
     return {
       metadataSchemaVersion:
@@ -137,9 +122,6 @@ export function parseRecommendationProviderMetadata(
       posterLookupService,
       availableSeasons,
       tmdbDetails,
-      sonarrSeriesId,
-      pendingEpisodeSelection,
-      pendingEpisodeReturnTo,
     } satisfies RecommendationProviderMetadata;
   } catch (error) {
     console.error("[recommendations/provider-metadata] failed to parse providerMetadataJson", error);
