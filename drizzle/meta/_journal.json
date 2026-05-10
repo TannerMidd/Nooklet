@@ -211,6 +211,13 @@
       "when": 1778536794609,
       "tag": "0029_drop_sonarr_radarr_service_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1778453318738,
+      "tag": "0030_media_request_attempts",
+      "breakpoints": true
     }
   ]
 }
