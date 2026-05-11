@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/modules/media-library/commands/request-media-title", async (importOriginal) => {
+vi.mock("@/modules/media-library/workflows/request-title-with-release-search", async (importOriginal) => {
   const actual = await importOriginal<
-    typeof import("@/modules/media-library/commands/request-media-title")
+    typeof import("@/modules/media-library/workflows/request-title-with-release-search")
   >();
 
   return {
     ...actual,
-    requestMediaTitleCommand: vi.fn(),
+    requestTitleWithReleaseSearchWorkflow: vi.fn(),
   };
 });
 
@@ -19,8 +19,11 @@ vi.mock("@/modules/recommendations/repositories/recommendation-repository", () =
 
 import {
   RequestMediaTitleCommandError,
-  requestMediaTitleCommand,
 } from "@/modules/media-library/commands/request-media-title";
+import {
+  RequestTitleAlreadyInFlightError,
+  requestTitleWithReleaseSearchWorkflow,
+} from "@/modules/media-library/workflows/request-title-with-release-search";
 import {
   createRecommendationItemTimelineEvent,
   findRecommendationItemForUser,
@@ -33,10 +36,26 @@ const ITEM_ID = "11111111-1111-4111-8111-111111111111";
 const LIBRARY_ID = "22222222-2222-4222-8222-222222222222";
 const PATH_ID = "33333333-3333-4333-8333-333333333333";
 
-const mockedRequestMediaTitleCommand = vi.mocked(requestMediaTitleCommand);
+const mockedRequestTitleWorkflow = vi.mocked(requestTitleWithReleaseSearchWorkflow);
 const mockedFindRecommendationItemForUser = vi.mocked(findRecommendationItemForUser);
 const mockedMarkRecommendationItemExistingInLibrary = vi.mocked(markRecommendationItemExistingInLibrary);
 const mockedCreateRecommendationItemTimelineEvent = vi.mocked(createRecommendationItemTimelineEvent);
+
+function buildWorkflowResult(libraryId: string) {
+  return {
+    title: { id: "media-title-1", libraryId },
+    selections: [],
+    releaseSearch: { searched: false },
+    queuedDownload: {
+      queued: true,
+      reason: "queued",
+      message: "Sent to SAB.",
+      selectedResultId: "release-1",
+      rejectedResultIds: [],
+      download: null,
+    },
+  } as unknown as Awaited<ReturnType<typeof requestTitleWithReleaseSearchWorkflow>>;
+}
 
 function tmdbMetadataJson() {
   return JSON.stringify({
@@ -91,10 +110,7 @@ describe("addRecommendationToLibrary", () => {
       feedback: null,
       isHidden: null,
     });
-    mockedRequestMediaTitleCommand.mockResolvedValue({
-      id: "media-title-1",
-      libraryId: LIBRARY_ID,
-    } as Awaited<ReturnType<typeof requestMediaTitleCommand>>);
+    mockedRequestTitleWorkflow.mockResolvedValue(buildWorkflowResult(LIBRARY_ID));
     mockedMarkRecommendationItemExistingInLibrary.mockResolvedValue(undefined);
   });
 
@@ -112,7 +128,7 @@ describe("addRecommendationToLibrary", () => {
       ok: true,
       message: "Titanic was requested in your Nooklet library.",
     });
-    expect(mockedRequestMediaTitleCommand).toHaveBeenCalledWith("user-1", {
+    expect(mockedRequestTitleWorkflow).toHaveBeenCalledWith("user-1", {
       mediaType: "movie",
       libraryId: LIBRARY_ID,
       targetLibraryPathId: PATH_ID,
@@ -126,6 +142,8 @@ describe("addRecommendationToLibrary", () => {
       backdropUrl: "https://image.example/backdrop.jpg",
       runtimeMinutes: 194,
       originalLanguage: "en",
+      selections: undefined,
+      downloadNow: true,
     });
     expect(mockedMarkRecommendationItemExistingInLibrary).toHaveBeenCalledWith(ITEM_ID, true);
     expect(mockedCreateRecommendationItemTimelineEvent).toHaveBeenCalledWith(
@@ -135,12 +153,53 @@ describe("addRecommendationToLibrary", () => {
         eventType: "library-add",
         status: "succeeded",
         title: "Added to Nooklet",
+        metadata: expect.objectContaining({
+          queued: true,
+          queuedReleaseId: "release-1",
+        }),
+      }),
+    );
+  });
+
+  it("requests every season when the recommendation is a tv title", async () => {
+    mockedFindRecommendationItemForUser.mockResolvedValue({
+      itemId: ITEM_ID,
+      runId: "run-1",
+      mediaType: "tv",
+      title: "Severance",
+      year: 2022,
+      rationale: "Surreal workplace mystery.",
+      confidenceLabel: "high",
+      existingInLibrary: false,
+      providerMetadataJson: null,
+      runStatus: "succeeded",
+      requestPrompt: "thriller",
+      runCreatedAt: new Date(),
+      feedback: null,
+      isHidden: null,
+    });
+
+    await addRecommendationToLibrary("user-1", {
+      itemId: ITEM_ID,
+      libraryId: LIBRARY_ID,
+      targetLibraryPathId: PATH_ID,
+      monitored: true,
+      qualityProfile: "hd-1080p",
+      returnTo: "/discover",
+    });
+
+    expect(mockedRequestTitleWorkflow).toHaveBeenCalledWith(
+      "user-1",
+      expect.objectContaining({
+        mediaType: "tv",
+        selections: { mode: "all" },
+        downloadNow: true,
       }),
     );
   });
 
   it("returns a target path field error when the local request rejects the folder", async () => {
-    mockedRequestMediaTitleCommand.mockRejectedValue(
+    mockedRequestTitleWorkflow.mockRejectedValue(
       new RequestMediaTitleCommandError(
         "Choose a matching active library folder before adding that title.",
         "target_path_not_found",
@@ -168,6 +227,23 @@ describe("addRecommendationToLibrary", () => {
         title: "Add to Nooklet failed",
       }),
     );
+  });
+
+  it("surfaces in-flight conflicts without marking the recommendation added", async () => {
+    mockedRequestTitleWorkflow.mockRejectedValue(new RequestTitleAlreadyInFlightError());
+
+    const result = await addRecommendationToLibrary("user-1", {
+      itemId: ITEM_ID,
+      libraryId: LIBRARY_ID,
+      targetLibraryPathId: PATH_ID,
+      monitored: true,
+      qualityProfile: "hd-1080p",
+      returnTo: "/movies",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/duplicate request/i);
+    expect(mockedMarkRecommendationItemExistingInLibrary).not.toHaveBeenCalled();
   });
 
   it("does not submit a duplicate local request for an existing recommendation", async () => {
@@ -199,6 +275,6 @@ describe("addRecommendationToLibrary", () => {
       ok: false,
       message: "This recommendation is already marked as existing in the library.",
     });
-    expect(mockedRequestMediaTitleCommand).not.toHaveBeenCalled();
+    expect(mockedRequestTitleWorkflow).not.toHaveBeenCalled();
   });
 });

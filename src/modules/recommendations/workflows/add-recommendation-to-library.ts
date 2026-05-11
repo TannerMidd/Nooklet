@@ -2,8 +2,11 @@ import { parseRecommendationProviderMetadata } from "@/modules/recommendations/p
 import { type AddRecommendationToLibraryInput } from "@/modules/recommendations/schemas/add-to-library";
 import {
   RequestMediaTitleCommandError,
-  requestMediaTitleCommand,
 } from "@/modules/media-library/commands/request-media-title";
+import {
+  RequestTitleAlreadyInFlightError,
+  requestTitleWithReleaseSearchWorkflow,
+} from "@/modules/media-library/workflows/request-title-with-release-search";
 import {
   createRecommendationItemTimelineEvent,
   findRecommendationItemForUser,
@@ -58,7 +61,7 @@ export async function addRecommendationToLibrary(
   const tmdbDetailsForItem = tmdbDetails?.mediaType === item.mediaType ? tmdbDetails : null;
 
   try {
-    const mediaTitle = await requestMediaTitleCommand(userId, {
+    const { title: mediaTitle, queuedDownload } = await requestTitleWithReleaseSearchWorkflow(userId, {
       mediaType: item.mediaType,
       libraryId: input.libraryId,
       targetLibraryPathId: input.targetLibraryPathId,
@@ -72,6 +75,8 @@ export async function addRecommendationToLibrary(
       backdropUrl: tmdbDetailsForItem?.backdropUrl,
       runtimeMinutes: tmdbDetailsForItem?.runtimeMinutes,
       originalLanguage: tmdbDetailsForItem?.originalLanguage,
+      selections: item.mediaType === "tv" ? { mode: "all" } : undefined,
+      downloadNow: true,
     });
 
     await markRecommendationItemExistingInLibrary(item.itemId, true);
@@ -89,6 +94,10 @@ export async function addRecommendationToLibrary(
         qualityProfile: input.qualityProfile,
         monitored: input.monitored,
         tmdbId: tmdbDetailsForItem?.tmdbId ?? null,
+        queued: queuedDownload.queued,
+        queuedReason: queuedDownload.reason,
+        queuedMessage: queuedDownload.message,
+        queuedReleaseId: queuedDownload.selectedResultId,
       },
     });
 
@@ -97,6 +106,26 @@ export async function addRecommendationToLibrary(
       message: `${item.title} was requested in your Nooklet library.`,
     };
   } catch (error) {
+    if (error instanceof RequestTitleAlreadyInFlightError) {
+      await createRecommendationItemTimelineEvent({
+        userId,
+        itemId: item.itemId,
+        eventType: "library-add",
+        status: "failed",
+        title: "Add to Nooklet failed",
+        message: error.message,
+        metadata: {
+          qualityProfile: input.qualityProfile,
+          monitored: input.monitored,
+        },
+      });
+
+      return {
+        ok: false,
+        message: error.message,
+      };
+    }
+
     const message = error instanceof RequestMediaTitleCommandError
       ? error.message
       : "Nooklet could not add that title.";
