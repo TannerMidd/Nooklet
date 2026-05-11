@@ -156,60 +156,127 @@ recommendations from `/tv` or `/movies`.
 
 ## Docker
 
-```bash
-cp .env.example .env
-# set AUTH_SECRET and APP_URL; optionally set APP_PORT
-docker compose up -d --build
-```
+The fastest path from a clean checkout to a running instance:
 
-- SQLite is persisted in the `nooklet-data` volume.
-- The container forces `DATABASE_URL=file:/app/data/nooklet.db`.
-- The app is published on `APP_PORT` (default `42021`); keep `APP_URL`
-  aligned with the URL users open.
-- A `/api/health` endpoint is exposed for health checks.
-- **Always** put TLS in front of any internet-exposed deployment.
+1. **Copy the env template.**
+   ```bash
+   cp .env.example .env       # macOS / Linux
+   ```
+   ```powershell
+   Copy-Item .env.example .env  # Windows / PowerShell
+   ```
+2. **Set the three required values** in `.env`:
+   - `APP_URL` — the URL users will open, e.g. `http://localhost:42021`.
+   - `APP_PORT` — host port to publish (default `42021`). Must match `APP_URL`.
+   - `AUTH_SECRET` — at least 32 characters. Generate one with
+     `openssl rand -base64 48` (any OS with OpenSSL) or
+     `[Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))`
+     in PowerShell.
+3. **(Optional) Add bind mounts** for your media library and SAB completed
+   folder — see [Mounting media and downloads](#mounting-media-and-downloads)
+   below. Skip this step if you only want to poke around the UI.
+4. **Build and start.**
+   ```bash
+   docker compose up -d --build
+   ```
+5. **Open `APP_URL`** and create the first admin account. The bootstrap flow
+   self-disables after the first user signs up.
+
+To pick up changes later (env edits, new mounts, new image), re-run
+`docker compose up -d --build`. To stop without losing data, `docker compose
+down` — the SQLite database lives in the named `nooklet-data` volume and
+survives container rebuilds.
+
+What the shipped compose file does for you:
+
+- Persists SQLite in the named `nooklet-data` volume.
+- Forces `DATABASE_URL=file:/app/data/nooklet.db` inside the container so a
+  host-style `DATABASE_URL` in `.env` can't accidentally write outside the
+  volume.
+- Publishes the app on `APP_PORT` (default `42021`).
+- Exposes `/api/health` for container health checks.
+
+**Always** put TLS in front of any internet-exposed deployment.
 
 ### Mounting media and downloads
 
-Nooklet reads your library files and SAB's completed downloads from inside
-the container, so any folders that live on the host (or on a NAS/SMB share
-mounted on the host) need bind mounts in `docker-compose.yml`. The shipped
-file ships with commented examples; uncomment and edit them:
+Nooklet runs entirely inside the container, so any folders that live on the
+host (or on a NAS/SMB share mounted on the host) must be exposed to the
+container as **bind mounts**. Edit the `volumes:` section of
+`docker-compose.yml` (the file ships with commented examples):
 
 ```yaml
 services:
   app:
     volumes:
       - nooklet-data:/app/data
-      - F:\Media\TV:/media/tv          # host : container
-      - F:\Media\Movies:/media/movies
-      - F:\Usenet\Downloads:/downloads # SAB completed folder
+      # Media library roots. Format is "<host path>:<container path>".
+      - "D:\\Media\\TV:/media/tv"
+      - "D:\\Media\\Movies:/media/movies"
+      # SABnzbd's completed-downloads folder.
+      - "F:\\Usenet\\Downloads:/downloads"
 ```
 
-Then in **Settings → Library** add library paths using the **container-side**
-value (`/media/tv`, `/media/movies`). Nooklet stores those strings verbatim;
-they must resolve from inside the container.
+Two rules to remember:
 
-For SAB, the simplest setup is to bind-mount its completed folder into Nooklet
-at the same path SAB itself reports (e.g. both see `/downloads`). When the
-paths differ, set `SABNZBD_PATH_MAPPINGS` to translate SAB's reported prefix
-to the prefix Nooklet should read from. Format is
-`<sab-prefix>=<nooklet-prefix>`, separated by `;` or new lines:
+- **Always enter the container-side path in Settings → Library** (`/media/tv`,
+  `/media/movies` in the example above). Nooklet stores library paths in the
+  database verbatim and resolves them from inside the container; the host
+  path on the left side of the bind mount is invisible to the app.
+- **Quote any Windows path that contains a space, a colon, or backslashes**
+  in YAML, and double the backslashes (`"D:\\Plex Media:/media/plex"`). A
+  bare drive root like `G:\` becomes `"G:\\:/media/g"`.
+
+After editing the file, run `docker compose up -d` to recreate the container
+with the new mounts. Restarting the container is not enough — bind mounts are
+fixed at create time.
+
+### SAB path translation
+
+When SAB finishes a download it tells Nooklet where the files landed. If
+Nooklet's container can read that exact same path (because you bind-mounted
+SAB's completed folder at the same path SAB itself uses), nothing else is
+needed — leave `SABNZBD_PATH_MAPPINGS` empty.
+
+Set `SABNZBD_PATH_MAPPINGS` only when the path SAB reports does **not**
+resolve inside Nooklet's container. Format is
+`<path SAB reports>=<path Nooklet should read>`, separated by `;` or new
+lines. Both sides must be paths that exist somewhere — usually you map
+SAB's container path to Nooklet's container path:
+
+```env
+# SAB reports /sab-downloads/..., Nooklet sees the same files at /downloads/...
+SABNZBD_PATH_MAPPINGS=/sab-downloads=/downloads
+```
+
+If you run Nooklet directly on the host (no container) while SAB is
+containerized, the right side becomes a host path:
 
 ```env
 SABNZBD_PATH_MAPPINGS=/downloads=F:\Usenet\Downloads
 ```
 
-Notes:
+### Permissions
 
-- The container runs as a non-root user. Mounted host folders must be
-  readable by that user, and writable if you plan to use the
-  delete-with-cleanup option that removes files from disk.
-- Use forward-slash container paths (`/media/tv`); Windows host paths
-  (`F:\Media\TV`) are accepted on the left side of the bind mount.
-- Library paths stored in the DB are literal strings. If you later move the
-  app off Docker (or change a mount point), update the path in
-  **Settings → Library** to match.
+The container runs as a non-root user (`node`). Mounted host folders need to
+be readable by that user. They also need to be **writable** if you plan to
+use Nooklet's delete-with-cleanup option that removes files from disk. On
+Docker Desktop (Windows / macOS) bind mounts are usually world-accessible by
+default; on a Linux host you may need `chmod` / `chown` or a `user:` override
+in compose.
+
+### Running multiple instances
+
+To run a second instance side-by-side (e.g. a dev branch alongside a stable
+release) without disturbing the first:
+
+- Use a separate compose file (`docker-compose.alpha.yml`) with its own
+  `name:`, `container_name`, image tag, host port, and named data volume.
+- Use a separate `.env` file (`env_file: - .env.alpha`) with a different
+  `AUTH_SECRET` so session cookies don't collide.
+- Manage it with `docker compose -f docker-compose.alpha.yml up -d --build`
+  / `down`. Plain `docker compose` commands continue to operate on the
+  default file only.
 
 ---
 
@@ -225,7 +292,7 @@ The canonical environment list lives in [`.env.example`](.env.example).
 | `APP_PORT` | ⛔ | Docker host port to publish. Defaults to `42021`. |
 | `SECRET_BOX_KEY` | ⛔ | Separate encryption key for stored service secrets. Falls back to `AUTH_SECRET`. |
 | `ALLOW_PRIVATE_SERVICE_HOSTS` | ⛔ | Defaults to `true`. Set `false` for cloud deployments that must block private-network service URLs. |
-| `SABNZBD_PATH_MAPPINGS` | ⛔ | Maps SABnzbd-reported completed paths to paths Nooklet can read, e.g. `/downloads=F:\Usenet\Downloads`. Separate multiple mappings with semicolons. |
+| `SABNZBD_PATH_MAPPINGS` | ⛔ | Translate SAB-reported paths when they don't resolve inside Nooklet's container. Format `<sab-path>=<nooklet-path>`, multiple entries separated by `;`. Leave empty if your SAB completed folder is bind-mounted at the same path SAB itself reports. See the [Docker](#docker) section for examples. |
 
 ---
 
