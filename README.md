@@ -169,6 +169,48 @@ docker compose up -d --build
 - A `/api/health` endpoint is exposed for health checks.
 - **Always** put TLS in front of any internet-exposed deployment.
 
+### Mounting media and downloads
+
+Nooklet reads your library files and SAB's completed downloads from inside
+the container, so any folders that live on the host (or on a NAS/SMB share
+mounted on the host) need bind mounts in `docker-compose.yml`. The shipped
+file ships with commented examples; uncomment and edit them:
+
+```yaml
+services:
+  app:
+    volumes:
+      - nooklet-data:/app/data
+      - F:\Media\TV:/media/tv          # host : container
+      - F:\Media\Movies:/media/movies
+      - F:\Usenet\Downloads:/downloads # SAB completed folder
+```
+
+Then in **Settings → Library** add library paths using the **container-side**
+value (`/media/tv`, `/media/movies`). Nooklet stores those strings verbatim;
+they must resolve from inside the container.
+
+For SAB, the simplest setup is to bind-mount its completed folder into Nooklet
+at the same path SAB itself reports (e.g. both see `/downloads`). When the
+paths differ, set `SABNZBD_PATH_MAPPINGS` to translate SAB's reported prefix
+to the prefix Nooklet should read from. Format is
+`<sab-prefix>=<nooklet-prefix>`, separated by `;` or new lines:
+
+```env
+SABNZBD_PATH_MAPPINGS=/downloads=F:\Usenet\Downloads
+```
+
+Notes:
+
+- The container runs as a non-root user. Mounted host folders must be
+  readable by that user, and writable if you plan to use the
+  delete-with-cleanup option that removes files from disk.
+- Use forward-slash container paths (`/media/tv`); Windows host paths
+  (`F:\Media\TV`) are accepted on the left side of the bind mount.
+- Library paths stored in the DB are literal strings. If you later move the
+  app off Docker (or change a mount point), update the path in
+  **Settings → Library** to match.
+
 ---
 
 ## Configuration

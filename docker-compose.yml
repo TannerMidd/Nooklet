@@ -19,6 +19,14 @@ services:
       DATABASE_URL: file:/app/data/nooklet.db
     volumes:
       - nooklet-data:/app/data
+      # Bind-mount your media library roots so the scanner can read files.
+      # The path on the right is what you enter in /library settings.
+      # - /host/path/to/tv:/media/tv
+      # - /host/path/to/movies:/media/movies
+      # Bind-mount SAB's completed-downloads folder so the auto-import
+      # workflow can read finished downloads. Easiest setup: mount it at
+      # the same path SAB itself uses, then leave SABNZBD_PATH_MAPPINGS empty.
+      # - /host/path/to/sab/downloads:/downloads
 
 volumes:
   nooklet-data:
