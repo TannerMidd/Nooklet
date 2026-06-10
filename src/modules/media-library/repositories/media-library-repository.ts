@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 
-import { and, count, eq, inArray } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, lte, ne, notExists, or } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
+  activeDownloadRequestStatuses,
+  downloadRequests,
   mediaFiles,
   mediaLibraries,
   mediaLibraryPaths,
@@ -850,4 +852,78 @@ export async function completeMediaScanRun(input: {
     .run();
 
   return database.select().from(mediaScanRuns).where(eq(mediaScanRuns.id, input.scanRunId)).get()!;
+}
+
+export async function listMonitoredMissingMovieTitles(
+  userId: string,
+  limit: number,
+): Promise<MediaTitleRecord[]> {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(mediaTitles)
+    .where(and(
+      eq(mediaTitles.userId, userId),
+      eq(mediaTitles.mediaType, "movie"),
+      eq(mediaTitles.monitored, true),
+      ne(mediaTitles.status, "available"),
+      notExists(
+        database
+          .select({ id: downloadRequests.id })
+          .from(downloadRequests)
+          .where(and(
+            eq(downloadRequests.userId, userId),
+            eq(downloadRequests.mediaTitleId, mediaTitles.id),
+            inArray(downloadRequests.status, activeDownloadRequestStatuses),
+          )),
+      ),
+    ))
+    .orderBy(asc(mediaTitles.createdAt), asc(mediaTitles.id))
+    .limit(limit)
+    .all();
+}
+
+export async function listMonitoredMissingTvEpisodes(
+  userId: string,
+  limit: number,
+  airedOnOrBefore: string = new Date().toISOString().slice(0, 10),
+): Promise<TvEpisodeWithTitleRecord[]> {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({ episode: tvEpisodes, title: mediaTitles })
+    .from(tvEpisodes)
+    .innerJoin(mediaTitles, eq(mediaTitles.id, tvEpisodes.titleId))
+    .innerJoin(tvSeasons, eq(tvSeasons.id, tvEpisodes.seasonId))
+    .where(and(
+      eq(mediaTitles.userId, userId),
+      eq(mediaTitles.monitored, true),
+      eq(tvSeasons.monitored, true),
+      eq(tvEpisodes.monitored, true),
+      eq(tvEpisodes.hasFile, false),
+      or(isNull(tvEpisodes.airDate), lte(tvEpisodes.airDate, airedOnOrBefore)),
+      notExists(
+        database
+          .select({ id: downloadRequests.id })
+          .from(downloadRequests)
+          .where(and(
+            eq(downloadRequests.userId, userId),
+            eq(downloadRequests.mediaTitleId, mediaTitles.id),
+            inArray(downloadRequests.status, activeDownloadRequestStatuses),
+            or(
+              eq(downloadRequests.episodeId, tvEpisodes.id),
+              eq(downloadRequests.seasonId, tvEpisodes.seasonId),
+              and(isNull(downloadRequests.episodeId), isNull(downloadRequests.seasonId)),
+            ),
+          )),
+      ),
+    ))
+    .orderBy(
+      asc(mediaTitles.sortTitle),
+      asc(tvEpisodes.seasonNumber),
+      asc(tvEpisodes.episodeNumber),
+    )
+    .limit(limit)
+    .all();
 }

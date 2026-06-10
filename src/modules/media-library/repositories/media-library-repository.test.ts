@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
+  downloadRequests,
   mediaFiles,
   mediaTitleExternalIds,
   tvEpisodes,
@@ -20,6 +21,8 @@ import {
   createTvSeason,
   findMediaTitleByNormalizedKey,
   listActiveMediaLibraryPaths,
+  listMonitoredMissingMovieTitles,
+  listMonitoredMissingTvEpisodes,
   markMediaLibraryPathScanned,
   recordMediaFile,
   setMediaTitleExternalIds,
@@ -192,5 +195,146 @@ describe("media-library-repository", () => {
     expect(storedEpisode?.airDate).toBe("2022-02-18");
     expect(storedFile?.relativePath).toBe("Severance/Season 01/Severance S01E01.mkv");
     expect(storedFile?.sizeBytes).toBe(1_600_000_000);
+  });
+
+  it("lists monitored missing movie titles without active downloads", async () => {
+    const userId = await seedUser();
+    const library = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies" });
+
+    const missing = await upsertMediaTitle({
+      userId,
+      libraryId: library.id,
+      mediaType: "movie",
+      title: "Arrival",
+      sortTitle: "arrival",
+      normalizedKey: "arrival::2016",
+      status: "missing",
+    });
+    const unmonitored = await upsertMediaTitle({
+      userId,
+      libraryId: library.id,
+      mediaType: "movie",
+      title: "Dune",
+      sortTitle: "dune",
+      normalizedKey: "dune::2021",
+      status: "missing",
+      monitored: false,
+    });
+    const available = await upsertMediaTitle({
+      userId,
+      libraryId: library.id,
+      mediaType: "movie",
+      title: "Heat",
+      sortTitle: "heat",
+      normalizedKey: "heat::1995",
+      status: "available",
+    });
+    const downloading = await upsertMediaTitle({
+      userId,
+      libraryId: library.id,
+      mediaType: "movie",
+      title: "Sicario",
+      sortTitle: "sicario",
+      normalizedKey: "sicario::2015",
+      status: "requested",
+    });
+
+    if (!missing || !unmonitored || !available || !downloading) {
+      throw new Error("seed titles missing");
+    }
+
+    ensureDatabaseReady()
+      .insert(downloadRequests)
+      .values({
+        id: randomUUID(),
+        userId,
+        mediaTitleId: downloading.id,
+        mediaType: "movie",
+        requestedTitle: "Sicario",
+        status: "downloading",
+      })
+      .run();
+
+    const candidates = await listMonitoredMissingMovieTitles(userId, 10);
+
+    expect(candidates.map((title) => title.id)).toEqual([missing.id]);
+  });
+
+  it("lists monitored missing aired TV episodes without active downloads", async () => {
+    const userId = await seedUser();
+    const library = await createMediaLibrary({ userId, mediaType: "tv", name: "TV" });
+    const title = await upsertMediaTitle({
+      userId,
+      libraryId: library.id,
+      mediaType: "tv",
+      title: "Severance",
+      sortTitle: "severance",
+      normalizedKey: "severance::2022",
+      status: "missing",
+    });
+
+    if (!title) throw new Error("title missing");
+
+    const monitoredSeason = await createTvSeason({ titleId: title.id, seasonNumber: 1 });
+    const unmonitoredSeason = await createTvSeason({
+      titleId: title.id,
+      seasonNumber: 2,
+      monitored: false,
+    });
+
+    const missingEpisode = await createTvEpisode({
+      titleId: title.id,
+      seasonId: monitoredSeason.id,
+      seasonNumber: 1,
+      episodeNumber: 1,
+      airDate: "2022-02-18",
+    });
+    await createTvEpisode({
+      titleId: title.id,
+      seasonId: monitoredSeason.id,
+      seasonNumber: 1,
+      episodeNumber: 2,
+      airDate: "2022-02-25",
+      hasFile: true,
+    });
+    await createTvEpisode({
+      titleId: title.id,
+      seasonId: monitoredSeason.id,
+      seasonNumber: 1,
+      episodeNumber: 3,
+      airDate: "2999-01-01",
+    });
+    await createTvEpisode({
+      titleId: title.id,
+      seasonId: unmonitoredSeason.id,
+      seasonNumber: 2,
+      episodeNumber: 1,
+      airDate: "2023-02-18",
+    });
+    const downloadingEpisode = await createTvEpisode({
+      titleId: title.id,
+      seasonId: monitoredSeason.id,
+      seasonNumber: 1,
+      episodeNumber: 4,
+      airDate: "2022-03-04",
+    });
+
+    ensureDatabaseReady()
+      .insert(downloadRequests)
+      .values({
+        id: randomUUID(),
+        userId,
+        mediaTitleId: title.id,
+        episodeId: downloadingEpisode.id,
+        mediaType: "tv",
+        requestedTitle: "Severance S01E04",
+        status: "queued",
+      })
+      .run();
+
+    const candidates = await listMonitoredMissingTvEpisodes(userId, 10, "2026-06-09");
+
+    expect(candidates.map((entry) => entry.episode.id)).toEqual([missingEpisode.id]);
+    expect(candidates[0]?.title.id).toBe(title.id);
   });
 });
