@@ -780,7 +780,12 @@ export const downloadImportedFiles = sqliteTable(
 
 export const watchHistorySourceTypes = ["manual", "tautulli", "plex", "trakt"] as const;
 export const watchHistorySyncStatuses = ["pending", "succeeded", "failed"] as const;
-export const jobTypes = ["watch-history-sync", "recommendation-run", "media-library-scan"] as const;
+export const jobTypes = [
+  "watch-history-sync",
+  "recommendation-run",
+  "media-library-scan",
+  "missing-content-search",
+] as const;
 export const jobStatuses = ["idle", "running", "succeeded", "failed"] as const;
 
 export const watchHistorySources = sqliteTable(

@@ -9,6 +9,7 @@ import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/
 import { reconcileDuplicateSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-duplicate-queue-items";
 import { reconcileMissingSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-missing-queue-items";
 import { scanMediaLibraryWorkflow } from "@/modules/media-library/workflows/scan-library";
+import { searchMissingMonitoredContentWorkflow } from "@/modules/media-library/workflows/search-missing-monitored";
 import { parsePlexWatchHistorySourceMetadata } from "@/modules/watch-history/plex-watch-history-source-metadata";
 import { executeQueuedRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
 import { parseWatchHistorySourceMetadataJson } from "@/modules/watch-history/source-metadata";
@@ -145,6 +146,14 @@ async function runMediaLibraryScanJob(job: StoredJob) {
   await scanMediaLibraryWorkflow(job.userId, {});
 }
 
+async function runMissingContentSearchJob(job: StoredJob) {
+  if (job.targetType !== "media-library" || job.targetKey !== "all") {
+    throw new Error(`Unsupported missing-content search target: ${job.targetType}:${job.targetKey}.`);
+  }
+
+  await searchMissingMonitoredContentWorkflow(job.userId);
+}
+
 async function executeJob(job: StoredJob) {
   if (job.jobType === "recommendation-run") {
     return runRecommendationJob(job);
@@ -152,6 +161,10 @@ async function executeJob(job: StoredJob) {
 
   if (job.jobType === "media-library-scan") {
     return runMediaLibraryScanJob(job);
+  }
+
+  if (job.jobType === "missing-content-search") {
+    return runMissingContentSearchJob(job);
   }
 
   if (job.targetType !== "watch-history-source") {
@@ -209,6 +222,7 @@ export async function runDueJobs() {
       ...(await claimDueJobs("watch-history-sync", new Date(), 4)),
       ...(await claimDueJobs("media-library-scan", new Date(), 2)),
       ...(await claimDueJobs("recommendation-run", new Date(), 2)),
+      ...(await claimDueJobs("missing-content-search", new Date(), 2)),
     ];
 
     for (const job of dueJobs) {

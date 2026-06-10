@@ -20,6 +20,9 @@ vi.mock("@/modules/jobs/repositories/job-repository", () => ({
 vi.mock("@/modules/media-library/workflows/scan-library", () => ({
   scanMediaLibraryWorkflow: vi.fn(),
 }));
+vi.mock("@/modules/media-library/workflows/search-missing-monitored", () => ({
+  searchMissingMonitoredContentWorkflow: vi.fn(),
+}));
 
 import { listUsersWithActiveDownloadRequestsForImport } from "@/modules/downloads/queries/list-users-with-active-download-requests";
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
@@ -27,6 +30,7 @@ import { reconcileDuplicateSabnzbdQueueItemsWorkflow } from "@/modules/downloads
 import { reconcileMissingSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-missing-queue-items";
 import { claimDueJobs } from "@/modules/jobs/repositories/job-repository";
 import { scanMediaLibraryWorkflow } from "@/modules/media-library/workflows/scan-library";
+import { searchMissingMonitoredContentWorkflow } from "@/modules/media-library/workflows/search-missing-monitored";
 
 import { runDueJobs } from "./worker";
 
@@ -36,6 +40,7 @@ const reconcileDuplicateQueueMock = vi.mocked(reconcileDuplicateSabnzbdQueueItem
 const reconcileMissingQueueMock = vi.mocked(reconcileMissingSabnzbdQueueItemsWorkflow);
 const claimDueJobsMock = vi.mocked(claimDueJobs);
 const scanMediaLibraryMock = vi.mocked(scanMediaLibraryWorkflow);
+const searchMissingContentMock = vi.mocked(searchMissingMonitoredContentWorkflow);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -65,6 +70,7 @@ beforeEach(() => {
   });
   claimDueJobsMock.mockResolvedValue([]);
   scanMediaLibraryMock.mockResolvedValue({ discoveredFileCount: 0, matchedTitleCount: 0 } as never);
+  searchMissingContentMock.mockResolvedValue({ searchedCount: 0, queuedCount: 0, unmatchedCount: 0 });
 });
 
 describe("runDueJobs", () => {
@@ -133,5 +139,27 @@ describe("runDueJobs", () => {
     await runDueJobs();
 
     expect(scanMediaLibraryMock).toHaveBeenCalledWith("user1", {});
+  });
+
+  it("runs due missing-content search jobs", async () => {
+    claimDueJobsMock.mockImplementation(async (jobType) => {
+      if (jobType !== "missing-content-search") {
+        return [];
+      }
+
+      return [{
+        id: "job1",
+        userId: "user1",
+        jobType: "missing-content-search",
+        targetType: "media-library",
+        targetKey: "all",
+        scheduleMinutes: 720,
+      }] as never;
+    });
+
+    await runDueJobs();
+
+    expect(claimDueJobsMock).toHaveBeenCalledWith("missing-content-search", expect.any(Date), 2);
+    expect(searchMissingContentMock).toHaveBeenCalledWith("user1");
   });
 });
