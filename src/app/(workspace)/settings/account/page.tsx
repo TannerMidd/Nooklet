@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
+import { StatCard } from "@/components/ui/stat-card";
 import { getAccountUser } from "@/modules/users/queries/get-account-user";
 
 import { ChangePasswordForm } from "./change-password-form";
@@ -34,16 +35,10 @@ export default async function AccountSettingsPage() {
             eyebrow="Signed-in account"
             title={user?.displayName ?? session.user.name ?? "Account"}
           >
-            <div className="space-y-3 text-sm leading-6 text-foreground">
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                <span className="font-medium">Email:</span> {user?.email ?? session.user.email}
-              </div>
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                <span className="font-medium">Role:</span> {session.user.role}
-              </div>
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-                <span className="font-medium">Status:</span> {user?.isDisabled ? "Disabled" : "Active"}
-              </div>
+            <div className="space-y-3">
+              <StatCard label="Email" value={user?.email ?? session.user.email} />
+              <StatCard label="Role" value={session.user.role} />
+              <StatCard label="Status" value={user?.isDisabled ? "Disabled" : "Active"} />
             </div>
           </Panel>
         </div>

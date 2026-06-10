@@ -60,7 +60,7 @@ export function RecommendationSabnzbdStatus({
     <Link
       href="/in-progress"
       className={cn(
-        "block rounded-2xl border border-accent/25 bg-accent/10 text-sm text-foreground transition hover:border-accent/45 hover:bg-accent/15",
+        "block rounded-lg border border-accent/25 bg-accent/10 text-sm text-foreground transition hover:border-accent/45 hover:bg-accent/15",
         variant === "panel" ? "px-4 py-3" : "px-3 py-3",
         className,
       )}

@@ -55,7 +55,7 @@ export function WatchHistoryScheduleForm({
   );
 
   return (
-    <form action={formAction} className="space-y-4 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4">
+    <form action={formAction} className="space-y-4 rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4">
       <input type="hidden" name="sourceType" value={sourceType} />
 
       <div className="space-y-1">
@@ -64,7 +64,7 @@ export function WatchHistoryScheduleForm({
       </div>
 
       <div className="grid gap-4 md:grid-cols-[0.38fr,0.32fr,0.3fr] md:items-end">
-        <label className="flex items-start gap-3 rounded-2xl border border-line bg-panel px-4 py-4">
+        <label className="flex items-start gap-3 rounded-lg border border-line bg-panel px-4 py-4">
           <input
             name="enabled"
             type="checkbox"
@@ -94,7 +94,7 @@ export function WatchHistoryScheduleForm({
           ) : null}
         </label>
 
-        <div className="rounded-2xl border border-line bg-panel px-4 py-3 text-sm leading-6 text-foreground">
+        <div className="rounded-lg border border-line bg-panel px-4 py-3 text-sm leading-6 text-foreground">
           <p>
             <span className="font-medium">Last run:</span> {formatDate(lastRunAt)}
           </p>
@@ -105,7 +105,7 @@ export function WatchHistoryScheduleForm({
       </div>
 
       {lastError ? (
-        <p className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
+        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
           {lastError}
         </p>
       ) : null}
@@ -114,8 +114,8 @@ export function WatchHistoryScheduleForm({
         <p
           className={
             state.status === "success"
-              ? "rounded-2xl border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-foreground"
-              : "rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight"
+              ? "rounded-lg border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-foreground"
+              : "rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight"
           }
         >
           {state.message}

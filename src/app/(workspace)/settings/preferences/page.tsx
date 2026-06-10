@@ -99,25 +99,25 @@ export default async function PreferencesSettingsPage({
             title="Saved values"
           >
             <div className="space-y-3 text-sm leading-6 text-foreground">
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                 <span className="font-medium">Default media mode:</span> {preferences.defaultMediaMode}
               </div>
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                 <span className="font-medium">Default result count:</span> {preferences.defaultResultCount}
               </div>
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                 <span className="font-medium">Library sample size:</span> {preferences.libraryTasteSampleSize}
               </div>
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                 <span className="font-medium">Language preference:</span> {formatLanguagePreference(preferences.languagePreference)}
               </div>
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                 <span className="font-medium">Watch-history only:</span> {preferences.watchHistoryOnly ? "Enabled" : "Disabled"}
               </div>
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                 <span className="font-medium">Selected history sources:</span> {selectedSourceNames}
               </div>
-              <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                 <span className="font-medium">Last updated:</span>{" "}
                 {hasPersistedUpdate ? formatDate(preferences.updatedAt) : "Never"}
               </div>

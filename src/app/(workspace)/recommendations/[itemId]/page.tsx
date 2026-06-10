@@ -161,7 +161,7 @@ export default async function RecommendationOverviewPage({
 
         <Panel eyebrow="Saved item" title="Actions">
           <div className="space-y-4 text-sm leading-6 text-foreground">
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+            <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
               <span className="font-medium">Generated:</span> {formatDate(item.runCreatedAt)}
               <p className="mt-1 text-muted">Prompt: {item.requestPrompt || "Taste-based automatic request"}</p>
             </div>

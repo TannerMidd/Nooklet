@@ -30,7 +30,7 @@ export function LoginForm({ showBootstrapSuccess }: LoginFormProps) {
   return (
     <form action={formAction} className="space-y-5">
       {showBootstrapSuccess ? (
-        <p className="rounded-2xl border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-foreground">
+        <p className="rounded-lg border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-foreground">
           First-admin bootstrap is complete. Sign in with the account you just created.
         </p>
       ) : null}
@@ -55,7 +55,7 @@ export function LoginForm({ showBootstrapSuccess }: LoginFormProps) {
       </label>
 
       {state.status === "error" && state.message ? (
-        <p className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
+        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
           {state.message}
         </p>
       ) : null}

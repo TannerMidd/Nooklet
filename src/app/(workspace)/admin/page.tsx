@@ -1,5 +1,6 @@
 import { Panel } from "@/components/ui/panel";
 import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
 import { requireAdminSession } from "@/modules/identity-access/workflows/require-admin-session";
 import { listUsersOverview } from "@/modules/admin/queries/list-users-overview";
 
@@ -33,16 +34,10 @@ export default async function AdminPage() {
 
       <div className="grid gap-6 xl:grid-cols-[0.72fr,1.28fr]">
         <Panel eyebrow="Active admin" title={session.user.name ?? session.user.email ?? "Admin"}>
-          <div className="space-y-3 text-sm leading-6 text-foreground">
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">Role:</span> {session.user.role}
-            </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">Total users:</span> {users.length}
-            </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">Disabled users:</span> {disabledUsers}
-            </div>
+          <div className="space-y-3">
+            <StatCard label="Role" value={session.user.role} />
+            <StatCard label="Total users" value={users.length} />
+            <StatCard label="Disabled users" value={disabledUsers} />
           </div>
         </Panel>
 
@@ -61,16 +56,16 @@ export default async function AdminPage() {
         description="Use this area to create users, change roles, enable or disable accounts, and reset passwords."
       >
         <ul className="grid gap-3 text-sm leading-6 text-foreground md:grid-cols-4">
-            <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+            <li className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
               Only admins can open this area.
             </li>
-            <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+            <li className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
               You can review every account in one list.
             </li>
-            <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+            <li className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
               Role and account changes are checked before they are saved.
             </li>
-            <li className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+            <li className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
               Sensitive changes are recorded for later review.
             </li>
           </ul>

@@ -51,7 +51,7 @@ type CheckboxFieldProps = {
 
 function CheckboxField({ name, label, description, defaultChecked }: CheckboxFieldProps) {
   return (
-    <label className="flex items-start gap-3 rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4">
+    <label className="flex items-start gap-3 rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4">
       <input
         name={name}
         type="checkbox"
@@ -185,7 +185,7 @@ export function PreferencesForm({
           description="Use configured watch-history sources as the recommendation context instead of mixing in other source inputs."
           defaultChecked={preferences.watchHistoryOnly}
         />
-        <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 md:col-span-2">
+        <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 md:col-span-2">
           <div className="space-y-1">
             <p className="text-sm font-medium text-foreground">Watch-history sources</p>
             <p className="text-sm leading-6 text-muted">
@@ -196,7 +196,7 @@ export function PreferencesForm({
             {availableWatchHistorySources.map((source) => (
               <label
                 key={source.sourceType}
-                className="flex items-start gap-3 rounded-2xl border border-line/70 bg-panel px-4 py-4"
+                className="flex items-start gap-3 rounded-lg border border-line/70 bg-panel px-4 py-4"
               >
                 <input
                   name="watchHistorySourceTypes"
@@ -244,7 +244,7 @@ export function PreferencesForm({
       </div>
 
       {state.status === "error" && state.message ? (
-        <p className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
+        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
           {state.message}
         </p>
       ) : null}

@@ -205,7 +205,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
         </div>
 
         {actionError ? (
-          <div className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-highlight">
+          <div className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-highlight">
             {actionError}
           </div>
         ) : null}
@@ -256,7 +256,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
         ) : null}
 
         {queueState.connectionStatus !== "verified" ? (
-          <div className="rounded-2xl border border-highlight/20 bg-highlight/10 px-4 py-3 text-highlight">
+          <div className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-highlight">
             <p>{queueState.statusMessage}</p>
             <Link
               href="/settings/connections"
@@ -408,7 +408,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
             </div>
           </div>
         ) : (
-          <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-muted">
+          <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-muted">
             No active SABnzbd requests right now. This panel refreshes automatically while the queue is busy.
           </div>
         )}

@@ -1,6 +1,8 @@
 import { auth } from "@/auth";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
+import { StatCard } from "@/components/ui/stat-card";
 import { getRecommendationAnalyticsOverview } from "@/modules/recommendations/queries/get-recommendation-analytics-overview";
 import { getRecommendationTasteProfile } from "@/modules/recommendations/queries/get-recommendation-taste-profile";
 
@@ -29,13 +31,13 @@ function formatNumber(value: number) {
 
 function TasteList({ items }: { items: Array<{ title: string; year: number | null }> }) {
   if (items.length === 0) {
-    return <p className="text-sm leading-6 text-muted">No titles yet.</p>;
+    return <EmptyState message="No titles yet." />;
   }
 
   return (
     <ul className="space-y-2 text-sm leading-6 text-foreground">
       {items.map((item) => (
-        <li key={`${item.title}-${item.year ?? "unknown"}`} className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+        <li key={`${item.title}-${item.year ?? "unknown"}`} className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
           {item.title}{item.year ? ` (${item.year})` : ""}
         </li>
       ))}
@@ -62,49 +64,25 @@ export default async function AnalyticsPage() {
       <PageHeader eyebrow="Recommendation intelligence" title="Analytics" />
 
       <Panel eyebrow="AI usage" title="Run quality snapshot">
-        <div className="grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-            <span className="font-medium">Tracked runs:</span> {analytics.runCount}
-          </div>
-          <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-            <span className="font-medium">Succeeded:</span> {analytics.succeededRunCount}
-          </div>
-          <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-            <span className="font-medium">Average duration:</span> {formatDuration(analytics.averageDurationMs)}
-          </div>
-          <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-            <span className="font-medium">Total tokens:</span> {formatNumber(analytics.totalTokens)}
-          </div>
-          <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-            <span className="font-medium">Generated items:</span> {analytics.totalGeneratedItems}
-          </div>
-          <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-            <span className="font-medium">Duplicate/history filters:</span> {analytics.totalExcludedExisting}
-          </div>
-          <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-            <span className="font-medium">Language filters:</span> {analytics.totalExcludedLanguage}
-          </div>
-          <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-            <span className="font-medium">Average attempts:</span> {analytics.averageAttempts || "Not available"}
-          </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Tracked runs" value={analytics.runCount} />
+          <StatCard label="Succeeded" value={analytics.succeededRunCount} />
+          <StatCard label="Average duration" value={formatDuration(analytics.averageDurationMs)} />
+          <StatCard label="Total tokens" value={formatNumber(analytics.totalTokens)} />
+          <StatCard label="Generated items" value={analytics.totalGeneratedItems} />
+          <StatCard label="Duplicate/history filters" value={analytics.totalExcludedExisting} />
+          <StatCard label="Language filters" value={analytics.totalExcludedLanguage} />
+          <StatCard label="Average attempts" value={analytics.averageAttempts || "Not available"} />
         </div>
       </Panel>
 
       <div className="grid gap-6 xl:grid-cols-[0.9fr,1.1fr]">
         <Panel eyebrow="Taste profile" title="Feedback signals">
-          <div className="grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">Likes:</span> {allTaste.likeCount}
-            </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">Dislikes:</span> {allTaste.dislikeCount}
-            </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">Accepted/library:</span> {allTaste.addedCount}
-            </div>
-            <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
-              <span className="font-medium">Hidden:</span> {allTaste.hiddenCount}
-            </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <StatCard label="Likes" value={allTaste.likeCount} />
+            <StatCard label="Dislikes" value={allTaste.dislikeCount} />
+            <StatCard label="Accepted/library" value={allTaste.addedCount} />
+            <StatCard label="Hidden" value={allTaste.hiddenCount} />
           </div>
           <div className="mt-5 grid gap-5 md:grid-cols-2">
             <div className="space-y-3">
@@ -124,11 +102,11 @@ export default async function AnalyticsPage() {
 
         <Panel eyebrow="Recent runs" title="AI run records">
           {analytics.recentRuns.length === 0 ? (
-            <p className="text-sm leading-6 text-muted">No completed recommendation run metrics yet.</p>
+            <EmptyState message="No completed recommendation run metrics yet." />
           ) : (
             <div className="space-y-3">
               {analytics.recentRuns.map((run) => (
-                <article key={run.runId} className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-foreground">
+                <article key={run.runId} className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-foreground">
                   <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div>
                       <p className="font-medium text-foreground">{run.mediaType === "tv" ? "TV" : "Movie"} run</p>

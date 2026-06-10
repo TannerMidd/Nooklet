@@ -63,7 +63,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
 
   return (
     <div className="min-w-[320px] space-y-4">
-      <form action={roleAction} className="space-y-2 rounded-2xl border border-line/70 bg-panel px-3 py-3">
+      <form action={roleAction} className="space-y-2 rounded-lg border border-line/70 bg-panel px-3 py-3">
         <input type="hidden" name="userId" value={user.id} />
         <label className="space-y-2">
           <span className="text-xs font-medium text-muted">
@@ -91,7 +91,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
         ) : null}
       </form>
 
-      <form action={statusAction} className="space-y-2 rounded-2xl border border-line/70 bg-panel px-3 py-3">
+      <form action={statusAction} className="space-y-2 rounded-lg border border-line/70 bg-panel px-3 py-3">
         <input type="hidden" name="userId" value={user.id} />
         <input type="hidden" name="isDisabled" value={user.isDisabled ? "false" : "true"} />
         <div className="text-xs font-medium text-muted">
@@ -110,7 +110,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
         ) : null}
       </form>
 
-      <form action={passwordAction} className="space-y-2 rounded-2xl border border-line/70 bg-panel px-3 py-3">
+      <form action={passwordAction} className="space-y-2 rounded-lg border border-line/70 bg-panel px-3 py-3">
         <input type="hidden" name="userId" value={user.id} />
         <div className="text-xs font-medium text-muted">
           Reset password

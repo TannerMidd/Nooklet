@@ -44,7 +44,7 @@ function RecentWatchHistoryItemList({
       {items.map((item) => (
         <article
           key={item.id}
-          className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4"
+          className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4"
         >
           <p className="font-medium text-foreground">
             {item.title}
@@ -117,11 +117,11 @@ export default async function WatchHistorySettingsPage() {
             {plexSummary?.status === "verified" ? (
               <>
                 <div className="mb-5 grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
-                  <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                  <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                     <span className="font-medium">Server:</span>{" "}
                     {plexSummary.serverName ?? "Loaded via verify"}
                   </div>
-                  <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                  <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                     <span className="font-medium">Accessible users:</span>{" "}
                     {plexSummary.availableUsers.length}
                   </div>
@@ -147,14 +147,14 @@ export default async function WatchHistorySettingsPage() {
                     />
                   </div>
                 ) : (
-                  <p className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+                  <p className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
                     Verify the Plex connection again after accessible users are available so a history scope can be selected for sync.
                   </p>
                 )}
               </>
             ) : (
               <div className="space-y-4">
-                <p className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+                <p className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
                   {plexSummary?.status === "disconnected"
                     ? "Connect and verify Plex first. The verified connection loads accessible users and unlocks direct provider-backed history sync."
                     : plexSummary?.statusMessage ??
@@ -162,7 +162,7 @@ export default async function WatchHistorySettingsPage() {
                 </p>
                 <Link
                   href="/settings/connections"
-                  className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                  className="inline-flex rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
                 >
                   Open connections
                 </Link>
@@ -178,11 +178,11 @@ export default async function WatchHistorySettingsPage() {
             {tautulliSummary?.status === "verified" ? (
               <>
                 <div className="mb-5 grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
-                  <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                  <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                     <span className="font-medium">Server:</span>{" "}
                     {tautulliSummary.serverName ?? "Loaded via verify"}
                   </div>
-                  <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                  <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                     <span className="font-medium">Remote users:</span>{" "}
                     {tautulliSummary.availableUsers.length}
                   </div>
@@ -208,14 +208,14 @@ export default async function WatchHistorySettingsPage() {
                     />
                   </div>
                 ) : (
-                  <p className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+                  <p className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
                     Verify the Tautulli connection again after users are available so a remote Plex user can be selected for sync.
                   </p>
                 )}
               </>
             ) : (
               <div className="space-y-4">
-                <p className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+                <p className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
                   {tautulliSummary?.status === "disconnected"
                     ? "Connect and verify Tautulli first. The verified connection loads remote Plex users and unlocks provider-backed history sync."
                     : tautulliSummary?.statusMessage ??
@@ -223,7 +223,7 @@ export default async function WatchHistorySettingsPage() {
                 </p>
                 <Link
                   href="/settings/connections"
-                  className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                  className="inline-flex rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
                 >
                   Open connections
                 </Link>
@@ -239,11 +239,11 @@ export default async function WatchHistorySettingsPage() {
             {traktSummary?.status === "verified" ? (
               <div className="space-y-6">
                 <div className="grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
-                  <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                  <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                     <span className="font-medium">Account:</span>{" "}
                     {traktSummary.serverName ?? "Loaded via verify"}
                   </div>
-                  <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                  <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                     <span className="font-medium">Last verified:</span>{" "}
                     {traktSummary.lastVerifiedAt
                       ? new Intl.DateTimeFormat("en", {
@@ -269,7 +269,7 @@ export default async function WatchHistorySettingsPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                <p className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+                <p className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
                   {traktSummary?.status === "disconnected"
                     ? "Connect and verify Trakt first. Save credentials as client id::OAuth token or JSON with clientId and accessToken."
                     : traktSummary?.statusMessage ??
@@ -277,7 +277,7 @@ export default async function WatchHistorySettingsPage() {
                 </p>
                 <Link
                   href="/settings/connections"
-                  className="inline-flex rounded-2xl border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                  className="inline-flex rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
                 >
                   Open connections
                 </Link>
@@ -305,7 +305,7 @@ export default async function WatchHistorySettingsPage() {
                   {overview.sources.map((source) => (
                     <article
                       key={source.id}
-                      className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4"
+                      className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4"
                     >
                       <p className="font-medium text-foreground">{source.displayName}</p>
                       {source.selectedUserName ? (
@@ -319,21 +319,21 @@ export default async function WatchHistorySettingsPage() {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-4 text-muted">
+                <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-muted">
                   No watch-history source has been synced yet.
                 </div>
               )}
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                   <span className="font-medium">TV titles:</span> {overview.tvCount}
                 </div>
-                <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                   <span className="font-medium">Movie titles:</span> {overview.movieCount}
                 </div>
-                <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                   <span className="font-medium">Active sources:</span> {overview.sources.length}
                 </div>
-                <div className="rounded-2xl border border-line/70 bg-panel-strong/70 px-4 py-3">
+                <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                   <span className="font-medium">Last synced:</span> {formatDate(lastSyncedAt)}
                 </div>
               </div>

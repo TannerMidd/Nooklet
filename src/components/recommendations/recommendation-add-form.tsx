@@ -37,7 +37,7 @@ export function RecommendationAddForm({
     return (
       <p
         className={cn(
-          "rounded-2xl px-4 py-3 text-sm leading-6",
+          "rounded-lg px-4 py-3 text-sm leading-6",
           tone === "success" && "border border-accent/20 bg-accent/10 text-foreground",
           tone === "muted" && "border border-line/70 bg-panel-strong/60 text-muted",
           tone === "error" && "border border-highlight/20 bg-highlight/10 text-highlight",
