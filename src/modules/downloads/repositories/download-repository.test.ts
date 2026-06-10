@@ -28,12 +28,14 @@ import {
   findActiveDownloadRequestForItem,
   findDownloadClientById,
   findDownloadClientByServiceConnectionId,
+  findDownloadRequestById,
   incrementDownloadRequestMissingTickCount,
   incrementDownloadRequestRetryCount,
   isActiveDownloadRequestUniqueViolation,
   listDownloadRequestsByStatus,
   listActiveDownloadRequestsForImport,
   listDownloadRequestReleaseExclusionsForItem,
+  listRecentDownloadRequestsWithQueueItems,
   listUsersWithActiveDownloadRequests,
   listImportedFilesForRun,
   markDownloadRequestSubmitted,
@@ -306,6 +308,16 @@ describe("download-repository", () => {
     expect(completedQueueItem?.status).toBe("completed");
     expect(completedQueueItem?.progressPercent).toBe(100);
     expect(completedQueueItem?.completedAt).toEqual(new Date("2026-05-07T00:00:00Z"));
+
+    const reloadedRequest = await findDownloadRequestById(userId, request.id);
+    const missingRequest = await findDownloadRequestById(userId, randomUUID());
+    const recentActivity = await listRecentDownloadRequestsWithQueueItems(userId, 10);
+
+    expect(reloadedRequest?.id).toBe(request.id);
+    expect(missingRequest).toBeNull();
+    expect(recentActivity).toHaveLength(1);
+    expect(recentActivity[0]?.request.id).toBe(request.id);
+    expect(recentActivity[0]?.queueItem?.externalQueueId).toBe("sab-queue-1");
   });
 
   it("lists active and failed local-import requests that can be matched to SABnzbd history", async () => {

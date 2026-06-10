@@ -248,6 +248,29 @@ export async function listDownloadRequestsByStatus(userId: string, status: Downl
     .all();
 }
 
+export async function findDownloadRequestById(userId: string, requestId: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(downloadRequests)
+    .where(and(eq(downloadRequests.userId, userId), eq(downloadRequests.id, requestId)))
+    .get() ?? null;
+}
+
+export async function listRecentDownloadRequestsWithQueueItems(userId: string, limit: number) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({ request: downloadRequests, queueItem: downloadQueueItems })
+    .from(downloadRequests)
+    .leftJoin(downloadQueueItems, eq(downloadQueueItems.requestId, downloadRequests.id))
+    .where(eq(downloadRequests.userId, userId))
+    .orderBy(desc(downloadRequests.createdAt), desc(downloadRequests.id))
+    .limit(limit)
+    .all();
+}
+
 export async function findActiveDownloadRequestForItem(input: {
   userId: string;
   mediaTitleId: string;
