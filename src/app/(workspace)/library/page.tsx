@@ -5,6 +5,7 @@ import { LibraryPathManager } from "@/app/(workspace)/library/library-path-manag
 import { LibraryMonitoringControls } from "@/app/(workspace)/library/library-monitoring-controls";
 import { LibraryScanButton } from "@/app/(workspace)/library/library-scan-button";
 import { LibraryScanSettingsForm } from "@/app/(workspace)/library/library-scan-settings-form";
+import { MissingSearchSettingsForm } from "@/app/(workspace)/library/missing-search-settings-form";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import {
@@ -12,6 +13,7 @@ import {
   type LibrarySummary,
 } from "@/modules/media-library/queries/list-library-overview";
 import { getLibraryScanSettings } from "@/modules/media-library/queries/get-library-scan-settings";
+import { getMissingSearchSettings } from "@/modules/media-library/queries/get-missing-search-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -64,9 +66,10 @@ export default async function LibraryPage() {
     return null;
   }
 
-  const [overview, scanSettings] = await Promise.all([
+  const [overview, scanSettings, missingSearchSettings] = await Promise.all([
     listLibraryOverview(session.user.id),
     getLibraryScanSettings(session.user.id),
+    getMissingSearchSettings(session.user.id),
   ]);
 
   return (
@@ -123,6 +126,10 @@ export default async function LibraryPage() {
 
       <Panel eyebrow="Scanning" title="Library scan schedule">
         <LibraryScanSettingsForm settings={scanSettings} />
+      </Panel>
+
+      <Panel eyebrow="Automation" title="Missing-content search">
+        <MissingSearchSettingsForm settings={missingSearchSettings} />
       </Panel>
 
       <Panel eyebrow="Folders" title="Attach a library folder">

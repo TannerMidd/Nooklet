@@ -48,6 +48,7 @@ import {
 } from "@/modules/media-library/schemas/library-path";
 import { getMediaQualityProfileLabel } from "@/modules/media-library/queries/list-media-quality-profiles";
 import { libraryScanScheduleInputSchema } from "@/modules/media-library/schemas/library-scan-schedule";
+import { missingSearchScheduleInputSchema } from "@/modules/media-library/schemas/missing-search-schedule";
 import {
   updateMediaLibraryMonitoringInputSchema,
   updateMediaTitlePreferencesInputSchema,
@@ -67,11 +68,13 @@ import {
   ScanMediaLibraryWorkflowError,
 } from "@/modules/media-library/workflows/scan-library";
 import { configureLibraryScanSchedule } from "@/modules/media-library/workflows/configure-library-scan-schedule";
+import { configureMissingSearchSchedule } from "@/modules/media-library/workflows/configure-missing-search-schedule";
 import {
   initialLibraryItemSearchActionState,
   initialLibraryMonitoringActionState,
   initialLibraryScanScheduleActionState,
   initialMediaTitlePreferenceActionState,
+  initialMissingSearchScheduleActionState,
   initialRemoveMediaTitleActionState,
   initialRequestExistingTitleContentActionState,
   initialScanLibraryActionState,
@@ -83,6 +86,7 @@ import {
   type LibraryPathActionState,
   type LibraryPathMutationActionState,
   type MediaTitlePreferenceActionState,
+  type MissingSearchScheduleActionState,
   type RemoveMediaTitleActionState,
   type RequestExistingTitleContentActionState,
   type ScanLibraryActionState,
@@ -682,6 +686,47 @@ export async function updateLibraryScanScheduleAction(
       ...initialLibraryScanScheduleActionState,
       status: "error",
       message: "Nooklet could not update the scan schedule.",
+    };
+  }
+}
+
+export async function updateMissingSearchScheduleAction(
+  _previous: MissingSearchScheduleActionState,
+  formData: FormData,
+): Promise<MissingSearchScheduleActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { ...initialMissingSearchScheduleActionState, status: "error", message: "You need to sign in again." };
+  }
+
+  const parsed = missingSearchScheduleInputSchema.safeParse({
+    intervalMinutes: formData.get("intervalMinutes"),
+    enabled: formData.get("enabled") === "on",
+  });
+
+  if (!parsed.success) {
+    const fieldErrors = parsed.error.flatten().fieldErrors;
+
+    return {
+      status: "error",
+      message: "Review the missing-content search schedule and try again.",
+      fieldErrors: {
+        intervalMinutes: fieldErrors.intervalMinutes?.[0],
+      },
+    };
+  }
+
+  try {
+    const result = await configureMissingSearchSchedule(session.user.id, parsed.data);
+
+    revalidatePath("/library");
+    return { status: "success", message: result.message };
+  } catch {
+    return {
+      ...initialMissingSearchScheduleActionState,
+      status: "error",
+      message: "Nooklet could not update the missing-content search schedule.",
     };
   }
 }

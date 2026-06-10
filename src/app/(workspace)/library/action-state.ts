@@ -116,3 +116,16 @@ export const initialLibraryScanScheduleActionState: LibraryScanScheduleActionSta
   status: "idle",
   message: null,
 };
+
+export type MissingSearchScheduleActionState = {
+  status: "idle" | "success" | "error";
+  message: string | null;
+  fieldErrors?: {
+    intervalMinutes?: string;
+  };
+};
+
+export const initialMissingSearchScheduleActionState: MissingSearchScheduleActionState = {
+  status: "idle",
+  message: null,
+};

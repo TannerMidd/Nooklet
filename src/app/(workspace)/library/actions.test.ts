@@ -115,6 +115,9 @@ vi.mock("@/modules/media-library/workflows/scan-library", async (importOriginal)
 vi.mock("@/modules/media-library/workflows/configure-library-scan-schedule", () => ({
   configureLibraryScanSchedule: vi.fn(),
 }));
+vi.mock("@/modules/media-library/workflows/configure-missing-search-schedule", () => ({
+  configureMissingSearchSchedule: vi.fn(),
+}));
 vi.mock("@/modules/media-library/workflows/search-library-item-releases", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/media-library/workflows/search-library-item-releases")>();
   return {
@@ -161,6 +164,9 @@ import {
   configureLibraryScanSchedule,
 } from "@/modules/media-library/workflows/configure-library-scan-schedule";
 import {
+  configureMissingSearchSchedule,
+} from "@/modules/media-library/workflows/configure-missing-search-schedule";
+import {
   searchLibraryItemReleasesWorkflow,
   SearchLibraryItemReleasesWorkflowError,
 } from "@/modules/media-library/workflows/search-library-item-releases";
@@ -175,6 +181,7 @@ import {
   updateLibraryMonitoringAction,
   updateLibraryScanScheduleAction,
   updateMediaTitlePreferencesAction,
+  updateMissingSearchScheduleAction,
   updateTvEpisodeMonitoringAction,
 } from "./actions";
 import {
@@ -184,6 +191,7 @@ import {
   initialLibraryPathActionState,
   initialLibraryPathMutationActionState,
   initialMediaTitlePreferenceActionState,
+  initialMissingSearchScheduleActionState,
   initialRemoveMediaTitleActionState,
   initialTvEpisodeMonitoringActionState,
 } from "./action-state";
@@ -198,6 +206,7 @@ const removeLibraryPathMock = vi.mocked(removeLibraryPathCommand);
 const removeMediaTitleMock = vi.mocked(deleteMediaTitleWithFilesWorkflow);
 const scanLibraryMock = vi.mocked(scanMediaLibraryWorkflow);
 const configureLibraryScanScheduleMock = vi.mocked(configureLibraryScanSchedule);
+const configureMissingSearchScheduleMock = vi.mocked(configureMissingSearchSchedule);
 const searchLibraryItemMock = vi.mocked(searchLibraryItemReleasesWorkflow);
 const revalidateMock = vi.mocked(revalidatePath);
 
@@ -343,6 +352,53 @@ describe("updateLibraryScanScheduleAction", () => {
     });
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(result).toEqual({ status: "success", message: "Library scan enabled every 120 minutes." });
+  });
+});
+
+describe("updateMissingSearchScheduleAction", () => {
+  function validForm() {
+    const form = new FormData();
+    form.set("enabled", "on");
+    form.set("intervalMinutes", "720");
+    return form;
+  }
+
+  it("returns sign-in error when there is no session", async () => {
+    authMock.mockResolvedValue(null as never);
+
+    const result = await updateMissingSearchScheduleAction(initialMissingSearchScheduleActionState, validForm());
+
+    expect(result).toEqual({ status: "error", message: "You need to sign in again." });
+    expect(configureMissingSearchScheduleMock).not.toHaveBeenCalled();
+  });
+
+  it("validates interval minutes", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    const form = validForm();
+    form.set("intervalMinutes", "5");
+
+    const result = await updateMissingSearchScheduleAction(initialMissingSearchScheduleActionState, form);
+
+    expect(result.status).toBe("error");
+    expect(result.fieldErrors?.intervalMinutes).toBe("Schedule at least every 15 minutes.");
+    expect(configureMissingSearchScheduleMock).not.toHaveBeenCalled();
+  });
+
+  it("saves the schedule and revalidates the library page", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    configureMissingSearchScheduleMock.mockResolvedValue({
+      ok: true,
+      message: "Missing-content search enabled every 720 minutes.",
+    });
+
+    const result = await updateMissingSearchScheduleAction(initialMissingSearchScheduleActionState, validForm());
+
+    expect(configureMissingSearchScheduleMock).toHaveBeenCalledWith("u1", {
+      enabled: true,
+      intervalMinutes: 720,
+    });
+    expect(revalidateMock).toHaveBeenCalledWith("/library");
+    expect(result).toEqual({ status: "success", message: "Missing-content search enabled every 720 minutes." });
   });
 });
 
