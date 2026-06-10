@@ -10,17 +10,10 @@ import {
   type LibraryMonitoringActionState,
 } from "@/app/(workspace)/library/action-state";
 import { Button } from "@/components/ui/button";
+import { StatusMessage } from "@/components/ui/status-message";
 
 function MonitoringStatus({ state }: { state: LibraryMonitoringActionState }) {
-  if (state.status === "idle" || !state.message) {
-    return null;
-  }
-
-  return (
-    <p className={state.status === "success" ? "text-sm text-muted" : "text-sm text-highlight"}>
-      {state.message}
-    </p>
-  );
+  return <StatusMessage status={state.status} message={state.message} />;
 }
 
 function MonitoringButton({ monitored }: { monitored: boolean }) {

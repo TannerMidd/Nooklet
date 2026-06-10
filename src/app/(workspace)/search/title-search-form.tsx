@@ -25,6 +25,7 @@ import {
 } from "@/components/media-library/tv-request-dialog";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import { Input } from "@/components/ui/input";
 import { type MediaQualityProfile, type RecommendationMediaType } from "@/lib/database/schema";
 import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
@@ -56,15 +57,9 @@ function StatusBanner({ state }: { state: TitleSearchActionState | RequestSearch
   }
 
   return (
-    <p
-      className={
-        state.status === "success"
-          ? "rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-2 text-sm text-foreground"
-          : "rounded-lg border border-accent-wine/40 bg-accent-wine/10 px-4 py-2 text-sm text-foreground"
-      }
-    >
+    <InlineAlert variant={state.status === "success" ? "info" : "error"} className="py-2 text-foreground">
       {state.message}
-    </p>
+    </InlineAlert>
   );
 }
 

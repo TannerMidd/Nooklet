@@ -10,6 +10,7 @@ import {
 } from "@/app/(workspace)/library/action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StatusMessage } from "@/components/ui/status-message";
 import { type LibraryScanSettings } from "@/modules/media-library/queries/get-library-scan-settings";
 
 function formatDate(value: Date | null) {
@@ -88,9 +89,7 @@ export function LibraryScanSettingsForm({ settings }: { settings: LibraryScanSet
       ) : null}
 
       {state.message ? (
-        <p className={state.status === "success" ? "text-sm text-muted" : "text-sm text-highlight"}>
-          {state.message}
-        </p>
+        <StatusMessage status={state.status} message={state.message} />
       ) : null}
 
       <SaveScheduleButton />

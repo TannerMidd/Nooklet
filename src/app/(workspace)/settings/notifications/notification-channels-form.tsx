@@ -14,6 +14,7 @@ import {
   type NotificationChannelActionState,
 } from "@/app/(workspace)/settings/notifications/action-state";
 import { Button } from "@/components/ui/button";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import { Input } from "@/components/ui/input";
 import {
   notificationChannelTypes,
@@ -42,15 +43,9 @@ function StatusBanner({ state }: { state: NotificationChannelActionState }) {
   }
 
   return (
-    <p
-      className={
-        state.status === "success"
-          ? "rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-2 text-sm text-foreground"
-          : "rounded-lg border border-accent-wine/40 bg-accent-wine/10 px-4 py-2 text-sm text-foreground"
-      }
-    >
+    <InlineAlert variant={state.status === "success" ? "info" : "error"} className="py-2 text-foreground">
       {state.message}
-    </p>
+    </InlineAlert>
   );
 }
 
