@@ -13,6 +13,9 @@ vi.mock("./active-download-guard", () => ({
 vi.mock("./target-resolution", () => ({
   resolveQueueIndexerResultTarget: vi.fn(),
 }));
+vi.mock("./protocol-guard", () => ({
+  ensureSabnzbdCompatibleResult: vi.fn(),
+}));
 vi.mock("./client-resolution", () => ({
   resolveSabnzbdDownloadClient: vi.fn(),
 }));
@@ -41,12 +44,14 @@ import {
 import { validateQueueIndexerResultRequest } from "./request-validation";
 import { reserveDownloadRequest } from "./reservation";
 import { resolveQueueIndexerResult } from "./result-resolution";
+import { ensureSabnzbdCompatibleResult } from "./protocol-guard";
 import { resolveQueueIndexerResultTarget } from "./target-resolution";
 import { queueIndexerResultWorkflow } from "./index";
 
 const validateMock = vi.mocked(validateQueueIndexerResultRequest);
 const activeGuardMock = vi.mocked(ensureNoActiveDownloadRequest);
 const resolveResultMock = vi.mocked(resolveQueueIndexerResult);
+const protocolGuardMock = vi.mocked(ensureSabnzbdCompatibleResult);
 const resolveTargetMock = vi.mocked(resolveQueueIndexerResultTarget);
 const resolveClientMock = vi.mocked(resolveSabnzbdDownloadClient);
 const reserveMock = vi.mocked(reserveDownloadRequest);
@@ -88,6 +93,9 @@ describe("queueIndexerResultWorkflow", () => {
       calls.push("resolve-result");
       return resolvedResult as never;
     });
+    protocolGuardMock.mockImplementation(() => {
+      calls.push("protocol-guard");
+    });
     resolveTargetMock.mockImplementation(async () => {
       calls.push("resolve-target");
       return target as never;
@@ -118,6 +126,7 @@ describe("queueIndexerResultWorkflow", () => {
       "validate",
       "active-guard",
       "resolve-result",
+      "protocol-guard",
       "resolve-target",
       "resolve-client",
       "reserve",
@@ -127,6 +136,7 @@ describe("queueIndexerResultWorkflow", () => {
     ]);
     expect(activeGuardMock).toHaveBeenCalledWith("user1", request);
     expect(resolveResultMock).toHaveBeenCalledWith("user1", request);
+    expect(protocolGuardMock).toHaveBeenCalledWith(resolvedResult);
     expect(resolveTargetMock).toHaveBeenCalledWith("user1", request, resolvedResult);
     expect(resolveClientMock).toHaveBeenCalledWith("user1");
     expect(reserveMock).toHaveBeenCalledWith({

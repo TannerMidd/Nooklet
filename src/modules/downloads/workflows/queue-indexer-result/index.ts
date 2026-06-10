@@ -6,6 +6,7 @@ import {
   failReservedDownloadRequest,
   persistQueuedIndexerResultDownload,
 } from "./persistence";
+import { ensureSabnzbdCompatibleResult } from "./protocol-guard";
 import {
   validateQueueIndexerResultRequest,
   type QueueIndexerResultInput,
@@ -18,6 +19,7 @@ export async function queueIndexerResultWorkflow(userId: string, input: QueueInd
   const request = validateQueueIndexerResultRequest(input);
   await ensureNoActiveDownloadRequest(userId, request);
   const resolvedResult = await resolveQueueIndexerResult(userId, request);
+  ensureSabnzbdCompatibleResult(resolvedResult);
   const target = await resolveQueueIndexerResultTarget(userId, request, resolvedResult);
   const downloadClient = await resolveSabnzbdDownloadClient(userId);
   const reservedRequest = await reserveDownloadRequest({

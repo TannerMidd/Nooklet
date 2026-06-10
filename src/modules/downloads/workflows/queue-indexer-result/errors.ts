@@ -1,5 +1,6 @@
 export type QueueIndexerResultErrorCode =
   | "result_not_found"
+  | "unsupported_protocol"
   | "sabnzbd_not_connected"
   | "sabnzbd_not_verified"
   | "sabnzbd_enqueue_failed"

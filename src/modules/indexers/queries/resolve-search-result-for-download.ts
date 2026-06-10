@@ -1,13 +1,17 @@
 import {
+  findIndexerById,
   findSearchResultById,
   findSearchResultSecret,
   type IndexerSearchResultRecord,
   type IndexerSearchResultSecretRecord,
 } from "@/modules/indexers/repositories/indexer-repository";
 
+import { type IndexerProtocol } from "@/lib/database/schema";
+
 export type DownloadableIndexerSearchResult = {
   result: IndexerSearchResultRecord;
   secret: IndexerSearchResultSecretRecord;
+  indexerProtocol: IndexerProtocol;
 };
 
 export async function resolveSearchResultForDownload(
@@ -26,5 +30,15 @@ export async function resolveSearchResultForDownload(
     return null;
   }
 
-  return { result, secret };
+  if (!result.indexerId) {
+    return null;
+  }
+
+  const indexer = await findIndexerById(userId, result.indexerId);
+
+  if (!indexer) {
+    return null;
+  }
+
+  return { result, secret, indexerProtocol: indexer.protocol };
 }
