@@ -88,7 +88,7 @@ export function LibraryScanSettingsForm({ settings }: { settings: LibraryScanSet
       ) : null}
 
       {state.message ? (
-        <p className={state.status === "success" ? "text-sm text-muted" : "text-sm text-red-200"}>
+        <p className={state.status === "success" ? "text-sm text-muted" : "text-sm text-highlight"}>
           {state.message}
         </p>
       ) : null}

@@ -61,7 +61,7 @@ export function MediaTitlePreferencesForm({
       </label>
       <SaveButton />
       {state.message ? (
-        <p className={state.status === "success" ? "text-sm text-muted md:col-span-3" : "text-sm text-red-200 md:col-span-3"}>
+        <p className={state.status === "success" ? "text-sm text-muted md:col-span-3" : "text-sm text-highlight md:col-span-3"}>
           {state.message}
         </p>
       ) : null}

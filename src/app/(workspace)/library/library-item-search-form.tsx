@@ -73,7 +73,7 @@ export function LibraryItemSearchForm({
         <SearchButton label={label} />
       </div>
       {state.message ? (
-        <span className={state.status === "error" ? "text-xs text-red-200" : "text-xs text-muted"}>
+        <span className={state.status === "error" ? "text-xs text-highlight" : "text-xs text-muted"}>
           {state.message}
         </span>
       ) : null}

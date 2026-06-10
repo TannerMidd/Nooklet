@@ -103,7 +103,7 @@ function SeasonAccordion({
         <p className="border-t border-line/60 px-4 py-3 text-sm text-muted">Loading episodes...</p>
       ) : null}
       {state.kind === "error" ? (
-        <p className="border-t border-line/60 px-4 py-3 text-sm text-red-300">{state.message}</p>
+        <p className="border-t border-line/60 px-4 py-3 text-sm text-highlight">{state.message}</p>
       ) : null}
       {state.kind === "loaded" ? (
         state.episodes.length === 0 ? (

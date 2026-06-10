@@ -17,7 +17,7 @@ function MonitoringStatus({ state }: { state: LibraryMonitoringActionState }) {
   }
 
   return (
-    <p className={state.status === "success" ? "text-sm text-muted" : "text-sm text-red-200"}>
+    <p className={state.status === "success" ? "text-sm text-muted" : "text-sm text-highlight"}>
       {state.message}
     </p>
   );

@@ -39,7 +39,7 @@ export function TvSeasonMonitoringForm({ seasonId, monitored }: TvSeasonMonitori
       </label>
       <SaveSeasonButton />
       {state.message ? (
-        <span className={state.status === "success" ? "text-xs text-muted" : "text-xs text-red-200"}>
+        <span className={state.status === "success" ? "text-xs text-muted" : "text-xs text-highlight"}>
           {state.message}
         </span>
       ) : null}

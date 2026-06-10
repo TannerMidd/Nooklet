@@ -19,7 +19,7 @@ function ScanStatus({ state }: { state: ScanLibraryActionState }) {
   }
 
   return (
-    <p className={state.status === "success" ? "text-xs text-foreground" : "text-xs text-red-200"}>
+    <p className={state.status === "success" ? "text-xs text-foreground" : "text-xs text-highlight"}>
       {state.message}
     </p>
   );

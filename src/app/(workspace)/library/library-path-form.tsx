@@ -24,7 +24,7 @@ function StatusBanner({ state }: { state: LibraryPathActionState }) {
       className={
         state.status === "success"
           ? "rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-2 text-sm text-foreground"
-          : "rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-2 text-sm text-red-200"
+          : "rounded-lg border border-accent-wine/40 bg-accent-wine/10 px-4 py-2 text-sm text-foreground"
       }
     >
       {state.message}

@@ -98,7 +98,7 @@ function DialogControls({
 
 function RemoveTitleSection({ titleId }: { titleId: string }) {
   return (
-    <section className="space-y-3 rounded-lg border border-red-500/35 bg-red-500/5 p-4">
+    <section className="space-y-3 rounded-lg border border-accent-wine/35 bg-accent-wine/5 p-4">
       <div>
         <h3 className="font-heading text-lg text-foreground">Library record</h3>
       </div>
