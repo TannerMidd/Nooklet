@@ -12,7 +12,9 @@ import {
   initialDownloadActivityActionState,
   type DownloadActivityActionState,
 } from "@/app/(workspace)/in-progress/action-state";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { type DownloadActivityEntry } from "@/modules/downloads/queries/list-download-activity";
 
 const statusLabels: Record<DownloadActivityEntry["status"], string> = {
@@ -26,16 +28,16 @@ const statusLabels: Record<DownloadActivityEntry["status"], string> = {
   cancelled: "Cancelled",
 };
 
-function statusTone(status: DownloadActivityEntry["status"]) {
+function statusBadgeVariant(status: DownloadActivityEntry["status"]) {
   if (status === "succeeded") {
-    return "border-line/70 bg-background/25 text-foreground";
+    return "neutral" as const;
   }
 
   if (status === "failed" || status === "cancelled") {
-    return "border-highlight/30 bg-highlight/10 text-highlight";
+    return "highlight" as const;
   }
 
-  return "border-accent/35 bg-accent/10 text-foreground";
+  return "accent" as const;
 }
 
 function formatDate(value: Date | null) {
@@ -115,9 +117,7 @@ export function ImportNowButton() {
 export function DownloadActivityPanel({ entries }: { entries: DownloadActivityEntry[] }) {
   if (entries.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-line/75 bg-background/20 p-4 text-sm text-muted">
-        No download requests yet. Queue a release from search, discover, or your library.
-      </p>
+      <EmptyState message="No download requests yet. Queue a release from search, discover, or your library." />
     );
   }
 
@@ -146,11 +146,9 @@ export function DownloadActivityPanel({ entries }: { entries: DownloadActivityEn
               ) : null}
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2">
-              <span
-                className={`rounded-lg border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusTone(entry.status)}`}
-              >
+              <Badge variant={statusBadgeVariant(entry.status)}>
                 {statusLabels[entry.status]}
-              </span>
+              </Badge>
               {entry.canRetry ? <RetryDownloadForm requestId={entry.id} /> : null}
             </div>
           </div>

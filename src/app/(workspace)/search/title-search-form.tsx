@@ -24,6 +24,7 @@ import {
   type TvSelectionState,
 } from "@/components/media-library/tv-request-dialog";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { type MediaQualityProfile, type RecommendationMediaType } from "@/lib/database/schema";
 import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
@@ -390,19 +391,11 @@ function TitleResults({
   pathOptions,
 }: TitleSearchFormProps & { state: TitleSearchActionState }) {
   if (state.status === "idle") {
-    return (
-      <p className="rounded-lg border border-dashed border-line/75 bg-background/20 p-4 text-sm text-muted">
-        No title search has run yet.
-      </p>
-    );
+    return <EmptyState message="No title search has run yet." />;
   }
 
   if (state.results.length === 0) {
-    return (
-      <p className="rounded-lg border border-dashed border-line/75 bg-background/20 p-4 text-sm text-muted">
-        No title matches found.
-      </p>
-    );
+    return <EmptyState message="No title matches found." />;
   }
 
   return (

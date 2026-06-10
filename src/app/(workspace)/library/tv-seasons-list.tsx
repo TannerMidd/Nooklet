@@ -6,6 +6,7 @@ import { loadTvSeasonEpisodesForLibraryAction } from "@/app/(workspace)/library/
 import { LibraryItemSearchForm } from "@/app/(workspace)/library/library-item-search-form";
 import { TvEpisodeMonitoringForm } from "@/app/(workspace)/library/tv-episode-monitoring-form";
 import { TvSeasonMonitoringForm } from "@/app/(workspace)/library/tv-season-monitoring-form";
+import { EmptyState } from "@/components/ui/empty-state";
 import { type MediaLibraryTvEpisodeSummary } from "@/modules/media-library/queries/get-media-library-tv-title-details";
 import { type MediaLibraryTvSeasonOverview } from "@/modules/media-library/queries/get-media-library-tv-title-summary";
 import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
@@ -165,11 +166,7 @@ export function TvSeasonsList({
   currentLibraryPathId: string | null;
 }) {
   if (seasons.length === 0) {
-    return (
-      <p className="rounded-lg border border-dashed border-line/75 bg-background/20 p-4 text-sm text-muted">
-        No episodes have been discovered for this series yet.
-      </p>
-    );
+    return <EmptyState message="No episodes have been discovered for this series yet." />;
   }
 
   return (

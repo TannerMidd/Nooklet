@@ -12,6 +12,7 @@ import {
   describeTvSelection,
 } from "@/components/media-library/tv-request-dialog";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type RequestMoreContentFormProps = {
   titleId: string;
@@ -47,9 +48,10 @@ export function RequestMoreContentForm({
 
   if (tmdbId === null) {
     return (
-      <p className="rounded-lg border border-dashed border-line/75 bg-background/20 p-3 text-sm text-muted">
-        Link this title to TMDB to request additional seasons or episodes.
-      </p>
+      <EmptyState
+        className="p-3"
+        message="Link this title to TMDB to request additional seasons or episodes."
+      />
     );
   }
 

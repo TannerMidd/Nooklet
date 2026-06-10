@@ -6,6 +6,8 @@ import { LibraryMonitoringControls } from "@/app/(workspace)/library/library-mon
 import { LibraryScanButton } from "@/app/(workspace)/library/library-scan-button";
 import { LibraryScanSettingsForm } from "@/app/(workspace)/library/library-scan-settings-form";
 import { MissingSearchSettingsForm } from "@/app/(workspace)/library/missing-search-settings-form";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import {
@@ -23,11 +25,7 @@ function mediaTypeLabel(mediaType: LibrarySummary["mediaType"]) {
 
 function LibraryList({ libraries }: { libraries: LibrarySummary[] }) {
   if (libraries.length === 0) {
-    return (
-      <p className="rounded-lg border border-dashed border-line/75 bg-background/20 p-4 text-sm text-muted">
-        No folders attached yet.
-      </p>
-    );
+    return <EmptyState message="No folders attached yet." />;
   }
 
   return (
@@ -44,9 +42,9 @@ function LibraryList({ libraries }: { libraries: LibrarySummary[] }) {
                 {library.fileCount === 1 ? "" : "s"}
               </p>
             </div>
-            <span className="w-fit rounded-lg border border-line/70 bg-background/25 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted">
+            <Badge className="w-fit">
               {library.isDefault ? "Default" : "Library"}
-            </span>
+            </Badge>
           </div>
           <ul className="mt-4 space-y-2">
             {library.paths.map((entry) => (

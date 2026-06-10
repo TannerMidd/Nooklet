@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
@@ -275,9 +276,7 @@ export async function LibraryTitlePage({
           <Button type="submit" variant="secondary">Filter</Button>
         </form>
         {library.titles.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-line/75 bg-background/20 p-4 text-sm text-muted">
-            No titles found.
-          </p>
+          <EmptyState message="No titles found." />
         ) : (
           <div className="space-y-5">
             <PaginationControls mediaType={mediaType} query={query} pagination={library.pagination} />

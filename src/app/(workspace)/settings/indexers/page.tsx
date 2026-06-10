@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { IndexerSettingsForm } from "@/app/(workspace)/settings/indexers/indexer-settings-form";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import {
@@ -11,11 +12,7 @@ export const dynamic = "force-dynamic";
 
 function ConfiguredIndexers({ indexers }: { indexers: IndexerSettingsView[] }) {
   if (indexers.length === 0) {
-    return (
-      <p className="rounded-lg border border-dashed border-line/75 bg-background/20 p-4 text-sm text-muted">
-        No indexers configured yet.
-      </p>
-    );
+    return <EmptyState message="No indexers configured yet." />;
   }
 
   return (
