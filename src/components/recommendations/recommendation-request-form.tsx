@@ -389,7 +389,7 @@ export function RecommendationRequestForm({
       </div>
 
       {state.message ? (
-        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm leading-6 text-highlight">
+        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm leading-6 text-highlight">
           {state.message}
         </p>
       ) : null}
@@ -397,7 +397,7 @@ export function RecommendationRequestForm({
       <RequestProgressPanel />
 
       {!canSubmit ? (
-        <div className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm leading-6 text-highlight">
+        <div className="rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm leading-6 text-highlight">
           <p>
             {submitBlockedMessage ?? "Verify the AI provider connection before requesting recommendations."}
           </p>

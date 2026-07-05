@@ -60,7 +60,7 @@ export default async function AnalyticsPage() {
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader eyebrow="Recommendation intelligence" title="Analytics" />
 
       <Panel eyebrow="AI usage" title="Run quality snapshot">
@@ -106,7 +106,7 @@ export default async function AnalyticsPage() {
           ) : (
             <div className="space-y-3">
               {analytics.recentRuns.map((run) => (
-                <article key={run.runId} className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-foreground">
+                <article key={run.runId} className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5 text-sm leading-6 text-foreground">
                   <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div>
                       <p className="font-medium text-foreground">{run.mediaType === "tv" ? "TV" : "Movie"} run</p>

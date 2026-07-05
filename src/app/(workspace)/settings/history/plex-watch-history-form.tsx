@@ -47,7 +47,7 @@ export function PlexWatchHistoryForm({
           <select
             name="mediaType"
             defaultValue="tv"
-            className="min-h-11 w-full rounded-lg border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+            className="min-h-9 w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
             aria-invalid={Boolean(state.fieldErrors?.mediaType)}
           >
             <option value="tv">TV</option>
@@ -63,7 +63,7 @@ export function PlexWatchHistoryForm({
           <select
             name="plexUserId"
             defaultValue={resolvedDefaultUserId}
-            className="min-h-11 w-full rounded-lg border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+            className="min-h-9 w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
             aria-invalid={Boolean(state.fieldErrors?.plexUserId)}
           >
             <option value="">Select a Plex user</option>
@@ -102,8 +102,8 @@ export function PlexWatchHistoryForm({
         <p
           className={
             state.status === "success"
-              ? "rounded-lg border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-foreground"
-              : "rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight"
+              ? "rounded-lg border border-accent/20 bg-accent/10 px-3 py-2 text-sm text-foreground"
+              : "rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight"
           }
         >
           {state.message}

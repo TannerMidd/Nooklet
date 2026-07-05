@@ -29,7 +29,7 @@ export default async function AdminPage() {
   const disabledUsers = users.filter((user) => user.isDisabled).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader eyebrow="Operations" title="Admin" />
 
       <div className="grid gap-6 xl:grid-cols-[0.72fr,1.28fr]">

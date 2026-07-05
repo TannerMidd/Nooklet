@@ -77,32 +77,28 @@ export function AppNavLink({ item, badge }: AppNavLinkProps) {
       aria-current={active ? "page" : undefined}
       title={item.description}
       className={cn(
-        "group relative flex min-h-11 items-center gap-3 rounded-lg border px-3 py-2.5 transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50",
+        "group relative flex min-h-9 items-center gap-2.5 rounded-md px-2.5 py-1.5 transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50",
         active
-          ? "nooklet-nav-link--active border-accent/45 text-foreground"
-          : "border-transparent bg-transparent text-muted hover:border-line/55 hover:bg-panel-strong/35 hover:text-foreground",
+          ? "nooklet-nav-link--active text-foreground"
+          : "text-muted hover:bg-panel-strong/40 hover:text-foreground",
       )}
     >
       <span
         aria-hidden="true"
         className={cn(
-          "nooklet-nav-link__rail absolute left-0 top-2.5 h-[calc(100%-1.25rem)] w-0.5 rounded-full transition",
-          active ? "" : "bg-transparent group-hover:bg-accent/65",
+          "nooklet-nav-link__rail absolute left-0 top-1.5 h-[calc(100%-0.75rem)] w-0.5 rounded-full transition",
+          active ? "" : "bg-transparent group-hover:bg-accent/55",
         )}
       />
-      <span
+      <Icon
         aria-hidden="true"
         className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition",
-          active
-            ? "border-accent/35 bg-accent/15 text-accent-strong"
-            : "border-line/45 bg-background/15 text-muted group-hover:border-line/65 group-hover:text-foreground",
+          "h-4 w-4 shrink-0 transition",
+          active ? "text-accent-strong" : "text-muted/80 group-hover:text-foreground",
         )}
-      >
-        <Icon className="h-4 w-4" />
-      </span>
-      <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
-        <span className="flex min-w-0 items-center text-sm font-semibold text-current">
+      />
+      <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center text-sm font-medium text-current">
           <span className="block truncate">{item.label}</span>
           <NavLinkPendingIndicator />
         </span>

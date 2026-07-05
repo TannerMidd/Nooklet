@@ -80,7 +80,7 @@ export function LibraryPathManager({
             <select
               name="mediaType"
               defaultValue={library.mediaType}
-              className="min-h-11 w-full rounded-lg border border-line/75 bg-background/25 px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
+              className="min-h-9 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
             >
               <option value="movie">Movies</option>
               <option value="tv">TV shows</option>
@@ -99,7 +99,7 @@ export function LibraryPathManager({
             <select
               name="status"
               defaultValue={libraryPath.status}
-              className="min-h-11 w-full rounded-lg border border-line/75 bg-background/25 px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
+              className="min-h-9 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
             >
               <option value="active">Active</option>
               <option value="disabled">Disabled</option>

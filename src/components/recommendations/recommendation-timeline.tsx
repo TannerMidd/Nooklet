@@ -17,7 +17,7 @@ function formatDate(value: Date) {
 export function RecommendationTimeline({ events }: RecommendationTimelineProps) {
   if (events.length === 0) {
     return (
-      <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+      <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5 text-sm leading-6 text-muted">
         No timeline events have been recorded for this title yet.
       </div>
     );
@@ -28,7 +28,7 @@ export function RecommendationTimeline({ events }: RecommendationTimelineProps) 
       {events.map((event) => (
         <li
           key={event.id}
-          className={`rounded-lg border px-4 py-4 text-sm leading-6 ${statusTone(event.status)}`}
+          className={`rounded-lg border px-3 py-2.5 text-sm leading-6 ${statusTone(event.status)}`}
         >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>

@@ -90,7 +90,7 @@ export function RecommendationAddForm({
     return (
       <p
         className={cn(
-          "rounded-lg px-4 py-3 text-sm leading-6",
+          "rounded-lg px-3 py-2 text-sm leading-6",
           tone === "success" && "border border-accent/20 bg-accent/10 text-foreground",
           tone === "muted" && "border border-line/70 bg-panel-strong/60 text-muted",
           tone === "error" && "border border-highlight/20 bg-highlight/10 text-highlight",
@@ -157,7 +157,7 @@ export function RecommendationAddForm({
             <button
               type="button"
               onClick={() => setDialogOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2 text-sm text-foreground"
+              className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-2.5 py-1.5 text-sm text-foreground"
             >
               <ListChecks aria-hidden="true" size={15} />
               {describeTvSelection(selection)}
@@ -183,7 +183,7 @@ export function RecommendationAddForm({
       {state.message ? (
         <p
           className={cn(
-            "rounded-lg px-4 py-3 text-sm leading-6",
+            "rounded-lg px-3 py-2 text-sm leading-6",
             state.status === "success" && "border border-accent/20 bg-accent/10 text-foreground",
             state.status === "error" && "border border-highlight/20 bg-highlight/10 text-highlight",
           )}

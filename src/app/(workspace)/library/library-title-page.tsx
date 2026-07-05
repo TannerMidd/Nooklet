@@ -83,26 +83,26 @@ function PaginationControls({
         {pagination.hasPreviousPage ? (
           <Link
             href={buildLibraryPageHref(mediaType, query, pagination.page - 1)}
-            className="relative inline-flex min-h-10 items-center justify-center rounded-lg border border-line/75 bg-panel-strong/70 px-3 py-2 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
+            className="relative inline-flex min-h-9 items-center justify-center rounded-lg border border-line/75 bg-panel-strong/70 px-2.5 py-1 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
           >
             <LinkPendingOverlay />
             Previous
           </Link>
         ) : (
-          <span className="inline-flex min-h-10 items-center justify-center rounded-lg border border-line/50 bg-background/20 px-3 py-2 text-xs font-semibold text-muted opacity-60">
+          <span className="inline-flex min-h-9 items-center justify-center rounded-lg border border-line/50 bg-background/20 px-2.5 py-1 text-xs font-semibold text-muted opacity-60">
             Previous
           </span>
         )}
         {pagination.hasNextPage ? (
           <Link
             href={buildLibraryPageHref(mediaType, query, pagination.page + 1)}
-            className="relative inline-flex min-h-10 items-center justify-center rounded-lg border border-line/75 bg-panel-strong/70 px-3 py-2 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
+            className="relative inline-flex min-h-9 items-center justify-center rounded-lg border border-line/75 bg-panel-strong/70 px-2.5 py-1 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
           >
             <LinkPendingOverlay />
             Next
           </Link>
         ) : (
-          <span className="inline-flex min-h-10 items-center justify-center rounded-lg border border-line/50 bg-background/20 px-3 py-2 text-xs font-semibold text-muted opacity-60">
+          <span className="inline-flex min-h-9 items-center justify-center rounded-lg border border-line/50 bg-background/20 px-2.5 py-1 text-xs font-semibold text-muted opacity-60">
             Next
           </span>
         )}
@@ -248,7 +248,7 @@ export async function LibraryTitlePage({
   const closeDetailsHref = buildLibraryPageHref(mediaType, query, currentPage);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         eyebrow="Built-in library"
         title={mediaTypeLabel(mediaType)}
@@ -264,7 +264,7 @@ export async function LibraryTitlePage({
             <LibraryScanButton />
             <Link
               href="/library"
-              className="relative inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line/75 bg-panel-strong/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
+              className="relative inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-line/75 bg-panel-strong/70 px-3 py-1.5 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
             >
               <LinkPendingOverlay />
               <ArrowLeft aria-hidden="true" size={16} />

@@ -43,7 +43,7 @@ export function MediaTitlePreferencesForm({
   return (
     <form action={formAction} className="grid gap-3 rounded-lg border border-line/60 bg-background/15 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
       <input type="hidden" name="titleId" value={titleId} />
-      <label className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2 text-sm text-muted">
+      <label className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-2.5 py-1.5 text-sm text-muted">
         <input type="checkbox" name="monitored" defaultChecked={monitored} className="h-4 w-4 accent-accent" />
         Monitor
       </label>
@@ -52,7 +52,7 @@ export function MediaTitlePreferencesForm({
         <select
           name="qualityProfile"
           defaultValue={qualityProfile}
-          className="min-h-11 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
+          className="min-h-9 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
         >
           {qualityProfiles.map((profile) => (
             <option key={profile.value} value={profile.value}>{profile.label}</option>

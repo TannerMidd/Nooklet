@@ -48,14 +48,14 @@ function DialogPills({
 }) {
   return (
     <div className="flex flex-wrap gap-2 text-xs text-muted">
-      <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1 capitalize">{title.status}</span>
-      <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">
+      <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5 capitalize">{title.status}</span>
+      <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
         {title.monitored ? "Monitored" : "Unmonitored"}
       </span>
-      <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">
+      <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
         {getMediaQualityProfileLabel(title.qualityProfile)}
       </span>
-      <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">
+      <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
         {title.libraryName ?? "Unassigned"}
       </span>
     </div>
@@ -225,7 +225,7 @@ export function LibraryTitleDialog(props: LibraryTitleDialogProps) {
         <p className="font-heading text-sm italic text-accent">
           {props.mediaType === "tv" ? "TV series" : "Movie"}
         </p>
-        <h2 id={dialogTitleId} className="mt-2 font-heading text-3xl leading-tight text-foreground">
+        <h2 id={dialogTitleId} className="mt-1.5 font-heading text-2xl leading-tight text-foreground">
           {titleLabel(props.title)}
         </h2>
       </div>

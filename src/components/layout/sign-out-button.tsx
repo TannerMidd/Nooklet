@@ -9,7 +9,7 @@ export function SignOutButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" variant="secondary" className="w-full" disabled={pending}>
+    <Button type="submit" variant="secondary" size="sm" className="w-full" disabled={pending}>
       {pending ? <Spinner /> : null}
       {pending ? "Signing out..." : "Sign out"}
     </Button>

@@ -62,7 +62,7 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
   const qualityProfiles = listMediaQualityProfiles();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         eyebrow="Browse"
         title="Discover"

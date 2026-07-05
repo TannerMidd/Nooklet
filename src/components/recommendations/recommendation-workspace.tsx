@@ -156,7 +156,7 @@ export async function RecommendationWorkspace({
   const overviewForModal = selectedOverview?.item.mediaType === mediaType ? selectedOverview : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <RecommendationRunAutoRefresh enabled={Boolean(featuredRunIsPending)} />
       <PageHeader eyebrow="Recommendation mode" title={title} />
 
@@ -241,7 +241,7 @@ export async function RecommendationWorkspace({
           />
 
           {featuredRunIsPending && featuredRun.items.length === 0 ? (
-            <div className="mt-6 flex items-center gap-3 rounded-lg border border-line/65 bg-background/20 px-4 py-4 text-sm leading-6 text-muted">
+            <div className="mt-6 flex items-center gap-3 rounded-lg border border-line/65 bg-background/20 px-3 py-2.5 text-sm leading-6 text-muted">
               <RecommendationPendingTimer startedAt={featuredRun.createdAt} className="text-foreground" />
               <span>{"Warming up \u2014 titles will land here as soon as the worker finishes."}</span>
             </div>
@@ -310,7 +310,7 @@ export async function RecommendationWorkspace({
                 })()}
 
                 {run.errorMessage ? (
-                  <p className="mt-4 rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
+                  <p className="mt-4 rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight">
                     {run.errorMessage}
                   </p>
                 ) : null}
@@ -363,7 +363,7 @@ export async function RecommendationWorkspace({
                             itemId={item.id}
                             feedback={item.feedback}
                             returnTo={routePath}
-                            buttonClassName="h-10 min-h-10 w-10 rounded-lg"
+                            buttonClassName="h-8 min-h-8 w-8 rounded-lg"
                           />
                         </div>
 
@@ -372,7 +372,7 @@ export async function RecommendationWorkspace({
                           existingInLibrary={item.existingInLibrary}
                           returnTo={routePath}
                           variant="compact"
-                          buttonClassName="min-h-10 rounded-lg px-4 py-2 whitespace-nowrap"
+                          buttonClassName="min-h-9 rounded-lg px-4 py-2 whitespace-nowrap"
                           mediaType={item.mediaType}
                           tmdbId={
                             item.providerMetadata?.tmdbDetails?.mediaType === item.mediaType

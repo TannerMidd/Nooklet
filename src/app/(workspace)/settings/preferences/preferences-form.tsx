@@ -90,14 +90,14 @@ export function PreferencesForm({
   ].join(":");
 
   return (
-    <form key={formResetKey} action={formAction} className="space-y-6">
+    <form key={formResetKey} action={formAction} className="space-y-5">
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
         <label className="space-y-2">
           <span className="text-sm font-medium text-foreground">Default media mode</span>
           <select
             name="defaultMediaMode"
             defaultValue={preferences.defaultMediaMode}
-            className="min-h-11 w-full rounded-lg border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+            className="min-h-9 w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
             aria-invalid={Boolean(state.fieldErrors?.defaultMediaMode)}
           >
             <option value="tv">TV</option>
@@ -163,7 +163,7 @@ export function PreferencesForm({
           <select
             name="languagePreference"
             defaultValue={preferences.languagePreference}
-            className="min-h-11 w-full rounded-lg border border-line bg-panel px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+            className="min-h-9 w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
             aria-invalid={Boolean(state.fieldErrors?.languagePreference)}
           >
             {languagePreferenceOptions.map((option) => (
@@ -244,7 +244,7 @@ export function PreferencesForm({
       </div>
 
       {state.status === "error" && state.message ? (
-        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
+        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight">
           {state.message}
         </p>
       ) : null}

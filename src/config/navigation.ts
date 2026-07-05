@@ -28,12 +28,12 @@ export const navigationGroups = [
     items: [
       {
         href: "/tv",
-        label: "TV recommendations",
+        label: "TV picks",
         description: "Get TV picks based on your taste and manage them in one place.",
       },
       {
         href: "/movies",
-        label: "Movie recommendations",
+        label: "Movie picks",
         description: "Get movie picks based on your taste and manage them in one place.",
       },
       {

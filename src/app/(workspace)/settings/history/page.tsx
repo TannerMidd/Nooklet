@@ -105,11 +105,11 @@ export default async function WatchHistorySettingsPage() {
   }, null);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader eyebrow="Watch history" title="History sources" />
 
       <div className="grid gap-6 xl:grid-cols-[1.12fr,0.88fr]">
-        <div className="space-y-6">
+        <div className="space-y-5">
           <Panel
             eyebrow="Plex source"
             title="Sync recent history directly from Plex"
@@ -128,7 +128,7 @@ export default async function WatchHistorySettingsPage() {
                   </div>
                 </div>
                 {plexSummary.availableUsers.length > 0 ? (
-                  <div className="space-y-6">
+                  <div className="space-y-5">
                     <PlexWatchHistoryForm
                       availableUsers={plexSummary.availableUsers}
                       defaultUserId={plexSource?.selectedUserId ?? ""}
@@ -148,14 +148,14 @@ export default async function WatchHistorySettingsPage() {
                     />
                   </div>
                 ) : (
-                  <p className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+                  <p className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5 text-sm leading-6 text-muted">
                     Verify the Plex connection again after accessible users are available so a history scope can be selected for sync.
                   </p>
                 )}
               </>
             ) : (
               <div className="space-y-4">
-                <p className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+                <p className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5 text-sm leading-6 text-muted">
                   {plexSummary?.status === "disconnected"
                     ? "Connect and verify Plex first. The verified connection loads accessible users and unlocks direct provider-backed history sync."
                     : plexSummary?.statusMessage ??
@@ -163,7 +163,7 @@ export default async function WatchHistorySettingsPage() {
                 </p>
                 <Link
                   href="/settings/connections"
-                  className="relative inline-flex rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                  className="relative inline-flex rounded-lg border border-line bg-panel-strong px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
                 >
                   <LinkPendingOverlay />
                   Open connections
@@ -190,7 +190,7 @@ export default async function WatchHistorySettingsPage() {
                   </div>
                 </div>
                 {tautulliSummary.availableUsers.length > 0 ? (
-                  <div className="space-y-6">
+                  <div className="space-y-5">
                     <TautulliWatchHistoryForm
                       availableUsers={tautulliSummary.availableUsers}
                       defaultUserId={tautulliSource?.selectedUserId ?? ""}
@@ -210,14 +210,14 @@ export default async function WatchHistorySettingsPage() {
                     />
                   </div>
                 ) : (
-                  <p className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+                  <p className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5 text-sm leading-6 text-muted">
                     Verify the Tautulli connection again after users are available so a remote Plex user can be selected for sync.
                   </p>
                 )}
               </>
             ) : (
               <div className="space-y-4">
-                <p className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+                <p className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5 text-sm leading-6 text-muted">
                   {tautulliSummary?.status === "disconnected"
                     ? "Connect and verify Tautulli first. The verified connection loads remote Plex users and unlocks provider-backed history sync."
                     : tautulliSummary?.statusMessage ??
@@ -225,7 +225,7 @@ export default async function WatchHistorySettingsPage() {
                 </p>
                 <Link
                   href="/settings/connections"
-                  className="relative inline-flex rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                  className="relative inline-flex rounded-lg border border-line bg-panel-strong px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
                 >
                   <LinkPendingOverlay />
                   Open connections
@@ -240,7 +240,7 @@ export default async function WatchHistorySettingsPage() {
             description="Import watched TV or movie history from the verified Trakt account tied to your saved token."
           >
             {traktSummary?.status === "verified" ? (
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <div className="grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
                   <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
                     <span className="font-medium">Account:</span>{" "}
@@ -272,7 +272,7 @@ export default async function WatchHistorySettingsPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                <p className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-sm leading-6 text-muted">
+                <p className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5 text-sm leading-6 text-muted">
                   {traktSummary?.status === "disconnected"
                     ? "Connect and verify Trakt first. Save credentials as client id::OAuth token or JSON with clientId and accessToken."
                     : traktSummary?.statusMessage ??
@@ -280,7 +280,7 @@ export default async function WatchHistorySettingsPage() {
                 </p>
                 <Link
                   href="/settings/connections"
-                  className="relative inline-flex rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                  className="relative inline-flex rounded-lg border border-line bg-panel-strong px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
                 >
                   <LinkPendingOverlay />
                   Open connections
@@ -298,7 +298,7 @@ export default async function WatchHistorySettingsPage() {
           </Panel>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-5">
           <Panel
             eyebrow="Current status"
             title="History summary"

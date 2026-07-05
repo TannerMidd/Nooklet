@@ -16,7 +16,7 @@ export default async function NotificationsSettingsPage() {
   const channels = await listNotificationChannels(session.user.id);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         eyebrow="Settings"
         title="Notifications"

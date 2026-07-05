@@ -36,7 +36,7 @@ export default async function IndexerSettingsPage() {
   const indexers = await listIndexerSettings(session.user.id);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         eyebrow="Settings"
         title="Indexers"

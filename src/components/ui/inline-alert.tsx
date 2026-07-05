@@ -20,7 +20,7 @@ export function InlineAlert({ children, variant = "info", className }: InlineAle
     <p
       role={variant === "error" ? "alert" : undefined}
       className={cn(
-        "rounded-lg border px-4 py-3 text-sm leading-6",
+        "rounded-lg border px-3 py-2 text-sm leading-6",
         alertVariants[variant],
         className,
       )}

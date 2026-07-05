@@ -43,7 +43,7 @@ export function LibraryTabs({ tabs, defaultTabId }: LibraryTabsProps) {
               id={`library-tab-${tab.id}`}
               onClick={() => setActiveTabId(tab.id)}
               className={cn(
-                "min-h-10 rounded-md px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50",
+                "min-h-9 rounded-md px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50",
                 active
                   ? "nooklet-tab--active text-accent-foreground"
                   : "text-muted hover:bg-panel-strong/45 hover:text-foreground",

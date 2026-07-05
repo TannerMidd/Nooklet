@@ -16,7 +16,7 @@ export default async function ConnectionsSettingsPage() {
   const summaries = await listConnectionSummaries(session.user.id);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader eyebrow="Services" title="Connections" />
 
       <div className="grid gap-6">

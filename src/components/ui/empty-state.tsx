@@ -12,7 +12,7 @@ export function EmptyState({ message, action, className }: EmptyStateProps) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-dashed border-line/75 bg-background/20 p-4",
+        "rounded-lg border border-dashed border-line/75 bg-background/20 px-3.5 py-3",
         className,
       )}
     >

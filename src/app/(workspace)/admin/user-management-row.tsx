@@ -73,7 +73,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
             name="role"
             defaultValue={user.role}
             disabled={isCurrentAdmin}
-            className="min-h-11 w-full rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-9 w-full rounded-lg border border-line bg-panel-strong px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <option value="user">User</option>
             <option value="admin">Admin</option>

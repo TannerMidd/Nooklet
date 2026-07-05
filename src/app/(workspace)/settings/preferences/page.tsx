@@ -72,7 +72,7 @@ export default async function PreferencesSettingsPage({
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader eyebrow="User preferences" title="Preferences" />
 
       {wasUpdated ? (
@@ -93,7 +93,7 @@ export default async function PreferencesSettingsPage({
           />
         </Panel>
 
-        <div className="space-y-6">
+        <div className="space-y-5">
           <Panel
             eyebrow="Current settings"
             title="Saved values"

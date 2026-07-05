@@ -72,7 +72,7 @@ export function LibraryScanSettingsForm({ settings }: { settings: LibraryScanSet
           ) : null}
         </label>
 
-        <div className="rounded-lg border border-line/60 bg-background/15 px-4 py-3 text-sm leading-6 text-muted">
+        <div className="rounded-lg border border-line/60 bg-background/15 px-3 py-2 text-sm leading-6 text-muted">
           <p className="flex items-center gap-2 text-foreground">
             <Clock aria-hidden="true" size={15} />
             {settings.lastStatus ?? "idle"}
@@ -83,7 +83,7 @@ export function LibraryScanSettingsForm({ settings }: { settings: LibraryScanSet
       </div>
 
       {settings.lastError ? (
-        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
+        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight">
           {settings.lastError}
         </p>
       ) : null}

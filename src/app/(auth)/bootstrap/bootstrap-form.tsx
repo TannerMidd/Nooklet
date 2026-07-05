@@ -65,7 +65,7 @@ export function BootstrapForm() {
       />
 
       {state.status === "error" && state.message ? (
-        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
+        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight">
           {state.message}
         </p>
       ) : null}

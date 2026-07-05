@@ -32,7 +32,7 @@ export function PlaceholderPage({
   const owningModule = getDomainModule(moduleKey);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader eyebrow={eyebrow} title={title} description={description} />
 
       <div className="grid gap-6 xl:grid-cols-[1.2fr,0.95fr]">

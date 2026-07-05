@@ -108,14 +108,14 @@ function formatPublishedAt(value: string | null) {
 function TitleMeta({ title }: { title: TitleSearchResultView }) {
   return (
     <div className="flex flex-wrap gap-2 text-xs text-muted">
-      <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">
+      <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
         {title.mediaType === "tv" ? "TV" : "Movie"}
       </span>
       {title.year ? (
-        <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">{title.year}</span>
+        <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">{title.year}</span>
       ) : null}
       {title.voteAverage !== null ? (
-        <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">
+        <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
           TMDB {title.voteAverage.toFixed(1)}
         </span>
       ) : null}
@@ -151,17 +151,17 @@ function ReleaseResults({
                 <p className="break-words text-sm font-medium text-foreground">{result.title}</p>
                 <div className="flex flex-wrap gap-2 text-xs text-muted">
                   {result.qualityLabel ? (
-                    <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">{result.qualityLabel}</span>
+                    <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">{result.qualityLabel}</span>
                   ) : null}
-                  <span className="inline-flex items-center gap-1 rounded-lg border border-line/60 bg-background/20 px-2 py-1">
+                  <span className="inline-flex items-center gap-1 rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
                     <HardDrive aria-hidden="true" size={13} />
                     {formatBytes(result.sizeBytes)}
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-lg border border-line/60 bg-background/20 px-2 py-1">
+                  <span className="inline-flex items-center gap-1 rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
                     <CalendarDays aria-hidden="true" size={13} />
                     {formatPublishedAt(result.publishedAt)}
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-lg border border-line/60 bg-background/20 px-2 py-1">
+                  <span className="inline-flex items-center gap-1 rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
                     <DatabaseZap aria-hidden="true" size={13} />
                     S {result.seeders ?? "?"} / L {result.leechers ?? "?"}
                   </span>
@@ -247,7 +247,7 @@ function TitleResultCard({
         <div className="min-w-0 space-y-4">
           <div className="space-y-2">
             <TitleMeta title={title} />
-            <p className="break-words font-heading text-xl leading-tight text-foreground">
+            <p className="break-words font-heading text-lg leading-tight text-foreground">
               {title.title}{title.year ? ` (${title.year})` : ""}
             </p>
             {title.overview ? <p className="line-clamp-3 text-sm leading-6 text-muted">{title.overview}</p> : null}
@@ -306,7 +306,7 @@ export function TitleSearchForm({ libraries, qualityProfiles, pathOptions }: Tit
             <select
               name="mediaType"
               defaultValue="movie"
-              className="min-h-11 w-full rounded-lg border border-line/75 bg-background/25 px-4 py-3 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
+              className="min-h-9 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
             >
               <option value="movie">Movies</option>
               <option value="tv">TV shows</option>

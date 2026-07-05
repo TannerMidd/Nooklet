@@ -75,7 +75,7 @@ export default async function LibraryPage() {
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         eyebrow="Built-in library"
         title="Library"
@@ -83,22 +83,22 @@ export default async function LibraryPage() {
         actions={<LibraryScanButton />}
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-lg border border-line/70 bg-panel/90 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">Libraries</p>
-          <p className="mt-2 font-heading text-3xl text-foreground">{overview.totals.libraries}</p>
+          <p className="mt-2 font-heading text-2xl text-foreground">{overview.totals.libraries}</p>
         </div>
         <div className="rounded-lg border border-line/70 bg-panel/90 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">Folders</p>
-          <p className="mt-2 font-heading text-3xl text-foreground">{overview.totals.paths}</p>
+          <p className="mt-2 font-heading text-2xl text-foreground">{overview.totals.paths}</p>
         </div>
         <div className="rounded-lg border border-line/70 bg-panel/90 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">Titles</p>
-          <p className="mt-2 font-heading text-3xl text-foreground">{overview.totals.titles}</p>
+          <p className="mt-2 font-heading text-2xl text-foreground">{overview.totals.titles}</p>
         </div>
         <div className="rounded-lg border border-line/70 bg-panel/90 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">Files</p>
-          <p className="mt-2 font-heading text-3xl text-foreground">{overview.totals.files}</p>
+          <p className="mt-2 font-heading text-2xl text-foreground">{overview.totals.files}</p>
         </div>
       </div>
 

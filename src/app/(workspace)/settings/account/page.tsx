@@ -18,7 +18,7 @@ export default async function AccountSettingsPage() {
   const user = await getAccountUser(session.user.id);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader eyebrow="User settings" title="Account" />
 
       <div className="grid gap-6 xl:grid-cols-[1.05fr,0.95fr]">
@@ -30,7 +30,7 @@ export default async function AccountSettingsPage() {
           <ChangePasswordForm />
         </Panel>
 
-        <div className="space-y-6">
+        <div className="space-y-5">
           <Panel
             eyebrow="Signed-in account"
             title={user?.displayName ?? session.user.name ?? "Account"}

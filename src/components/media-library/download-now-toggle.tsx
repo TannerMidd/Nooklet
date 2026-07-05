@@ -16,7 +16,7 @@ export function DownloadNowToggle({ defaultDownloadNow = true, className }: Down
   return (
     <fieldset className={cn("flex flex-wrap gap-2 text-sm text-muted", className)}>
       <legend className="sr-only">Download behavior</legend>
-      <label className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2">
+      <label className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-2.5 py-1.5">
         <input
           type="radio"
           name="downloadNow"
@@ -26,7 +26,7 @@ export function DownloadNowToggle({ defaultDownloadNow = true, className }: Down
         />
         Add &amp; download now
       </label>
-      <label className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2">
+      <label className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-2.5 py-1.5">
         <input
           type="radio"
           name="downloadNow"

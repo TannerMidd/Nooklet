@@ -6,18 +6,18 @@ type PageSkeletonProps = {
 
 export function PageSkeleton({ rowCount = 3 }: PageSkeletonProps) {
   return (
-    <div className="space-y-6" aria-busy="true" aria-live="polite">
+    <div className="space-y-5" aria-busy="true" aria-live="polite">
       <span className="sr-only">Loading…</span>
       <div className="space-y-3">
         <SkeletonBlock className="h-3 w-24 rounded-md" />
-        <SkeletonBlock className="h-8 w-72 max-w-full rounded-lg" />
+        <SkeletonBlock className="h-7 w-64 max-w-full rounded-lg" />
         <SkeletonBlock className="h-4 w-96 max-w-full rounded-md" />
       </div>
       <div className="space-y-4">
         {Array.from({ length: rowCount }).map((_, index) => (
           <div
             key={index}
-            className="space-y-3 rounded-xl border border-line/70 bg-panel-strong/40 p-5"
+            className="space-y-3 rounded-xl border border-line/70 bg-panel-strong/40 p-4"
           >
             <SkeletonBlock className="h-3 w-20 rounded-md" />
             <SkeletonBlock className="h-5 w-1/2 rounded-md" />

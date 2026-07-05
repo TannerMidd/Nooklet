@@ -71,7 +71,7 @@ export function RecommendationTitleOverviewDialog({
                 <p className="font-heading text-sm italic text-accent">
                   {item.mediaType === "tv" ? "TV recommendation" : "Movie recommendation"}
                 </p>
-                <h2 id={titleId} className="font-heading text-3xl leading-tight text-foreground md:text-4xl">
+                <h2 id={titleId} className="font-heading text-2xl leading-tight text-foreground md:text-3xl">
                   {details?.title ?? item.title}
                   {titleYear ? ` (${titleYear})` : ""}
                 </h2>
@@ -100,7 +100,7 @@ export function RecommendationTitleOverviewDialog({
               <p className="mt-2 text-sm leading-7 text-foreground">{item.rationale}</p>
             </div>
             {tmdbLookupMessage ? (
-              <p className="rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-3 text-sm text-muted">
+              <p className="rounded-lg border border-line/70 bg-panel-strong/60 px-3 py-2 text-sm text-muted">
                 {tmdbLookupMessage}
               </p>
             ) : null}

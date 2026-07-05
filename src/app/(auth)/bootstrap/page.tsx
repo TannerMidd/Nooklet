@@ -16,7 +16,7 @@ export default async function BootstrapPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         eyebrow="Welcome in"
         title="Create the first administrator"

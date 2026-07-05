@@ -82,7 +82,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
     ? await getRecommendationTitleOverview(session.user.id, resolvedSearchParams.details)
     : null;
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader eyebrow="Recommendation records" title="History" />
 
       <div className="grid gap-6 xl:grid-cols-[1.08fr,0.92fr]">
@@ -106,7 +106,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 className={
                   item.active
                     ? "relative inline-flex rounded-lg bg-accent px-4 py-3 text-sm font-medium text-accent-foreground"
-                    : "relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
+                    : "relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
                 }
               >
                 <LinkPendingOverlay />
@@ -151,14 +151,14 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
             <div className="flex flex-wrap gap-3">
               <Link
                 href="/tv"
-                className="relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
+                className="relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
               >
                 <LinkPendingOverlay />
                 Open TV recommendations
               </Link>
               <Link
                 href="/movies"
-                className="relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
+                className="relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
               >
                 <LinkPendingOverlay />
                 Open movie recommendations
@@ -244,13 +244,13 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 {history.currentPage > 1 ? (
                   <Link
                     href={buildHistoryHref(currentView, history.currentPage - 1)}
-                    className="relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
+                    className="relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
                   >
                     <LinkPendingOverlay />
                     Previous page
                   </Link>
                 ) : (
-                  <span className="inline-flex rounded-lg border border-line/50 bg-panel/60 px-4 py-3 text-sm font-medium text-muted">
+                  <span className="inline-flex rounded-lg border border-line/50 bg-panel/60 px-3 py-1.5 text-sm font-medium text-muted">
                     Previous page
                   </span>
                 )}
@@ -258,13 +258,13 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 {history.currentPage < history.totalPages ? (
                   <Link
                     href={buildHistoryHref(currentView, history.currentPage + 1)}
-                    className="relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
+                    className="relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
                   >
                     <LinkPendingOverlay />
                     Next page
                   </Link>
                 ) : (
-                  <span className="inline-flex rounded-lg border border-line/50 bg-panel/60 px-4 py-3 text-sm font-medium text-muted">
+                  <span className="inline-flex rounded-lg border border-line/50 bg-panel/60 px-3 py-1.5 text-sm font-medium text-muted">
                     Next page
                   </span>
                 )}

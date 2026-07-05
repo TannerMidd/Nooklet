@@ -176,7 +176,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
           <p className="font-heading text-sm italic text-accent">
             {definition.displayName}
           </p>
-          <h2 className="font-heading text-2xl tracking-normal text-foreground">
+          <h2 className="font-heading text-lg tracking-normal text-foreground">
             {summary.displayName}
           </h2>
           <p className="max-w-2xl text-sm leading-6 text-muted">{summary.description}</p>
@@ -250,7 +250,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
         <ConnectionFact label="Last verified" value={formatDate(summary.lastVerifiedAt)} />
       </div>
 
-      <p className="mt-4 rounded-lg border border-line/55 bg-background/15 px-4 py-3 text-sm leading-6 text-muted">
+      <p className="mt-4 rounded-lg border border-line/55 bg-background/15 px-3 py-2 text-sm leading-6 text-muted">
         {summary.statusMessage}
       </p>
 
@@ -258,8 +258,8 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
         <p
           className={
             state.status === "success"
-              ? "mt-4 rounded-lg border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-foreground"
-              : "mt-4 rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight"
+              ? "mt-4 rounded-lg border border-accent/20 bg-accent/10 px-3 py-2 text-sm text-foreground"
+              : "mt-4 rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight"
           }
         >
           {state.message}

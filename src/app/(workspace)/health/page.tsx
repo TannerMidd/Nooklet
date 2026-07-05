@@ -41,7 +41,7 @@ export default async function HealthPage() {
   const activeJobs = jobs.filter((job) => job.isEnabled || job.lastStatus === "running");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader eyebrow="Operations" title="Health" />
 
       <Panel eyebrow="Overview" title="System snapshot">
@@ -56,7 +56,7 @@ export default async function HealthPage() {
       <Panel eyebrow="Connections" title="Service health">
         <div className="grid gap-3 lg:grid-cols-2">
           {visibleConnections.map((connection) => (
-            <article key={connection.serviceType} className={`rounded-lg border px-4 py-4 text-sm leading-6 ${statusTone(connection.status)}`}>
+            <article key={connection.serviceType} className={`rounded-lg border px-3 py-2.5 text-sm leading-6 ${statusTone(connection.status)}`}>
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div>
                   <p className="font-medium text-foreground">{connection.displayName}</p>
@@ -73,7 +73,7 @@ export default async function HealthPage() {
           ))}
         </div>
         <div className="mt-5">
-          <Link href="/settings/connections" className="relative inline-flex min-h-11 items-center rounded-lg border border-line/75 bg-panel-strong/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"><LinkPendingOverlay />
+          <Link href="/settings/connections" className="relative inline-flex min-h-9 items-center rounded-lg border border-line/75 bg-panel-strong/70 px-3 py-1.5 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"><LinkPendingOverlay />
             Manage connections
           </Link>
         </div>
@@ -86,7 +86,7 @@ export default async function HealthPage() {
           ) : (
             <div className="space-y-3">
               {watchHistoryOverview.sources.map((source) => (
-                <article key={source.id} className={`rounded-lg border px-4 py-4 text-sm leading-6 ${statusTone(source.status)}`}>
+                <article key={source.id} className={`rounded-lg border px-3 py-2.5 text-sm leading-6 ${statusTone(source.status)}`}>
                   <p className="font-medium text-foreground">{source.displayName}</p>
                   <p className="mt-1 text-muted">{source.statusMessage}</p>
                   <p className="mt-2 text-xs font-medium text-muted">
@@ -104,7 +104,7 @@ export default async function HealthPage() {
           ) : (
             <div className="space-y-3">
               {jobs.map((job) => (
-                <article key={job.id} className={`rounded-lg border px-4 py-4 text-sm leading-6 ${statusTone(job.lastStatus)}`}>
+                <article key={job.id} className={`rounded-lg border px-3 py-2.5 text-sm leading-6 ${statusTone(job.lastStatus)}`}>
                   <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div>
                       <p className="font-medium text-foreground">{job.jobType}</p>

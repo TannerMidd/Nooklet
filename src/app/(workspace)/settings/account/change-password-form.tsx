@@ -74,8 +74,8 @@ export function ChangePasswordForm() {
         <p
           className={
             state.status === "success"
-              ? "rounded-lg border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-foreground"
-              : "rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight"
+              ? "rounded-lg border border-accent/20 bg-accent/10 px-3 py-2 text-sm text-foreground"
+              : "rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight"
           }
         >
           {state.message}

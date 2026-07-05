@@ -108,7 +108,7 @@ export function RecommendationFeaturedCard({
               itemId={itemId}
               feedback={feedback}
               returnTo={routePath}
-              buttonClassName="h-10 min-h-10 w-10 rounded-lg"
+              buttonClassName="h-8 min-h-8 w-8 rounded-lg"
             />
           </div>
 
@@ -117,7 +117,7 @@ export function RecommendationFeaturedCard({
             existingInLibrary={existingInLibrary}
             returnTo={routePath}
             variant="compact"
-            buttonClassName="min-h-10 rounded-lg px-4 py-2 whitespace-nowrap"
+            buttonClassName="min-h-9 rounded-lg px-4 py-2 whitespace-nowrap"
             mediaType={mediaType}
             tmdbId={
               providerMetadata?.tmdbDetails?.mediaType === mediaType

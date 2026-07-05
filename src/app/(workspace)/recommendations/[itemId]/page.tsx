@@ -101,7 +101,7 @@ export default async function RecommendationOverviewPage({
     ? `${details.voteAverage.toFixed(1)} from ${details.voteCount ?? 0} votes`
     : null;
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <header className="relative overflow-hidden rounded-xl border border-line/80 bg-panel">
         {details?.backdropUrl ? (
           <Image
@@ -126,7 +126,7 @@ export default async function RecommendationOverviewPage({
                 <p className="font-heading text-sm italic text-accent">
                   {item.mediaType === "tv" ? "TV recommendation" : "Movie recommendation"}
                 </p>
-                <h1 className="font-heading text-4xl leading-tight text-foreground md:text-5xl">
+                <h1 className="font-heading text-2xl leading-tight text-foreground md:text-3xl">
                   {details?.title ?? item.title}
                   {titleYear ? ` (${titleYear})` : ""}
                 </h1>
@@ -154,7 +154,7 @@ export default async function RecommendationOverviewPage({
               <p className="mt-2 text-sm leading-7 text-foreground">{item.rationale}</p>
             </div>
             {tmdbLookupMessage ? (
-              <p className="rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-3 text-sm text-muted">
+              <p className="rounded-lg border border-line/70 bg-panel-strong/60 px-3 py-2 text-sm text-muted">
                 {tmdbLookupMessage}
               </p>
             ) : null}

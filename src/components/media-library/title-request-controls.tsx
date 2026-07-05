@@ -114,7 +114,7 @@ export function TitleRequestControls({
             name="libraryId"
             value={selectedLibraryId}
             onChange={(event) => handleLibraryChange(event.target.value)}
-            className="min-h-11 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
+            className="min-h-9 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
           >
             <option value="">Unassigned</option>
             {matchingLibraries.map((library) => (
@@ -129,7 +129,7 @@ export function TitleRequestControls({
             value={selectedTargetPathId}
             onChange={(event) => setSelectedTargetPathId(event.target.value)}
             disabled={visiblePathOptions.length === 0}
-            className="min-h-11 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25 disabled:opacity-60"
+            className="min-h-9 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25 disabled:opacity-60"
           >
             {visiblePathOptions.length === 0 ? (
               <option value="">No active folders</option>
@@ -145,7 +145,7 @@ export function TitleRequestControls({
           <select
             name="qualityProfile"
             defaultValue={defaultQualityProfile}
-            className="min-h-11 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
+            className="min-h-9 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
           >
             {qualityProfiles.map((profile) => (
               <option key={profile.value} value={profile.value}>{profile.label}</option>
@@ -154,7 +154,7 @@ export function TitleRequestControls({
         </label>
       </div>
       <div className="flex flex-wrap gap-3 text-sm text-muted">
-        <label className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2">
+        <label className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-2.5 py-1.5">
           <input type="checkbox" name="monitored" defaultChecked className="h-4 w-4 accent-accent" />
           Monitor
         </label>
@@ -162,7 +162,7 @@ export function TitleRequestControls({
           <button
             type="button"
             onClick={() => setDialogOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2 text-foreground"
+            className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-2.5 py-1.5 text-foreground"
           >
             <ListChecks aria-hidden="true" size={15} />
             {describeTvSelection(selection)}

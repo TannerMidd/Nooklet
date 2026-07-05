@@ -21,7 +21,7 @@ export function RecommendationHiddenToggleButton({
       type="submit"
       variant="secondary"
       size="icon"
-      className="h-10 min-h-10 w-10 rounded-full"
+      className="h-8 min-h-8 w-8 rounded-full"
       disabled={pending}
       aria-label={label}
       title={label}

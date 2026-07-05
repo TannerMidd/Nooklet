@@ -94,7 +94,7 @@ export function WatchHistoryScheduleForm({
           ) : null}
         </label>
 
-        <div className="rounded-lg border border-line bg-panel px-4 py-3 text-sm leading-6 text-foreground">
+        <div className="rounded-lg border border-line bg-panel px-3 py-2 text-sm leading-6 text-foreground">
           <p>
             <span className="font-medium">Last run:</span> {formatDate(lastRunAt)}
           </p>
@@ -105,7 +105,7 @@ export function WatchHistoryScheduleForm({
       </div>
 
       {lastError ? (
-        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight">
+        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight">
           {lastError}
         </p>
       ) : null}
@@ -114,8 +114,8 @@ export function WatchHistoryScheduleForm({
         <p
           className={
             state.status === "success"
-              ? "rounded-lg border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-foreground"
-              : "rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-sm text-highlight"
+              ? "rounded-lg border border-accent/20 bg-accent/10 px-3 py-2 text-sm text-foreground"
+              : "rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight"
           }
         >
           {state.message}

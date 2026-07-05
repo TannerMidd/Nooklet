@@ -68,7 +68,7 @@ export function DiscoverTitleOverviewDialog({
                 <p className="font-heading text-sm italic text-accent">
                   {details.mediaType === "tv" ? "TV title" : "Movie title"}
                 </p>
-                <h2 id={titleId} className="font-heading text-3xl leading-tight text-foreground md:text-4xl">
+                <h2 id={titleId} className="font-heading text-2xl leading-tight text-foreground md:text-3xl">
                   {details.title}
                   {details.year ? ` (${details.year})` : ""}
                 </h2>

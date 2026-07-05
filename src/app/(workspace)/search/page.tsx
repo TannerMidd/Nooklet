@@ -22,7 +22,7 @@ export default async function SearchPage() {
   const qualityProfiles = listMediaQualityProfiles();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         eyebrow="Built-in search"
         title="Search"

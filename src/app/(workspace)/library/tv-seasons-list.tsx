@@ -108,14 +108,14 @@ function SeasonAccordion({
         />
       </div>
       {state.kind === "loading" ? (
-        <p className="border-t border-line/60 px-4 py-3 text-sm text-muted">Loading episodes...</p>
+        <p className="border-t border-line/60 px-3 py-2 text-sm text-muted">Loading episodes...</p>
       ) : null}
       {state.kind === "error" ? (
-        <p className="border-t border-line/60 px-4 py-3 text-sm text-highlight">{state.message}</p>
+        <p className="border-t border-line/60 px-3 py-2 text-sm text-highlight">{state.message}</p>
       ) : null}
       {state.kind === "loaded" ? (
         state.episodes.length === 0 ? (
-          <p className="border-t border-line/60 px-4 py-3 text-sm text-muted">
+          <p className="border-t border-line/60 px-3 py-2 text-sm text-muted">
             No episodes have been discovered for this season yet.
           </p>
         ) : (
@@ -133,10 +133,10 @@ function SeasonAccordion({
                       {updatedLabel ? ` / ${updatedLabel}` : ""}
                     </p>
                     <div className="flex flex-wrap gap-2 text-xs text-muted">
-                      <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">
+                      <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
                         {episode.hasFile || episode.fileCount > 0 ? "Available" : "Missing"}
                       </span>
-                      <span className="rounded-lg border border-line/60 bg-background/20 px-2 py-1">
+                      <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
                         {episode.monitored ? "Monitored" : "Unmonitored"}
                       </span>
                     </div>
