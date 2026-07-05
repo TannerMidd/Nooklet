@@ -18,7 +18,7 @@ function ConfiguredIndexers({ indexers }: { indexers: IndexerSettingsView[] }) {
   return (
     <ul className="space-y-4">
       {indexers.map((indexer) => (
-        <li key={indexer.id} className="rounded-lg border border-line/70 bg-panel-strong/60 p-4">
+        <li key={indexer.id} className="rounded-lg border border-line/45 bg-panel-strong/35 p-4">
           <IndexerSettingsForm indexer={indexer} />
         </li>
       ))}

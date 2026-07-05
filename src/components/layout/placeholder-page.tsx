@@ -43,7 +43,7 @@ export function PlaceholderPage({
         >
           <ul className="space-y-3 text-sm leading-6 text-foreground">
             {acceptanceCriteria.map((item) => (
-              <li key={item} className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <li key={item} className="rounded-lg border border-line/45 bg-panel-strong/45 px-4 py-3">
                 {item}
               </li>
             ))}
@@ -57,7 +57,7 @@ export function PlaceholderPage({
         >
           <ul className="space-y-3 text-sm leading-6 text-foreground">
             {owningModule.responsibilities.map((item) => (
-              <li key={item} className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <li key={item} className="rounded-lg border border-line/45 bg-panel-strong/45 px-4 py-3">
                 {item}
               </li>
             ))}
@@ -69,7 +69,7 @@ export function PlaceholderPage({
         <Panel eyebrow="Core workflows" title="What this area still needs">
           <ul className="space-y-3 text-sm leading-6 text-foreground">
             {owningModule.workflows.map((item) => (
-              <li key={item} className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <li key={item} className="rounded-lg border border-line/45 bg-panel-strong/45 px-4 py-3">
                 {item}
               </li>
             ))}
@@ -83,7 +83,7 @@ export function PlaceholderPage({
         >
           <ul className="space-y-3 text-sm leading-6 text-foreground">
             {firstBuildMilestone.map((item) => (
-              <li key={item} className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
+              <li key={item} className="rounded-lg border border-line/45 bg-panel-strong/45 px-4 py-3">
                 {item}
               </li>
             ))}
@@ -98,7 +98,7 @@ export function PlaceholderPage({
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5 transition hover:border-accent/40 hover:bg-panel"
+                className="rounded-lg border border-line/45 bg-panel-strong/45 px-3 py-2.5 transition hover:border-accent/40 hover:bg-panel"
               >
                 <p className="font-medium text-foreground">{item.label}</p>
                 <p className="mt-1 text-sm leading-5 text-muted">{item.description}</p>

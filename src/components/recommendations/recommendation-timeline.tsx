@@ -17,7 +17,7 @@ function formatDate(value: Date) {
 export function RecommendationTimeline({ events }: RecommendationTimelineProps) {
   if (events.length === 0) {
     return (
-      <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5 text-sm leading-6 text-muted">
+      <div className="rounded-lg border border-line/45 bg-panel-strong/45 px-3 py-2.5 text-sm leading-6 text-muted">
         No timeline events have been recorded for this title yet.
       </div>
     );

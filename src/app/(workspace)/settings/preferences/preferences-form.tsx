@@ -51,7 +51,7 @@ type CheckboxFieldProps = {
 
 function CheckboxField({ name, label, description, defaultChecked }: CheckboxFieldProps) {
   return (
-    <label className="flex items-start gap-2.5 rounded-md bg-panel-strong/50 px-3 py-2 transition hover:bg-panel-strong/70">
+    <label className="flex items-start gap-2.5 rounded-md bg-panel-strong/35 px-3 py-2 transition hover:bg-panel-strong/45">
       <input
         name={name}
         type="checkbox"
@@ -185,7 +185,7 @@ export function PreferencesForm({
           description="Use configured watch-history sources as the recommendation context instead of mixing in other source inputs."
           defaultChecked={preferences.watchHistoryOnly}
         />
-        <div className="rounded-md bg-panel-strong/50 px-3 py-2.5 md:col-span-2">
+        <div className="rounded-md bg-panel-strong/35 px-3 py-2.5 md:col-span-2">
           <div className="space-y-1">
             <p className="text-sm font-medium text-foreground">Watch-history sources</p>
             <p className="text-sm leading-6 text-muted">

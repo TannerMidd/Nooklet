@@ -61,7 +61,7 @@ function DriveRow({ entry }: { entry: LibraryDriveEntry }) {
         {!entry.isDownloadDefault ? <SetDefaultPathForm pathId={entry.pathId} /> : null}
       </div>
       <div className="mt-2.5 space-y-1">
-        <div className="h-1.5 overflow-hidden rounded-full bg-panel-strong/80">
+        <div className="h-1.5 overflow-hidden rounded-full bg-panel-strong/35">
           {percent !== null ? (
             <div
               className={`h-full rounded-full transition-[width] duration-500 ${spaceBarTone(percent)}`}

@@ -12,7 +12,7 @@ const alertVariants = {
   error: "border-accent-wine/40 bg-accent-wine/10 text-foreground",
   warning: "border-highlight/30 bg-highlight/10 text-highlight",
   success: "border-accent/25 bg-accent/10 text-foreground",
-  info: "border-line/70 bg-panel-strong/60 text-muted",
+  info: "border-line/45 bg-panel-strong/35 text-muted",
 } satisfies Record<NonNullable<InlineAlertProps["variant"]>, string>;
 
 export function InlineAlert({ children, variant = "info", className }: InlineAlertProps) {

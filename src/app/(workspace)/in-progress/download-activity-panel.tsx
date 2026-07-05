@@ -124,7 +124,7 @@ export function DownloadActivityPanel({ entries }: { entries: DownloadActivityEn
   return (
     <ul className="space-y-3">
       {entries.map((entry) => (
-        <li key={entry.id} className="rounded-lg border border-line/70 bg-panel-strong/60 p-4">
+        <li key={entry.id} className="rounded-lg border border-line/45 bg-panel-strong/35 p-4">
           <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 space-y-1">
               <p className="truncate font-medium text-foreground">{entry.requestedTitle}</p>

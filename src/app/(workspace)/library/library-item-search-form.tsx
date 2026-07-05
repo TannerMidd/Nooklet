@@ -62,7 +62,7 @@ export function LibraryItemSearchForm({
             name="targetLibraryPathId"
             defaultValue={defaultPathId}
             disabled={targetPathOptions.length === 0}
-            className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-xs text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25 disabled:opacity-60"
+            className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-xs text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/45 focus:ring-1 focus:ring-accent/25 disabled:opacity-60"
           >
             {targetPathOptions.length === 0 ? (
               <option value="">No active folders</option>

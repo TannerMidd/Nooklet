@@ -7,7 +7,7 @@ type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
 };
 
 const badgeVariants = {
-  neutral: "border-line/70 bg-background/25 text-muted",
+  neutral: "border-line/45 bg-background/25 text-muted",
   accent: "border-accent/30 bg-accent/10 text-foreground",
   "accent-cool": "border-accent-cool/30 bg-accent-cool/10 text-foreground",
   highlight: "border-highlight/30 bg-highlight/10 text-highlight",

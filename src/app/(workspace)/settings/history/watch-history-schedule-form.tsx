@@ -55,7 +55,7 @@ export function WatchHistoryScheduleForm({
   );
 
   return (
-    <form action={formAction} className="space-y-4 rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5">
+    <form action={formAction} className="space-y-4 rounded-lg border border-line/45 bg-panel-strong/45 px-3 py-2.5">
       <input type="hidden" name="sourceType" value={sourceType} />
 
       <div className="space-y-1">

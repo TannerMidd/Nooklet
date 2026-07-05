@@ -29,7 +29,7 @@ function statusTone(status: ServiceConnectionSummary["status"]) {
     case "error":
       return "border-highlight/20 bg-highlight/10 text-highlight";
     case "configured":
-      return "border-line/65 bg-background/25 text-foreground";
+      return "border-line/45 bg-background/25 text-foreground";
     case "disconnected":
     default:
       return "border-line/60 bg-background/20 text-muted";

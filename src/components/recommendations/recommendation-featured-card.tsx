@@ -53,7 +53,7 @@ export function RecommendationFeaturedCard({
 
   return (
     <article
-      className="recommendation-featured-card nooklet-feature-card flex h-full flex-col overflow-hidden rounded-lg border border-line/65 p-4"
+      className="recommendation-featured-card nooklet-feature-card flex h-full flex-col overflow-hidden rounded-lg border border-line/45 p-4"
       style={{ animationDelay: `${animationDelayMs}ms` }}
     >
       <Link
@@ -102,7 +102,7 @@ export function RecommendationFeaturedCard({
       />
 
       <div className="mt-auto pt-5">
-        <div className="flex flex-col gap-3 border-t border-line/70 pt-4">
+        <div className="flex flex-col gap-3 border-t border-line/45 pt-4">
           <div className="flex flex-wrap items-center gap-2">
             <RecommendationFeedbackActions
               itemId={itemId}

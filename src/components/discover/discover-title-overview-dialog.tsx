@@ -49,7 +49,7 @@ export function DiscoverTitleOverviewDialog({
   return (
     <RecommendationOverviewModalShell titleId={titleId} closeHref={closeHref}>
       <div className="space-y-6 p-5 md:p-8">
-        <header className="relative overflow-hidden rounded-xl border border-line/80 bg-panel-strong/70">
+        <header className="relative overflow-hidden rounded-xl border border-line/80 bg-panel-strong/45">
           {details.backdropUrl ? (
             <Image
               src={details.backdropUrl}
@@ -95,7 +95,7 @@ export function DiscoverTitleOverviewDialog({
           </section>
 
           <section className="space-y-4 text-sm leading-6 text-foreground">
-            <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
+            <div className="rounded-lg border border-line/45 bg-panel-strong/45 px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
                 Add to Nooklet
               </p>

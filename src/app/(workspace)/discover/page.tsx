@@ -86,7 +86,7 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
                 {rail.titles.map((title) => (
                   <li
                     key={`${rail.category}-${rail.mediaType}-${title.tmdbId}`}
-                    className="flex flex-col gap-2 rounded-lg border border-line/70 bg-panel-strong/70 p-3"
+                    className="flex flex-col gap-2 rounded-lg border border-line/45 bg-panel-strong/45 p-3"
                   >
                     <Link
                       href={buildOverviewHref(rail.mediaType, title.tmdbId)}

@@ -76,14 +76,14 @@ export function IndexerSettingsForm({ indexer }: { indexer?: IndexerSettingsView
     <div className="space-y-3">
       {indexer ? (
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-          <span className="rounded-lg border border-line/70 bg-background/25 px-3 py-1 capitalize">
+          <span className="rounded-lg border border-line/45 bg-background/25 px-3 py-1 capitalize">
             {indexer.status}
           </span>
-          <span className="rounded-lg border border-line/70 bg-background/25 px-3 py-1">
+          <span className="rounded-lg border border-line/45 bg-background/25 px-3 py-1">
             {indexer.isEnabled ? "Enabled" : "Disabled"}
           </span>
           {indexer.maskedApiKey ? (
-            <span className="rounded-lg border border-line/70 bg-background/25 px-3 py-1 font-mono">
+            <span className="rounded-lg border border-line/45 bg-background/25 px-3 py-1 font-mono">
               {indexer.maskedApiKey}
             </span>
           ) : null}
@@ -103,7 +103,7 @@ export function IndexerSettingsForm({ indexer }: { indexer?: IndexerSettingsView
             <select
               name="protocol"
               defaultValue={indexer?.protocol ?? "newznab"}
-              className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
+              className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/45 focus:ring-1 focus:ring-accent/25"
             >
               <option value="newznab">Newznab</option>
               <option value="torznab">Torznab</option>

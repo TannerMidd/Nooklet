@@ -52,7 +52,7 @@ export function RecommendationTitleOverviewDialog({
   return (
     <RecommendationOverviewModalShell titleId={titleId} closeHref={closeHref}>
       <div className="space-y-6 p-5 md:p-8">
-        <header className="relative overflow-hidden rounded-lg border border-line/80 bg-panel-strong/60">
+        <header className="relative overflow-hidden rounded-lg border border-line/80 bg-panel-strong/35">
           {details?.backdropUrl ? (
             <Image
               src={details.backdropUrl}
@@ -95,19 +95,19 @@ export function RecommendationTitleOverviewDialog({
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">Overview</p>
               <p className="mt-3">{details?.overview ?? item.rationale}</p>
             </div>
-            <div className="rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-3">
+            <div className="rounded-lg border border-line/45 bg-panel-strong/35 px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Recommendation rationale</p>
               <p className="mt-2 text-sm leading-7 text-foreground">{item.rationale}</p>
             </div>
             {tmdbLookupMessage ? (
-              <p className="rounded-lg border border-line/70 bg-panel-strong/60 px-3 py-2 text-sm text-muted">
+              <p className="rounded-lg border border-line/45 bg-panel-strong/35 px-3 py-2 text-sm text-muted">
                 {tmdbLookupMessage}
               </p>
             ) : null}
           </section>
 
           <section className="space-y-4 text-sm leading-6 text-foreground">
-            <div className="rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-3">
+            <div className="rounded-lg border border-line/45 bg-panel-strong/35 px-4 py-3">
               <span className="font-medium">Generated:</span> {formatDate(item.runCreatedAt)}
               <p className="mt-1 text-muted">Prompt: {item.requestPrompt || "Taste-based automatic request"}</p>
             </div>

@@ -73,7 +73,7 @@ export default async function HealthPage() {
           ))}
         </div>
         <div className="mt-4">
-          <Link href="/settings/connections" className="relative inline-flex min-h-9 items-center rounded-lg border border-line/75 bg-panel-strong/70 px-3 py-1.5 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"><LinkPendingOverlay />
+          <Link href="/settings/connections" className="relative inline-flex min-h-9 items-center rounded-lg border border-line/50 bg-panel-strong/45 px-3 py-1.5 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"><LinkPendingOverlay />
             Manage connections
           </Link>
         </div>

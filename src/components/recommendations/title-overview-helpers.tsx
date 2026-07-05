@@ -35,7 +35,7 @@ export function TitleOverviewFact({
   value: string | number | null | undefined;
 }) {
   return (
-    <div className="rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-3">
+    <div className="rounded-lg border border-line/45 bg-panel-strong/35 px-4 py-3">
       <p className="text-xs font-medium text-muted">{label}</p>
       <p className="mt-1 text-sm leading-6 text-foreground">{value ?? "Unknown"}</p>
     </div>

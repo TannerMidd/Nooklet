@@ -167,7 +167,7 @@ export function SearchableSelect({
           }
         }}
         className={cn(
-          "flex min-h-9 w-full items-center justify-between gap-2 rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-left text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25 disabled:cursor-not-allowed disabled:opacity-60",
+          "flex min-h-9 w-full items-center justify-between gap-2 rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-left text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/45 focus:ring-1 focus:ring-accent/25 disabled:cursor-not-allowed disabled:opacity-60",
           triggerClassName,
         )}
       >
@@ -180,7 +180,7 @@ export function SearchableSelect({
       </button>
 
       {open ? (
-        <div className="absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-lg border border-line/70 bg-panel shadow-[0_24px_48px_-32px_rgba(20,14,10,0.9)]">
+        <div className="absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-lg border border-line/45 bg-panel shadow-[0_24px_48px_-32px_rgba(20,14,10,0.9)]">
           <div className="border-b border-line/60 p-2">
             <input
               ref={searchRef}
@@ -194,7 +194,7 @@ export function SearchableSelect({
               placeholder={searchPlaceholder}
               autoComplete="off"
               spellCheck={false}
-              className="min-h-8 w-full rounded-lg border border-line/70 bg-background/25 px-3 py-1.5 text-sm text-foreground outline-none placeholder:text-muted focus:border-accent/50 focus:ring-1 focus:ring-accent/25"
+              className="min-h-8 w-full rounded-lg border border-line/45 bg-background/25 px-3 py-1.5 text-sm text-foreground outline-none placeholder:text-muted focus:border-accent/50 focus:ring-1 focus:ring-accent/25"
             />
           </div>
           <ul

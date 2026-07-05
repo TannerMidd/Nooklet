@@ -217,7 +217,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
             {summaryItems.map((item) => (
               <div
                 key={item.label}
-                className="rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-3"
+                className="rounded-lg border border-line/45 bg-panel-strong/35 px-4 py-3"
               >
                 <p className="font-heading text-xs italic text-muted">
                   {item.label}
@@ -269,8 +269,8 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
             </Link>
           </div>
         ) : snapshot && snapshot.items.length > 0 ? (
-          <div className="rounded-lg border border-line/70 bg-panel-strong/50 p-3 sm:p-4">
-            <div className="flex flex-col gap-2 border-b border-line/70 px-1 pb-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="rounded-lg border border-line/45 bg-panel-strong/35 p-3 sm:p-4">
+            <div className="flex flex-col gap-2 border-b border-line/45 px-1 pb-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-medium text-foreground">Queue items</p>
                 <p className="text-sm text-muted">
@@ -307,13 +307,13 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
                       ? "border-accent/50 bg-panel-strong opacity-70"
                       : dragTargetItemId === item.id
                         ? "border-accent bg-panel-strong"
-                        : "border-line/70 bg-panel"
+                        : "border-line/45 bg-panel"
                   }`}
                 >
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 space-y-2">
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                        <span className="rounded-full border border-line/70 bg-panel-strong px-2 py-1">
+                        <span className="rounded-full border border-line/45 bg-panel-strong px-2 py-1">
                           Drag to reorder
                         </span>
                         {dragTargetItemId === item.id ? <span>Drop here</span> : null}
@@ -411,7 +411,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
             </div>
           </div>
         ) : (
-          <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5 text-muted">
+          <div className="rounded-lg border border-line/45 bg-panel-strong/45 px-3 py-2.5 text-muted">
             No active SABnzbd requests right now. This panel refreshes automatically while the queue is busy.
           </div>
         )}

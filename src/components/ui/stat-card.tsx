@@ -12,7 +12,7 @@ export function StatCard({ label, value, className }: StatCardProps) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5 text-sm leading-6",
+        "rounded-lg border border-line/45 bg-panel-strong/45 px-3 py-2.5 text-sm leading-6",
         className,
       )}
     >

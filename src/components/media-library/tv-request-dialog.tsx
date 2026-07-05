@@ -348,7 +348,7 @@ export function TvRequestDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog">
-      <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-line/70 bg-panel-strong/95 p-5 shadow-2xl">
+      <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-line/45 bg-panel-strong/35 p-5 shadow-2xl">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <p className="font-heading text-lg text-foreground">Choose what to download</p>

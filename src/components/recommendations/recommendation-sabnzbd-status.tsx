@@ -74,7 +74,7 @@ export function RecommendationSabnzbdStatus({
           {statusLabel} / {progressLabel}
         </span>
       </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-panel-strong/80">
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-panel-strong/35">
         <div
           className="h-full rounded-full bg-accent transition-[width] duration-500"
           style={{ width: progressLabel }}

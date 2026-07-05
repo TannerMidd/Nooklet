@@ -221,7 +221,7 @@ export function LibraryTitleDialog(props: LibraryTitleDialogProps) {
 
   return (
     <LibraryTitleDialogShell labelledBy={dialogTitleId} closeHref={props.closeHref}>
-      <div className="border-b border-line/70 px-5 py-5 sm:px-6">
+      <div className="border-b border-line/45 px-5 py-5 sm:px-6">
         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">
           {props.mediaType === "tv" ? "TV series" : "Movie"}
         </p>

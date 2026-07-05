@@ -83,7 +83,7 @@ function PaginationControls({
         {pagination.hasPreviousPage ? (
           <Link
             href={buildLibraryPageHref(mediaType, query, pagination.page - 1)}
-            className="relative inline-flex min-h-9 items-center justify-center rounded-lg border border-line/75 bg-panel-strong/70 px-2.5 py-1 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
+            className="relative inline-flex min-h-9 items-center justify-center rounded-lg border border-line/50 bg-panel-strong/45 px-2.5 py-1 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/50"
           >
             <LinkPendingOverlay />
             Previous
@@ -96,7 +96,7 @@ function PaginationControls({
         {pagination.hasNextPage ? (
           <Link
             href={buildLibraryPageHref(mediaType, query, pagination.page + 1)}
-            className="relative inline-flex min-h-9 items-center justify-center rounded-lg border border-line/75 bg-panel-strong/70 px-2.5 py-1 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
+            className="relative inline-flex min-h-9 items-center justify-center rounded-lg border border-line/50 bg-panel-strong/45 px-2.5 py-1 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/50"
           >
             <LinkPendingOverlay />
             Next
@@ -131,7 +131,7 @@ function TitleRow({
       <Link
         href={titleHref}
         scroll={false}
-        className="relative grid gap-3 px-3.5 py-2.5 text-sm transition hover:bg-panel-strong/55 md:grid-cols-[minmax(0,1.8fr)_minmax(140px,0.8fr)_120px_120px_120px] md:items-center"
+        className="relative grid gap-3 px-3.5 py-2.5 text-sm transition hover:bg-panel-strong/35 md:grid-cols-[minmax(0,1.8fr)_minmax(140px,0.8fr)_120px_120px_120px] md:items-center"
       >
         <LinkPendingOverlay />
         <div className="min-w-0">
@@ -174,7 +174,7 @@ function TitleRows({
   page: number;
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-line/70 bg-background/15">
+    <div className="overflow-hidden rounded-lg border border-line/45 bg-background/15">
       <div className="hidden border-b border-line/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted md:grid md:grid-cols-[minmax(0,1.8fr)_minmax(140px,0.8fr)_120px_120px_120px]">
         <span>Title</span>
         <span>Library</span>
@@ -264,7 +264,7 @@ export async function LibraryTitlePage({
             <LibraryScanButton />
             <Link
               href="/library"
-              className="relative inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-line/75 bg-panel-strong/70 px-3 py-1.5 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70"
+              className="relative inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-line/50 bg-panel-strong/45 px-3 py-1.5 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/50"
             >
               <LinkPendingOverlay />
               <ArrowLeft aria-hidden="true" size={16} />

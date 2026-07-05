@@ -24,7 +24,7 @@ export function RecommendationCastSection({ cast }: { cast: TmdbCastMember[] }) 
         {cast.map((member) => (
           <li
             key={member.id}
-            className="flex items-center gap-3 rounded-lg border border-line/70 bg-panel-strong/60 p-3"
+            className="flex items-center gap-3 rounded-lg border border-line/45 bg-panel-strong/35 p-3"
           >
             <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-full border border-line/60 bg-panel">
               {member.profileUrl ? (
@@ -99,7 +99,7 @@ export function RecommendationWatchProvidersSection({
               {list.map((provider) => (
                 <li
                   key={`${category}-${provider.providerId}`}
-                  className="flex items-center gap-2 rounded-md border border-line/70 bg-panel-strong/60 px-3 py-2 text-sm text-foreground"
+                  className="flex items-center gap-2 rounded-md border border-line/45 bg-panel-strong/35 px-3 py-2 text-sm text-foreground"
                   title={provider.providerName}
                 >
                   {provider.logoUrl ? (
@@ -144,7 +144,7 @@ export function RecommendationSimilarTitlesSection({
         {similar.map((title) => (
           <li
             key={`${title.mediaType}-${title.tmdbId}`}
-            className="flex flex-col gap-2 rounded-lg border border-line/70 bg-panel-strong/60 p-3"
+            className="flex flex-col gap-2 rounded-lg border border-line/45 bg-panel-strong/35 p-3"
           >
             <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border border-line/60 bg-panel">
               {title.posterUrl ? (

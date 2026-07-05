@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
+import { StatCard } from "@/components/ui/stat-card";
 import {
   listLibraryOverview,
   type LibrarySummary,
@@ -91,28 +92,16 @@ export default async function LibraryPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border border-line/70 bg-panel/90 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Libraries</p>
-          <p className="mt-2 font-heading text-2xl text-foreground">{overview.totals.libraries}</p>
-        </div>
-        <div className="rounded-lg border border-line/70 bg-panel/90 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Folders</p>
-          <p className="mt-2 font-heading text-2xl text-foreground">{overview.totals.paths}</p>
-        </div>
-        <div className="rounded-lg border border-line/70 bg-panel/90 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Titles</p>
-          <p className="mt-2 font-heading text-2xl text-foreground">{overview.totals.titles}</p>
-        </div>
-        <div className="rounded-lg border border-line/70 bg-panel/90 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Files</p>
-          <p className="mt-2 font-heading text-2xl text-foreground">{overview.totals.files}</p>
-        </div>
+        <StatCard label="Libraries" value={overview.totals.libraries} />
+        <StatCard label="Folders" value={overview.totals.paths} />
+        <StatCard label="Titles" value={overview.totals.titles} />
+        <StatCard label="Files" value={overview.totals.files} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Link
           href="/library/movies"
-          className="relative rounded-lg border border-line/70 bg-panel-strong/60 p-4 text-sm text-foreground transition hover:border-accent/45 hover:bg-panel-raised/70"
+          className="relative rounded-lg border border-line/45 bg-panel-strong/35 p-4 text-sm text-foreground transition hover:border-accent/45 hover:bg-panel-raised/50"
         >
           <LinkPendingOverlay />
           <span className="font-heading text-lg">Browse movie library</span>
@@ -120,7 +109,7 @@ export default async function LibraryPage() {
         </Link>
         <Link
           href="/library/tv"
-          className="relative rounded-lg border border-line/70 bg-panel-strong/60 p-4 text-sm text-foreground transition hover:border-accent/45 hover:bg-panel-raised/70"
+          className="relative rounded-lg border border-line/45 bg-panel-strong/35 p-4 text-sm text-foreground transition hover:border-accent/45 hover:bg-panel-raised/50"
         >
           <LinkPendingOverlay />
           <span className="font-heading text-lg">Browse TV library</span>

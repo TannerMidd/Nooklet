@@ -70,7 +70,7 @@ export function RecommendationOverviewModalShell({
           className="flex max-h-[min(90vh,62rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-line/80 bg-panel"
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="flex justify-end border-b border-line/70 px-5 py-4 md:px-8">
+          <div className="flex justify-end border-b border-line/45 px-5 py-4 md:px-8">
             <Button type="button" variant="secondary" onClick={closeModal}>
               Close
             </Button>

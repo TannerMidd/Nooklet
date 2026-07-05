@@ -37,7 +37,7 @@ function TasteList({ items }: { items: Array<{ title: string; year: number | nul
   return (
     <ul className="space-y-2 text-sm leading-6 text-foreground">
       {items.map((item) => (
-        <li key={`${item.title}-${item.year ?? "unknown"}`} className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3">
+        <li key={`${item.title}-${item.year ?? "unknown"}`} className="rounded-lg border border-line/45 bg-panel-strong/45 px-4 py-3">
           {item.title}{item.year ? ` (${item.year})` : ""}
         </li>
       ))}
@@ -106,7 +106,7 @@ export default async function AnalyticsPage() {
           ) : (
             <div className="space-y-3">
               {analytics.recentRuns.map((run) => (
-                <article key={run.runId} className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5 text-sm leading-6 text-foreground">
+                <article key={run.runId} className="rounded-lg border border-line/45 bg-panel-strong/45 px-3 py-2.5 text-sm leading-6 text-foreground">
                   <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div>
                       <p className="font-medium text-foreground">{run.mediaType === "tv" ? "TV" : "Movie"} run</p>

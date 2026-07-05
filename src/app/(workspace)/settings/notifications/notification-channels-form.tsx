@@ -122,7 +122,7 @@ export function NotificationChannelsForm({
               <select
                 name="channelType"
                 defaultValue="webhook"
-                className="h-10 w-full rounded-lg border border-line/70 bg-panel-strong/70 px-3 text-sm text-foreground"
+                className="h-10 w-full rounded-lg border border-line/45 bg-panel-strong/45 px-3 text-sm text-foreground"
               >
                 {notificationChannelTypes.map((type) => (
                   <option key={type} value={type}>
@@ -147,7 +147,7 @@ export function NotificationChannelsForm({
               {notificationEventTypes.map((event) => (
                 <label
                   key={event}
-                  className="flex items-center gap-2 rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2 text-sm text-foreground"
+                  className="flex items-center gap-2 rounded-lg border border-line/45 bg-panel-strong/45 px-3 py-2 text-sm text-foreground"
                 >
                   <input
                     type="checkbox"
@@ -182,7 +182,7 @@ export function NotificationChannelsForm({
             {channels.map((channel) => (
               <li
                 key={channel.id}
-                className="space-y-3 rounded-lg border border-line/70 bg-panel-strong/70 p-4"
+                className="space-y-3 rounded-lg border border-line/45 bg-panel-strong/45 p-4"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">

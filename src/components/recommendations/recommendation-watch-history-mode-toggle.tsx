@@ -30,7 +30,7 @@ function ToggleControl({ enabled }: { enabled: boolean }) {
           "inline-flex h-8 w-14 items-center rounded-full border px-1 transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-60",
           enabled
             ? "border-accent/40 bg-accent/80"
-            : "border-line/65 bg-background/30 hover:border-accent/30",
+            : "border-line/45 bg-background/30 hover:border-accent/30",
         )}
       >
         <span

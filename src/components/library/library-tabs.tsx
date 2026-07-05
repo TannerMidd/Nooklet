@@ -29,7 +29,7 @@ export function LibraryTabs({ tabs, defaultTabId }: LibraryTabsProps) {
       <div
         role="tablist"
         aria-label="Library views"
-        className="grid gap-1 rounded-lg border border-line/65 bg-background/20 p-1 sm:inline-grid sm:grid-flow-col"
+        className="grid gap-1 rounded-lg border border-line/45 bg-background/20 p-1 sm:inline-grid sm:grid-flow-col"
       >
         {tabs.map((tab) => {
           const active = tab.id === activeTab.id;

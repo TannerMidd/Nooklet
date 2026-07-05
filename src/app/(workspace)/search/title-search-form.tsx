@@ -141,11 +141,11 @@ function ReleaseResults({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-line/70 bg-background/15 p-3">
+    <div className="space-y-3 rounded-lg border border-line/45 bg-background/15 p-3">
       <p className="text-sm font-medium text-foreground">Release candidates</p>
       <ul className="space-y-2">
         {results.map((result) => (
-          <li key={result.id} className="rounded-lg border border-line/60 bg-panel-strong/60 p-3">
+          <li key={result.id} className="rounded-lg border border-line/60 bg-panel-strong/35 p-3">
             <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 space-y-2">
                 <p className="break-words text-sm font-medium text-foreground">{result.title}</p>
@@ -197,7 +197,7 @@ function RequestTitleForm({
 
   return (
     <div className="space-y-3">
-      <form action={formAction} className="space-y-3 rounded-lg border border-line/70 bg-background/15 p-3">
+      <form action={formAction} className="space-y-3 rounded-lg border border-line/45 bg-background/15 p-3">
         <input type="hidden" name="mediaType" value={title.mediaType} />
         <input type="hidden" name="tmdbId" value={title.tmdbId} />
         <input type="hidden" name="title" value={title.title} />
@@ -241,7 +241,7 @@ function TitleResultCard({
   pathOptions: MediaLibraryPathOption[];
 }) {
   return (
-    <li className="rounded-lg border border-line/70 bg-panel-strong/60 p-4">
+    <li className="rounded-lg border border-line/45 bg-panel-strong/35 p-4">
       <div className="grid gap-4 lg:grid-cols-[120px_minmax(0,1fr)]">
         <RecommendationPoster title={title.title} posterUrl={title.posterUrl} />
         <div className="min-w-0 space-y-4">
@@ -306,7 +306,7 @@ export function TitleSearchForm({ libraries, qualityProfiles, pathOptions }: Tit
             <select
               name="mediaType"
               defaultValue="movie"
-              className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
+              className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/45 focus:ring-1 focus:ring-accent/25"
             >
               <option value="movie">Movies</option>
               <option value="tv">TV shows</option>

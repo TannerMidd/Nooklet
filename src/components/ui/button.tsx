@@ -9,7 +9,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const buttonVariants = {
   primary: "cozy-glow nooklet-button-primary border border-accent/55 text-accent-foreground",
-  secondary: "border border-line/45 bg-panel-raised/45 text-foreground hover:border-line/70 hover:bg-panel-raised/80",
+  secondary: "border border-line/45 bg-panel-raised/45 text-foreground hover:border-line/45 hover:bg-panel-raised/60",
   ghost: "border border-transparent bg-transparent text-muted hover:border-line/60 hover:bg-panel-strong/35 hover:text-foreground",
   danger: "border border-accent-wine/35 bg-accent-wine/12 text-foreground hover:bg-accent-wine/20",
 } satisfies Record<NonNullable<ButtonProps["variant"]>, string>;

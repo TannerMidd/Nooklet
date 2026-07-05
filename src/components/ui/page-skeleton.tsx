@@ -17,7 +17,7 @@ export function PageSkeleton({ rowCount = 3 }: PageSkeletonProps) {
         {Array.from({ length: rowCount }).map((_, index) => (
           <div
             key={index}
-            className="space-y-3 rounded-xl border border-line/70 bg-panel-strong/40 p-4"
+            className="space-y-3 rounded-xl border border-line/45 bg-panel-strong/40 p-4"
           >
             <SkeletonBlock className="h-3 w-20 rounded-md" />
             <SkeletonBlock className="h-5 w-1/2 rounded-md" />

@@ -281,7 +281,7 @@ export function RecommendationRequestForm({
         <input key={genre} type="hidden" name="selectedGenres" value={genre} />
       ))}
 
-      <label className="block rounded-lg border border-line/65 bg-background/20 p-4 transition focus-within:border-accent/45 focus-within:bg-background/30">
+      <label className="block rounded-lg border border-line/45 bg-background/20 p-4 transition focus-within:border-accent/45 focus-within:bg-background/30">
         <span className="text-sm font-medium text-foreground">Optional request focus</span>
         <textarea
           name="requestPrompt"
@@ -316,7 +316,7 @@ export function RecommendationRequestForm({
                 className={`inline-flex min-h-9 items-center justify-center rounded-md border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50 ${
                   isSelected
                     ? "border-accent/45 bg-accent/15 text-foreground"
-                    : "border-line/65 bg-background/20 text-muted hover:border-accent/30 hover:bg-panel-strong/45 hover:text-foreground"
+                    : "border-line/45 bg-background/20 text-muted hover:border-accent/30 hover:bg-panel-strong/45 hover:text-foreground"
                 }`}
               >
                 {option.label}
