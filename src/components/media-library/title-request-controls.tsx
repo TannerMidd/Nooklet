@@ -161,7 +161,7 @@ export function TitleRequestControls({
         </label>
       </div>
       <div className="flex flex-wrap gap-3 text-sm text-muted">
-        <label className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-2.5 py-1.5">
+        <label className="inline-flex items-center gap-2 rounded-md border border-line/55 bg-background/35 px-2.5 py-1.5">
           <input type="checkbox" name="monitored" defaultChecked className="h-4 w-4 accent-accent" />
           Monitor
         </label>
@@ -169,7 +169,7 @@ export function TitleRequestControls({
           <button
             type="button"
             onClick={() => setDialogOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-2.5 py-1.5 text-foreground"
+            className="inline-flex items-center gap-2 rounded-md border border-line/55 bg-background/35 px-2.5 py-1.5 text-foreground"
           >
             <ListChecks aria-hidden="true" size={15} />
             {describeTvSelection(selection)}

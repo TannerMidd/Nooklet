@@ -33,7 +33,7 @@ export function AppShell({ children, user }: AppShellProps) {
             <div className="min-w-0">
               <Link
                 href="/"
-                className="block truncate font-heading text-lg leading-none text-foreground"
+                className="nooklet-wordmark block truncate text-lg leading-none text-foreground"
               >
                 Nooklet
               </Link>

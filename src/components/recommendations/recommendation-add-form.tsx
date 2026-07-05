@@ -151,15 +151,15 @@ export function RecommendationAddForm({
             ) : null}
           </>
         ) : null}
-        <DownloadNowToggle />
         <div className="flex flex-wrap items-center gap-2">
+          <DownloadNowToggle />
           {hasPicker ? (
             <button
               type="button"
               onClick={() => setDialogOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-2.5 py-1.5 text-sm text-foreground"
+              className="inline-flex items-center gap-1.5 rounded-md border border-line/55 bg-background/35 px-2.5 py-1.5 text-xs font-medium text-foreground transition hover:bg-panel-strong/60"
             >
-              <ListChecks aria-hidden="true" size={15} />
+              <ListChecks aria-hidden="true" size={14} />
               {describeTvSelection(selection)}
             </button>
           ) : null}

@@ -105,10 +105,12 @@ function ConnectionActionButtons({
 
 function ConnectionFact({ label, value }: { label: string; value: string | number }) {
   return (
-    <span className="inline-flex min-w-0 items-baseline gap-1.5 text-sm leading-6">
-      <span className="text-xs font-medium text-muted">{label}</span>
-      <span className="break-words text-foreground">{value}</span>
-    </span>
+    <div className="flex min-w-0 items-baseline justify-between gap-3">
+      <dt className="shrink-0 text-xs font-medium text-muted">{label}</dt>
+      <dd className="min-w-0 truncate text-right text-sm text-foreground" title={String(value)}>
+        {value}
+      </dd>
+    </div>
   );
 }
 
@@ -165,23 +167,51 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
   return (
     <form
       action={formAction}
-      className="cozy-panel rounded-lg border border-line/65 bg-panel/90 p-4 sm:p-5"
+      className="cozy-panel grid gap-5 rounded-lg border border-line/45 bg-panel/85 p-4 sm:p-5 lg:grid-cols-[260px_minmax(0,1fr)]"
     >
       <input type="hidden" name="serviceType" value={summary.serviceType} />
 
-      <div className="min-w-0 space-y-1">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <h2 className="font-heading text-lg tracking-normal text-foreground">
-            {summary.displayName}
-          </h2>
-          <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${statusTone(summary.status)}`}>
-            {formatStatusLabel(summary.status)}
-          </span>
+      <div className="min-w-0 space-y-2.5 lg:border-r lg:border-line/35 lg:pr-5">
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-semibold text-foreground">
+              {summary.displayName}
+            </h2>
+            <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${statusTone(summary.status)}`}>
+              {formatStatusLabel(summary.status)}
+            </span>
+          </div>
+          <p className="text-sm leading-6 text-muted">{summary.description}</p>
         </div>
-        <p className="max-w-2xl text-sm leading-6 text-muted">{summary.description}</p>
+        <dl className="space-y-1.5 border-t border-line/35 pt-2.5 text-sm">
+          <ConnectionFact label="Secret" value={summary.maskedSecret ?? "Not configured"} />
+          {showsModel ? (
+            <ConnectionFact label={definition.modelLabel ?? "Model"} value={summary.model ?? "Not set"} />
+          ) : null}
+          {showsModel ? (
+            <ConnectionFact label="Models" value={availableModels.length > 0 ? availableModels.length : "Run verify"} />
+          ) : null}
+          {showsAvailableUsers ? (
+            <ConnectionFact label="Users" value={summary.availableUsers.length > 0 ? summary.availableUsers.length : "Run verify"} />
+          ) : null}
+          {showsSabnzbdFacts ? (
+            <ConnectionFact
+              label="Queue"
+              value={`${summary.queueStatus ?? "Run verify"}${summary.status === "verified" ? ` (${summary.activeQueueCount} active)` : ""}`}
+            />
+          ) : null}
+          {showsSabnzbdFacts ? (
+            <ConnectionFact label="Version" value={summary.sabnzbdVersion ?? "Run verify"} />
+          ) : null}
+          <ConnectionFact label="Verified" value={formatDate(summary.lastVerifiedAt)} />
+        </dl>
+        <p className="text-xs leading-5 text-muted/90">
+          {summary.statusMessage}
+        </p>
       </div>
 
-      <div className="mt-4 grid max-w-3xl gap-3.5 md:grid-cols-2">
+      <div className="min-w-0">
+      <div className="grid gap-3.5 md:grid-cols-2">
         <label className="min-w-0 space-y-1.5 md:col-span-2">
           <span className="text-sm font-medium text-foreground">Base URL</span>
           <Input
@@ -218,39 +248,12 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
         </label>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 border-t border-line/45 pt-2.5">
-        <ConnectionFact label="Secret" value={summary.maskedSecret ?? "Not configured"} />
-        {showsModel ? (
-          <ConnectionFact label={definition.modelLabel ?? "Model"} value={summary.model ?? "Not set"} />
-        ) : null}
-        {showsModel ? (
-          <ConnectionFact label="Available models" value={availableModels.length > 0 ? availableModels.length : "Run verify"} />
-        ) : null}
-        {showsAvailableUsers ? (
-          <ConnectionFact label="Available users" value={summary.availableUsers.length > 0 ? summary.availableUsers.length : "Run verify"} />
-        ) : null}
-        {showsSabnzbdFacts ? (
-          <ConnectionFact
-            label="Queue"
-            value={`${summary.queueStatus ?? "Run verify"}${summary.status === "verified" ? ` (${summary.activeQueueCount} active)` : ""}`}
-          />
-        ) : null}
-        {showsSabnzbdFacts ? (
-          <ConnectionFact label="Version" value={summary.sabnzbdVersion ?? "Run verify"} />
-        ) : null}
-        <ConnectionFact label="Last verified" value={formatDate(summary.lastVerifiedAt)} />
-      </div>
-
-      <p className="mt-2 text-sm leading-6 text-muted">
-        {summary.statusMessage}
-      </p>
-
       {state.message ? (
         <p
           className={
             state.status === "success"
-              ? "mt-4 rounded-lg border border-accent/20 bg-accent/10 px-3 py-2 text-sm text-foreground"
-              : "mt-4 rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight"
+              ? "mt-3.5 rounded-md border border-accent/20 bg-accent/10 px-3 py-2 text-sm text-foreground"
+              : "mt-3.5 rounded-md border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight"
           }
         >
           {state.message}
@@ -261,6 +264,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
         displayName={definition.displayName}
         disconnected={summary.status === "disconnected"}
       />
+      </div>
     </form>
   );
 }

@@ -36,22 +36,26 @@ function LibraryList({ libraries }: { libraries: LibrarySummary[] }) {
   return (
     <ul className="space-y-4">
       {libraries.map((library) => (
-        <li key={library.id} className="rounded-lg border border-line/70 bg-panel-strong/60 p-4">
-          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 space-y-1">
-              <p className="font-heading text-lg leading-tight text-foreground">{library.name}</p>
-              <p className="text-sm text-muted">
-                {mediaTypeLabel(library.mediaType)} / {library.pathCount} folder
-                {library.pathCount === 1 ? "" : "s"} / {library.titleCount} title
-                {library.titleCount === 1 ? "" : "s"} / {library.fileCount} file
-                {library.fileCount === 1 ? "" : "s"}
-              </p>
-            </div>
-            <Badge className="w-fit">
-              {library.isDefault ? "Default" : "Library"}
-            </Badge>
+        <li key={library.id} className="rounded-lg border border-line/45 bg-background/20 px-3.5 py-3">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-1">
+            <p className="text-base font-semibold leading-tight text-foreground">{library.name}</p>
+            {library.isDefault ? <Badge variant="accent">Default</Badge> : null}
+            <p className="text-xs text-muted">
+              {mediaTypeLabel(library.mediaType)} · {library.pathCount} folder
+              {library.pathCount === 1 ? "" : "s"} · {library.titleCount} title
+              {library.titleCount === 1 ? "" : "s"} · {library.fileCount} file
+              {library.fileCount === 1 ? "" : "s"}
+            </p>
           </div>
-          <ul className="mt-4 space-y-2">
+          <div className="mt-3 hidden gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted lg:grid lg:grid-cols-[minmax(100px,0.7fr)_110px_minmax(120px,0.8fr)_minmax(220px,1.6fr)_105px_auto]">
+            <span>Label</span>
+            <span>Media</span>
+            <span>Library</span>
+            <span>Folder path</span>
+            <span>Status</span>
+            <span className="sr-only">Actions</span>
+          </div>
+          <ul className="mt-1">
             {library.paths.map((entry) => (
               <LibraryPathManager key={entry.id} library={library} path={entry} />
             ))}

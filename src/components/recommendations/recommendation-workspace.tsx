@@ -208,25 +208,30 @@ export async function RecommendationWorkspace({
                 ) : null}
               </div>
             </div>
-            <div className="grid gap-3 text-sm leading-6 text-foreground sm:grid-cols-2 xl:min-w-[360px]">
-              <div className="rounded-lg border border-line/55 bg-background/20 px-4 py-3">
-                <span className="font-medium">Model:</span> {featuredRun.aiModel ?? defaultModel}
+            <dl className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm leading-6 lg:max-w-sm lg:flex-col lg:gap-y-1 lg:border-l lg:border-line/35 lg:pl-5">
+              <div className="flex items-baseline gap-2">
+                <dt className="text-xs font-medium text-muted">Model</dt>
+                <dd className="min-w-0 break-all text-foreground">{featuredRun.aiModel ?? defaultModel}</dd>
               </div>
-              <div className="rounded-lg border border-line/55 bg-background/20 px-4 py-3">
-                <span className="font-medium">Temperature:</span> {formatTemperature(featuredRun.aiTemperature)}
+              <div className="flex items-baseline gap-2">
+                <dt className="text-xs font-medium text-muted">Temperature</dt>
+                <dd className="text-foreground">{formatTemperature(featuredRun.aiTemperature)}</dd>
               </div>
-              <div className="rounded-lg border border-line/55 bg-background/20 px-4 py-3">
-                <span className="font-medium">Requested:</span> {featuredRun.requestedCount}
+              <div className="flex items-baseline gap-2">
+                <dt className="text-xs font-medium text-muted">Requested</dt>
+                <dd className="text-foreground">{featuredRun.requestedCount}</dd>
               </div>
-              <div className="rounded-lg border border-line/55 bg-background/20 px-4 py-3">
-                <span className="font-medium">{featuredRunIsPending ? "Brewing" : "Completed"}:</span>{" "}
-                {featuredRunIsPending ? (
-                  <RecommendationPendingTimer startedAt={featuredRun.createdAt} />
-                ) : (
-                  formatDate(featuredRun.completedAt ?? featuredRun.createdAt)
-                )}
+              <div className="flex items-baseline gap-2">
+                <dt className="text-xs font-medium text-muted">{featuredRunIsPending ? "Brewing" : "Completed"}</dt>
+                <dd className="text-foreground">
+                  {featuredRunIsPending ? (
+                    <RecommendationPendingTimer startedAt={featuredRun.createdAt} />
+                  ) : (
+                    formatDate(featuredRun.completedAt ?? featuredRun.createdAt)
+                  )}
+                </dd>
               </div>
-            </div>
+            </dl>
           </div>
 
           <RecommendationRetryForm

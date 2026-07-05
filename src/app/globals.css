@@ -15,29 +15,31 @@
   --color-accent-cool-foreground: rgb(var(--accent-cool-foreground));
   --color-accent-wine: rgb(var(--accent-wine));
   --color-highlight: rgb(var(--highlight));
-  --font-heading: var(--app-font-heading), serif;
+  /* Headings share the sans body face; the serif display font stays
+     available via --app-font-heading for the brand wordmark only. */
+  --font-heading: var(--app-font-body), sans-serif;
   --font-body: var(--app-font-body), sans-serif;
-  /* Flat-and-sharp radius scale: rectangles read like books, not pills.
-     Only `rounded-full` (used for true circles — spinners, dots, avatars,
-     toggles, progress fills) keeps its native infinity radius. */
-  --radius-xs: 0px;
-  --radius-sm: 0px;
-  --radius-md: 2px;
-  --radius-lg: 2px;
-  --radius-xl: 2px;
-  --radius-2xl: 3px;
-  --radius-3xl: 3px;
-  --radius-4xl: 4px;
+  /* Soft modern radius scale: cards 8px, controls 6px, chips 4px. */
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+  --radius-3xl: 16px;
+  --radius-4xl: 20px;
 }
 
 :root {
-  --background: 49 39 32;
-  --foreground: 249 239 221;
-  --panel: 66 52 41;
-  --panel-strong: 80 62 47;
-  --panel-raised: 94 72 53;
-  --muted: 214 194 166;
-  --line: 123 94 69;
+  /* Warm-neutral dark scale: near-neutral surfaces so the amber/teal
+     accents carry the brand color instead of saturated brown panels. */
+  --background: 23 21 19;
+  --foreground: 240 236 230;
+  --panel: 32 29 26;
+  --panel-strong: 42 38 34;
+  --panel-raised: 54 49 44;
+  --muted: 168 158 146;
+  --line: 86 78 70;
   --accent: 224 162 94;
   --accent-strong: 242 190 121;
   --accent-foreground: 38 25 14;
@@ -84,9 +86,16 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--app-font-heading), sans-serif;
-  letter-spacing: 0;
+  font-family: var(--app-font-body), sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   margin: 0;
+}
+
+/* Serif display face reserved for the brand wordmark. */
+.nooklet-wordmark {
+  font-family: var(--app-font-heading), serif;
+  font-weight: 600;
 }
 
 p,
@@ -183,7 +192,7 @@ ol {
 
 .nooklet-hero-surface {
   background:
-    linear-gradient(135deg, rgba(94, 72, 53, 0.98), rgba(66, 52, 41, 0.98) 62%, rgba(80, 62, 47, 0.96));
+    linear-gradient(135deg, rgba(54, 49, 44, 0.98), rgba(32, 29, 26, 0.98) 62%, rgba(42, 38, 34, 0.96));
 }
 
 .nooklet-hero-surface::after {
@@ -236,8 +245,8 @@ ol {
 .nooklet-feature-run,
 .nooklet-feature-card {
   background:
-    linear-gradient(180deg, rgba(249, 239, 221, 0.035), rgba(249, 239, 221, 0)),
-    linear-gradient(145deg, rgba(80, 62, 47, 0.98), rgba(58, 46, 37, 0.98));
+    linear-gradient(180deg, rgba(240, 236, 230, 0.03), rgba(240, 236, 230, 0)),
+    linear-gradient(145deg, rgba(42, 38, 34, 0.98), rgba(30, 27, 24, 0.98));
 }
 
 .nooklet-feature-card {

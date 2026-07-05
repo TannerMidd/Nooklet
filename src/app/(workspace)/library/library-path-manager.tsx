@@ -1,7 +1,7 @@
 "use client";
 
 import { Save, Trash2 } from "lucide-react";
-import { useActionState } from "react";
+import { useActionState, useId } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -15,6 +15,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type LibraryPathSummary, type LibrarySummary } from "@/modules/media-library/queries/list-library-overview";
+
+/** Shared column template for the folder table header and rows. */
+export const libraryPathGridClass =
+  "grid gap-2 lg:grid-cols-[minmax(100px,0.7fr)_110px_minmax(120px,0.8fr)_minmax(220px,1.6fr)_105px_auto] lg:items-center";
 
 function ActionStatus({ state }: { state: LibraryPathMutationActionState }) {
   if (state.status === "idle" || !state.message) {
@@ -32,20 +36,33 @@ function SaveButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" variant="secondary" size="sm" disabled={pending}>
-      <Save aria-hidden="true" size={15} />
-      {pending ? "Saving..." : "Save"}
+    <Button
+      type="submit"
+      variant="secondary"
+      size="icon"
+      disabled={pending}
+      aria-label="Save folder"
+      title="Save folder"
+    >
+      <Save aria-hidden="true" size={14} className={pending ? "animate-pulse" : undefined} />
     </Button>
   );
 }
 
-function RemoveButton() {
+function RemoveButton({ formId }: { formId: string }) {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" variant="danger" size="sm" disabled={pending}>
-      <Trash2 aria-hidden="true" size={15} />
-      {pending ? "Removing..." : "Remove"}
+    <Button
+      type="submit"
+      form={formId}
+      variant="danger"
+      size="icon"
+      disabled={pending}
+      aria-label="Remove folder"
+      title="Remove folder"
+    >
+      <Trash2 aria-hidden="true" size={14} className={pending ? "animate-pulse" : undefined} />
     </Button>
   );
 }
@@ -57,6 +74,7 @@ export function LibraryPathManager({
   library: Pick<LibrarySummary, "mediaType" | "name">;
   path: LibraryPathSummary;
 }) {
+  const removeFormId = useId();
   const [updateState, updateAction] = useActionState(
     updateLibraryPathAction,
     initialLibraryPathMutationActionState,
@@ -67,57 +85,44 @@ export function LibraryPathManager({
   );
 
   return (
-    <li className="space-y-3 rounded-lg border border-line/60 bg-background/20 p-3 text-sm">
-      <form action={updateAction} className="space-y-3">
+    <li className="border-t border-line/35 py-2 text-sm first:border-t-0">
+      <form action={removeAction} id={removeFormId} className="hidden">
         <input type="hidden" name="pathId" value={libraryPath.id} />
-        <div className="grid gap-3 lg:grid-cols-[minmax(120px,0.6fr)_140px_minmax(160px,0.7fr)_minmax(260px,1.5fr)_120px_auto] lg:items-end">
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-muted">Label</span>
-            <Input name="label" defaultValue={libraryPath.label} />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-muted">Media</span>
-            <select
-              name="mediaType"
-              defaultValue={library.mediaType}
-              className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
-            >
-              <option value="movie">Movies</option>
-              <option value="tv">TV shows</option>
-            </select>
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-muted">Library</span>
-            <Input name="libraryName" defaultValue={library.name} required />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-muted">Folder path</span>
-            <Input name="path" defaultValue={libraryPath.path} required />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-medium text-muted">Status</span>
-            <select
-              name="status"
-              defaultValue={libraryPath.status}
-              className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
-            >
-              <option value="active">Active</option>
-              <option value="disabled">Disabled</option>
-            </select>
-          </label>
+      </form>
+      <form action={updateAction} className={libraryPathGridClass}>
+        <input type="hidden" name="pathId" value={libraryPath.id} />
+        <Input name="label" defaultValue={libraryPath.label} aria-label="Label" />
+        <select
+          name="mediaType"
+          defaultValue={library.mediaType}
+          aria-label="Media type"
+          className="min-h-9 w-full rounded-md border border-line/55 bg-background/45 px-2.5 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:ring-1 focus:ring-accent/25"
+        >
+          <option value="movie">Movies</option>
+          <option value="tv">TV shows</option>
+        </select>
+        <Input name="libraryName" defaultValue={library.name} aria-label="Library name" required />
+        <Input name="path" defaultValue={libraryPath.path} aria-label="Folder path" required className="font-mono text-xs" />
+        <select
+          name="status"
+          defaultValue={libraryPath.status}
+          aria-label="Status"
+          className="min-h-9 w-full rounded-md border border-line/55 bg-background/45 px-2.5 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:ring-1 focus:ring-accent/25"
+        >
+          <option value="active">Active</option>
+          <option value="disabled">Disabled</option>
+        </select>
+        <div className="flex items-center gap-1.5">
           <SaveButton />
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-          <span>{libraryPath.fileCount} file{libraryPath.fileCount === 1 ? "" : "s"}</span>
-          {libraryPath.lastScannedAt ? <span>Last scanned {libraryPath.lastScannedAt.toLocaleString()}</span> : null}
-          <ActionStatus state={updateState} />
+          <RemoveButton formId={removeFormId} />
         </div>
       </form>
-      <form action={removeAction} className="flex flex-wrap items-center gap-3 border-t border-line/50 pt-3">
-        <input type="hidden" name="pathId" value={libraryPath.id} />
-        <RemoveButton />
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
+        <span>{libraryPath.fileCount} file{libraryPath.fileCount === 1 ? "" : "s"}</span>
+        {libraryPath.lastScannedAt ? <span>scanned {libraryPath.lastScannedAt.toLocaleString()}</span> : null}
+        <ActionStatus state={updateState} />
         <ActionStatus state={removeState} />
-      </form>
+      </div>
     </li>
   );
 }
