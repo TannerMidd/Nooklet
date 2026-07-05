@@ -181,7 +181,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
         <p className="max-w-2xl text-sm leading-6 text-muted">{summary.description}</p>
       </div>
 
-      <div className="mt-4 grid gap-3.5 md:grid-cols-2">
+      <div className="mt-4 grid max-w-3xl gap-3.5 md:grid-cols-2">
         <label className="min-w-0 space-y-1.5 md:col-span-2">
           <span className="text-sm font-medium text-foreground">Base URL</span>
           <Input

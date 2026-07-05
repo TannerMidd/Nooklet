@@ -50,7 +50,7 @@ export function ChangePasswordForm() {
   );
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form action={formAction} className="max-w-md space-y-5">
       <PasswordField
         label="Current password"
         name="currentPassword"

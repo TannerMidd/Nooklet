@@ -90,7 +90,7 @@ export function IndexerSettingsForm({ indexer }: { indexer?: IndexerSettingsView
         </div>
       ) : null}
       {indexer?.statusMessage ? <p className="text-sm text-muted">{indexer.statusMessage}</p> : null}
-      <form action={formAction} className="space-y-4">
+      <form action={formAction} className="max-w-3xl space-y-4">
         {indexer ? <input type="hidden" name="id" value={indexer.id} /> : null}
         <StatusBanner state={state} />
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px]">
