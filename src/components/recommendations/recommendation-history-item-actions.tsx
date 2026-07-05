@@ -1,12 +1,11 @@
 import {
   submitRecommendationHiddenStateAction,
 } from "@/app/(workspace)/recommendation-item-actions";
-import { Eye, EyeOff } from "lucide-react";
 
 import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
 import { RecommendationFeedbackActions } from "@/components/recommendations/recommendation-feedback-actions";
+import { RecommendationHiddenToggleButton } from "@/components/recommendations/recommendation-hidden-toggle-button";
 import { RecommendationSabnzbdStatus } from "@/components/recommendations/recommendation-sabnzbd-status";
-import { Button } from "@/components/ui/button";
 import {
   type RecommendationFeedbackValue,
   type RecommendationMediaType,
@@ -37,7 +36,6 @@ export function RecommendationHistoryItemActions({
   providerMetadata,
 }: RecommendationHistoryItemActionsProps) {
   const hiddenActionLabel = isHidden ? `Unhide ${title}` : `Hide ${title}`;
-  const HiddenIcon = isHidden ? Eye : EyeOff;
 
   return (
     <div className="mt-4">
@@ -57,16 +55,10 @@ export function RecommendationHistoryItemActions({
           <input type="hidden" name="itemId" value={itemId} />
           <input type="hidden" name="isHidden" value={isHidden ? "false" : "true"} />
           <input type="hidden" name="returnTo" value={returnTo} />
-          <Button
-            type="submit"
-            variant="secondary"
-            size="icon"
-            className="h-10 min-h-10 w-10 rounded-full"
-            aria-label={hiddenActionLabel}
-            title={hiddenActionLabel}
-          >
-            <HiddenIcon aria-hidden="true" className="h-4 w-4" />
-          </Button>
+          <RecommendationHiddenToggleButton
+            isHidden={Boolean(isHidden)}
+            label={hiddenActionLabel}
+          />
         </form>
       </div>
 

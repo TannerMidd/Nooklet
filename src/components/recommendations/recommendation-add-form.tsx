@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { Check, ListChecks, Plus } from "lucide-react";
 
 import {
@@ -14,8 +15,45 @@ import {
   type TvSelectionState,
 } from "@/components/media-library/tv-request-dialog";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { cn } from "@/lib/utils";
+
+function AddToNookletButton({
+  isSuccess,
+  buttonClassName,
+}: {
+  isSuccess: boolean;
+  buttonClassName?: string;
+}) {
+  const { pending } = useFormStatus();
+  const ButtonIcon = isSuccess ? Check : Plus;
+
+  return (
+    <Button
+      type="submit"
+      className={cn("w-full sm:w-auto", buttonClassName)}
+      disabled={isSuccess || pending}
+    >
+      {pending ? <Spinner /> : <ButtonIcon aria-hidden="true" className="h-4 w-4" />}
+      <span>{pending ? "Adding..." : isSuccess ? "Added to Nooklet" : "Add to Nooklet"}</span>
+    </Button>
+  );
+}
+
+function PendingHint() {
+  const { pending } = useFormStatus();
+
+  if (!pending) {
+    return null;
+  }
+
+  return (
+    <p className="text-xs text-muted" role="status">
+      Syncing metadata and searching indexers — a full series can take a minute.
+    </p>
+  );
+}
 
 type RecommendationAddFormProps = {
   itemId: string;
@@ -46,7 +84,6 @@ export function RecommendationAddForm({
   const [dialogOpen, setDialogOpen] = useState(false);
   const isCompact = variant === "compact";
   const isSuccess = state.status === "success";
-  const ButtonIcon = isSuccess ? Check : Plus;
   const hasPicker = mediaType === "tv" && typeof tmdbId === "number";
 
   function renderCompactNotice(message: string, tone: "success" | "muted" | "error") {
@@ -126,15 +163,9 @@ export function RecommendationAddForm({
               {describeTvSelection(selection)}
             </button>
           ) : null}
-          <Button
-            type="submit"
-            className={cn("w-full sm:w-auto", buttonClassName)}
-            disabled={isSuccess}
-          >
-            <ButtonIcon aria-hidden="true" className="h-4 w-4" />
-            <span>{isSuccess ? "Added to Nooklet" : "Add to Nooklet"}</span>
-          </Button>
+          <AddToNookletButton isSuccess={isSuccess} buttonClassName={buttonClassName} />
         </div>
+        <PendingHint />
         {hasPicker && dialogOpen ? (
           <TvRequestDialog
             tmdbId={tmdbId}

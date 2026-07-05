@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InlineAlert } from "@/components/ui/inline-alert";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
 
 type TitleSearchFormProps = {
@@ -62,10 +63,17 @@ function AddTitleButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" className="w-full sm:w-auto" disabled={pending}>
-      <Download aria-hidden="true" size={17} />
-      {pending ? "Adding..." : "Add to Nooklet"}
-    </Button>
+    <div className="space-y-2">
+      <Button type="submit" className="w-full sm:w-auto" disabled={pending}>
+        {pending ? <Spinner /> : <Download aria-hidden="true" size={17} />}
+        {pending ? "Adding..." : "Add to Nooklet"}
+      </Button>
+      {pending ? (
+        <p className="text-xs text-muted" role="status">
+          Syncing metadata and searching indexers — a full series can take a minute.
+        </p>
+      ) : null}
+    </div>
   );
 }
 

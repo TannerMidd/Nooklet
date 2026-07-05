@@ -9,6 +9,7 @@ import { MetadataRefreshSettingsForm } from "@/app/(workspace)/library/metadata-
 import { MissingSearchSettingsForm } from "@/app/(workspace)/library/missing-search-settings-form";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import {
@@ -104,15 +105,17 @@ export default async function LibraryPage() {
       <div className="grid gap-3 sm:grid-cols-2">
         <Link
           href="/library/movies"
-          className="rounded-lg border border-line/70 bg-panel-strong/60 p-4 text-sm text-foreground transition hover:border-accent/45 hover:bg-panel-raised/70"
+          className="relative rounded-lg border border-line/70 bg-panel-strong/60 p-4 text-sm text-foreground transition hover:border-accent/45 hover:bg-panel-raised/70"
         >
+          <LinkPendingOverlay />
           <span className="font-heading text-lg">Browse movie library</span>
           <span className="mt-1 block text-muted">Open discovered local movies.</span>
         </Link>
         <Link
           href="/library/tv"
-          className="rounded-lg border border-line/70 bg-panel-strong/60 p-4 text-sm text-foreground transition hover:border-accent/45 hover:bg-panel-raised/70"
+          className="relative rounded-lg border border-line/70 bg-panel-strong/60 p-4 text-sm text-foreground transition hover:border-accent/45 hover:bg-panel-raised/70"
         >
+          <LinkPendingOverlay />
           <span className="font-heading text-lg">Browse TV library</span>
           <span className="mt-1 block text-muted">Open discovered local series.</span>
         </Link>

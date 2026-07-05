@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+
+import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import {
   type FocusEvent,
   type MouseEvent as ReactMouseEvent,
@@ -401,8 +403,9 @@ export function RecommendationRequestForm({
           </p>
           <Link
             href="/settings/connections"
-            className="mt-2 inline-flex font-medium text-foreground underline decoration-current/60 underline-offset-4 transition hover:text-highlight"
+            className="relative mt-2 inline-flex font-medium text-foreground underline decoration-current/60 underline-offset-4 transition hover:text-highlight"
           >
+            <LinkPendingOverlay />
             Open connections
           </Link>
         </div>

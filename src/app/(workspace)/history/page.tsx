@@ -105,10 +105,11 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 href={item.href}
                 className={
                   item.active
-                    ? "inline-flex rounded-lg bg-accent px-4 py-3 text-sm font-medium text-accent-foreground"
-                    : "inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
+                    ? "relative inline-flex rounded-lg bg-accent px-4 py-3 text-sm font-medium text-accent-foreground"
+                    : "relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
                 }
               >
+                <LinkPendingOverlay />
                 {item.label}
               </Link>
             ))}
@@ -150,14 +151,16 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
             <div className="flex flex-wrap gap-3">
               <Link
                 href="/tv"
-                className="inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
+                className="relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
               >
+                <LinkPendingOverlay />
                 Open TV recommendations
               </Link>
               <Link
                 href="/movies"
-                className="inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
+                className="relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
               >
+                <LinkPendingOverlay />
                 Open movie recommendations
               </Link>
             </div>
@@ -241,8 +244,9 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 {history.currentPage > 1 ? (
                   <Link
                     href={buildHistoryHref(currentView, history.currentPage - 1)}
-                    className="inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
+                    className="relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
                   >
+                    <LinkPendingOverlay />
                     Previous page
                   </Link>
                 ) : (
@@ -254,8 +258,9 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 {history.currentPage < history.totalPages ? (
                   <Link
                     href={buildHistoryHref(currentView, history.currentPage + 1)}
-                    className="inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
+                    className="relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
                   >
+                    <LinkPendingOverlay />
                     Next page
                   </Link>
                 ) : (

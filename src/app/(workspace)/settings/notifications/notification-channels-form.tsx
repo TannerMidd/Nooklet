@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { InlineAlert } from "@/components/ui/inline-alert";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import {
   notificationChannelTypes,
   notificationEventTypes,
@@ -53,7 +54,8 @@ function AddChannelSubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" className="w-full sm:w-auto">
+    <Button type="submit" className="w-full sm:w-auto" disabled={pending}>
+      {pending ? <Spinner /> : null}
       {pending ? "Adding..." : "Add channel"}
     </Button>
   );
@@ -63,8 +65,26 @@ function TestChannelSubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" variant="secondary" size="sm">
+    <Button type="submit" variant="secondary" size="sm" disabled={pending}>
+      {pending ? <Spinner /> : null}
       {pending ? "Testing..." : "Send test"}
+    </Button>
+  );
+}
+
+function ChannelActionSubmitButton({
+  idleLabel,
+  pendingLabel,
+}: {
+  idleLabel: string;
+  pendingLabel: string;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" variant="secondary" size="sm" disabled={pending}>
+      {pending ? <Spinner /> : null}
+      {pending ? pendingLabel : idleLabel}
     </Button>
   );
 }
@@ -178,9 +198,10 @@ export function NotificationChannelsForm({
                     <form action={toggleNotificationChannelAction}>
                       <input type="hidden" name="id" value={channel.id} />
                       <input type="hidden" name="enable" value={channel.isEnabled ? "0" : "1"} />
-                      <Button type="submit" variant="secondary" size="sm">
-                        {channel.isEnabled ? "Disable" : "Enable"}
-                      </Button>
+                      <ChannelActionSubmitButton
+                        idleLabel={channel.isEnabled ? "Disable" : "Enable"}
+                        pendingLabel={channel.isEnabled ? "Disabling..." : "Enabling..."}
+                      />
                     </form>
                     <form action={testAction} id={`${formId}-${channel.id}`}>
                       <input type="hidden" name="id" value={channel.id} />
@@ -188,9 +209,7 @@ export function NotificationChannelsForm({
                     </form>
                     <form action={removeNotificationChannelAction}>
                       <input type="hidden" name="id" value={channel.id} />
-                      <Button type="submit" variant="secondary" size="sm">
-                        Remove
-                      </Button>
+                      <ChannelActionSubmitButton idleLabel="Remove" pendingLabel="Removing..." />
                     </form>
                   </div>
                 </div>

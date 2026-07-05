@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { useSabnzbdQueue } from "@/components/recommendations/sabnzbd-queue-provider";
+import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { cn } from "@/lib/utils";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { type RecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
@@ -60,12 +61,13 @@ export function RecommendationSabnzbdStatus({
     <Link
       href="/in-progress"
       className={cn(
-        "block rounded-lg border border-accent/25 bg-accent/10 text-sm text-foreground transition hover:border-accent/45 hover:bg-accent/15",
+        "relative block rounded-lg border border-accent/25 bg-accent/10 text-sm text-foreground transition hover:border-accent/45 hover:bg-accent/15",
         variant === "panel" ? "px-4 py-3" : "px-3 py-3",
         className,
       )}
       aria-label={`${title} ${mediaType === "tv" ? "TV" : "movie"} SABnzbd status: ${statusLabel}, ${progressLabel}`}
     >
+      <LinkPendingOverlay />
       <div className="flex items-center justify-between gap-3">
         <span className="font-heading text-sm italic text-accent">SABnzbd</span>
         <span className="text-xs font-medium text-muted">

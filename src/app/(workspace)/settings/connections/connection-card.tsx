@@ -1,11 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 
 import { initialConnectionActionState } from "@/app/(workspace)/settings/connections/action-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { Spinner } from "@/components/ui/spinner";
 import {
   getServiceConnectionDefinition,
   type ServiceConnectionDefinition,
@@ -45,6 +47,60 @@ function formatDate(value: Date | null) {
         timeStyle: "short",
       }).format(value)
     : "Never";
+}
+
+function ConnectionActionButtons({
+  displayName,
+  disconnected,
+}: {
+  displayName: string;
+  disconnected: boolean;
+}) {
+  const { pending, data } = useFormStatus();
+  const intent = pending ? String(data?.get("intent") ?? "") : null;
+
+  return (
+    <div className="mt-5 space-y-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <Button type="submit" name="intent" value="save" disabled={pending} className="sm:w-auto">
+          {intent === "save" ? <Spinner /> : null}
+          {intent === "save" ? "Saving..." : "Save configuration"}
+        </Button>
+        <Button
+          type="submit"
+          name="intent"
+          value="verify"
+          variant="secondary"
+          disabled={pending || disconnected}
+          className="sm:w-auto"
+        >
+          {intent === "verify" ? <Spinner /> : null}
+          {intent === "verify" ? "Verifying..." : "Verify connection"}
+        </Button>
+        <Button
+          type="submit"
+          name="intent"
+          value="disconnect"
+          variant="ghost"
+          disabled={pending || disconnected}
+          className="sm:w-auto"
+        >
+          {intent === "disconnect" ? <Spinner /> : null}
+          {intent === "disconnect" ? "Disconnecting..." : "Disconnect"}
+        </Button>
+      </div>
+      {intent === "verify" ? (
+        <p className="text-sm text-muted" role="status">
+          Contacting {displayName} — unreachable services time out after about 10 seconds.
+        </p>
+      ) : null}
+      {intent === "save" ? (
+        <p className="text-sm text-muted" role="status">
+          Saving configuration…
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 function ConnectionFact({ label, value }: { label: string; value: string | number }) {
@@ -210,31 +266,10 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
         </p>
       ) : null}
 
-      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <Button type="submit" name="intent" value="save" className="sm:w-auto">
-          Save configuration
-        </Button>
-        <Button
-          type="submit"
-          name="intent"
-          value="verify"
-          variant="secondary"
-          disabled={summary.status === "disconnected"}
-          className="sm:w-auto"
-        >
-          Verify connection
-        </Button>
-        <Button
-          type="submit"
-          name="intent"
-          value="disconnect"
-          variant="ghost"
-          disabled={summary.status === "disconnected"}
-          className="sm:w-auto"
-        >
-          Disconnect
-        </Button>
-      </div>
+      <ConnectionActionButtons
+        displayName={definition.displayName}
+        disconnected={summary.status === "disconnected"}
+      />
     </form>
   );
 }

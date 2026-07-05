@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { auth } from "@/auth";
+import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { listHistoryJobs } from "@/modules/jobs/queries/list-history-jobs";
@@ -162,8 +163,9 @@ export default async function WatchHistorySettingsPage() {
                 </p>
                 <Link
                   href="/settings/connections"
-                  className="inline-flex rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                  className="relative inline-flex rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
                 >
+                  <LinkPendingOverlay />
                   Open connections
                 </Link>
               </div>
@@ -223,8 +225,9 @@ export default async function WatchHistorySettingsPage() {
                 </p>
                 <Link
                   href="/settings/connections"
-                  className="inline-flex rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                  className="relative inline-flex rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
                 >
+                  <LinkPendingOverlay />
                   Open connections
                 </Link>
               </div>
@@ -277,8 +280,9 @@ export default async function WatchHistorySettingsPage() {
                 </p>
                 <Link
                   href="/settings/connections"
-                  className="inline-flex rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                  className="relative inline-flex rounded-lg border border-line bg-panel-strong px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
                 >
+                  <LinkPendingOverlay />
                   Open connections
                 </Link>
               </div>

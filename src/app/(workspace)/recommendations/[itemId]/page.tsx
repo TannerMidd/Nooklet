@@ -1,5 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
+
+import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
@@ -114,7 +116,7 @@ export default async function RecommendationOverviewPage({
         ) : null}
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgb(var(--background)/0.98),rgb(var(--background)/0.78),rgb(var(--background)/0.94))]" />
         <div className="relative px-6 py-6 md:px-8 xl:px-10">
-          <Link href={returnTo} className="text-sm font-medium text-muted hover:text-foreground">
+          <Link href={returnTo} className="relative text-sm font-medium text-muted hover:text-foreground"><LinkPendingOverlay />
             Back to recommendations
           </Link>
           <div className="mt-5 flex flex-col gap-5 md:flex-row md:items-start">

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { type ReactNode } from "react";
 
 import { AppNavLink } from "@/components/layout/app-nav-link";
+import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { InProgressNavBadge } from "@/components/layout/in-progress-nav-badge";
 import { SignOutForm } from "@/components/layout/sign-out-form";
 import { SabnzbdQueueProvider } from "@/components/recommendations/sabnzbd-queue-provider";
@@ -25,9 +26,10 @@ export function AppShell({ children, user }: AppShellProps) {
               <div className="flex items-center gap-3 border-b border-line/55 pb-4">
                 <Link
                   href="/"
-                  className="nooklet-brand-mark flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-accent/35 font-heading text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
+                  className="nooklet-brand-mark relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-accent/35 font-heading text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
                   aria-label="Nooklet home"
                 >
+                  <LinkPendingOverlay />
                   NK
                 </Link>
                 <div className="min-w-0">

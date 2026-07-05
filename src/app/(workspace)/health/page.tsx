@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { auth } from "@/auth";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatCard } from "@/components/ui/stat-card";
@@ -72,7 +73,7 @@ export default async function HealthPage() {
           ))}
         </div>
         <div className="mt-5">
-          <Link href="/settings/connections" className="inline-flex min-h-11 items-center rounded-lg border border-line/75 bg-panel-strong/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50">
+          <Link href="/settings/connections" className="relative inline-flex min-h-11 items-center rounded-lg border border-line/75 bg-panel-strong/70 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"><LinkPendingOverlay />
             Manage connections
           </Link>
         </div>

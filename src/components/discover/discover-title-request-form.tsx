@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { Check, Plus } from "lucide-react";
 
 import {
@@ -13,8 +14,28 @@ import {
   type QualityProfileOption,
 } from "@/components/media-library/title-request-controls";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
 import { type TmdbTitleDetails } from "@/modules/service-connections/types/tmdb-title";
+
+function AddToNookletButton({ isSuccess }: { isSuccess: boolean }) {
+  const { pending } = useFormStatus();
+  const Icon = isSuccess ? Check : Plus;
+
+  return (
+    <div className="space-y-2">
+      <Button type="submit" className="w-full sm:w-auto" disabled={isSuccess || pending}>
+        {pending ? <Spinner /> : <Icon aria-hidden="true" className="h-4 w-4" />}
+        <span>{pending ? "Adding..." : isSuccess ? "Added to Nooklet" : "Add to Nooklet"}</span>
+      </Button>
+      {pending ? (
+        <p className="text-xs text-muted" role="status">
+          Syncing metadata and searching indexers — a full series can take a minute.
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 type DiscoverTitleRequestFormProps = {
   details: TmdbTitleDetails;
@@ -36,7 +57,6 @@ export function DiscoverTitleRequestForm({
     initialDiscoverTitleRequestActionState,
   );
   const isSuccess = state.status === "success";
-  const Icon = isSuccess ? Check : Plus;
 
   return (
     <div className="space-y-3">
@@ -59,10 +79,7 @@ export function DiscoverTitleRequestForm({
           qualityProfiles={qualityProfiles}
           pathOptions={pathOptions}
         />
-        <Button type="submit" className="w-full sm:w-auto" disabled={isSuccess}>
-          <Icon aria-hidden="true" className="h-4 w-4" />
-          <span>{isSuccess ? "Added to Nooklet" : "Add to Nooklet"}</span>
-        </Button>
+        <AddToNookletButton isSuccess={isSuccess} />
       </form>
 
       {state.message ? (
