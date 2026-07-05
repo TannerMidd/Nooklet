@@ -19,7 +19,7 @@ type AppShellProps = {
 export function AppShell({ children, user }: AppShellProps) {
   return (
     <SabnzbdQueueProvider>
-      <div className="min-h-screen overflow-x-clip px-4 py-4 sm:px-6 sm:py-5 xl:px-7 xl:py-6">
+      <div className="min-h-screen overflow-x-clip px-3 py-2.5 sm:px-6 sm:py-5 xl:px-7 xl:py-6">
         <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 lg:flex-row lg:items-start xl:gap-6">
           <aside className="lg:sticky lg:top-5 lg:w-56 lg:flex-none xl:w-60">
             <div className="cozy-panel rounded-lg border border-line/65 bg-panel/92 p-3 lg:max-h-[calc(100vh-2.5rem)] lg:overflow-y-auto">

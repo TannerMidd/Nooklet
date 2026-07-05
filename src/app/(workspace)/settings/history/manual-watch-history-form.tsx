@@ -26,8 +26,8 @@ export function ManualWatchHistoryForm() {
 
   return (
     <form action={formAction} className="space-y-5">
-      <div className="grid gap-5 md:grid-cols-[0.32fr,1fr]">
-        <label className="space-y-2">
+      <div className="grid gap-3.5 md:grid-cols-[0.32fr,1fr]">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Media type</span>
           <select
             name="mediaType"
@@ -43,7 +43,7 @@ export function ManualWatchHistoryForm() {
           ) : null}
         </label>
 
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Watched titles</span>
           <textarea
             name="entriesText"

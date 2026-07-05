@@ -124,7 +124,7 @@ function SeasonAccordion({
               const updatedLabel = episode.lastFileModifiedAt ? episode.lastFileModifiedAt.toLocaleDateString() : null;
 
               return (
-                <li key={episode.id} className="grid gap-3 px-4 py-3 text-sm xl:grid-cols-[120px_minmax(0,1fr)_minmax(260px,auto)] xl:items-start">
+                <li key={episode.id} className="grid gap-3 px-3.5 py-2.5 text-sm xl:grid-cols-[120px_minmax(0,1fr)_minmax(260px,auto)] xl:items-start">
                   <span className="font-semibold text-foreground">{episodeCode(episode)}</span>
                   <div className="min-w-0 space-y-1">
                     <p className="truncate text-foreground">{episode.title ?? `Episode ${episode.episodeNumber}`}</p>

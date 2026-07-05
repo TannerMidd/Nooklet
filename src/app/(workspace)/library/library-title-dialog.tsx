@@ -121,7 +121,7 @@ function MovieDialog({
   const modifiedLabel = title.lastFileModifiedAt ? title.lastFileModifiedAt.toLocaleDateString() : "No files yet";
 
   return (
-    <div className="space-y-5 p-5 sm:p-6">
+    <div className="space-y-5 p-4 sm:p-5">
       <div className="flex flex-col gap-5 md:flex-row">
         <RecommendationPoster title={title.title} posterUrl={title.posterUrl} />
         <div className="min-w-0 flex-1 space-y-4">
@@ -159,7 +159,7 @@ function TvDialog({
   currentLibraryPathId: string | null;
 }) {
   return (
-    <div className="space-y-5 p-5 sm:p-6">
+    <div className="space-y-5 p-4 sm:p-5">
       <LinkLibraryTitleTmdbOnMount titleId={title.id} hasTmdbId={title.tmdbId !== null} />
       <div className="flex flex-col gap-5 md:flex-row">
         <RecommendationPoster title={title.title} posterUrl={title.posterUrl} />

@@ -84,7 +84,7 @@ export default async function AnalyticsPage() {
             <StatCard label="Accepted/library" value={allTaste.addedCount} />
             <StatCard label="Hidden" value={allTaste.hiddenCount} />
           </div>
-          <div className="mt-5 grid gap-5 md:grid-cols-2">
+          <div className="mt-4 grid gap-3.5 md:grid-cols-2">
             <div className="space-y-3">
               <p className="text-sm font-medium text-foreground">Preferred genres</p>
               <p className="text-sm leading-6 text-muted">

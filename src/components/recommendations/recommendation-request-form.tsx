@@ -335,7 +335,7 @@ export function RecommendationRequestForm({
       </div>
 
       <div className="grid gap-4 rounded-lg border border-line/55 bg-background/15 p-4 lg:grid-cols-[minmax(0,1fr),180px,180px]">
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Model</span>
           <SearchableSelect
             name="aiModel"
@@ -352,7 +352,7 @@ export function RecommendationRequestForm({
           ) : null}
         </label>
 
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Temperature</span>
           <Input
             name="temperature"
@@ -370,7 +370,7 @@ export function RecommendationRequestForm({
           ) : null}
         </label>
 
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">How many results?</span>
           <Input
             name="requestedCount"

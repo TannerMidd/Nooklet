@@ -241,12 +241,12 @@ export async function RecommendationWorkspace({
           />
 
           {featuredRunIsPending && featuredRun.items.length === 0 ? (
-            <div className="mt-6 flex items-center gap-3 rounded-lg border border-line/65 bg-background/20 px-3 py-2.5 text-sm leading-6 text-muted">
+            <div className="mt-5 flex items-center gap-3 rounded-lg border border-line/65 bg-background/20 px-3 py-2.5 text-sm leading-6 text-muted">
               <RecommendationPendingTimer startedAt={featuredRun.createdAt} className="text-foreground" />
               <span>{"Warming up \u2014 titles will land here as soon as the worker finishes."}</span>
             </div>
           ) : (
-            <div className="mt-6 grid max-h-[72vh] gap-5 overflow-y-auto pr-2 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-5 grid max-h-[72vh] gap-5 overflow-y-auto pr-2 md:grid-cols-2 xl:grid-cols-3">
               {featuredRun.items.map((item, index) => (
                 <RecommendationFeaturedCard
                   key={item.id}
@@ -331,7 +331,7 @@ export async function RecommendationWorkspace({
                     {run.items.map((item) => (
                       <div
                         key={item.id}
-                        className="rounded-lg border border-line/60 bg-panel/80 px-4 py-4"
+                        className="rounded-lg border border-line/60 bg-panel/80 px-3 py-2.5"
                       >
                         <div className="flex min-w-0 flex-col gap-4 sm:flex-row">
                           <RecommendationPoster

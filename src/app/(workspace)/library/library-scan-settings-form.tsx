@@ -44,7 +44,7 @@ export function LibraryScanSettingsForm({ settings }: { settings: LibraryScanSet
   return (
     <form action={formAction} className="space-y-4">
       <div className="grid gap-4 md:grid-cols-[minmax(0,0.45fr)_minmax(0,0.25fr)_minmax(0,0.3fr)] md:items-end">
-        <label className="flex min-h-24 items-start gap-3 rounded-lg border border-line/60 bg-background/20 px-4 py-4">
+        <label className="flex items-start gap-2.5 rounded-lg border border-line/60 bg-background/20 px-3 py-2.5">
           <input
             name="enabled"
             type="checkbox"
@@ -57,7 +57,7 @@ export function LibraryScanSettingsForm({ settings }: { settings: LibraryScanSet
           </span>
         </label>
 
-        <label className="space-y-2 text-sm">
+        <label className="space-y-1.5 text-sm">
           <span className="font-medium text-foreground">Interval minutes</span>
           <Input
             name="intervalMinutes"

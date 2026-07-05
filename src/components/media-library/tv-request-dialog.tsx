@@ -359,7 +359,7 @@ export function TvRequestDialog({
 
         <TvRequestPicker tmdbId={tmdbId} selection={selection} onSelectionChange={setSelection} />
 
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" type="button" onClick={onClose}>Cancel</Button>
           <Button type="button" onClick={handleConfirm} disabled={!selection}>
             Use this selection

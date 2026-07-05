@@ -41,8 +41,8 @@ export function PlexWatchHistoryForm({
 
   return (
     <form action={formAction} className="space-y-5">
-      <div className="grid gap-5 md:grid-cols-[0.28fr,0.42fr,0.3fr]">
-        <label className="space-y-2">
+      <div className="grid gap-3.5 md:grid-cols-[0.28fr,0.42fr,0.3fr]">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Media type</span>
           <select
             name="mediaType"
@@ -58,7 +58,7 @@ export function PlexWatchHistoryForm({
           ) : null}
         </label>
 
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Plex user</span>
           <select
             name="plexUserId"
@@ -78,7 +78,7 @@ export function PlexWatchHistoryForm({
           ) : null}
         </label>
 
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Import limit</span>
           <Input
             name="importLimit"

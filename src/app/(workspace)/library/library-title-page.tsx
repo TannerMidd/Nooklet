@@ -131,7 +131,7 @@ function TitleRow({
       <Link
         href={titleHref}
         scroll={false}
-        className="relative grid gap-3 px-4 py-3 text-sm transition hover:bg-panel-strong/55 md:grid-cols-[minmax(0,1.8fr)_minmax(140px,0.8fr)_120px_120px_120px] md:items-center"
+        className="relative grid gap-3 px-3.5 py-2.5 text-sm transition hover:bg-panel-strong/55 md:grid-cols-[minmax(0,1.8fr)_minmax(140px,0.8fr)_120px_120px_120px] md:items-center"
       >
         <LinkPendingOverlay />
         <div className="min-w-0">

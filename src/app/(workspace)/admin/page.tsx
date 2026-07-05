@@ -91,21 +91,21 @@ export default async function AdminPage() {
             <tbody>
               {users.map((user) => (
                 <tr key={user.id} className="border-t border-line/60 bg-panel/80">
-                  <td className="px-4 py-4 align-top">
+                  <td className="px-3 py-2.5 align-top">
                     <p className="font-medium text-foreground">{user.displayName}</p>
                     <p className="mt-1 text-muted">{user.email}</p>
                   </td>
-                  <td className="px-4 py-4 align-top">{user.role}</td>
-                  <td className="px-4 py-4 align-top">
+                  <td className="px-3 py-2.5 align-top">{user.role}</td>
+                  <td className="px-3 py-2.5 align-top">
                     {user.isDisabled ? "Disabled" : "Active"}
                   </td>
-                  <td className="px-4 py-4 align-top text-muted">
+                  <td className="px-3 py-2.5 align-top text-muted">
                     {formatDate(user.createdAt)}
                   </td>
-                  <td className="px-4 py-4 align-top text-muted">
+                  <td className="px-3 py-2.5 align-top text-muted">
                     {formatDate(user.updatedAt)}
                   </td>
-                  <td className="px-4 py-4 align-top">
+                  <td className="px-3 py-2.5 align-top">
                     <UserManagementRow currentAdminUserId={session.user.id} user={user} />
                   </td>
                 </tr>

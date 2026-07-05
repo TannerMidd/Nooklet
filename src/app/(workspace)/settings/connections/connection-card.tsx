@@ -60,8 +60,8 @@ function ConnectionActionButtons({
   const intent = pending ? String(data?.get("intent") ?? "") : null;
 
   return (
-    <div className="mt-5 space-y-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+    <div className="mt-4 space-y-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Button type="submit" name="intent" value="save" disabled={pending} className="sm:w-auto">
           {intent === "save" ? <Spinner /> : null}
           {intent === "save" ? "Saving..." : "Save configuration"}
@@ -105,12 +105,10 @@ function ConnectionActionButtons({
 
 function ConnectionFact({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="min-w-0 border-t border-line/55 px-1 py-3 first:border-t-0 md:border-t-0 md:px-0 md:py-0">
-      <p className="text-xs font-medium text-muted">
-        {label}
-      </p>
-      <p className="mt-1 break-words text-sm leading-6 text-foreground">{value}</p>
-    </div>
+    <span className="inline-flex min-w-0 items-baseline gap-1.5 text-sm leading-6">
+      <span className="text-xs font-medium text-muted">{label}</span>
+      <span className="break-words text-foreground">{value}</span>
+    </span>
   );
 }
 
@@ -130,7 +128,7 @@ function ModelField({
   }
 
   return (
-    <label className="min-w-0 space-y-2">
+    <label className="min-w-0 space-y-1.5">
       <span className="text-sm font-medium text-foreground">{definition.modelLabel}</span>
       <SearchableSelect
         name="model"
@@ -167,27 +165,24 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
   return (
     <form
       action={formAction}
-      className="cozy-panel rounded-lg border border-line/65 bg-panel/90 p-5 sm:p-6"
+      className="cozy-panel rounded-lg border border-line/65 bg-panel/90 p-4 sm:p-5"
     >
       <input type="hidden" name="serviceType" value={summary.serviceType} />
 
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="min-w-0 space-y-2">
-          <p className="font-heading text-sm italic text-accent">
-            {definition.displayName}
-          </p>
+      <div className="min-w-0 space-y-1">
+        <div className="flex flex-wrap items-center gap-2.5">
           <h2 className="font-heading text-lg tracking-normal text-foreground">
             {summary.displayName}
           </h2>
-          <p className="max-w-2xl text-sm leading-6 text-muted">{summary.description}</p>
+          <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${statusTone(summary.status)}`}>
+            {formatStatusLabel(summary.status)}
+          </span>
         </div>
-        <div className={`inline-flex w-fit items-center rounded-md border px-3 py-1 text-xs font-medium ${statusTone(summary.status)}`}>
-          {formatStatusLabel(summary.status)}
-        </div>
+        <p className="max-w-2xl text-sm leading-6 text-muted">{summary.description}</p>
       </div>
 
-      <div className="mt-5 grid gap-5 md:grid-cols-2">
-        <label className="min-w-0 space-y-2 md:col-span-2">
+      <div className="mt-4 grid gap-3.5 md:grid-cols-2">
+        <label className="min-w-0 space-y-1.5 md:col-span-2">
           <span className="text-sm font-medium text-foreground">Base URL</span>
           <Input
             name="baseUrl"
@@ -207,7 +202,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
           error={state.fieldErrors?.model}
         />
 
-        <label className="min-w-0 space-y-2">
+        <label className="min-w-0 space-y-1.5">
           <span className="text-sm font-medium text-foreground">{definition.secretLabel}</span>
           <Input
             name="apiKey"
@@ -223,11 +218,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
         </label>
       </div>
 
-      <div
-        className={`mt-6 grid rounded-lg border border-line/60 bg-background/15 px-4 py-2 ${
-          showsModel || showsAvailableUsers || showsSabnzbdFacts ? "md:grid-cols-3" : "md:grid-cols-2"
-        }`}
-      >
+      <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 border-t border-line/45 pt-2.5">
         <ConnectionFact label="Secret" value={summary.maskedSecret ?? "Not configured"} />
         {showsModel ? (
           <ConnectionFact label={definition.modelLabel ?? "Model"} value={summary.model ?? "Not set"} />
@@ -250,7 +241,7 @@ export function ConnectionCard({ summary }: ConnectionCardProps) {
         <ConnectionFact label="Last verified" value={formatDate(summary.lastVerifiedAt)} />
       </div>
 
-      <p className="mt-4 rounded-lg border border-line/55 bg-background/15 px-3 py-2 text-sm leading-6 text-muted">
+      <p className="mt-2 text-sm leading-6 text-muted">
         {summary.statusMessage}
       </p>
 

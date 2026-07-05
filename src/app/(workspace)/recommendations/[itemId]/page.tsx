@@ -119,7 +119,7 @@ export default async function RecommendationOverviewPage({
           <Link href={returnTo} className="relative text-sm font-medium text-muted hover:text-foreground"><LinkPendingOverlay />
             Back to recommendations
           </Link>
-          <div className="mt-5 flex flex-col gap-5 md:flex-row md:items-start">
+          <div className="mt-4 flex flex-col gap-5 md:flex-row md:items-start">
             <RecommendationPoster title={item.title} posterUrl={posterUrl} />
             <div className="min-w-0 flex-1 space-y-4">
               <div className="space-y-2">

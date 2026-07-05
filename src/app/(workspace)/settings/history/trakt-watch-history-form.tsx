@@ -31,8 +31,8 @@ export function TraktWatchHistoryForm({ defaultImportLimit }: TraktWatchHistoryF
 
   return (
     <form action={formAction} className="space-y-5">
-      <div className="grid gap-5 md:grid-cols-[0.35fr,0.35fr,0.3fr]">
-        <label className="space-y-2">
+      <div className="grid gap-3.5 md:grid-cols-[0.35fr,0.35fr,0.3fr]">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Media type</span>
           <select
             name="mediaType"
@@ -48,7 +48,7 @@ export function TraktWatchHistoryForm({ defaultImportLimit }: TraktWatchHistoryF
           ) : null}
         </label>
 
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Import limit</span>
           <Input
             name="importLimit"

@@ -51,7 +51,7 @@ export function RecommendationWatchHistoryModeToggle({
   return (
     <form
       action={submitRecommendationWatchHistoryModeAction}
-      className="mb-5 flex flex-col gap-4 rounded-lg border border-line/60 bg-background/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+      className="mb-5 flex flex-col gap-4 rounded-lg border border-line/60 bg-background/20 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
     >
       <input type="hidden" name="redirectPath" value={redirectPath} />
       <div className="min-w-0 space-y-1">

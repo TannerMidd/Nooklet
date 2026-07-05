@@ -98,7 +98,7 @@ export function PlaceholderPage({
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 transition hover:border-accent/40 hover:bg-panel"
+                className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5 transition hover:border-accent/40 hover:bg-panel"
               >
                 <p className="font-medium text-foreground">{item.label}</p>
                 <p className="mt-1 text-sm leading-5 text-muted">{item.description}</p>

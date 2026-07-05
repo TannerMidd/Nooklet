@@ -65,7 +65,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
     <div className="min-w-[320px] space-y-4">
       <form action={roleAction} className="space-y-2 rounded-lg border border-line/70 bg-panel px-3 py-3">
         <input type="hidden" name="userId" value={user.id} />
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-xs font-medium text-muted">
             Role
           </span>

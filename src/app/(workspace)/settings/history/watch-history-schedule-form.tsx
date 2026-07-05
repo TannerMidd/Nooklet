@@ -55,7 +55,7 @@ export function WatchHistoryScheduleForm({
   );
 
   return (
-    <form action={formAction} className="space-y-4 rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4">
+    <form action={formAction} className="space-y-4 rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5">
       <input type="hidden" name="sourceType" value={sourceType} />
 
       <div className="space-y-1">
@@ -64,7 +64,7 @@ export function WatchHistoryScheduleForm({
       </div>
 
       <div className="grid gap-4 md:grid-cols-[0.38fr,0.32fr,0.3fr] md:items-end">
-        <label className="flex items-start gap-3 rounded-lg border border-line bg-panel px-4 py-4">
+        <label className="flex items-start gap-3 rounded-lg border border-line bg-panel px-3 py-2.5">
           <input
             name="enabled"
             type="checkbox"
@@ -79,7 +79,7 @@ export function WatchHistoryScheduleForm({
           </span>
         </label>
 
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Interval hours</span>
           <Input
             name="intervalHours"

@@ -207,7 +207,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
         </div>
 
         {actionError ? (
-          <div className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-highlight">
+          <div className="rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-highlight">
             {actionError}
           </div>
         ) : null}
@@ -258,7 +258,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
         ) : null}
 
         {queueState.connectionStatus !== "verified" ? (
-          <div className="rounded-lg border border-highlight/20 bg-highlight/10 px-4 py-3 text-highlight">
+          <div className="rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-highlight">
             <p>{queueState.statusMessage}</p>
             <Link
               href="/settings/connections"
@@ -302,7 +302,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
                     handleDrop(event, item.id);
                   }}
                   onDragEnd={handleDragEnd}
-                  className={`rounded-lg border px-4 py-4 transition ${
+                  className={`rounded-lg border px-3 py-2.5 transition ${
                     draggedItemId === item.id
                       ? "border-accent/50 bg-panel-strong opacity-70"
                       : dragTargetItemId === item.id
@@ -411,7 +411,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
             </div>
           </div>
         ) : (
-          <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-muted">
+          <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5 text-muted">
             No active SABnzbd requests right now. This panel refreshes automatically while the queue is busy.
           </div>
         )}

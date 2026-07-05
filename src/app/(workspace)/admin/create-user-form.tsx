@@ -28,8 +28,8 @@ export function CreateUserForm() {
 
   return (
     <form action={formAction} className="space-y-5">
-      <div className="grid gap-5 md:grid-cols-2">
-        <label className="space-y-2">
+      <div className="grid gap-3.5 md:grid-cols-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Display name</span>
           <Input
             name="displayName"
@@ -41,7 +41,7 @@ export function CreateUserForm() {
           ) : null}
         </label>
 
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Email</span>
           <Input
             name="email"
@@ -55,8 +55,8 @@ export function CreateUserForm() {
         </label>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-[0.7fr,1fr,1fr]">
-        <label className="space-y-2">
+      <div className="grid gap-3.5 md:grid-cols-[0.7fr,1fr,1fr]">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Role</span>
           <select
             name="role"
@@ -72,7 +72,7 @@ export function CreateUserForm() {
           ) : null}
         </label>
 
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Temporary password</span>
           <Input
             name="password"
@@ -84,7 +84,7 @@ export function CreateUserForm() {
           ) : null}
         </label>
 
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Confirm password</span>
           <Input
             name="confirmPassword"

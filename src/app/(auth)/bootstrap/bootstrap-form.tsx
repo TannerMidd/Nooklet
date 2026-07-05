@@ -31,7 +31,7 @@ type FieldProps = {
 
 function Field({ label, name, type = "text", autoComplete, error }: FieldProps) {
   return (
-    <label className="space-y-2">
+    <label className="space-y-1.5">
       <span className="text-sm font-medium text-foreground">{label}</span>
       <Input name={name} type={type} autoComplete={autoComplete} aria-invalid={Boolean(error)} />
       {error ? <p className="text-sm text-highlight">{error}</p> : null}

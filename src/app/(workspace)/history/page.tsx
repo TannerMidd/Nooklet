@@ -105,7 +105,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 href={item.href}
                 className={
                   item.active
-                    ? "relative inline-flex rounded-lg bg-accent px-4 py-3 text-sm font-medium text-accent-foreground"
+                    ? "relative inline-flex rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground"
                     : "relative inline-flex rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/70"
                 }
               >
@@ -232,7 +232,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
         )}
 
         {history.filteredCount > 0 ? (
-          <div className="mt-6 flex flex-col gap-3 border-t border-line/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-5 flex flex-col gap-3 border-t border-line/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm leading-6 text-muted">
               Page {history.currentPage} of {history.totalPages}.
               {history.totalCount !== history.filteredCount

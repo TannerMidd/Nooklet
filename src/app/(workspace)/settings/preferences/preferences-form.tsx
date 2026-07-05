@@ -31,7 +31,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" className="w-full sm:w-auto">
+    <Button type="submit" className="w-full sm:w-auto" disabled={pending}>
       {pending ? "Saving preferences..." : "Save preferences"}
     </Button>
   );
@@ -51,16 +51,16 @@ type CheckboxFieldProps = {
 
 function CheckboxField({ name, label, description, defaultChecked }: CheckboxFieldProps) {
   return (
-    <label className="flex items-start gap-3 rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4">
+    <label className="flex items-start gap-2.5 rounded-md bg-panel-strong/50 px-3 py-2 transition hover:bg-panel-strong/70">
       <input
         name={name}
         type="checkbox"
         defaultChecked={defaultChecked}
-        className="mt-1 h-4 w-4 rounded border-line text-accent focus:ring-accent/30"
+        className="mt-0.5 h-4 w-4 rounded border-line text-accent focus:ring-accent/30"
       />
-      <span className="space-y-1">
+      <span className="space-y-0.5">
         <span className="block text-sm font-medium text-foreground">{label}</span>
-        <span className="block text-sm leading-6 text-muted">{description}</span>
+        <span className="block text-xs leading-5 text-muted">{description}</span>
       </span>
     </label>
   );
@@ -91,13 +91,13 @@ export function PreferencesForm({
 
   return (
     <form key={formResetKey} action={formAction} className="space-y-5">
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
-        <label className="space-y-2">
+      <div className="grid gap-3.5 md:grid-cols-2 xl:grid-cols-5">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Default media mode</span>
           <select
             name="defaultMediaMode"
             defaultValue={preferences.defaultMediaMode}
-            className="min-h-9 w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+            className="min-h-9 w-full rounded-lg border border-line bg-panel px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
             aria-invalid={Boolean(state.fieldErrors?.defaultMediaMode)}
           >
             <option value="tv">TV</option>
@@ -109,7 +109,7 @@ export function PreferencesForm({
           ) : null}
         </label>
 
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Default result count</span>
           <Input
             name="defaultResultCount"
@@ -124,7 +124,7 @@ export function PreferencesForm({
           ) : null}
         </label>
 
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Library sample size</span>
           <Input
             name="libraryTasteSampleSize"
@@ -142,7 +142,7 @@ export function PreferencesForm({
           ) : null}
         </label>
 
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Default temperature</span>
           <Input
             name="defaultTemperature"
@@ -158,12 +158,12 @@ export function PreferencesForm({
           ) : null}
         </label>
 
-        <label className="space-y-2">
+        <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Language preference</span>
           <select
             name="languagePreference"
             defaultValue={preferences.languagePreference}
-            className="min-h-9 w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+            className="min-h-9 w-full rounded-lg border border-line bg-panel px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
             aria-invalid={Boolean(state.fieldErrors?.languagePreference)}
           >
             {languagePreferenceOptions.map((option) => (
@@ -178,37 +178,37 @@ export function PreferencesForm({
         </label>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-2.5 md:grid-cols-2">
         <CheckboxField
           name="watchHistoryOnly"
           label="Watch-history only mode"
           description="Use configured watch-history sources as the recommendation context instead of mixing in other source inputs."
           defaultChecked={preferences.watchHistoryOnly}
         />
-        <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 md:col-span-2">
+        <div className="rounded-md bg-panel-strong/50 px-3 py-2.5 md:col-span-2">
           <div className="space-y-1">
             <p className="text-sm font-medium text-foreground">Watch-history sources</p>
             <p className="text-sm leading-6 text-muted">
               Choose which synced history sources are allowed to contribute taste context when watch-history-only mode is enabled.
             </p>
           </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="mt-2.5 grid gap-2.5 md:grid-cols-2">
             {availableWatchHistorySources.map((source) => (
               <label
                 key={source.sourceType}
-                className="flex items-start gap-3 rounded-lg border border-line/70 bg-panel px-4 py-4"
+                className="flex items-start gap-2.5 rounded-md bg-background/25 px-3 py-2"
               >
                 <input
                   name="watchHistorySourceTypes"
                   type="checkbox"
                   value={source.sourceType}
                   defaultChecked={preferences.watchHistorySourceTypes.includes(source.sourceType)}
-                  className="mt-1 h-4 w-4 rounded border-line text-accent focus:ring-accent/30"
+                  className="mt-0.5 h-4 w-4 rounded border-line text-accent focus:ring-accent/30"
                 />
-                <span className="space-y-1">
+                <span className="space-y-0.5">
                   <span className="block text-sm font-medium text-foreground">{source.label}</span>
-                  <span className="block text-sm leading-6 text-muted">{source.description}</span>
-                  <span className="block text-xs leading-5 text-muted">{source.statusMessage}</span>
+                  <span className="block text-xs leading-5 text-muted">{source.description}</span>
+                  <span className="block text-[11px] leading-4 text-muted/85">{source.statusMessage}</span>
                 </span>
               </label>
             ))}
@@ -251,9 +251,8 @@ export function PreferencesForm({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <SubmitButton />
-        <p className="text-sm leading-6 text-muted">
-          These values are persisted per user and stay separate from account,
-          admin, and service-connection concerns.
+        <p className="text-xs leading-5 text-muted">
+          Saved per user — separate from account, admin, and connection settings.
         </p>
       </div>
     </form>

@@ -30,7 +30,7 @@ type PasswordFieldProps = {
 
 function PasswordField({ label, name, autoComplete, error }: PasswordFieldProps) {
   return (
-    <label className="space-y-2">
+    <label className="space-y-1.5">
       <span className="text-sm font-medium text-foreground">{label}</span>
       <Input
         name={name}

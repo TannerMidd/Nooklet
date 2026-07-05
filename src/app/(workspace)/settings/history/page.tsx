@@ -45,7 +45,7 @@ function RecentWatchHistoryItemList({
       {items.map((item) => (
         <article
           key={item.id}
-          className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4"
+          className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5"
         >
           <p className="font-medium text-foreground">
             {item.title}
@@ -309,7 +309,7 @@ export default async function WatchHistorySettingsPage() {
                   {overview.sources.map((source) => (
                     <article
                       key={source.id}
-                      className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4"
+                      className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5"
                     >
                       <p className="font-medium text-foreground">{source.displayName}</p>
                       {source.selectedUserName ? (
@@ -323,7 +323,7 @@ export default async function WatchHistorySettingsPage() {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-4 py-4 text-muted">
+                <div className="rounded-lg border border-line/70 bg-panel-strong/70 px-3 py-2.5 text-muted">
                   No watch-history source has been synced yet.
                 </div>
               )}

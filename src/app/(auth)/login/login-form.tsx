@@ -35,13 +35,13 @@ export function LoginForm({ showBootstrapSuccess }: LoginFormProps) {
         </p>
       ) : null}
 
-      <label className="space-y-2">
+      <label className="space-y-1.5">
         <span className="text-sm font-medium text-foreground">Email</span>
         <Input name="email" type="email" autoComplete="email" aria-invalid={Boolean(state.fieldErrors?.email)} />
         {state.fieldErrors?.email ? <p className="text-sm text-highlight">{state.fieldErrors.email}</p> : null}
       </label>
 
-      <label className="space-y-2">
+      <label className="space-y-1.5">
         <span className="text-sm font-medium text-foreground">Password</span>
         <Input
           name="password"
