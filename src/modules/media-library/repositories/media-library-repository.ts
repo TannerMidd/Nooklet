@@ -245,26 +245,64 @@ export async function upsertMediaTitle(input: {
     updatedAt: new Date(),
   };
 
+  // Omitted fields keep their existing values on conflict. The library scan
+  // upserts every discovered title without monitored/quality/metadata, so a
+  // clobbering set here would silently undo user monitoring choices and
+  // erase enriched metadata on every scan pass.
+  const conflictSet: Partial<typeof mediaTitles.$inferInsert> = {
+    title: values.title,
+    sortTitle: values.sortTitle,
+    updatedAt: values.updatedAt,
+  };
+
+  if (input.libraryId !== undefined) {
+    conflictSet.libraryId = input.libraryId;
+  }
+
+  if (input.year !== undefined) {
+    conflictSet.year = input.year;
+  }
+
+  if (input.status !== undefined) {
+    conflictSet.status = input.status;
+  }
+
+  if (input.monitored !== undefined) {
+    conflictSet.monitored = input.monitored;
+  }
+
+  if (input.qualityProfile !== undefined) {
+    conflictSet.qualityProfile = input.qualityProfile;
+  }
+
+  // Enrichment fields only ever improve: a caller without metadata (scan,
+  // re-request from a sparse card) must not null out stored details.
+  if (input.overview != null) {
+    conflictSet.overview = input.overview;
+  }
+
+  if (input.posterUrl != null) {
+    conflictSet.posterUrl = input.posterUrl;
+  }
+
+  if (input.backdropUrl != null) {
+    conflictSet.backdropUrl = input.backdropUrl;
+  }
+
+  if (input.runtimeMinutes != null) {
+    conflictSet.runtimeMinutes = input.runtimeMinutes;
+  }
+
+  if (input.originalLanguage != null) {
+    conflictSet.originalLanguage = input.originalLanguage;
+  }
+
   database
     .insert(mediaTitles)
     .values(values)
     .onConflictDoUpdate({
       target: [mediaTitles.userId, mediaTitles.mediaType, mediaTitles.normalizedKey],
-      set: {
-        libraryId: values.libraryId,
-        title: values.title,
-        sortTitle: values.sortTitle,
-        year: values.year,
-        status: values.status,
-        monitored: values.monitored,
-        qualityProfile: values.qualityProfile,
-        overview: values.overview,
-        posterUrl: values.posterUrl,
-        backdropUrl: values.backdropUrl,
-        runtimeMinutes: values.runtimeMinutes,
-        originalLanguage: values.originalLanguage,
-        updatedAt: values.updatedAt,
-      },
+      set: conflictSet,
     })
     .run();
 

@@ -422,6 +422,47 @@ describe("media-library-repository", () => {
     ]);
   });
 
+  it("keeps monitoring, quality, and metadata when a scan-style upsert omits them", async () => {
+    const userId = await seedUser();
+    const library = await createMediaLibrary({ userId, mediaType: "tv", name: "TV" });
+
+    const requested = await upsertMediaTitle({
+      userId,
+      libraryId: library.id,
+      mediaType: "tv",
+      title: "Severance",
+      sortTitle: "severance",
+      year: 2022,
+      normalizedKey: "severance::2022",
+      status: "requested",
+      monitored: false,
+      qualityProfile: "uhd-2160p",
+      overview: "Office work with a clean split.",
+      posterUrl: "https://images.example/severance.jpg",
+    });
+
+    if (!requested) throw new Error("title missing");
+
+    // The library scan upserts discovered titles with structural fields only.
+    const scanned = await upsertMediaTitle({
+      userId,
+      libraryId: library.id,
+      mediaType: "tv",
+      title: "Severance",
+      sortTitle: "severance",
+      year: 2022,
+      normalizedKey: "severance::2022",
+      status: "available",
+    });
+
+    expect(scanned?.id).toBe(requested.id);
+    expect(scanned?.status).toBe("available");
+    expect(scanned?.monitored).toBe(false);
+    expect(scanned?.qualityProfile).toBe("uhd-2160p");
+    expect(scanned?.overview).toBe("Office work with a clean split.");
+    expect(scanned?.posterUrl).toBe("https://images.example/severance.jpg");
+  });
+
   it("lists monitored TV titles with a linked tmdb id", async () => {
     const userId = await seedUser();
     const tvLibrary = await createMediaLibrary({ userId, mediaType: "tv", name: "TV" });
