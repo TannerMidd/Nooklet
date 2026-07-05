@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { parseTvSelectionsFromFormData } from "@/modules/media-library/schemas/tv-selections-form";
+
 import { type RecommendationLibraryActionState } from "./recommendation-action-state";
 import {
   addRecommendationToLibrarySchema,
@@ -25,6 +27,8 @@ export function parseRecommendationLibraryActionFormData(formData: FormData) {
     targetLibraryPathId: formData.get("targetLibraryPathId") ?? undefined,
     qualityProfile: formData.get("qualityProfile") ?? undefined,
     monitored: formData.get("monitored") ?? undefined,
+    downloadNow: formData.get("downloadNow") ?? undefined,
+    selections: parseTvSelectionsFromFormData(formData),
     returnTo: formData.get("returnTo"),
   });
 }

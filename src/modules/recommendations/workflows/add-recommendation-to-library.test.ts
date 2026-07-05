@@ -121,6 +121,7 @@ describe("addRecommendationToLibrary", () => {
       targetLibraryPathId: PATH_ID,
       monitored: true,
       qualityProfile: "hd-1080p",
+      downloadNow: true,
       returnTo: "/movies",
     });
 
@@ -185,6 +186,7 @@ describe("addRecommendationToLibrary", () => {
       targetLibraryPathId: PATH_ID,
       monitored: true,
       qualityProfile: "hd-1080p",
+      downloadNow: true,
       returnTo: "/discover",
     });
 
@@ -212,6 +214,7 @@ describe("addRecommendationToLibrary", () => {
       targetLibraryPathId: PATH_ID,
       monitored: true,
       qualityProfile: "hd-1080p",
+      downloadNow: true,
       returnTo: "/movies",
     });
 
@@ -238,6 +241,7 @@ describe("addRecommendationToLibrary", () => {
       targetLibraryPathId: PATH_ID,
       monitored: true,
       qualityProfile: "hd-1080p",
+      downloadNow: true,
       returnTo: "/movies",
     });
 
@@ -268,6 +272,7 @@ describe("addRecommendationToLibrary", () => {
       itemId: ITEM_ID,
       monitored: true,
       qualityProfile: "hd-1080p",
+      downloadNow: true,
       returnTo: "/movies",
     });
 

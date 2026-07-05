@@ -8,11 +8,16 @@ import { type RequestTitleWithReleaseSearchInput } from "./request-validation";
  * selection so repeated identical clicks collide but distinct requests do
  * not.
  */
-export function buildRequestAttemptKey(request: RequestTitleWithReleaseSearchInput): string {
+export function buildRequestAttemptKey(
+  request: RequestTitleWithReleaseSearchInput,
+  options: { titleId?: string } = {},
+): string {
   const identity =
     typeof request.tmdbId === "number"
       ? `tmdb:${request.tmdbId}`
-      : `title:${request.title.trim().toLocaleLowerCase()}:${request.year ?? "?"}`;
+      : options.titleId
+        ? `titleId:${options.titleId}`
+        : `title:${request.title.trim().toLocaleLowerCase()}:${request.year ?? "?"}`;
 
   const selection = encodeSelections(request);
 

@@ -373,6 +373,13 @@ export async function RecommendationWorkspace({
                           returnTo={routePath}
                           variant="compact"
                           buttonClassName="min-h-10 rounded-lg px-4 py-2 whitespace-nowrap"
+                          mediaType={item.mediaType}
+                          tmdbId={
+                            item.providerMetadata?.tmdbDetails?.mediaType === item.mediaType
+                              ? item.providerMetadata.tmdbDetails.tmdbId ?? null
+                              : null
+                          }
+                          titleLabel={`${item.title}${item.year ? ` (${item.year})` : ""}`}
                         />
                       </div>
                     ))}

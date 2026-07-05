@@ -1,13 +1,20 @@
 "use client";
 
-import { useActionState } from "react";
-import { Check, Plus } from "lucide-react";
+import { useActionState, useState } from "react";
+import { Check, ListChecks, Plus } from "lucide-react";
 
 import {
   initialRecommendationLibraryActionState,
 } from "@/app/(workspace)/recommendation-action-state";
 import { submitRecommendationLibraryAction } from "@/app/(workspace)/recommendation-item-actions";
+import { DownloadNowToggle } from "@/components/media-library/download-now-toggle";
+import {
+  TvRequestDialog,
+  describeTvSelection,
+  type TvSelectionState,
+} from "@/components/media-library/tv-request-dialog";
 import { Button } from "@/components/ui/button";
+import { type RecommendationMediaType } from "@/lib/database/schema";
 import { cn } from "@/lib/utils";
 
 type RecommendationAddFormProps = {
@@ -16,6 +23,9 @@ type RecommendationAddFormProps = {
   returnTo: string;
   variant?: "default" | "compact";
   buttonClassName?: string;
+  mediaType?: RecommendationMediaType;
+  tmdbId?: number | null;
+  titleLabel?: string;
 };
 
 export function RecommendationAddForm({
@@ -24,14 +34,20 @@ export function RecommendationAddForm({
   returnTo,
   variant = "default",
   buttonClassName,
+  mediaType,
+  tmdbId,
+  titleLabel,
 }: RecommendationAddFormProps) {
   const [state, formAction] = useActionState(
     submitRecommendationLibraryAction,
     initialRecommendationLibraryActionState,
   );
+  const [selection, setSelection] = useState<TvSelectionState>({ mode: "all" });
+  const [dialogOpen, setDialogOpen] = useState(false);
   const isCompact = variant === "compact";
   const isSuccess = state.status === "success";
   const ButtonIcon = isSuccess ? Check : Plus;
+  const hasPicker = mediaType === "tv" && typeof tmdbId === "number";
 
   function renderCompactNotice(message: string, tone: "success" | "muted" | "error") {
     return (
@@ -65,19 +81,72 @@ export function RecommendationAddForm({
         </div>
       ) : null}
 
-      <form action={formAction}>
+      <form action={formAction} className="space-y-2">
         <input type="hidden" name="itemId" value={itemId} />
         <input type="hidden" name="returnTo" value={returnTo} />
         <input type="hidden" name="monitored" value="true" />
         <input type="hidden" name="qualityProfile" value="hd-1080p" />
-        <Button
-          type="submit"
-          className={cn("w-full sm:w-auto", buttonClassName)}
-          disabled={isSuccess}
-        >
-          <ButtonIcon aria-hidden="true" className="h-4 w-4" />
-          <span>{isSuccess ? "Added to Nooklet" : "Add to Nooklet"}</span>
-        </Button>
+        {hasPicker ? (
+          <>
+            <input type="hidden" name="selectionMode" value={selection.mode} />
+            {selection.mode === "seasons"
+              ? selection.seasons.map((seasonNumber) => (
+                  <input
+                    key={`season-${seasonNumber}`}
+                    type="hidden"
+                    name="selectedSeasons"
+                    value={seasonNumber}
+                  />
+                ))
+              : null}
+            {selection.mode === "episodes" ? (
+              <>
+                <input type="hidden" name="selectedSeason" value={selection.season} />
+                {selection.episodes.map((episodeNumber) => (
+                  <input
+                    key={`episode-${episodeNumber}`}
+                    type="hidden"
+                    name="selectedEpisodes"
+                    value={episodeNumber}
+                  />
+                ))}
+              </>
+            ) : null}
+          </>
+        ) : null}
+        <DownloadNowToggle />
+        <div className="flex flex-wrap items-center gap-2">
+          {hasPicker ? (
+            <button
+              type="button"
+              onClick={() => setDialogOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-3 py-2 text-sm text-foreground"
+            >
+              <ListChecks aria-hidden="true" size={15} />
+              {describeTvSelection(selection)}
+            </button>
+          ) : null}
+          <Button
+            type="submit"
+            className={cn("w-full sm:w-auto", buttonClassName)}
+            disabled={isSuccess}
+          >
+            <ButtonIcon aria-hidden="true" className="h-4 w-4" />
+            <span>{isSuccess ? "Added to Nooklet" : "Add to Nooklet"}</span>
+          </Button>
+        </div>
+        {hasPicker && dialogOpen ? (
+          <TvRequestDialog
+            tmdbId={tmdbId}
+            titleLabel={titleLabel ?? "this series"}
+            initialSelection={selection}
+            onConfirm={(next) => {
+              setSelection(next);
+              setDialogOpen(false);
+            }}
+            onClose={() => setDialogOpen(false)}
+          />
+        ) : null}
       </form>
 
       {state.message ? (

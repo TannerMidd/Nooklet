@@ -129,3 +129,16 @@ export const initialMissingSearchScheduleActionState: MissingSearchScheduleActio
   status: "idle",
   message: null,
 };
+
+export type MetadataRefreshScheduleActionState = {
+  status: "idle" | "success" | "error";
+  message: string | null;
+  fieldErrors?: {
+    intervalMinutes?: string;
+  };
+};
+
+export const initialMetadataRefreshScheduleActionState: MetadataRefreshScheduleActionState = {
+  status: "idle",
+  message: null,
+};

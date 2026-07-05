@@ -8,6 +8,7 @@ import { listUsersWithActiveDownloadRequestsForImport } from "@/modules/download
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
 import { reconcileDuplicateSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-duplicate-queue-items";
 import { reconcileMissingSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-missing-queue-items";
+import { refreshTvMetadataWorkflow } from "@/modules/media-library/workflows/refresh-tv-metadata";
 import { scanMediaLibraryWorkflow } from "@/modules/media-library/workflows/scan-library";
 import { searchMissingMonitoredContentWorkflow } from "@/modules/media-library/workflows/search-missing-monitored";
 import { parsePlexWatchHistorySourceMetadata } from "@/modules/watch-history/plex-watch-history-source-metadata";
@@ -154,6 +155,14 @@ async function runMissingContentSearchJob(job: StoredJob) {
   await searchMissingMonitoredContentWorkflow(job.userId);
 }
 
+async function runMetadataRefreshJob(job: StoredJob) {
+  if (job.targetType !== "media-library" || job.targetKey !== "all") {
+    throw new Error(`Unsupported metadata refresh target: ${job.targetType}:${job.targetKey}.`);
+  }
+
+  await refreshTvMetadataWorkflow(job.userId);
+}
+
 async function executeJob(job: StoredJob) {
   if (job.jobType === "recommendation-run") {
     return runRecommendationJob(job);
@@ -165,6 +174,10 @@ async function executeJob(job: StoredJob) {
 
   if (job.jobType === "missing-content-search") {
     return runMissingContentSearchJob(job);
+  }
+
+  if (job.jobType === "metadata-refresh") {
+    return runMetadataRefreshJob(job);
   }
 
   if (job.targetType !== "watch-history-source") {
@@ -223,6 +236,7 @@ export async function runDueJobs() {
       ...(await claimDueJobs("media-library-scan", new Date(), 2)),
       ...(await claimDueJobs("recommendation-run", new Date(), 2)),
       ...(await claimDueJobs("missing-content-search", new Date(), 2)),
+      ...(await claimDueJobs("metadata-refresh", new Date(), 2)),
     ];
 
     for (const job of dueJobs) {

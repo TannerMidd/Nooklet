@@ -785,6 +785,7 @@ export const jobTypes = [
   "recommendation-run",
   "media-library-scan",
   "missing-content-search",
+  "metadata-refresh",
 ] as const;
 export const jobStatuses = ["idle", "running", "succeeded", "failed"] as const;
 

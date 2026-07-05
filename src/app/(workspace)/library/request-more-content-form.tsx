@@ -6,6 +6,7 @@ import { useFormStatus } from "react-dom";
 
 import { requestExistingTitleContentAction } from "@/app/(workspace)/library/actions";
 import { initialRequestExistingTitleContentActionState } from "@/app/(workspace)/library/action-state";
+import { DownloadNowToggle } from "@/components/media-library/download-now-toggle";
 import {
   TvRequestPicker,
   type TvSelectionState,
@@ -87,6 +88,8 @@ export function RequestMoreContentForm({
         monitoredSeasons={monitoredSeasons}
         monitoredEpisodes={monitoredEpisodes}
       />
+
+      <DownloadNowToggle />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-sm text-muted">

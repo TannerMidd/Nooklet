@@ -10,6 +10,13 @@ import {
   requestTitleWithReleaseSearchInputSchema,
 } from "./request-validation";
 import { applyRequestedTitleMonitoring } from "./episode-monitoring-apply";
+import { persistRequestedTitleStructure } from "./episode-sync";
+import {
+  loadExistingTitleRequest,
+  requestExistingTitleContentInputSchema,
+  validateRequestExistingTitleContentRequest,
+  type RequestExistingTitleContentInput,
+} from "./existing-title-request";
 import { buildRequestAttemptKey } from "./request-fingerprint";
 import {
   queueRequestedTitleRelease,
@@ -24,7 +31,7 @@ import {
   type ReleaseSelectionTarget,
 } from "./selection-targets";
 import {
-  persistRequestedTitleSelections,
+  resolveEpisodeIdForTarget,
   resolveSeasonIdForTarget,
 } from "./season-persistence";
 import { requestWorkflowMediaTitle } from "./title-request";
@@ -32,6 +39,9 @@ import { requestWorkflowMediaTitle } from "./title-request";
 export { requestTitleWithReleaseSearchInputSchema };
 export type { RequestTitleWithReleaseSearchInput };
 export type { ReleaseSelectionTarget };
+export { requestExistingTitleContentInputSchema };
+export type { RequestExistingTitleContentInput };
+export { RequestExistingTitleContentWorkflowError } from "./existing-title-request";
 
 export class RequestTitleAlreadyInFlightError extends Error {
   constructor() {
@@ -42,6 +52,8 @@ export class RequestTitleAlreadyInFlightError extends Error {
 
 export type RequestTitleSelectionResult = {
   target: ReleaseSelectionTarget;
+  seasonId: string | null;
+  episodeId: string | null;
   releaseSearch: RequestedTitleReleaseSearch;
   queuedDownload: RequestedTitleQueuedDownload;
 };
@@ -52,6 +64,51 @@ export type RequestTitleWithReleaseSearchResult = {
   releaseSearch: RequestedTitleReleaseSearch;
   queuedDownload: RequestedTitleQueuedDownload;
 };
+
+/**
+ * Shared request core: persist the requested structure, apply monitoring,
+ * then search + queue a release per selection target. Both the new-title and
+ * existing-title entry points run this under the in-flight request lock.
+ */
+async function executeTitleRequest(
+  userId: string,
+  request: RequestTitleWithReleaseSearchInput,
+  title: MediaTitleRecord,
+): Promise<RequestTitleWithReleaseSearchResult> {
+  const targets = buildReleaseSelectionTargets(request);
+  const persistedSelections = await persistRequestedTitleStructure(userId, request, title.id, targets);
+  await applyRequestedTitleMonitoring(userId, targets, persistedSelections);
+  const selectionResults: RequestTitleSelectionResult[] = [];
+
+  for (const target of targets) {
+    const releaseSearch = await searchRequestedTitleReleasesForTarget(userId, request, target);
+    const seasonId = resolveSeasonIdForTarget(target, persistedSelections);
+    const episodeId = resolveEpisodeIdForTarget(target, persistedSelections);
+    const queuedDownload = await queueRequestedTitleRelease(userId, request, title, releaseSearch, {
+      seasonId,
+      episodeId,
+      target,
+    });
+
+    selectionResults.push({ target, seasonId, episodeId, releaseSearch, queuedDownload });
+  }
+
+  const primary = selectionResults[0];
+
+  return {
+    title,
+    selections: selectionResults,
+    releaseSearch: primary?.releaseSearch ?? { searched: false },
+    queuedDownload: primary?.queuedDownload ?? {
+      queued: false,
+      reason: "not_requested",
+      message: null,
+      selectedResultId: null,
+      rejectedResultIds: [],
+      download: null,
+    },
+  };
+}
 
 export async function requestTitleWithReleaseSearchWorkflow(
   userId: string,
@@ -67,37 +124,28 @@ export async function requestTitleWithReleaseSearchWorkflow(
 
   try {
     const title = await requestWorkflowMediaTitle(userId, request);
-    const targets = buildReleaseSelectionTargets(request);
-    const persistedSelections = await persistRequestedTitleSelections(request, title.id, targets);
-    await applyRequestedTitleMonitoring(userId, targets, persistedSelections);
-    const selectionResults: RequestTitleSelectionResult[] = [];
 
-    for (const target of targets) {
-      const releaseSearch = await searchRequestedTitleReleasesForTarget(userId, request, target);
-      const seasonId = resolveSeasonIdForTarget(target, persistedSelections);
-      const queuedDownload = await queueRequestedTitleRelease(userId, request, title, releaseSearch, {
-        seasonId,
-        target,
-      });
+    return await executeTitleRequest(userId, request, title);
+  } finally {
+    await releaseMediaRequestAttempt(userId, requestKey);
+  }
+}
 
-      selectionResults.push({ target, releaseSearch, queuedDownload });
-    }
+export async function requestExistingTitleContentWorkflow(
+  userId: string,
+  input: unknown,
+): Promise<RequestTitleWithReleaseSearchResult> {
+  const parsed = validateRequestExistingTitleContentRequest(input);
+  const { title, request } = await loadExistingTitleRequest(userId, parsed);
+  const requestKey = buildRequestAttemptKey(request, { titleId: title.id });
+  const acquired = await acquireMediaRequestAttempt(userId, requestKey);
 
-    const primary = selectionResults[0];
+  if (!acquired) {
+    throw new RequestTitleAlreadyInFlightError();
+  }
 
-    return {
-      title,
-      selections: selectionResults,
-      releaseSearch: primary?.releaseSearch ?? { searched: false },
-      queuedDownload: primary?.queuedDownload ?? {
-        queued: false,
-        reason: "not_requested",
-        message: null,
-        selectedResultId: null,
-        rejectedResultIds: [],
-        download: null,
-      },
-    };
+  try {
+    return await executeTitleRequest(userId, request, title);
   } finally {
     await releaseMediaRequestAttempt(userId, requestKey);
   }

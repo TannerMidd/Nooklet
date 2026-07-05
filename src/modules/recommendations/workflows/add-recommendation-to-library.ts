@@ -75,8 +75,8 @@ export async function addRecommendationToLibrary(
       backdropUrl: tmdbDetailsForItem?.backdropUrl,
       runtimeMinutes: tmdbDetailsForItem?.runtimeMinutes,
       originalLanguage: tmdbDetailsForItem?.originalLanguage,
-      selections: item.mediaType === "tv" ? { mode: "all" } : undefined,
-      downloadNow: true,
+      selections: item.mediaType === "tv" ? input.selections ?? { mode: "all" } : undefined,
+      downloadNow: input.downloadNow,
     });
 
     await markRecommendationItemExistingInLibrary(item.itemId, true);

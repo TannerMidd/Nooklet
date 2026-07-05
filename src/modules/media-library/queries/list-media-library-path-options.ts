@@ -46,6 +46,47 @@ export async function listMediaLibraryPathOptions(userId: string): Promise<Media
     }));
 }
 
+/**
+ * Fallback destination when a grab arrives without an explicit folder:
+ * prefer a path in the requested library, then the default library for the
+ * media type, then any active matching path. Keeps compact request surfaces
+ * (recommendations, retries) from queueing downloads that can never import.
+ */
+export async function resolveDefaultMediaLibraryDownloadTarget(
+  userId: string,
+  input: {
+    mediaType: RecommendationMediaType;
+    libraryId?: string | null;
+  },
+): Promise<MediaLibraryDownloadTarget | null> {
+  const database = ensureDatabaseReady();
+  const rows = database
+    .select({ library: mediaLibraries, path: mediaLibraryPaths })
+    .from(mediaLibraryPaths)
+    .innerJoin(mediaLibraries, eq(mediaLibraries.id, mediaLibraryPaths.libraryId))
+    .where(and(
+      eq(mediaLibraryPaths.userId, userId),
+      eq(mediaLibraryPaths.status, "active"),
+      eq(mediaLibraries.mediaType, input.mediaType),
+    ))
+    .orderBy(asc(mediaLibraries.name), asc(mediaLibraryPaths.label), asc(mediaLibraryPaths.path))
+    .all();
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  if (input.libraryId) {
+    const matchingLibrary = rows.find((row) => row.library.id === input.libraryId);
+
+    if (matchingLibrary) {
+      return matchingLibrary;
+    }
+  }
+
+  return rows.find((row) => row.library.isDefault) ?? rows[0] ?? null;
+}
+
 export async function resolveMediaLibraryDownloadTarget(
   userId: string,
   input: {

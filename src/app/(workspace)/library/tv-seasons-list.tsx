@@ -97,8 +97,15 @@ function SeasonAccordion({
           </span>
         </div>
       </summary>
-      <div className="border-t border-line/60 px-4 py-3">
+      <div className="space-y-3 border-t border-line/60 px-4 py-3">
         <TvSeasonMonitoringForm seasonId={season.id} monitored={season.monitored} />
+        <LibraryItemSearchForm
+          titleId={titleId}
+          seasonId={season.id}
+          label="Search season"
+          targetPathOptions={targetPathOptions}
+          currentLibraryPathId={currentLibraryPathId}
+        />
       </div>
       {state.kind === "loading" ? (
         <p className="border-t border-line/60 px-4 py-3 text-sm text-muted">Loading episodes...</p>

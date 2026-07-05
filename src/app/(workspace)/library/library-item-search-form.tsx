@@ -11,6 +11,7 @@ import { type MediaLibraryPathOption } from "@/modules/media-library/queries/lis
 
 type LibraryItemSearchFormProps = {
   titleId: string;
+  seasonId?: string;
   episodeId?: string;
   label: string;
   targetPathOptions: MediaLibraryPathOption[];
@@ -34,6 +35,7 @@ function SearchButton({ label }: { label: string }) {
 
 export function LibraryItemSearchForm({
   titleId,
+  seasonId,
   episodeId,
   label,
   targetPathOptions,
@@ -51,6 +53,7 @@ export function LibraryItemSearchForm({
   return (
     <form action={formAction} className="flex flex-col gap-2">
       <input type="hidden" name="titleId" value={titleId} />
+      {seasonId ? <input type="hidden" name="seasonId" value={seasonId} /> : null}
       {episodeId ? <input type="hidden" name="episodeId" value={episodeId} /> : null}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <label className="min-w-0 flex-1 space-y-1 text-sm sm:min-w-56">

@@ -8,6 +8,9 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { getDiscoverOverview } from "@/modules/discover/queries/get-discover-overview";
 import { getDiscoverTitleOverview } from "@/modules/discover/queries/get-discover-title-overview";
+import { listLibraryOverview } from "@/modules/media-library/queries/list-library-overview";
+import { listMediaLibraryPathOptions } from "@/modules/media-library/queries/list-media-library-path-options";
+import { listMediaQualityProfiles } from "@/modules/media-library/queries/list-media-quality-profiles";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +47,7 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
   const detailsTmdbId = parseTmdbId(resolvedSearchParams?.details);
   const detailsMediaType = parseMediaType(resolvedSearchParams?.type);
 
-  const [overview, selectedOverview] = await Promise.all([
+  const [overview, selectedOverview, libraryOverview, pathOptions] = await Promise.all([
     getDiscoverOverview(session.user.id),
     detailsTmdbId && detailsMediaType
       ? getDiscoverTitleOverview({
@@ -53,7 +56,10 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
           mediaType: detailsMediaType,
         })
       : Promise.resolve(null),
+    listLibraryOverview(session.user.id),
+    listMediaLibraryPathOptions(session.user.id),
   ]);
+  const qualityProfiles = listMediaQualityProfiles();
 
   return (
     <div className="space-y-6">
@@ -125,6 +131,13 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
           details={selectedOverview.details}
           closeHref="/discover"
           returnTo={buildOverviewHref(selectedOverview.details.mediaType, selectedOverview.details.tmdbId)}
+          libraries={libraryOverview.libraries.map((library) => ({
+            id: library.id,
+            name: library.name,
+            mediaType: library.mediaType,
+          }))}
+          qualityProfiles={qualityProfiles}
+          pathOptions={pathOptions}
         />
       ) : null}
 

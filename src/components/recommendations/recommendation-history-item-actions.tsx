@@ -74,6 +74,13 @@ export function RecommendationHistoryItemActions({
         itemId={itemId}
         existingInLibrary={existingInLibrary}
         returnTo={returnTo}
+        mediaType={mediaType}
+        tmdbId={
+          providerMetadata?.tmdbDetails?.mediaType === mediaType
+            ? providerMetadata.tmdbDetails.tmdbId ?? null
+            : null
+        }
+        titleLabel={`${title}${year ? ` (${year})` : ""}`}
       />
     </div>
   );

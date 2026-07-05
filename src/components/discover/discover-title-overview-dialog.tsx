@@ -14,18 +14,29 @@ import {
   formatOriginalLanguage,
   formatRuntime,
 } from "@/components/recommendations/title-overview-helpers";
+import {
+  type LibraryOption,
+  type QualityProfileOption,
+} from "@/components/media-library/title-request-controls";
+import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
 import { type TmdbTitleDetails } from "@/modules/service-connections/types/tmdb-title";
 
 type DiscoverTitleOverviewDialogProps = {
   details: TmdbTitleDetails;
   closeHref: string;
   returnTo: string;
+  libraries: LibraryOption[];
+  qualityProfiles: readonly QualityProfileOption[];
+  pathOptions: MediaLibraryPathOption[];
 };
 
 export function DiscoverTitleOverviewDialog({
   details,
   closeHref,
   returnTo,
+  libraries,
+  qualityProfiles,
+  pathOptions,
 }: DiscoverTitleOverviewDialogProps) {
   const titleId = `discover-overview-${details.mediaType}-${details.tmdbId}`;
   const releaseLabel = details.releaseDate ?? (details.year ? String(details.year) : null);
@@ -89,7 +100,13 @@ export function DiscoverTitleOverviewDialog({
                 Add to Nooklet
               </p>
               <div className="mt-3">
-                <DiscoverTitleRequestForm details={details} returnTo={returnTo} />
+                <DiscoverTitleRequestForm
+                  details={details}
+                  returnTo={returnTo}
+                  libraries={libraries}
+                  qualityProfiles={qualityProfiles}
+                  pathOptions={pathOptions}
+                />
               </div>
             </div>
           </section>

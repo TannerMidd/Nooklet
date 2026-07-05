@@ -517,17 +517,30 @@ export async function upsertTvSeason(input: {
     updatedAt: new Date(),
   };
 
+  // Omitted fields keep their existing values on conflict so partial writers
+  // (scan, bare requests) never erase TMDB-synced metadata.
+  const conflictSet: Partial<typeof tvSeasons.$inferInsert> = {
+    updatedAt: values.updatedAt,
+  };
+
+  if (input.title !== undefined) {
+    conflictSet.title = input.title;
+  }
+
+  if (input.episodeCount !== undefined) {
+    conflictSet.episodeCount = input.episodeCount;
+  }
+
+  if (input.monitored !== undefined) {
+    conflictSet.monitored = input.monitored;
+  }
+
   database
     .insert(tvSeasons)
     .values(values)
     .onConflictDoUpdate({
       target: [tvSeasons.titleId, tvSeasons.seasonNumber],
-      set: {
-        title: values.title,
-        episodeCount: values.episodeCount,
-        ...(input.monitored === true ? { monitored: true } : {}),
-        updatedAt: values.updatedAt,
-      },
+      set: conflictSet,
     })
     .run();
 
@@ -576,6 +589,7 @@ export async function upsertTvEpisode(input: {
   episodeNumber: number;
   title?: string | null;
   airDate?: string | null;
+  monitored?: boolean;
   hasFile?: boolean;
 }) {
   const database = ensureDatabaseReady();
@@ -588,22 +602,41 @@ export async function upsertTvEpisode(input: {
     episodeNumber: input.episodeNumber,
     title: input.title ?? null,
     airDate: input.airDate ?? null,
+    monitored: input.monitored ?? true,
     hasFile: input.hasFile ?? false,
     updatedAt: new Date(),
   };
+
+  // Omitted fields keep their existing values on conflict, and hasFile can
+  // only be upgraded here — downgrades go through setTvEpisodeHasFile so a
+  // request re-upsert never marks an owned episode as missing.
+  const conflictSet: Partial<typeof tvEpisodes.$inferInsert> = {
+    seasonId: values.seasonId,
+    updatedAt: values.updatedAt,
+  };
+
+  if (input.title !== undefined) {
+    conflictSet.title = input.title;
+  }
+
+  if (input.airDate !== undefined) {
+    conflictSet.airDate = input.airDate;
+  }
+
+  if (input.monitored !== undefined) {
+    conflictSet.monitored = input.monitored;
+  }
+
+  if (input.hasFile === true) {
+    conflictSet.hasFile = true;
+  }
 
   database
     .insert(tvEpisodes)
     .values(values)
     .onConflictDoUpdate({
       target: [tvEpisodes.titleId, tvEpisodes.seasonNumber, tvEpisodes.episodeNumber],
-      set: {
-        seasonId: values.seasonId,
-        title: values.title,
-        airDate: values.airDate,
-        hasFile: values.hasFile,
-        updatedAt: values.updatedAt,
-      },
+      set: conflictSet,
     })
     .run();
 
@@ -688,6 +721,95 @@ export async function updateTvSeasonMonitoring(input: {
     .run();
 
   return findTvSeasonByIdForUser(input.userId, input.seasonId);
+}
+
+export async function findMediaTitleTmdbId(titleId: string): Promise<number | null> {
+  const database = ensureDatabaseReady();
+
+  const row = database
+    .select()
+    .from(mediaTitleExternalIds)
+    .where(
+      and(
+        eq(mediaTitleExternalIds.titleId, titleId),
+        eq(mediaTitleExternalIds.source, "tmdb"),
+      ),
+    )
+    .get();
+
+  if (!row) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(row.value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export async function listTvSeasonsForTitle(titleId: string): Promise<TvSeasonRecord[]> {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(tvSeasons)
+    .where(eq(tvSeasons.titleId, titleId))
+    .orderBy(asc(tvSeasons.seasonNumber))
+    .all();
+}
+
+export async function listTvEpisodesForTitle(titleId: string): Promise<TvEpisodeRecord[]> {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(tvEpisodes)
+    .where(eq(tvEpisodes.titleId, titleId))
+    .orderBy(asc(tvEpisodes.seasonNumber), asc(tvEpisodes.episodeNumber))
+    .all();
+}
+
+export async function setTvEpisodeHasFile(input: { episodeId: string; hasFile: boolean }) {
+  const database = ensureDatabaseReady();
+
+  database
+    .update(tvEpisodes)
+    .set({ hasFile: input.hasFile, updatedAt: new Date() })
+    .where(eq(tvEpisodes.id, input.episodeId))
+    .run();
+
+  return database.select().from(tvEpisodes).where(eq(tvEpisodes.id, input.episodeId)).get() ?? null;
+}
+
+export type MonitoredTvTitleWithTmdbId = {
+  title: MediaTitleRecord;
+  tmdbId: string;
+};
+
+export async function listMonitoredTvTitlesWithTmdbId(
+  userId: string,
+  limit: number,
+): Promise<MonitoredTvTitleWithTmdbId[]> {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({ title: mediaTitles, tmdbId: mediaTitleExternalIds.value })
+    .from(mediaTitles)
+    .innerJoin(
+      mediaTitleExternalIds,
+      and(
+        eq(mediaTitleExternalIds.titleId, mediaTitles.id),
+        eq(mediaTitleExternalIds.source, "tmdb"),
+      ),
+    )
+    .where(
+      and(
+        eq(mediaTitles.userId, userId),
+        eq(mediaTitles.mediaType, "tv"),
+        eq(mediaTitles.monitored, true),
+      ),
+    )
+    .orderBy(asc(mediaTitles.createdAt))
+    .limit(limit)
+    .all();
 }
 
 export async function recordMediaFile(input: {

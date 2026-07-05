@@ -2,21 +2,46 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/modules/media-library/queries/list-media-library-path-options", () => ({
   resolveMediaLibraryDownloadTarget: vi.fn(),
+  resolveDefaultMediaLibraryDownloadTarget: vi.fn(),
 }));
 
-import { resolveMediaLibraryDownloadTarget } from "@/modules/media-library/queries/list-media-library-path-options";
+import {
+  resolveDefaultMediaLibraryDownloadTarget,
+  resolveMediaLibraryDownloadTarget,
+} from "@/modules/media-library/queries/list-media-library-path-options";
 
 import { QueueIndexerResultWorkflowError } from "./errors";
 import { resolveQueueIndexerResultTarget } from "./target-resolution";
 
 const resolveTargetMock = vi.mocked(resolveMediaLibraryDownloadTarget);
+const resolveDefaultTargetMock = vi.mocked(resolveDefaultMediaLibraryDownloadTarget);
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe("resolveQueueIndexerResultTarget", () => {
-  it("skips target resolution when no path was selected", async () => {
+  it("falls back to the default target when no path was selected", async () => {
+    const fallbackTarget = { path: { id: "default-path" }, library: { id: "default-library" } };
+    resolveDefaultTargetMock.mockResolvedValue(fallbackTarget as never);
+
+    const target = await resolveQueueIndexerResultTarget(
+      "u1",
+      { resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9" },
+      { result: { mediaType: "movie" } } as never,
+    );
+
+    expect(resolveDefaultTargetMock).toHaveBeenCalledWith("u1", {
+      mediaType: "movie",
+      libraryId: null,
+    });
+    expect(target).toBe(fallbackTarget);
+    expect(resolveTargetMock).not.toHaveBeenCalled();
+  });
+
+  it("returns null when no path was selected and no default target exists", async () => {
+    resolveDefaultTargetMock.mockResolvedValue(null);
+
     const target = await resolveQueueIndexerResultTarget(
       "u1",
       { resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9" },

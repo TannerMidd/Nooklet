@@ -225,6 +225,164 @@ describe("organizeCompletedDownloadFiles", () => {
     await expect(readFile(destinationPath, "utf8")).resolves.toBe("episode bytes");
   });
 
+  it("renames season-pack files to the episode convention and links known episodes", async () => {
+    const sourceRoot = await tempRoot("pack-source");
+    const targetRoot = await tempRoot("pack-target");
+    const episodeOnePath = path.join(sourceRoot, "Severance.S01E01.1080p.mkv");
+    const episodeOneDupePath = path.join(sourceRoot, "Severance.S01E01.720p.mkv");
+    const episodeTwoPath = path.join(sourceRoot, "Severance.S01E02.1080p.mkv");
+    const extrasPath = path.join(sourceRoot, "Extras", "behind-the-scenes.mkv");
+
+    await mkdir(path.dirname(extrasPath), { recursive: true });
+    await writeFile(episodeOnePath, "episode one full quality");
+    await writeFile(episodeOneDupePath, "e1 sd");
+    await writeFile(episodeTwoPath, "episode two bytes");
+    await writeFile(extrasPath, "extras bytes");
+
+    const organized = await organizeCompletedDownloadFiles([
+      {
+        kind: "ready",
+        source: {
+          kind: "importable",
+          sourceRootPath: sourceRoot,
+          title: {
+            title: "Severance",
+            year: 2022,
+          },
+          episode: null,
+          titleEpisodes: [
+            { id: "ep1", seasonNumber: 1, episodeNumber: 1, title: "Good News About Hell" },
+            { id: "ep2", seasonNumber: 1, episodeNumber: 2, title: "Half Loop" },
+          ],
+          target: {
+            path: { path: targetRoot },
+          },
+          match: {
+            request: { mediaType: "tv", requestedTitle: "Severance S01", episodeId: null },
+          },
+        },
+        files: [
+          {
+            sourcePath: episodeOnePath,
+            relativePath: "Severance.S01E01.1080p.mkv",
+            sizeBytes: 24,
+            modifiedAt: new Date(),
+          },
+          {
+            sourcePath: episodeOneDupePath,
+            relativePath: "Severance.S01E01.720p.mkv",
+            sizeBytes: 5,
+            modifiedAt: new Date(),
+          },
+          {
+            sourcePath: episodeTwoPath,
+            relativePath: "Severance.S01E02.1080p.mkv",
+            sizeBytes: 17,
+            modifiedAt: new Date(),
+          },
+          {
+            sourcePath: extrasPath,
+            relativePath: "Extras/behind-the-scenes.mkv",
+            sizeBytes: 12,
+            modifiedAt: new Date(),
+          },
+        ],
+      } as never,
+    ]);
+
+    const seasonFolder = path.join(targetRoot, "Severance (2022)", "Season 01");
+
+    expect(organized).toMatchObject([
+      {
+        kind: "organized",
+        files: [
+          {
+            sourcePath: episodeOnePath,
+            destinationPath: path.join(seasonFolder, "Severance (2022) - S01E01 - Good News About Hell.mkv"),
+            episodeMatch: { seasonNumber: 1, episodeNumber: 1, episodeId: "ep1" },
+          },
+          {
+            sourcePath: episodeOneDupePath,
+            destinationPath: path.join(targetRoot, "Severance (2022)", "Severance.S01E01.720p.mkv"),
+            episodeMatch: null,
+          },
+          {
+            sourcePath: episodeTwoPath,
+            destinationPath: path.join(seasonFolder, "Severance (2022) - S01E02 - Half Loop.mkv"),
+            episodeMatch: { seasonNumber: 1, episodeNumber: 2, episodeId: "ep2" },
+          },
+          {
+            sourcePath: extrasPath,
+            destinationPath: path.join(targetRoot, "Severance (2022)", "Extras", "behind-the-scenes.mkv"),
+            episodeMatch: null,
+          },
+        ],
+      },
+    ]);
+    await expect(
+      readFile(path.join(seasonFolder, "Severance (2022) - S01E01 - Good News About Hell.mkv"), "utf8"),
+    ).resolves.toBe("episode one full quality");
+    await expect(
+      readFile(path.join(seasonFolder, "Severance (2022) - S01E02 - Half Loop.mkv"), "utf8"),
+    ).resolves.toBe("episode two bytes");
+  });
+
+  it("matches pack files that rely on a season folder for the season number", async () => {
+    const sourceRoot = await tempRoot("packfolder-source");
+    const targetRoot = await tempRoot("packfolder-target");
+    const episodePath = path.join(sourceRoot, "Season 2", "Severance.2x01.mkv");
+
+    await mkdir(path.dirname(episodePath), { recursive: true });
+    await writeFile(episodePath, "episode bytes");
+
+    const organized = await organizeCompletedDownloadFiles([
+      {
+        kind: "ready",
+        source: {
+          kind: "importable",
+          sourceRootPath: sourceRoot,
+          title: {
+            title: "Severance",
+            year: 2022,
+          },
+          episode: null,
+          titleEpisodes: [],
+          target: {
+            path: { path: targetRoot },
+          },
+          match: {
+            request: { mediaType: "tv", requestedTitle: "Severance S02", episodeId: null },
+          },
+        },
+        files: [
+          {
+            sourcePath: episodePath,
+            relativePath: "Season 2/Severance.2x01.mkv",
+            sizeBytes: 13,
+            modifiedAt: new Date(),
+          },
+        ],
+      } as never,
+    ]);
+
+    expect(organized).toMatchObject([
+      {
+        kind: "organized",
+        files: [
+          {
+            destinationPath: path.join(
+              targetRoot,
+              "Severance (2022)",
+              "Season 02",
+              "Severance (2022) - S02E01.mkv",
+            ),
+            episodeMatch: { seasonNumber: 2, episodeNumber: 1, episodeId: null },
+          },
+        ],
+      },
+    ]);
+  });
+
   it("keeps traversal-shaped series paths inside the target library root", async () => {
     const sourceRoot = await tempRoot("series-source");
     const targetRoot = await tempRoot("series-target");

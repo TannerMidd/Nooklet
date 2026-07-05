@@ -3,6 +3,10 @@ import {
   resolveMediaLibraryImportItem,
   type ResolvedMediaLibraryImportItem,
 } from "@/modules/media-library/queries/resolve-media-library-import-item";
+import {
+  listTvEpisodesForTitle,
+  type TvEpisodeRecord,
+} from "@/modules/media-library/repositories/media-library-repository";
 
 import { type MatchedCompletedDownload } from "./request-matching";
 import { mapCompletedDownloadSourcePath } from "./source-path-mapping";
@@ -19,6 +23,8 @@ export type ImportableCompletedDownload = {
   target: NonNullable<Awaited<ReturnType<typeof resolveMediaLibraryDownloadTarget>>>;
   title: ResolvedMediaLibraryImportItem["title"];
   episode: ResolvedMediaLibraryImportItem["episode"];
+  /** Known episodes of the title, preloaded for season-pack file matching. */
+  titleEpisodes: TvEpisodeRecord[];
   sourceRootPath: string;
 };
 
@@ -77,6 +83,10 @@ export async function resolveCompletedDownloadDestinations(
       titleId: match.request.mediaTitleId,
       episodeId: match.request.episodeId,
     });
+    const titleEpisodes =
+      match.request.mediaType === "tv" && !match.request.episodeId && match.request.mediaTitleId
+        ? await listTvEpisodesForTitle(match.request.mediaTitleId)
+        : [];
 
     resolvedDownloads.push({
       kind: "importable",
@@ -84,6 +94,7 @@ export async function resolveCompletedDownloadDestinations(
       target,
       title: importItem.title,
       episode: importItem.episode,
+      titleEpisodes,
       sourceRootPath: mapCompletedDownloadSourcePath(match.historyItem.storagePath),
     });
   }

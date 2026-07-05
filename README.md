@@ -2,10 +2,10 @@
 
 > A cozy corner for what's next.
 
-Nooklet connects your existing media stack to an OpenAI-compatible chat
-model and turns your library and watch history into thoughtful, duplicate-aware
-TV and movie recommendations — then helps you queue them through its built-in
-library manager with a single click.
+Nooklet is a self-hosted media recommendation and library manager. It connects
+your media stack to an OpenAI-compatible model and turns your library and watch
+history into duplicate-aware TV and movie recommendations — then helps you
+request, download, and organize them into your Plex library.
 
 <p align="center">
   <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs">
@@ -16,21 +16,11 @@ library manager with a single click.
   <img alt="Auth.js" src="https://img.shields.io/badge/Auth.js-credentials-7e3ff2">
 </p>
 
-> **Note**
-> This codebase was developed with substantial AI assistance and human review.
-> Treat it with the same scrutiny as any other third-party code, and report
-> suspected bugs or security issues through GitHub.
-
-> **Disclaimer**
-> Nooklet is a personal project maintained in my spare time. Issues, pull
-> requests, and feature ideas are welcome, but responses, fixes, and new
-> features are **not guaranteed** and may land on no particular schedule.
-
 ---
 
 ## Table of contents
 
-- [Highlights](#highlights)
+- [Features](#features)
 - [Screenshots](#screenshots)
 - [Architecture](#architecture)
 - [Quick start](#quick-start)
@@ -45,52 +35,28 @@ library manager with a single click.
 
 ---
 
-## Highlights
+## Features
 
-### Recommendations
-- TV and movie suggestions from any OpenAI-compatible chat-completions
-  endpoint (OpenAI, OpenRouter, Ollama, LM Studio, vLLM, etc.).
-- Duplicate-aware prompts that incorporate your current library and prior
-  suggestions so the model rarely repeats itself.
-- Optional watch-history grounding from Plex, Tautulli, or Trakt for
-  taste-aware results.
-- Per-recommendation feedback (👍 / 👎 / hide) feeds future prompts.
-- Pagination, filters, and a full history view across every prior run.
+**Recommendations** — TV and movie suggestions from any OpenAI-compatible
+endpoint. Duplicate-aware prompts use your library and watch history. Per-item
+feedback (👍 / 👎 / hide) shapes future runs.
 
-### Library management
-- Browse your TV and movie library with real-time filtering and per-season
-  monitoring controls — backed by Nooklet's own normalized media database.
-- Request new movies and shows directly from search, with episode-level
-  selection and de-duplication against what you already monitor.
-- One-click "request" from any recommendation card with saved per-user
-  defaults (root folder, quality profile, monitored, etc.).
-- **In-progress** view that tracks active SABnzbd downloads.
+**Library management** — Browse and filter your media database. Request titles
+from search with episode-level selection. One-click request from any
+recommendation card. Tracks active SABnzbd downloads and auto-imports completed
+files into your library paths.
 
-### Discover & rich title overviews
-- **Discover** rails (trending, popular, top-rated for TV and movies)
-  powered by TMDB.
-- Rich title overview dialogs with TMDB artwork, genres, runtime, cast,
-  trailers, watch providers, and similar titles.
-- Add directly to your library from any Discover or recommendation overview.
+**Discover** — Trending, popular, and top-rated rails powered by TMDB. Rich
+title overviews with artwork, cast, trailers, and watch providers.
 
-### Notifications
-- Per-user notification channels (**Discord**, **Apprise**, generic
-  **webhook**) with event-level subscriptions.
-- SSRF-guarded, secret-redacting dispatcher with a built-in test action and
-  dispatch audit history.
+**Notifications** — Discord, Apprise, or generic webhook channels with
+per-user event subscriptions and dispatch audit history.
 
-### Insights & operations
-- **Analytics** dashboard for recommendation quality, AI token usage, and
-  feedback-derived taste signals.
-- **Health** view showing service connection status, background sync jobs,
-  and queued work.
-- **Audit log** of administrative and security-sensitive actions.
+**Analytics** — Recommendation quality, AI token usage, and feedback-derived
+taste signals.
 
-### Identity & access
-- Local credentials auth backed by Auth.js with secure session cookies.
-- First-admin bootstrap flow for new installs.
-- Multi-user support with per-user preferences, defaults, and history.
-- Admin console for user and role management.
+**Identity & access** — Local credentials auth (Auth.js), first-admin
+bootstrap, multi-user with per-user preferences, admin console.
 
 ---
 
@@ -350,14 +316,12 @@ Domain modules under `src/modules/` include `recommendations`, `discover`,
 
 ## Security
 
-Nooklet ships with several hardening features by default:
-
-- 🔐 Encrypted-at-rest service secrets using a dedicated `SECRET_BOX_KEY`.
-- 🚦 Database-backed rate limits on auth and high-risk endpoints.
-- 🛡️ Strict security headers and CSRF-aware server actions.
-- 🧾 Audit logging for administrative and security-sensitive actions.
-- 👤 Scoped authorization checks on every workflow and route.
-- 🌐 SSRF guard for outbound requests to user-configured services
+- Encrypted-at-rest service secrets using a dedicated `SECRET_BOX_KEY`.
+- Database-backed rate limits on auth and high-risk endpoints.
+- Strict security headers and CSRF-aware server actions.
+- Audit logging for administrative and security-sensitive actions.
+- Scoped authorization checks on every workflow and route.
+- SSRF guard for outbound requests to user-configured services
   (`ALLOW_PRIVATE_SERVICE_HOSTS=false` for cloud deployments).
 
 If you discover a vulnerability, please open a **private GitHub security

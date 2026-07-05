@@ -31,9 +31,10 @@ import {
   UpdateTvSeasonMonitoringCommandError,
 } from "@/modules/media-library/commands/update-tv-season-monitoring";
 import {
-  addContentToExistingTitleWorkflow,
-  AddContentToExistingTitleWorkflowError,
-} from "@/modules/media-library/workflows/add-content-to-existing-title";
+  requestExistingTitleContentWorkflow,
+  RequestExistingTitleContentWorkflowError,
+  RequestTitleAlreadyInFlightError,
+} from "@/modules/media-library/workflows/request-title-with-release-search";
 import {
   deleteMediaTitleWithFilesWorkflow,
   DeleteMediaTitleWithFilesError,
@@ -48,6 +49,7 @@ import {
 } from "@/modules/media-library/schemas/library-path";
 import { getMediaQualityProfileLabel } from "@/modules/media-library/queries/list-media-quality-profiles";
 import { libraryScanScheduleInputSchema } from "@/modules/media-library/schemas/library-scan-schedule";
+import { metadataRefreshScheduleInputSchema } from "@/modules/media-library/schemas/metadata-refresh-schedule";
 import { missingSearchScheduleInputSchema } from "@/modules/media-library/schemas/missing-search-schedule";
 import {
   updateMediaLibraryMonitoringInputSchema,
@@ -56,7 +58,7 @@ import {
 import { removeMediaTitleInputSchema } from "@/modules/media-library/schemas/remove-media-title";
 import { updateTvEpisodeMonitoringInputSchema } from "@/modules/media-library/schemas/tv-episode-preferences";
 import { updateTvSeasonMonitoringInputSchema } from "@/modules/media-library/schemas/tv-season-preferences";
-import { type TvRequestSelections } from "@/modules/media-library/schemas/request-media-title";
+import { parseTvSelectionsFromFormData } from "@/modules/media-library/schemas/tv-selections-form";
 import {
   searchLibraryItemReleasesInputSchema,
   searchLibraryItemReleasesWorkflow,
@@ -68,12 +70,14 @@ import {
   ScanMediaLibraryWorkflowError,
 } from "@/modules/media-library/workflows/scan-library";
 import { configureLibraryScanSchedule } from "@/modules/media-library/workflows/configure-library-scan-schedule";
+import { configureMetadataRefreshSchedule } from "@/modules/media-library/workflows/configure-metadata-refresh-schedule";
 import { configureMissingSearchSchedule } from "@/modules/media-library/workflows/configure-missing-search-schedule";
 import {
   initialLibraryItemSearchActionState,
   initialLibraryMonitoringActionState,
   initialLibraryScanScheduleActionState,
   initialMediaTitlePreferenceActionState,
+  initialMetadataRefreshScheduleActionState,
   initialMissingSearchScheduleActionState,
   initialRemoveMediaTitleActionState,
   initialRequestExistingTitleContentActionState,
@@ -86,6 +90,7 @@ import {
   type LibraryPathActionState,
   type LibraryPathMutationActionState,
   type MediaTitlePreferenceActionState,
+  type MetadataRefreshScheduleActionState,
   type MissingSearchScheduleActionState,
   type RemoveMediaTitleActionState,
   type RequestExistingTitleContentActionState,
@@ -299,6 +304,7 @@ export async function searchLibraryItemReleasesAction(
 
   const parsed = searchLibraryItemReleasesInputSchema.safeParse({
     titleId: formData.get("titleId"),
+    seasonId: formData.get("seasonId") || undefined,
     episodeId: formData.get("episodeId") || undefined,
     targetLibraryPathId: formData.get("targetLibraryPathId") || undefined,
   });
@@ -321,7 +327,9 @@ export async function searchLibraryItemReleasesAction(
         status: "success",
         message: result.item.episode
           ? "Queued a matching episode release in SABnzbd."
-          : "Queued a matching title release in SABnzbd.",
+          : result.item.season
+            ? "Queued a matching season release in SABnzbd."
+            : "Queued a matching title release in SABnzbd.",
         downloadRequestId: result.queuedDownload.download.downloadRequest.id,
       };
     }
@@ -489,43 +497,6 @@ export async function updateTvSeasonMonitoringAction(
   }
 }
 
-function parseTvSelectionsFromFormData(formData: FormData): TvRequestSelections | undefined {
-  const mode = formData.get("selectionMode");
-
-  if (mode === "seasons") {
-    const seasons = formData
-      .getAll("selectedSeasons")
-      .map((value) => Number.parseInt(String(value), 10))
-      .filter((value) => Number.isFinite(value));
-
-    if (seasons.length === 0) {
-      return undefined;
-    }
-
-    return { mode: "seasons", seasons };
-  }
-
-  if (mode === "episodes") {
-    const seasonValue = Number.parseInt(String(formData.get("selectedSeason") ?? ""), 10);
-    const episodes = formData
-      .getAll("selectedEpisodes")
-      .map((value) => Number.parseInt(String(value), 10))
-      .filter((value) => Number.isFinite(value));
-
-    if (!Number.isFinite(seasonValue) || episodes.length === 0) {
-      return undefined;
-    }
-
-    return { mode: "episodes", season: seasonValue, episodes };
-  }
-
-  if (mode === "all") {
-    return { mode: "all" };
-  }
-
-  return undefined;
-}
-
 export async function requestExistingTitleContentAction(
   _previous: RequestExistingTitleContentActionState,
   formData: FormData,
@@ -560,11 +531,13 @@ export async function requestExistingTitleContentAction(
     };
   }
 
+  const downloadNow = (formData.get("downloadNow") ?? "on") === "on";
+
   try {
-    const result = await addContentToExistingTitleWorkflow(session.user.id, {
+    const result = await requestExistingTitleContentWorkflow(session.user.id, {
       titleId,
       selections,
-      downloadNow: true,
+      downloadNow,
     });
 
     revalidateMediaTitlePages("tv");
@@ -576,9 +549,11 @@ export async function requestExistingTitleContentAction(
       revalidatePath("/in-progress");
     }
 
-    const message = queuedCount > 0
-      ? `Queued ${queuedCount} of ${totalCount} selections.`
-      : `No selections were queued (${totalCount} attempted).`;
+    const message = !downloadNow
+      ? `Added ${totalCount} selection${totalCount === 1 ? "" : "s"} to monitoring.`
+      : queuedCount > 0
+        ? `Queued ${queuedCount} of ${totalCount} selections.`
+        : `No selections were queued (${totalCount} attempted).`;
 
     return {
       status: "success",
@@ -587,7 +562,10 @@ export async function requestExistingTitleContentAction(
       queuedCount,
     };
   } catch (error) {
-    if (error instanceof AddContentToExistingTitleWorkflowError) {
+    if (
+      error instanceof RequestExistingTitleContentWorkflowError
+      || error instanceof RequestTitleAlreadyInFlightError
+    ) {
       return {
         ...initialRequestExistingTitleContentActionState,
         status: "error",
@@ -727,6 +705,47 @@ export async function updateMissingSearchScheduleAction(
       ...initialMissingSearchScheduleActionState,
       status: "error",
       message: "Nooklet could not update the missing-content search schedule.",
+    };
+  }
+}
+
+export async function updateMetadataRefreshScheduleAction(
+  _previous: MetadataRefreshScheduleActionState,
+  formData: FormData,
+): Promise<MetadataRefreshScheduleActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { ...initialMetadataRefreshScheduleActionState, status: "error", message: "You need to sign in again." };
+  }
+
+  const parsed = metadataRefreshScheduleInputSchema.safeParse({
+    intervalMinutes: formData.get("intervalMinutes"),
+    enabled: formData.get("enabled") === "on",
+  });
+
+  if (!parsed.success) {
+    const fieldErrors = parsed.error.flatten().fieldErrors;
+
+    return {
+      status: "error",
+      message: "Review the metadata refresh schedule and try again.",
+      fieldErrors: {
+        intervalMinutes: fieldErrors.intervalMinutes?.[0],
+      },
+    };
+  }
+
+  try {
+    const result = await configureMetadataRefreshSchedule(session.user.id, parsed.data);
+
+    revalidatePath("/library");
+    return { status: "success", message: result.message };
+  } catch {
+    return {
+      ...initialMetadataRefreshScheduleActionState,
+      status: "error",
+      message: "Nooklet could not update the metadata refresh schedule.",
     };
   }
 }

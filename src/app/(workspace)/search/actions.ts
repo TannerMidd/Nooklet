@@ -19,7 +19,7 @@ import {
   type RequestTitleSelectionResult,
 } from "@/modules/media-library/workflows/request-title-with-release-search";
 import { describeReleaseSelectionTarget } from "@/modules/media-library/workflows/request-title-with-release-search/selection-targets";
-import { type TvRequestSelections } from "@/modules/media-library/schemas/request-media-title";
+import { parseTvSelectionsFromFormData } from "@/modules/media-library/schemas/tv-selections-form";
 import {
   getTmdbTvSeasonEpisodesForUser,
   getTmdbTvSeasonsForUser,
@@ -58,43 +58,6 @@ function mapSearchResults(results: Array<{
     leechers: result.leechers,
     grabs: result.grabs,
   }));
-}
-
-function parseSelectionsFromFormData(formData: FormData): TvRequestSelections | undefined {
-  const mode = formData.get("selectionMode");
-
-  if (mode === "seasons") {
-    const seasons = formData
-      .getAll("selectedSeasons")
-      .map((value) => Number.parseInt(String(value), 10))
-      .filter((value) => Number.isFinite(value));
-
-    if (seasons.length === 0) {
-      return undefined;
-    }
-
-    return { mode: "seasons", seasons };
-  }
-
-  if (mode === "episodes") {
-    const seasonValue = Number.parseInt(String(formData.get("selectedSeason") ?? ""), 10);
-    const episodes = formData
-      .getAll("selectedEpisodes")
-      .map((value) => Number.parseInt(String(value), 10))
-      .filter((value) => Number.isFinite(value));
-
-    if (!Number.isFinite(seasonValue) || episodes.length === 0) {
-      return undefined;
-    }
-
-    return { mode: "episodes", season: seasonValue, episodes };
-  }
-
-  if (mode === "all") {
-    return { mode: "all" };
-  }
-
-  return undefined;
 }
 
 function describeSelectionIssue(
@@ -189,7 +152,7 @@ export async function requestSearchTitleAction(
   }
 
   const downloadNow = formData.get("downloadNow") === "on";
-  const selections = parseSelectionsFromFormData(formData);
+  const selections = parseTvSelectionsFromFormData(formData);
   const parsed = requestTitleWithReleaseSearchInputSchema.safeParse({
     mediaType: formData.get("mediaType"),
     libraryId: formData.get("libraryId"),
@@ -215,6 +178,9 @@ export async function requestSearchTitleAction(
 
   try {
     const requested = await requestTitleWithReleaseSearchWorkflow(session.user.id, parsed.data);
+    const primarySelection = requested.selections.length === 1 ? requested.selections[0] ?? null : null;
+    const selectionSeasonId = primarySelection?.seasonId ?? null;
+    const selectionEpisodeId = primarySelection?.episodeId ?? null;
 
     revalidatePath("/library");
     revalidatePath(parsed.data.mediaType === "tv" ? "/library/tv" : "/library/movies");
@@ -240,6 +206,8 @@ export async function requestSearchTitleAction(
         status: "success",
         message,
         titleId: requested.title.id,
+        seasonId: selectionSeasonId,
+        episodeId: selectionEpisodeId,
         searchRunId: primarySearched?.releaseSearch.searched ? primarySearched.releaseSearch.searchRun.id : null,
         downloadRequestId: requested.queuedDownload.queued
           ? requested.queuedDownload.download.downloadRequest.id
@@ -256,6 +224,8 @@ export async function requestSearchTitleAction(
         status: "success",
         message: "Added to your library and queued a matching release in SABnzbd.",
         titleId: requested.title.id,
+        seasonId: selectionSeasonId,
+        episodeId: selectionEpisodeId,
         searchRunId: requested.releaseSearch.searched ? requested.releaseSearch.searchRun.id : null,
         downloadRequestId: requested.queuedDownload.download.downloadRequest.id,
         targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
@@ -268,6 +238,8 @@ export async function requestSearchTitleAction(
         status: "success",
         message: "Added to your library.",
         titleId: requested.title.id,
+        seasonId: selectionSeasonId,
+        episodeId: selectionEpisodeId,
         searchRunId: null,
         downloadRequestId: null,
         targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
@@ -280,6 +252,8 @@ export async function requestSearchTitleAction(
         status: "success",
         message: requested.releaseSearch.searchRun.errorMessage ?? "Added to your library, but release search failed.",
         titleId: requested.title.id,
+        seasonId: selectionSeasonId,
+        episodeId: selectionEpisodeId,
         searchRunId: requested.releaseSearch.searchRun.id,
         downloadRequestId: null,
         targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
@@ -292,6 +266,8 @@ export async function requestSearchTitleAction(
         status: "success",
         message: `Added to your library, but no releases matched ${getMediaQualityProfileLabel(parsed.data.qualityProfile)}.`,
         titleId: requested.title.id,
+        seasonId: selectionSeasonId,
+        episodeId: selectionEpisodeId,
         searchRunId: requested.releaseSearch.searchRun.id,
         downloadRequestId: null,
         targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
@@ -304,6 +280,8 @@ export async function requestSearchTitleAction(
         status: "success",
         message: `Added to your library, but ${requested.queuedDownload.message ?? "Nooklet could not queue a matching release."}`,
         titleId: requested.title.id,
+        seasonId: selectionSeasonId,
+        episodeId: selectionEpisodeId,
         searchRunId: requested.releaseSearch.searchRun.id,
         downloadRequestId: null,
         targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
@@ -315,6 +293,8 @@ export async function requestSearchTitleAction(
       status: "success",
       message: `Added to your library, but no release was queued for ${parsed.data.title}.`,
       titleId: requested.title.id,
+      seasonId: selectionSeasonId,
+      episodeId: selectionEpisodeId,
       searchRunId: requested.releaseSearch.searchRun.id,
       downloadRequestId: null,
       targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
@@ -349,6 +329,7 @@ export async function queueIndexerResultAction(
   const parsed = queueIndexerResultInputSchema.safeParse({
     resultId: formData.get("resultId"),
     mediaTitleId: formData.get("mediaTitleId") || undefined,
+    seasonId: formData.get("seasonId") || undefined,
     episodeId: formData.get("episodeId") || undefined,
     requestedTitle: formData.get("requestedTitle") || undefined,
     targetLibraryId: formData.get("targetLibraryId") || undefined,

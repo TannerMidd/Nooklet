@@ -20,4 +20,14 @@ describe("buildLibraryItemReleaseSearchQuery", () => {
 
     expect(query).toBe("Severance S01E02");
   });
+
+  it("uses the season code for TV season searches", () => {
+    const query = buildLibraryItemReleaseSearchQuery({
+      title: { title: "Severance", year: 2022 },
+      season: { seasonNumber: 2 },
+      episode: null,
+    } as never);
+
+    expect(query).toBe("Severance S02");
+  });
 });

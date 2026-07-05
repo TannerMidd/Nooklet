@@ -39,6 +39,8 @@ export type RequestSearchTitleActionState = {
   status: "idle" | "success" | "error";
   message: string | null;
   titleId: string | null;
+  seasonId: string | null;
+  episodeId: string | null;
   searchRunId: string | null;
   downloadRequestId: string | null;
   targetLibraryPathId: string | null;
@@ -49,6 +51,8 @@ export const initialRequestSearchTitleActionState: RequestSearchTitleActionState
   status: "idle",
   message: null,
   titleId: null,
+  seasonId: null,
+  episodeId: null,
   searchRunId: null,
   downloadRequestId: null,
   targetLibraryPathId: null,

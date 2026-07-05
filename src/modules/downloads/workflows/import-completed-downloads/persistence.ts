@@ -5,6 +5,7 @@ import {
   updateDownloadQueueItemStatus,
   updateDownloadRequestStatus,
 } from "@/modules/downloads/repositories/download-repository";
+import { setTvEpisodeHasFile } from "@/modules/media-library/repositories/media-library-repository";
 
 import { type OrganizedCompletedDownload } from "./file-organization";
 
@@ -89,6 +90,8 @@ export async function persistCompletedDownloadImports(
       destinationRootPath: download.destinationRootPath,
     });
 
+    const importedEpisodeIds = new Set<string>();
+
     for (const file of download.files) {
       await recordDownloadImportedFile({
         importRunId: importRun.id,
@@ -96,6 +99,16 @@ export async function persistCompletedDownloadImports(
         sourcePath: file.sourcePath,
         destinationPath: file.destinationPath,
       });
+
+      if (file.episodeMatch?.episodeId) {
+        importedEpisodeIds.add(file.episodeMatch.episodeId);
+      }
+    }
+
+    // Mark matched episodes as owned immediately so monitoring automation
+    // does not re-grab them before the post-import scan runs.
+    for (const episodeId of importedEpisodeIds) {
+      await setTvEpisodeHasFile({ episodeId, hasFile: true });
     }
 
     await completeDownloadImportRun({

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { mediaQualityProfiles } from "@/lib/database/schema";
+import { tvSelectionsSchema } from "@/modules/media-library/schemas/request-media-title";
 
 const optionalUuidField = z.preprocess(
   (value) => (typeof value === "string" && value.trim() === "" ? null : value),
@@ -27,6 +28,8 @@ export const addRecommendationToLibrarySchema = z.object({
   targetLibraryPathId: optionalUuidField,
   monitored: booleanField,
   qualityProfile: z.enum(mediaQualityProfiles).default("hd-1080p"),
+  downloadNow: booleanField,
+  selections: tvSelectionsSchema,
   returnTo: z.string().min(1),
 });
 

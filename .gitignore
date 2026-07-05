@@ -10,3 +10,9 @@ data/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Local docker overrides
+docker-compose.override.yml
+
+.env.alpha
+docker-compose.alpha.yml

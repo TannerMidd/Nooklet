@@ -118,6 +118,13 @@ export function RecommendationFeaturedCard({
             returnTo={routePath}
             variant="compact"
             buttonClassName="min-h-10 rounded-lg px-4 py-2 whitespace-nowrap"
+            mediaType={mediaType}
+            tmdbId={
+              providerMetadata?.tmdbDetails?.mediaType === mediaType
+                ? providerMetadata.tmdbDetails.tmdbId ?? null
+                : null
+            }
+            titleLabel={`${title}${year ? ` (${year})` : ""}`}
           />
         </div>
       </div>

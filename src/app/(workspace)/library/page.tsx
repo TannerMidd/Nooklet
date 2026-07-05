@@ -5,6 +5,7 @@ import { LibraryPathManager } from "@/app/(workspace)/library/library-path-manag
 import { LibraryMonitoringControls } from "@/app/(workspace)/library/library-monitoring-controls";
 import { LibraryScanButton } from "@/app/(workspace)/library/library-scan-button";
 import { LibraryScanSettingsForm } from "@/app/(workspace)/library/library-scan-settings-form";
+import { MetadataRefreshSettingsForm } from "@/app/(workspace)/library/metadata-refresh-settings-form";
 import { MissingSearchSettingsForm } from "@/app/(workspace)/library/missing-search-settings-form";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,6 +16,7 @@ import {
   type LibrarySummary,
 } from "@/modules/media-library/queries/list-library-overview";
 import { getLibraryScanSettings } from "@/modules/media-library/queries/get-library-scan-settings";
+import { getMetadataRefreshSettings } from "@/modules/media-library/queries/get-metadata-refresh-settings";
 import { getMissingSearchSettings } from "@/modules/media-library/queries/get-missing-search-settings";
 
 export const dynamic = "force-dynamic";
@@ -64,10 +66,11 @@ export default async function LibraryPage() {
     return null;
   }
 
-  const [overview, scanSettings, missingSearchSettings] = await Promise.all([
+  const [overview, scanSettings, missingSearchSettings, metadataRefreshSettings] = await Promise.all([
     listLibraryOverview(session.user.id),
     getLibraryScanSettings(session.user.id),
     getMissingSearchSettings(session.user.id),
+    getMetadataRefreshSettings(session.user.id),
   ]);
 
   return (
@@ -128,6 +131,10 @@ export default async function LibraryPage() {
 
       <Panel eyebrow="Automation" title="Missing-content search">
         <MissingSearchSettingsForm settings={missingSearchSettings} />
+      </Panel>
+
+      <Panel eyebrow="Automation" title="Series metadata refresh">
+        <MetadataRefreshSettingsForm settings={metadataRefreshSettings} />
       </Panel>
 
       <Panel eyebrow="Folders" title="Attach a library folder">

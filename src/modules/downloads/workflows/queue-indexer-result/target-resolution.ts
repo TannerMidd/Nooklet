@@ -1,4 +1,7 @@
-import { resolveMediaLibraryDownloadTarget } from "@/modules/media-library/queries/list-media-library-path-options";
+import {
+  resolveDefaultMediaLibraryDownloadTarget,
+  resolveMediaLibraryDownloadTarget,
+} from "@/modules/media-library/queries/list-media-library-path-options";
 
 import { QueueIndexerResultWorkflowError } from "./errors";
 import { type QueueIndexerResultInput } from "./request-validation";
@@ -12,7 +15,10 @@ export async function resolveQueueIndexerResultTarget(
   resolvedResult: ResolvedQueueIndexerResult,
 ): Promise<ResolvedQueueIndexerResultTarget> {
   if (!request.targetLibraryPathId) {
-    return null;
+    return resolveDefaultMediaLibraryDownloadTarget(userId, {
+      mediaType: resolvedResult.result.mediaType,
+      libraryId: request.targetLibraryId ?? null,
+    });
   }
 
   const target = await resolveMediaLibraryDownloadTarget(userId, {

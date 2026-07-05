@@ -121,7 +121,6 @@ export async function mergeLibraryScanFiles(userId: string, scan: NormalizedLibr
       ? await upsertTvSeason({
           titleId: title.id,
           seasonNumber: file.seasonNumber,
-          title: `Season ${file.seasonNumber}`,
         })
       : null;
     const episode = season && file.episodeNumber !== null

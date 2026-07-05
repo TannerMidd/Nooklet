@@ -1,11 +1,23 @@
 import path from "node:path";
 import { access, copyFile, mkdir, rename, stat, unlink } from "node:fs/promises";
 
+import {
+  findSeasonFolderNumber,
+  findTvEpisodePosition,
+} from "@/modules/media-library/filename-parsing";
+
 import { type InspectedCompletedDownload, type InspectedDownloadFile, type ReadyInspectedDownload } from "./file-inspection";
+
+export type ImportedFileEpisodeMatch = {
+  seasonNumber: number;
+  episodeNumber: number;
+  episodeId: string | null;
+};
 
 export type ImportedDownloadFile = {
   sourcePath: string;
   destinationPath: string;
+  episodeMatch: ImportedFileEpisodeMatch | null;
 };
 
 export type FailedOrganizedDownload = {
@@ -75,30 +87,142 @@ function sanitizedRelativePath(relativePath: string) {
     .map((segment) => sanitizePathSegment(segment));
 }
 
-function destinationPathForFile(download: ReadyInspectedDownload, file: InspectedDownloadFile) {
+type PlannedFileDestination = {
+  file: InspectedDownloadFile;
+  destinationPath: string;
+  episodeMatch: ImportedFileEpisodeMatch | null;
+};
+
+function episodeDestinationPath(
+  download: ReadyInspectedDownload,
+  file: InspectedDownloadFile,
+  position: { seasonNumber: number; episodeNumber: number },
+  episodeTitle: string | null,
+) {
   const targetRoot = download.source.target.path.path;
   const folderLabel = titleFolderLabel(download);
   const extension = path.extname(file.sourcePath);
+  const titleSuffix = episodeTitle ? ` - ${sanitizePathSegment(episodeTitle)}` : "";
+  const seasonFolder = `Season ${String(position.seasonNumber).padStart(2, "0")}`;
 
-  if (download.source.match.request.mediaType === "movie") {
-    return path.join(targetRoot, folderLabel, `${folderLabel}${extension}`);
+  return path.join(
+    targetRoot,
+    folderLabel,
+    seasonFolder,
+    `${folderLabel} - ${episodeCode(position.seasonNumber, position.episodeNumber)}${titleSuffix}${extension}`,
+  );
+}
+
+function fallbackDestinationPath(download: ReadyInspectedDownload, file: InspectedDownloadFile) {
+  const targetRoot = download.source.target.path.path;
+  const folderLabel = titleFolderLabel(download);
+
+  return path.join(targetRoot, folderLabel, ...sanitizedRelativePath(file.relativePath));
+}
+
+function parsePackFileEpisodePosition(file: InspectedDownloadFile) {
+  const position = findTvEpisodePosition(file.relativePath);
+  const seasonNumber = position.seasonNumber
+    ?? findSeasonFolderNumber(file.relativePath.split("/"));
+
+  if (seasonNumber === null || position.episodeNumber === null) {
+    return null;
+  }
+
+  return { seasonNumber, episodeNumber: position.episodeNumber };
+}
+
+/**
+ * Season packs: parse each file's SxxEyy position, rename matched files to
+ * the standard episode convention (linking known tv_episodes rows), and fall
+ * back to a sanitized relative-path copy for unparseable files. When several
+ * files claim the same episode, the largest keeps the canonical name.
+ */
+function planSeasonPackDestinations(download: ReadyInspectedDownload): PlannedFileDestination[] {
+  const episodesByNumber = new Map(
+    (download.source.titleEpisodes ?? []).map((episode) => [
+      `${episode.seasonNumber}:${episode.episodeNumber}`,
+      episode,
+    ]),
+  );
+  const canonicalOwnerByEpisode = new Map<string, InspectedDownloadFile>();
+
+  for (const file of download.files) {
+    const position = parsePackFileEpisodePosition(file);
+
+    if (!position) {
+      continue;
+    }
+
+    const key = `${position.seasonNumber}:${position.episodeNumber}`;
+    const currentOwner = canonicalOwnerByEpisode.get(key);
+
+    if (!currentOwner || file.sizeBytes > currentOwner.sizeBytes) {
+      canonicalOwnerByEpisode.set(key, file);
+    }
+  }
+
+  return download.files.map((file) => {
+    const position = parsePackFileEpisodePosition(file);
+
+    if (!position) {
+      return { file, destinationPath: fallbackDestinationPath(download, file), episodeMatch: null };
+    }
+
+    const key = `${position.seasonNumber}:${position.episodeNumber}`;
+
+    if (canonicalOwnerByEpisode.get(key) !== file) {
+      return { file, destinationPath: fallbackDestinationPath(download, file), episodeMatch: null };
+    }
+
+    const knownEpisode = episodesByNumber.get(key) ?? null;
+
+    return {
+      file,
+      destinationPath: episodeDestinationPath(download, file, position, knownEpisode?.title ?? null),
+      episodeMatch: {
+        seasonNumber: position.seasonNumber,
+        episodeNumber: position.episodeNumber,
+        episodeId: knownEpisode?.id ?? null,
+      },
+    };
+  });
+}
+
+function planFileDestinations(download: ReadyInspectedDownload): PlannedFileDestination[] {
+  const request = download.source.match.request;
+
+  if (request.mediaType === "movie") {
+    const targetRoot = download.source.target.path.path;
+    const folderLabel = titleFolderLabel(download);
+
+    return selectedFiles(download).map((file) => ({
+      file,
+      destinationPath: path.join(targetRoot, folderLabel, `${folderLabel}${path.extname(file.sourcePath)}`),
+      episodeMatch: null,
+    }));
   }
 
   const episode = download.source.episode;
 
   if (episode) {
-    const episodeTitle = episode.title ? ` - ${sanitizePathSegment(episode.title)}` : "";
-    const seasonFolder = `Season ${String(episode.seasonNumber).padStart(2, "0")}`;
-
-    return path.join(
-      targetRoot,
-      folderLabel,
-      seasonFolder,
-      `${folderLabel} - ${episodeCode(episode.seasonNumber, episode.episodeNumber)}${episodeTitle}${extension}`,
-    );
+    return selectedFiles(download).map((file) => ({
+      file,
+      destinationPath: episodeDestinationPath(
+        download,
+        file,
+        { seasonNumber: episode.seasonNumber, episodeNumber: episode.episodeNumber },
+        episode.title,
+      ),
+      episodeMatch: {
+        seasonNumber: episode.seasonNumber,
+        episodeNumber: episode.episodeNumber,
+        episodeId: episode.id,
+      },
+    }));
   }
 
-  return path.join(targetRoot, folderLabel, ...sanitizedRelativePath(file.relativePath));
+  return planSeasonPackDestinations(download);
 }
 
 async function hasSameSize(sourcePath: string, destinationPath: string) {
@@ -154,8 +278,8 @@ async function organizeReadyDownload(download: ReadyInspectedDownload): Promise<
   const importedFiles: ImportedDownloadFile[] = [];
 
   try {
-    for (const file of selectedFiles(download)) {
-      const destination = await resolveDestinationPath(file.sourcePath, destinationPathForFile(download, file));
+    for (const planned of planFileDestinations(download)) {
+      const destination = await resolveDestinationPath(planned.file.sourcePath, planned.destinationPath);
 
       if (destination.kind === "failed") {
         return { kind: "failed", source: download, message: destination.message };
@@ -166,10 +290,14 @@ async function organizeReadyDownload(download: ReadyInspectedDownload): Promise<
       }
 
       if (destination.kind === "ready") {
-        await moveFile(file.sourcePath, destination.destinationPath);
+        await moveFile(planned.file.sourcePath, destination.destinationPath);
       }
 
-      importedFiles.push({ sourcePath: file.sourcePath, destinationPath: destination.destinationPath });
+      importedFiles.push({
+        sourcePath: planned.file.sourcePath,
+        destinationPath: destination.destinationPath,
+        episodeMatch: planned.episodeMatch,
+      });
     }
 
     return {

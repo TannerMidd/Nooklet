@@ -78,3 +78,14 @@ export function resolveSeasonIdForTarget(
 
   return null;
 }
+
+export function resolveEpisodeIdForTarget(
+  target: ReleaseSelectionTarget,
+  index: PersistedSelectionIndex,
+): string | null {
+  if (target.kind !== "episode") {
+    return null;
+  }
+
+  return index.episodeIdByNumber.get(buildEpisodeKey(target.season, target.episode)) ?? null;
+}

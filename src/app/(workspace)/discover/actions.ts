@@ -6,9 +6,13 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import {
   RequestMediaTitleCommandError,
-  requestMediaTitleCommand,
 } from "@/modules/media-library/commands/request-media-title";
-import { requestMediaTitleInputSchema } from "@/modules/media-library/schemas/request-media-title";
+import { parseTvSelectionsFromFormData } from "@/modules/media-library/schemas/tv-selections-form";
+import {
+  requestTitleWithReleaseSearchInputSchema,
+  requestTitleWithReleaseSearchWorkflow,
+  RequestTitleAlreadyInFlightError,
+} from "@/modules/media-library/workflows/request-title-with-release-search";
 
 export type DiscoverTitleRequestActionState = {
   status: "idle" | "error" | "success";
@@ -19,7 +23,7 @@ export const initialDiscoverTitleRequestActionState: DiscoverTitleRequestActionS
   status: "idle",
 };
 
-const discoverTitleRequestActionSchema = requestMediaTitleInputSchema.extend({
+const discoverTitleRequestActionSchema = requestTitleWithReleaseSearchInputSchema.extend({
   returnTo: z.string().min(1),
 });
 
@@ -40,18 +44,24 @@ export async function submitDiscoverTitleRequestAction(
     };
   }
 
+  const downloadNow = formData.get("downloadNow") === "on";
+  const selections = parseTvSelectionsFromFormData(formData);
   const parsedInput = discoverTitleRequestActionSchema.safeParse({
     mediaType: formData.get("mediaType"),
+    libraryId: formData.get("libraryId"),
+    targetLibraryPathId: formData.get("targetLibraryPathId"),
     tmdbId: formData.get("tmdbId"),
     title: formData.get("title"),
     year: formData.get("year"),
-    monitored: true,
+    monitored: formData.get("monitored") === "on",
     qualityProfile: formData.get("qualityProfile") ?? undefined,
     overview: formData.get("overview"),
     posterUrl: formData.get("posterUrl"),
     backdropUrl: formData.get("backdropUrl"),
     runtimeMinutes: formData.get("runtimeMinutes"),
     originalLanguage: formData.get("originalLanguage"),
+    downloadNow,
+    selections,
     returnTo: formData.get("returnTo"),
   });
 
@@ -65,21 +75,56 @@ export async function submitDiscoverTitleRequestAction(
   const { returnTo, ...requestInput } = parsedInput.data;
 
   try {
-    await requestMediaTitleCommand(session.user.id, requestInput);
+    const requested = await requestTitleWithReleaseSearchWorkflow(session.user.id, requestInput);
+
+    revalidatePath("/library");
+    revalidatePath(requestInput.mediaType === "tv" ? "/library/tv" : "/library/movies");
+    revalidatePath(safeRevalidatePath(returnTo));
+
+    if (!downloadNow) {
+      return {
+        status: "success",
+        message: `${requestInput.title} was added to your Nooklet library.`,
+      };
+    }
+
+    const queuedCount = requested.selections.filter((selection) => selection.queuedDownload.queued).length;
+
+    if (queuedCount > 0) {
+      revalidatePath("/in-progress");
+
+      return {
+        status: "success",
+        message: requested.selections.length > 1
+          ? `${requestInput.title} was added and ${queuedCount} of ${requested.selections.length} selections were queued in SABnzbd.`
+          : `${requestInput.title} was added and a matching release was queued in SABnzbd.`,
+      };
+    }
+
+    const failureMessage = requested.queuedDownload.reason === "queue_failed"
+      ? requested.queuedDownload.message
+      : null;
+
+    return {
+      status: "success",
+      message: failureMessage
+        ? `${requestInput.title} was added, but ${failureMessage}`
+        : `${requestInput.title} was added, but no matching release was queued yet.`,
+    };
   } catch (error) {
+    if (
+      error instanceof RequestTitleAlreadyInFlightError
+      || error instanceof RequestMediaTitleCommandError
+    ) {
+      return {
+        status: "error",
+        message: error.message,
+      };
+    }
+
     return {
       status: "error",
-      message: error instanceof RequestMediaTitleCommandError
-        ? error.message
-        : "Nooklet could not request that title.",
+      message: "Nooklet could not request that title.",
     };
   }
-
-  revalidatePath("/library");
-  revalidatePath(safeRevalidatePath(returnTo));
-
-  return {
-    status: "success",
-    message: `${parsedInput.data.title} was requested in your Nooklet library.`,
-  };
 }

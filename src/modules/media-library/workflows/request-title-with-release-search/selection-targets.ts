@@ -1,9 +1,8 @@
+import { type ReleaseSelectionTarget } from "@/modules/media-library/release-selection";
+
 import { type RequestTitleWithReleaseSearchInput } from "./request-validation";
 
-export type ReleaseSelectionTarget =
-  | { kind: "all" }
-  | { kind: "season"; season: number }
-  | { kind: "episode"; season: number; episode: number };
+export type { ReleaseSelectionTarget };
 
 export function buildReleaseSelectionTargets(
   request: RequestTitleWithReleaseSearchInput,

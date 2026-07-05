@@ -127,6 +127,42 @@ describe("queueLibraryItemRelease", () => {
     expect(queued).toMatchObject({ queued: true, selectedResultId: "1080-high" });
   });
 
+  it("queues a season pack with season linkage for season searches", async () => {
+    queueMock.mockResolvedValue({ downloadRequest: { id: "download1" } } as never);
+
+    const seasonItem = {
+      title: {
+        id: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+        title: "Severance",
+        libraryId: "e95d5704-d31e-46c2-b1c3-7c1e0c22dbea",
+        qualityProfile: "hd-1080p",
+      },
+      targetLibraryPathId: "0ca60f81-387b-47d0-a9d2-571e8dd7a44d",
+      season: { id: "5f8a4c11-4c04-45db-92cb-33a05c96e70f", seasonNumber: 1 },
+      episode: null,
+    } as never;
+
+    const queued = await queueLibraryItemRelease("u1", seasonItem, {
+      searched: true,
+      query: "Severance S01",
+      searchRun: { id: "run1", status: "succeeded" },
+      results: [
+        result({ id: "episode-only", title: "Severance S01E02 1080p", seeders: 50 }),
+        result({ id: "season-pack", title: "Severance S01 Complete 1080p", seeders: 20 }),
+      ],
+    } as never);
+
+    expect(queueMock).toHaveBeenCalledWith("u1", {
+      resultId: "season-pack",
+      mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+      seasonId: "5f8a4c11-4c04-45db-92cb-33a05c96e70f",
+      requestedTitle: "Severance S01",
+      targetLibraryId: "e95d5704-d31e-46c2-b1c3-7c1e0c22dbea",
+      targetLibraryPathId: "0ca60f81-387b-47d0-a9d2-571e8dd7a44d",
+    });
+    expect(queued).toMatchObject({ queued: true, selectedResultId: "season-pack" });
+  });
+
   it("skips excluded release ids before queueing", async () => {
     queueMock.mockResolvedValue({ downloadRequest: { id: "download1" } } as never);
 

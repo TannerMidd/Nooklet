@@ -1,6 +1,14 @@
 import path from "node:path";
 
 import { type MediaFileKind } from "@/lib/database/schema";
+import {
+  findQualityLabel,
+  findSeasonFolderNumber,
+  findTvEpisodePosition,
+  findYear,
+  normalizeFilenameText as normalizeText,
+  stripReleaseTokens,
+} from "@/modules/media-library/filename-parsing";
 
 import { type FetchedLibraryFile, type FetchedLibrarySources } from "./source-fetch";
 
@@ -21,35 +29,8 @@ export type NormalizedLibraryScan = {
   failedPaths: FetchedLibrarySources["failedPaths"];
 };
 
-function normalizeText(value: string) {
-  return value
-    .replace(/\.[^.]+$/, "")
-    .replace(/[._]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function stripReleaseTokens(value: string) {
-  return value
-    .replace(/\b(S\d{1,2}E\d{1,2})\b/gi, "")
-    .replace(/\b(2160p|1080p|720p|480p|web[- ]?dl|webrip|bluray|brrip|x264|x265|h264|h265)\b/gi, "")
-    .replace(/[()[\]{}]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function titleKey(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function findYear(value: string) {
-  const match = value.match(/(?:^|\D)((?:19|20)\d{2})(?:\D|$)/);
-  return match?.[1] ? Number(match[1]) : null;
-}
-
-function findQualityLabel(value: string) {
-  const match = value.match(/\b(2160p|1080p|720p|480p)\b/i);
-  return match?.[1]?.toUpperCase() ?? null;
 }
 
 function removeYear(value: string) {
@@ -61,35 +42,6 @@ function stripEpisodeSuffix(value: string) {
     .replace(/\bS\d{1,2}E\d{1,3}\b.*$/i, "")
     .replace(/(?:^|\D)\d{1,2}x\d{1,3}\b.*$/i, "")
     .trim();
-}
-
-function findTvEpisodePosition(value: string) {
-  const sonarrStyle = value.match(/\bS(\d{1,2})E(\d{1,3})\b/i);
-
-  if (sonarrStyle?.[1] && sonarrStyle[2]) {
-    return {
-      seasonNumber: Number(sonarrStyle[1]),
-      episodeNumber: Number(sonarrStyle[2]),
-    };
-  }
-
-  const shortStyle = value.match(/(?:^|\D)(\d{1,2})x(\d{1,3})(?:\D|$)/i);
-
-  if (shortStyle?.[1] && shortStyle[2]) {
-    return {
-      seasonNumber: Number(shortStyle[1]),
-      episodeNumber: Number(shortStyle[2]),
-    };
-  }
-
-  return { seasonNumber: null, episodeNumber: null };
-}
-
-function findSeasonFolderNumber(segments: string[]) {
-  const seasonSegment = segments.find((segment) => /^season[\s._-]+\d+/i.test(segment));
-  const match = seasonSegment?.match(/\d+/);
-
-  return match?.[0] ? Number(match[0]) : null;
 }
 
 function getMovieTitle(file: FetchedLibraryFile) {

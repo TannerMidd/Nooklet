@@ -23,11 +23,17 @@ import {
   listActiveMediaLibraryPaths,
   listMonitoredMissingMovieTitles,
   listMonitoredMissingTvEpisodes,
+  listMonitoredTvTitlesWithTmdbId,
+  listTvEpisodesForTitle,
+  listTvSeasonsForTitle,
   markMediaLibraryPathScanned,
   recordMediaFile,
   setMediaTitleExternalIds,
+  setTvEpisodeHasFile,
   upsertMediaFile,
   upsertMediaTitle,
+  upsertTvEpisode,
+  upsertTvSeason,
 } from "./media-library-repository";
 
 async function seedUser() {
@@ -336,5 +342,139 @@ describe("media-library-repository", () => {
 
     expect(candidates.map((entry) => entry.episode.id)).toEqual([missingEpisode.id]);
     expect(candidates[0]?.title.id).toBe(title.id);
+  });
+
+  it("preserves synced season and episode metadata when upserts omit fields", async () => {
+    const userId = await seedUser();
+    const library = await createMediaLibrary({ userId, mediaType: "tv", name: "TV" });
+    const title = await upsertMediaTitle({
+      userId,
+      libraryId: library.id,
+      mediaType: "tv",
+      title: "Avatar",
+      sortTitle: "avatar",
+      normalizedKey: "avatar::2005",
+      status: "available",
+    });
+
+    if (!title) throw new Error("title missing");
+
+    const syncedSeason = await upsertTvSeason({
+      titleId: title.id,
+      seasonNumber: 1,
+      title: "Book One: Water",
+      episodeCount: 20,
+      monitored: true,
+    });
+    const syncedEpisode = await upsertTvEpisode({
+      titleId: title.id,
+      seasonId: syncedSeason.id,
+      seasonNumber: 1,
+      episodeNumber: 1,
+      title: "The Boy in the Iceberg",
+      airDate: "2005-02-21",
+      monitored: true,
+    });
+
+    // Scan-style upsert: only structural fields plus hasFile.
+    const scannedEpisode = await upsertTvEpisode({
+      titleId: title.id,
+      seasonId: syncedSeason.id,
+      seasonNumber: 1,
+      episodeNumber: 1,
+      hasFile: true,
+    });
+
+    expect(scannedEpisode.id).toBe(syncedEpisode.id);
+    expect(scannedEpisode.title).toBe("The Boy in the Iceberg");
+    expect(scannedEpisode.airDate).toBe("2005-02-21");
+    expect(scannedEpisode.monitored).toBe(true);
+    expect(scannedEpisode.hasFile).toBe(true);
+
+    // Request-style bare upsert must not reset hasFile or erase metadata.
+    const requestedEpisode = await upsertTvEpisode({
+      titleId: title.id,
+      seasonId: syncedSeason.id,
+      seasonNumber: 1,
+      episodeNumber: 1,
+    });
+
+    expect(requestedEpisode.title).toBe("The Boy in the Iceberg");
+    expect(requestedEpisode.airDate).toBe("2005-02-21");
+    expect(requestedEpisode.hasFile).toBe(true);
+
+    const rescannedSeason = await upsertTvSeason({ titleId: title.id, seasonNumber: 1 });
+
+    expect(rescannedSeason.id).toBe(syncedSeason.id);
+    expect(rescannedSeason.title).toBe("Book One: Water");
+    expect(rescannedSeason.episodeCount).toBe(20);
+    expect(rescannedSeason.monitored).toBe(true);
+
+    const downgraded = await setTvEpisodeHasFile({ episodeId: syncedEpisode.id, hasFile: false });
+
+    expect(downgraded?.hasFile).toBe(false);
+
+    expect((await listTvSeasonsForTitle(title.id)).map((season) => season.id)).toEqual([
+      syncedSeason.id,
+    ]);
+    expect((await listTvEpisodesForTitle(title.id)).map((episode) => episode.id)).toEqual([
+      syncedEpisode.id,
+    ]);
+  });
+
+  it("lists monitored TV titles with a linked tmdb id", async () => {
+    const userId = await seedUser();
+    const tvLibrary = await createMediaLibrary({ userId, mediaType: "tv", name: "TV" });
+    const movieLibrary = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies" });
+
+    const monitoredTv = await upsertMediaTitle({
+      userId,
+      libraryId: tvLibrary.id,
+      mediaType: "tv",
+      title: "Severance",
+      sortTitle: "severance",
+      normalizedKey: "severance::2022",
+      status: "available",
+    });
+    const unmonitoredTv = await upsertMediaTitle({
+      userId,
+      libraryId: tvLibrary.id,
+      mediaType: "tv",
+      title: "Archive",
+      sortTitle: "archive",
+      normalizedKey: "archive::2020",
+      status: "available",
+      monitored: false,
+    });
+    const unlinkedTv = await upsertMediaTitle({
+      userId,
+      libraryId: tvLibrary.id,
+      mediaType: "tv",
+      title: "Unknown Show",
+      sortTitle: "unknown show",
+      normalizedKey: "unknown-show::2021",
+      status: "available",
+    });
+    const movie = await upsertMediaTitle({
+      userId,
+      libraryId: movieLibrary.id,
+      mediaType: "movie",
+      title: "Dune",
+      sortTitle: "dune",
+      normalizedKey: "dune::2021",
+      status: "available",
+    });
+
+    if (!monitoredTv || !unmonitoredTv || !unlinkedTv || !movie) throw new Error("title missing");
+
+    await setMediaTitleExternalIds(monitoredTv.id, [{ source: "tmdb", value: "95396" }]);
+    await setMediaTitleExternalIds(unmonitoredTv.id, [{ source: "tmdb", value: "80283" }]);
+    await setMediaTitleExternalIds(movie.id, [{ source: "tmdb", value: "438631" }]);
+
+    const candidates = await listMonitoredTvTitlesWithTmdbId(userId, 10);
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.title.id).toBe(monitoredTv.id);
+    expect(candidates[0]?.tmdbId).toBe("95396");
   });
 });
