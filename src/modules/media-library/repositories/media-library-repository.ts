@@ -206,6 +206,81 @@ export async function markMediaLibraryPathScanned(pathId: string, scannedAt: Dat
     .run();
 }
 
+export async function updateMediaLibraryPathSpace(input: {
+  pathId: string;
+  freeSpaceBytes: number;
+  totalSpaceBytes: number;
+}) {
+  const database = ensureDatabaseReady();
+
+  database
+    .update(mediaLibraryPaths)
+    .set({
+      freeSpaceBytes: input.freeSpaceBytes,
+      totalSpaceBytes: input.totalSpaceBytes,
+      updatedAt: new Date(),
+    })
+    .where(eq(mediaLibraryPaths.id, input.pathId))
+    .run();
+}
+
+/**
+ * Marks one active folder as the default download destination for its media
+ * type (movie or TV). Exactly one default may exist per media type per user;
+ * previous defaults for that media type are cleared.
+ */
+export async function setDefaultDownloadPath(input: {
+  userId: string;
+  pathId: string;
+}): Promise<ActiveMediaLibraryPathRecord | null> {
+  const database = ensureDatabaseReady();
+  const row = database
+    .select({ library: mediaLibraries, path: mediaLibraryPaths })
+    .from(mediaLibraryPaths)
+    .innerJoin(mediaLibraries, eq(mediaLibraries.id, mediaLibraryPaths.libraryId))
+    .where(and(eq(mediaLibraryPaths.userId, input.userId), eq(mediaLibraryPaths.id, input.pathId)))
+    .get();
+
+  if (!row || row.path.status !== "active") {
+    return null;
+  }
+
+  const sameMediaTypeLibraryIds = database
+    .select({ id: mediaLibraries.id })
+    .from(mediaLibraries)
+    .where(
+      and(
+        eq(mediaLibraries.userId, input.userId),
+        eq(mediaLibraries.mediaType, row.library.mediaType),
+      ),
+    );
+
+  database
+    .update(mediaLibraryPaths)
+    .set({ isDownloadDefault: false, updatedAt: new Date() })
+    .where(
+      and(
+        eq(mediaLibraryPaths.userId, input.userId),
+        eq(mediaLibraryPaths.isDownloadDefault, true),
+        inArray(mediaLibraryPaths.libraryId, sameMediaTypeLibraryIds),
+      ),
+    )
+    .run();
+
+  database
+    .update(mediaLibraryPaths)
+    .set({ isDownloadDefault: true, updatedAt: new Date() })
+    .where(and(eq(mediaLibraryPaths.userId, input.userId), eq(mediaLibraryPaths.id, input.pathId)))
+    .run();
+
+  return database
+    .select({ library: mediaLibraries, path: mediaLibraryPaths })
+    .from(mediaLibraryPaths)
+    .innerJoin(mediaLibraries, eq(mediaLibraries.id, mediaLibraryPaths.libraryId))
+    .where(eq(mediaLibraryPaths.id, input.pathId))
+    .get() ?? null;
+}
+
 export async function upsertMediaTitle(input: {
   userId: string;
   libraryId?: string | null;

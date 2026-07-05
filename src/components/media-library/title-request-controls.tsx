@@ -35,7 +35,11 @@ type TitleRequestControlsProps = {
 };
 
 function pathOptionLabel(option: MediaLibraryPathOption) {
-  return `${option.label} - ${option.path}`;
+  return `${option.label} - ${option.path}${option.isDownloadDefault ? " (default)" : ""}`;
+}
+
+function preferredPathId(options: MediaLibraryPathOption[]) {
+  return (options.find((option) => option.isDownloadDefault) ?? options[0])?.id ?? "";
 }
 
 /**
@@ -57,10 +61,13 @@ export function TitleRequestControls({
 }: TitleRequestControlsProps) {
   const matchingLibraries = libraries.filter((library) => library.mediaType === mediaType);
   const matchingPathOptions = pathOptions.filter((option) => option.mediaType === mediaType);
-  const initialLibraryId = matchingLibraries[0]?.id ?? "";
-  const initialTargetPathId = initialLibraryId
-    ? matchingPathOptions.find((option) => option.libraryId === initialLibraryId)?.id ?? ""
-    : matchingPathOptions[0]?.id ?? "";
+  const defaultPathOption = matchingPathOptions.find((option) => option.isDownloadDefault);
+  const initialLibraryId = defaultPathOption?.libraryId ?? matchingLibraries[0]?.id ?? "";
+  const initialTargetPathId = preferredPathId(
+    initialLibraryId
+      ? matchingPathOptions.filter((option) => option.libraryId === initialLibraryId)
+      : matchingPathOptions,
+  );
   const [selectedLibraryId, setSelectedLibraryId] = useState(initialLibraryId);
   const [selectedTargetPathId, setSelectedTargetPathId] = useState(initialTargetPathId);
   const [selection, setSelection] = useState<TvSelectionState>({ mode: "all" });
@@ -74,7 +81,7 @@ export function TitleRequestControls({
   function handleLibraryChange(value: string) {
     setSelectedLibraryId(value);
     const nextPathOptions = matchingPathOptions.filter((option) => (value ? option.libraryId === value : true));
-    setSelectedTargetPathId(nextPathOptions[0]?.id ?? "");
+    setSelectedTargetPathId(preferredPathId(nextPathOptions));
   }
 
   return (

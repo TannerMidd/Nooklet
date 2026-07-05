@@ -16,6 +16,11 @@ import {
   UpdateLibraryPathCommandError,
 } from "@/modules/media-library/commands/update-library-path";
 import {
+  setDefaultDownloadPathCommand,
+  SetDefaultDownloadPathCommandError,
+  setDefaultDownloadPathInputSchema,
+} from "@/modules/media-library/commands/set-default-download-path";
+import {
   updateMediaTitlePreferencesCommand,
   UpdateMediaTitlePreferencesCommandError,
 } from "@/modules/media-library/commands/update-media-title-preferences";
@@ -75,6 +80,7 @@ import { configureMissingSearchSchedule } from "@/modules/media-library/workflow
 import {
   initialLibraryItemSearchActionState,
   initialLibraryMonitoringActionState,
+  type DefaultDownloadPathActionState,
   initialLibraryScanScheduleActionState,
   initialMediaTitlePreferenceActionState,
   initialMetadataRefreshScheduleActionState,
@@ -706,6 +712,44 @@ export async function updateMissingSearchScheduleAction(
       status: "error",
       message: "Nooklet could not update the missing-content search schedule.",
     };
+  }
+}
+
+export async function setDefaultDownloadPathAction(
+  _previous: DefaultDownloadPathActionState,
+  formData: FormData,
+): Promise<DefaultDownloadPathActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { status: "error", message: "You need to sign in again." };
+  }
+
+  const parsed = setDefaultDownloadPathInputSchema.safeParse({
+    pathId: formData.get("pathId"),
+  });
+
+  if (!parsed.success) {
+    return { status: "error", message: "Choose a library folder and try again." };
+  }
+
+  try {
+    const updated = await setDefaultDownloadPathCommand(session.user.id, parsed.data);
+
+    revalidatePath("/library");
+    revalidatePath("/search");
+    revalidatePath("/discover");
+
+    return {
+      status: "success",
+      message: `${updated.path.label} is now the default ${updated.library.mediaType === "tv" ? "TV" : "movie"} download folder.`,
+    };
+  } catch (error) {
+    if (error instanceof SetDefaultDownloadPathCommandError) {
+      return { status: "error", message: error.message };
+    }
+
+    return { status: "error", message: "Nooklet could not update the default folder." };
   }
 }
 

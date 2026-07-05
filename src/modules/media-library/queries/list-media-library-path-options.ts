@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
@@ -14,6 +14,7 @@ export type MediaLibraryPathOption = {
   mediaType: RecommendationMediaType;
   label: string;
   path: string;
+  isDownloadDefault: boolean;
 };
 
 export type MediaLibraryDownloadTarget = {
@@ -31,6 +32,7 @@ export async function listMediaLibraryPathOptions(userId: string): Promise<Media
     .where(and(eq(mediaLibraryPaths.userId, userId), eq(mediaLibraryPaths.status, "active")))
     .orderBy(
       asc(mediaLibraries.mediaType),
+      desc(mediaLibraryPaths.isDownloadDefault),
       asc(mediaLibraries.name),
       asc(mediaLibraryPaths.label),
       asc(mediaLibraryPaths.path),
@@ -43,6 +45,7 @@ export async function listMediaLibraryPathOptions(userId: string): Promise<Media
       mediaType: library.mediaType,
       label: path.label,
       path: path.path,
+      isDownloadDefault: path.isDownloadDefault,
     }));
 }
 
@@ -77,14 +80,17 @@ export async function resolveDefaultMediaLibraryDownloadTarget(
   }
 
   if (input.libraryId) {
-    const matchingLibrary = rows.find((row) => row.library.id === input.libraryId);
+    const libraryRows = rows.filter((row) => row.library.id === input.libraryId);
 
-    if (matchingLibrary) {
-      return matchingLibrary;
+    if (libraryRows.length > 0) {
+      return libraryRows.find((row) => row.path.isDownloadDefault) ?? libraryRows[0] ?? null;
     }
   }
 
-  return rows.find((row) => row.library.isDefault) ?? rows[0] ?? null;
+  return rows.find((row) => row.path.isDownloadDefault)
+    ?? rows.find((row) => row.library.isDefault)
+    ?? rows[0]
+    ?? null;
 }
 
 export async function resolveMediaLibraryDownloadTarget(

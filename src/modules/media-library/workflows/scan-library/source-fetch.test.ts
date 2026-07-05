@@ -59,6 +59,7 @@ function source(rootPath: string): ActiveMediaLibraryPathRecord {
       path: rootPath,
       label: "TV",
       status: "active",
+    isDownloadDefault: false,
       freeSpaceBytes: null,
       totalSpaceBytes: null,
       lastScannedAt: null,

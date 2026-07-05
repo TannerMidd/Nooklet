@@ -130,6 +130,16 @@ export const initialMissingSearchScheduleActionState: MissingSearchScheduleActio
   message: null,
 };
 
+export type DefaultDownloadPathActionState = {
+  status: "idle" | "success" | "error";
+  message: string | null;
+};
+
+export const initialDefaultDownloadPathActionState: DefaultDownloadPathActionState = {
+  status: "idle",
+  message: null,
+};
+
 export type MetadataRefreshScheduleActionState = {
   status: "idle" | "success" | "error";
   message: string | null;

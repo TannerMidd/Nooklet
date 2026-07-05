@@ -19,7 +19,7 @@ type LibraryItemSearchFormProps = {
 };
 
 function pathOptionLabel(option: MediaLibraryPathOption) {
-  return `${option.label} - ${option.path}`;
+  return `${option.label} - ${option.path}${option.isDownloadDefault ? " (default)" : ""}`;
 }
 
 function SearchButton({ label }: { label: string }) {
@@ -48,7 +48,7 @@ export function LibraryItemSearchForm({
   const defaultPathId = currentLibraryPathId
     && targetPathOptions.some((option) => option.id === currentLibraryPathId)
     ? currentLibraryPathId
-    : targetPathOptions[0]?.id ?? "";
+    : (targetPathOptions.find((option) => option.isDownloadDefault) ?? targetPathOptions[0])?.id ?? "";
 
   return (
     <form action={formAction} className="flex flex-col gap-2">

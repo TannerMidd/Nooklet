@@ -4,6 +4,7 @@ import { LibraryPathForm } from "@/app/(workspace)/library/library-path-form";
 import { LibraryPathManager } from "@/app/(workspace)/library/library-path-manager";
 import { LibraryMonitoringControls } from "@/app/(workspace)/library/library-monitoring-controls";
 import { LibraryScanButton } from "@/app/(workspace)/library/library-scan-button";
+import { LibraryDrivesPanel } from "@/app/(workspace)/library/library-drives-panel";
 import { LibraryScanSettingsForm } from "@/app/(workspace)/library/library-scan-settings-form";
 import { MetadataRefreshSettingsForm } from "@/app/(workspace)/library/metadata-refresh-settings-form";
 import { MissingSearchSettingsForm } from "@/app/(workspace)/library/missing-search-settings-form";
@@ -16,6 +17,7 @@ import {
   listLibraryOverview,
   type LibrarySummary,
 } from "@/modules/media-library/queries/list-library-overview";
+import { getLibraryDriveOverview } from "@/modules/media-library/queries/get-library-drive-overview";
 import { getLibraryScanSettings } from "@/modules/media-library/queries/get-library-scan-settings";
 import { getMetadataRefreshSettings } from "@/modules/media-library/queries/get-metadata-refresh-settings";
 import { getMissingSearchSettings } from "@/modules/media-library/queries/get-missing-search-settings";
@@ -67,11 +69,12 @@ export default async function LibraryPage() {
     return null;
   }
 
-  const [overview, scanSettings, missingSearchSettings, metadataRefreshSettings] = await Promise.all([
+  const [overview, scanSettings, missingSearchSettings, metadataRefreshSettings, driveEntries] = await Promise.all([
     listLibraryOverview(session.user.id),
     getLibraryScanSettings(session.user.id),
     getMissingSearchSettings(session.user.id),
     getMetadataRefreshSettings(session.user.id),
+    getLibraryDriveOverview(session.user.id),
   ]);
 
   return (
@@ -120,6 +123,14 @@ export default async function LibraryPage() {
           <span className="mt-1 block text-muted">Open discovered local series.</span>
         </Link>
       </div>
+
+      <Panel
+        eyebrow="Storage"
+        title="Drives & download defaults"
+        description="Free space per library folder, and where downloads land when no folder is picked."
+      >
+        <LibraryDrivesPanel entries={driveEntries} />
+      </Panel>
 
       <Panel eyebrow="Monitoring" title="Library monitoring">
         <LibraryMonitoringControls

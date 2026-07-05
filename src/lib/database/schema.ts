@@ -222,6 +222,9 @@ export const mediaLibraryPaths = sqliteTable(
     status: text("status", { enum: mediaLibraryPathStatuses })
       .notNull()
       .default("active"),
+    isDownloadDefault: integer("is_download_default", { mode: "boolean" })
+      .notNull()
+      .default(false),
     freeSpaceBytes: integer("free_space_bytes"),
     totalSpaceBytes: integer("total_space_bytes"),
     lastScannedAt: integer("last_scanned_at", { mode: "timestamp_ms" }),

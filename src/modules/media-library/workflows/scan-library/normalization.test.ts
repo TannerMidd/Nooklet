@@ -25,6 +25,7 @@ function source(mediaType: "movie" | "tv", rootPath: string): ActiveMediaLibrary
       path: rootPath,
       label: mediaType === "tv" ? "TV" : "Movies",
       status: "active",
+    isDownloadDefault: false,
       freeSpaceBytes: null,
       totalSpaceBytes: null,
       lastScannedAt: null,

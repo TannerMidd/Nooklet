@@ -1,0 +1,1 @@
+ALTER TABLE `media_library_paths` ADD `is_download_default` integer DEFAULT false NOT NULL;
