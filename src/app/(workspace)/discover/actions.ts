@@ -14,14 +14,7 @@ import {
   RequestTitleAlreadyInFlightError,
 } from "@/modules/media-library/workflows/request-title-with-release-search";
 
-export type DiscoverTitleRequestActionState = {
-  status: "idle" | "error" | "success";
-  message?: string;
-};
-
-export const initialDiscoverTitleRequestActionState: DiscoverTitleRequestActionState = {
-  status: "idle",
-};
+import { type DiscoverTitleRequestActionState } from "./action-state";
 
 const discoverTitleRequestActionSchema = requestTitleWithReleaseSearchInputSchema.extend({
   returnTo: z.string().min(1),

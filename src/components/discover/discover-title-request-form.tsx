@@ -4,10 +4,8 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { Check, Plus } from "lucide-react";
 
-import {
-  initialDiscoverTitleRequestActionState,
-  submitDiscoverTitleRequestAction,
-} from "@/app/(workspace)/discover/actions";
+import { initialDiscoverTitleRequestActionState } from "@/app/(workspace)/discover/action-state";
+import { submitDiscoverTitleRequestAction } from "@/app/(workspace)/discover/actions";
 import {
   TitleRequestControls,
   type LibraryOption,
