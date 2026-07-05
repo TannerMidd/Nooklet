@@ -7,34 +7,43 @@ type DownloadNowToggleProps = {
   className?: string;
 };
 
+const segmentClass =
+  "cursor-pointer px-3 py-1.5 text-xs font-medium text-muted transition select-none " +
+  "has-[:checked]:bg-accent has-[:checked]:text-accent-foreground hover:text-foreground has-[:checked]:hover:text-accent-foreground";
+
 /**
- * Standard "Add & download now" vs "Add only (monitored)" choice shared by
- * every request entry point. Submits `downloadNow` as "on" or "off"; server
- * actions treat only "on" as an immediate download.
+ * Segmented "Download now" / "Add only" choice shared by every request entry
+ * point. Submits `downloadNow` as "on" or "off"; server actions treat only
+ * "on" as an immediate download.
  */
 export function DownloadNowToggle({ defaultDownloadNow = true, className }: DownloadNowToggleProps) {
   return (
-    <fieldset className={cn("flex flex-wrap gap-2 text-sm text-muted", className)}>
+    <fieldset
+      className={cn(
+        "inline-flex w-fit overflow-hidden rounded-md border border-line/55 bg-background/35",
+        className,
+      )}
+    >
       <legend className="sr-only">Download behavior</legend>
-      <label className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-2.5 py-1.5">
+      <label className={segmentClass}>
         <input
           type="radio"
           name="downloadNow"
           value="on"
           defaultChecked={defaultDownloadNow}
-          className="h-4 w-4 accent-accent"
+          className="sr-only"
         />
-        Add &amp; download now
+        Download now
       </label>
-      <label className="inline-flex items-center gap-2 rounded-lg border border-line/60 bg-background/20 px-2.5 py-1.5">
+      <label className={cn(segmentClass, "border-l border-line/55")}>
         <input
           type="radio"
           name="downloadNow"
           value="off"
           defaultChecked={!defaultDownloadNow}
-          className="h-4 w-4 accent-accent"
+          className="sr-only"
         />
-        Add only (monitored)
+        Add only
       </label>
     </fieldset>
   );

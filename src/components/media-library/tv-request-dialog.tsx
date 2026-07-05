@@ -260,7 +260,7 @@ export function TvRequestPicker({
                 const value = event.target.value === "" ? null : Number.parseInt(event.target.value, 10);
                 pickEpisodeSeason(value);
               }}
-              className="min-h-9 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-2 text-sm text-foreground"
+              className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-2 text-sm text-foreground"
             >
               <option value="">Pick a season…</option>
               {seasons.map((season) => (

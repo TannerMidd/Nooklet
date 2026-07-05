@@ -167,7 +167,7 @@ export function SearchableSelect({
           }
         }}
         className={cn(
-          "flex min-h-9 w-full items-center justify-between gap-2 rounded-lg border border-line/75 bg-background/25 px-3 py-1.5 text-left text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25 disabled:cursor-not-allowed disabled:opacity-60",
+          "flex min-h-9 w-full items-center justify-between gap-2 rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-left text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25 disabled:cursor-not-allowed disabled:opacity-60",
           triggerClassName,
         )}
       >

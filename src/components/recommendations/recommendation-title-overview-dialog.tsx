@@ -68,7 +68,7 @@ export function RecommendationTitleOverviewDialog({
             <RecommendationPoster title={item.title} posterUrl={posterUrl} />
             <div className="min-w-0 flex-1 space-y-4">
               <div className="space-y-2">
-                <p className="font-heading text-sm italic text-accent">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">
                   {item.mediaType === "tv" ? "TV recommendation" : "Movie recommendation"}
                 </p>
                 <h2 id={titleId} className="font-heading text-2xl leading-tight text-foreground md:text-3xl">
@@ -92,11 +92,11 @@ export function RecommendationTitleOverviewDialog({
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)]">
           <section className="space-y-5 text-sm leading-7 text-foreground">
             <div>
-              <p className="font-heading text-sm italic text-accent">Overview</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">Overview</p>
               <p className="mt-3">{details?.overview ?? item.rationale}</p>
             </div>
             <div className="rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-3">
-              <p className="font-heading text-sm italic text-muted">Recommendation rationale</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Recommendation rationale</p>
               <p className="mt-2 text-sm leading-7 text-foreground">{item.rationale}</p>
             </div>
             {tmdbLookupMessage ? (
@@ -126,7 +126,7 @@ export function RecommendationTitleOverviewDialog({
         </div>
 
         <section className="space-y-4">
-          <p className="font-heading text-sm italic text-accent">Title facts</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">Title facts</p>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Fact label="Original language" value={formatOriginalLanguage(details?.originalLanguage)} />
             <Fact label="Release" value={releaseLabel} />
@@ -154,7 +154,7 @@ export function RecommendationTitleOverviewDialog({
         ) : null}
 
         <section className="space-y-4">
-          <p className="font-heading text-sm italic text-accent">Status timeline</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">Status timeline</p>
           <RecommendationTimeline events={timeline} />
         </section>
       </div>

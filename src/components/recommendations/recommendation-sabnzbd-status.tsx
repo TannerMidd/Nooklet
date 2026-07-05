@@ -69,7 +69,7 @@ export function RecommendationSabnzbdStatus({
     >
       <LinkPendingOverlay />
       <div className="flex items-center justify-between gap-3">
-        <span className="font-heading text-sm italic text-accent">SABnzbd</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">SABnzbd</span>
         <span className="text-xs font-medium text-muted">
           {statusLabel} / {progressLabel}
         </span>

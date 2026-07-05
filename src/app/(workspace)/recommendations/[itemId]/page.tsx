@@ -123,7 +123,7 @@ export default async function RecommendationOverviewPage({
             <RecommendationPoster title={item.title} posterUrl={posterUrl} />
             <div className="min-w-0 flex-1 space-y-4">
               <div className="space-y-2">
-                <p className="font-heading text-sm italic text-accent">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">
                   {item.mediaType === "tv" ? "TV recommendation" : "Movie recommendation"}
                 </p>
                 <h1 className="font-heading text-2xl leading-tight text-foreground md:text-3xl">
@@ -150,7 +150,7 @@ export default async function RecommendationOverviewPage({
           <div className="space-y-5 text-sm leading-7 text-foreground">
             {details?.overview ? <p>{details.overview}</p> : <p>{item.rationale}</p>}
             <div className="rounded-lg border border-line/70 bg-panel-strong/60 px-4 py-3">
-              <p className="font-heading text-sm italic text-muted">Recommendation rationale</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Recommendation rationale</p>
               <p className="mt-2 text-sm leading-7 text-foreground">{item.rationale}</p>
             </div>
             {tmdbLookupMessage ? (

@@ -189,7 +189,7 @@ export async function RecommendationWorkspace({
         >
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-3">
-              <p className="font-heading text-sm italic text-accent">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">
                 {wasJustGenerated && featuredRun.id === activeRunId ? "Fresh batch" : "Latest batch"}
               </p>
               <div className="space-y-2">

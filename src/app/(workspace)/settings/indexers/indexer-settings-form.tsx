@@ -103,7 +103,7 @@ export function IndexerSettingsForm({ indexer }: { indexer?: IndexerSettingsView
             <select
               name="protocol"
               defaultValue={indexer?.protocol ?? "newznab"}
-              className="min-h-9 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
+              className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
             >
               <option value="newznab">Newznab</option>
               <option value="torznab">Torznab</option>

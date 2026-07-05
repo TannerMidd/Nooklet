@@ -306,7 +306,7 @@ export function TitleSearchForm({ libraries, qualityProfiles, pathOptions }: Tit
             <select
               name="mediaType"
               defaultValue="movie"
-              className="min-h-9 w-full rounded-lg border border-line/75 bg-background/25 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
+              className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/70 focus:ring-1 focus:ring-accent/25"
             >
               <option value="movie">Movies</option>
               <option value="tv">TV shows</option>

@@ -19,7 +19,7 @@ export function RecommendationCastSection({ cast }: { cast: TmdbCastMember[] }) 
 
   return (
     <section className="space-y-4">
-      <p className="font-heading text-sm italic text-accent">Top cast</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">Top cast</p>
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-4">
         {cast.map((member) => (
           <li
@@ -75,7 +75,7 @@ export function RecommendationWatchProvidersSection({
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="font-heading text-sm italic text-accent">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">
           Where to watch ({providers.countryCode})
         </p>
         {providers.link ? (
@@ -139,7 +139,7 @@ export function RecommendationSimilarTitlesSection({
 
   return (
     <section className="space-y-4">
-      <p className="font-heading text-sm italic text-accent">More like this</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">More like this</p>
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-6">
         {similar.map((title) => (
           <li

@@ -36,7 +36,7 @@ export function RecommendationTrailerSection({ videos, title }: RecommendationTr
 
   return (
     <section className="space-y-4">
-      <p className="font-heading text-sm italic text-accent">Trailers and clips</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">Trailers and clips</p>
 
       <div className="overflow-hidden rounded-lg border border-line/70 bg-panel-strong/60">
         {activeKey ? (
