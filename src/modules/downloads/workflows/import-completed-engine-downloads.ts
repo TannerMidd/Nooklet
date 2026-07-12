@@ -5,8 +5,11 @@ import {
   findDownloadClientByServiceConnectionId,
   findDownloadRequestById,
   listActiveDownloadRequestsForImport,
+  updateDownloadQueueItemStatus,
+  updateDownloadRequestStatus,
 } from "@/modules/downloads/repositories/download-repository";
 import {
+  findEngineDownloadById,
   listUnimportedFinishedEngineDownloads,
   markEngineDownloadImported,
 } from "@/modules/download-engine/queue/engine-repository";
@@ -32,13 +35,42 @@ import { triggerCompletedDownloadDiscovery } from "./import-completed-downloads/
  * retry scheduling, and library-scan triggering.
  */
 export async function importCompletedEngineDownloadsWorkflow(userId: string) {
+  const usenetServer = await findServiceConnectionByType(userId, "usenet-server");
+
+  // Safety net: an active request whose engine download no longer exists
+  // (removed from the queue, or lost to a crash between writes) must not
+  // stay "queued" forever — close it out with a visible reason.
+  if (usenetServer) {
+    const nookletClient = await findDownloadClientByServiceConnectionId(userId, usenetServer.connection.id);
+
+    if (nookletClient) {
+      for (const entry of await listActiveDownloadRequestsForImport(userId, nookletClient.id)) {
+        const engineDownload = await findEngineDownloadById(userId, entry.queueItem.externalQueueId);
+
+        if (!engineDownload) {
+          await updateDownloadQueueItemStatus({
+            userId,
+            queueItemId: entry.queueItem.id,
+            status: "failed",
+            completedAt: new Date(),
+          });
+          await updateDownloadRequestStatus({
+            userId,
+            requestId: entry.request.id,
+            status: "failed",
+            statusMessage: "The download is no longer in the queue — it was removed or lost.",
+          });
+        }
+      }
+    }
+  }
+
   const finished = await listUnimportedFinishedEngineDownloads(userId);
 
   if (finished.length === 0) {
     return null;
   }
 
-  const usenetServer = await findServiceConnectionByType(userId, "usenet-server");
 
   if (!usenetServer) {
     // Engine downloads exist but the connection was removed; nothing can be

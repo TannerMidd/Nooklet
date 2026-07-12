@@ -1,6 +1,11 @@
 import { rm } from "node:fs/promises";
 
 import {
+  listActiveRequestsForExternalQueueId,
+  updateDownloadQueueItemStatus,
+  updateDownloadRequestStatus,
+} from "@/modules/downloads/repositories/download-repository";
+import {
   deleteEngineDownload,
   findEngineDownloadById,
   listActiveEngineDownloads,
@@ -67,6 +72,23 @@ async function removeItem(userId: string, itemId: string) {
   await deleteEngineDownload(userId, itemId);
   await rm(engineIncompleteDir(itemId), { recursive: true, force: true }).catch(() => undefined);
   await rm(engineCompleteDir(itemId), { recursive: true, force: true }).catch(() => undefined);
+
+  // The linked library request must not stay "queued" forever once its
+  // download is gone — close it out with a visible reason.
+  for (const entry of await listActiveRequestsForExternalQueueId(userId, itemId)) {
+    await updateDownloadQueueItemStatus({
+      userId,
+      queueItemId: entry.queueItem.id,
+      status: "failed",
+      completedAt: new Date(),
+    });
+    await updateDownloadRequestStatus({
+      userId,
+      requestId: entry.request.id,
+      status: "cancelled",
+      statusMessage: "Removed from the download queue.",
+    });
+  }
 }
 
 async function moveItem(userId: string, itemId: string, direction: "up" | "down") {

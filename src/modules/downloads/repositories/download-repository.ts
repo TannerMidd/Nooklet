@@ -237,6 +237,25 @@ export async function updateDownloadQueueItemStatus(input: {
     .get() ?? null;
 }
 
+/**
+ * Finds active request/queue-item pairs pointing at a downloader's external
+ * queue id. Used to cancel requests when their engine download is removed.
+ */
+export async function listActiveRequestsForExternalQueueId(userId: string, externalQueueId: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({ request: downloadRequests, queueItem: downloadQueueItems })
+    .from(downloadQueueItems)
+    .innerJoin(downloadRequests, eq(downloadRequests.id, downloadQueueItems.requestId))
+    .where(and(
+      eq(downloadQueueItems.userId, userId),
+      eq(downloadQueueItems.externalQueueId, externalQueueId),
+      inArray(downloadRequests.status, [...activeDownloadRequestStatuses]),
+    ))
+    .all();
+}
+
 export async function listDownloadRequestsByStatus(userId: string, status: DownloadRequestStatus) {
   const database = ensureDatabaseReady();
 
