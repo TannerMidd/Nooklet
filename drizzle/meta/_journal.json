@@ -225,6 +225,13 @@
       "when": 1783260929824,
       "tag": "0031_lean_bullseye",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1783817358474,
+      "tag": "0032_cheerful_obadiah_stane",
+      "breakpoints": true
     }
   ]
 }

@@ -332,10 +332,10 @@ export async function searchLibraryItemReleasesAction(
       return {
         status: "success",
         message: result.item.episode
-          ? "Queued a matching episode release in SABnzbd."
+          ? "Queued a matching episode release for download."
           : result.item.season
-            ? "Queued a matching season release in SABnzbd."
-            : "Queued a matching title release in SABnzbd.",
+            ? "Queued a matching season release for download."
+            : "Queued a matching title release for download.",
         downloadRequestId: result.queuedDownload.download.downloadRequest.id,
       };
     }

@@ -20,6 +20,10 @@ const envSchema = z.object({
     .optional(),
   ALLOW_PRIVATE_SERVICE_HOSTS: booleanFromEnv.default(true),
   SABNZBD_PATH_MAPPINGS: z.string().default(""),
+  // Working/output directory for the built-in usenet download engine
+  // (ADR-0002). Lives inside the data volume by default so incomplete and
+  // completed downloads survive container restarts.
+  DOWNLOAD_ENGINE_DIR: z.string().default("./data/downloads"),
   // Maximum time to wait for an AI provider to return a recommendation batch.
   // Slow local models (LM Studio / Ollama) and large reasoning models routinely
   // exceed several minutes; recommendation runs already execute on the
@@ -39,5 +43,6 @@ export const env = envSchema.parse({
   SECRET_BOX_KEY: process.env.SECRET_BOX_KEY,
   ALLOW_PRIVATE_SERVICE_HOSTS: process.env.ALLOW_PRIVATE_SERVICE_HOSTS,
   SABNZBD_PATH_MAPPINGS: process.env.SABNZBD_PATH_MAPPINGS,
+  DOWNLOAD_ENGINE_DIR: process.env.DOWNLOAD_ENGINE_DIR,
   AI_RECOMMENDATIONS_TIMEOUT_MS: process.env.AI_RECOMMENDATIONS_TIMEOUT_MS,
 });

@@ -77,7 +77,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
   const submitQueueAction = useCallback(async (action: SabnzbdQueueActionInput) => {
     if (
       action.type === "remove" &&
-      !window.confirm("Remove this queue item from SABnzbd? Already downloaded files will be kept.")
+      !window.confirm("Remove this download from the queue? Already downloaded files will be kept.")
     ) {
       return;
     }
@@ -97,7 +97,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
       const payload = (await response.json()) as ActiveSabnzbdQueueState | { message?: unknown };
 
       if (!response.ok) {
-        setActionError(getSabnzbdActionErrorMessage(payload) ?? "Unable to update the SABnzbd queue right now.");
+        setActionError(getSabnzbdActionErrorMessage(payload) ?? "Unable to update the download queue right now.");
 
         return;
       }

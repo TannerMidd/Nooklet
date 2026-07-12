@@ -35,11 +35,19 @@ RUN npm run build
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 
+# The built-in download engine shells out to par2 (repair) and 7zz
+# (rar/7z/zip extraction) during finalization; both live in this image so no
+# external download tooling is required.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends par2 7zip ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=42021 \
     HOSTNAME=0.0.0.0 \
-    DATABASE_URL=file:/app/data/nooklet.db
+    DATABASE_URL=file:/app/data/nooklet.db \
+    DOWNLOAD_ENGINE_DIR=/app/data/downloads
 
 # Standalone output bundles only the dependencies the server actually imports
 # under .next/standalone. We still need the Drizzle migrations folder at

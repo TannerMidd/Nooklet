@@ -53,20 +53,20 @@ export function getSabnzbdQueueActionKey(action: SabnzbdQueueActionInput) {
 export function formatSabnzbdQueueActionMessage(action: SabnzbdQueueActionInput) {
   switch (action.type) {
     case "pauseQueue":
-      return "Paused the SABnzbd queue.";
+      return "Paused the download queue.";
     case "resumeQueue":
-      return "Resumed the SABnzbd queue.";
+      return "Resumed the download queue.";
     case "pause":
-      return "Paused the SABnzbd queue item.";
+      return "Paused the download.";
     case "resume":
-      return "Resumed the SABnzbd queue item.";
+      return "Resumed the download.";
     case "remove":
-      return "Removed the SABnzbd queue item from SABnzbd.";
+      return "Removed the download from the queue.";
     case "move":
       return action.direction === "up"
-        ? "Moved the SABnzbd queue item up."
-        : "Moved the SABnzbd queue item down.";
+        ? "Moved the download up."
+        : "Moved the download down.";
     case "moveToIndex":
-      return "Reordered the SABnzbd queue item.";
+      return "Reordered the download queue.";
   }
 }

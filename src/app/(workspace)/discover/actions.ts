@@ -89,8 +89,8 @@ export async function submitDiscoverTitleRequestAction(
       return {
         status: "success",
         message: requested.selections.length > 1
-          ? `${requestInput.title} was added and ${queuedCount} of ${requested.selections.length} selections were queued in SABnzbd.`
-          : `${requestInput.title} was added and a matching release was queued in SABnzbd.`,
+          ? `${requestInput.title} was added and ${queuedCount} of ${requested.selections.length} selections were queued for download.`
+          : `${requestInput.title} was added and a matching release was queued for download.`,
       };
     }
 

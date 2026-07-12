@@ -184,7 +184,7 @@ describe("applySabnzbdQueueAction", () => {
       }),
     ).resolves.toEqual({
       connectionStatus: "verified",
-      statusMessage: "Moved the SABnzbd queue item down.",
+      statusMessage: "Moved the download down.",
       snapshot: expect.objectContaining({
         items: expect.arrayContaining([expect.objectContaining({ id: "item-1" })]),
       }),
@@ -317,7 +317,7 @@ describe("applySabnzbdQueueAction", () => {
       }),
     ).resolves.toEqual({
       connectionStatus: "verified",
-      statusMessage: "Reordered the SABnzbd queue item.",
+      statusMessage: "Reordered the download queue.",
       snapshot: expect.objectContaining({
         items: expect.arrayContaining([expect.objectContaining({ id: "item-1" })]),
       }),
@@ -351,7 +351,7 @@ describe("applySabnzbdQueueAction", () => {
       }),
     ).resolves.toEqual({
       connectionStatus: "verified",
-      statusMessage: "Removed the SABnzbd queue item from SABnzbd.",
+      statusMessage: "Removed the download from the queue.",
       snapshot: expect.objectContaining({
         totalQueueCount: 1,
       }),
@@ -383,7 +383,7 @@ describe("applySabnzbdQueueAction", () => {
       }),
     ).resolves.toEqual({
       connectionStatus: "verified",
-      statusMessage: "Paused the SABnzbd queue.",
+      statusMessage: "Paused the download queue.",
       snapshot: expect.objectContaining({
         paused: true,
       }),
@@ -414,7 +414,7 @@ describe("applySabnzbdQueueAction", () => {
       }),
     ).resolves.toEqual({
       connectionStatus: "verified",
-      statusMessage: "Resumed the SABnzbd queue.",
+      statusMessage: "Resumed the download queue.",
       snapshot: expect.objectContaining({
         paused: false,
       }),

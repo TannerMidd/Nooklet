@@ -3,7 +3,7 @@ import {
   isActiveDownloadRequestUniqueViolation,
 } from "@/modules/downloads/repositories/download-repository";
 
-import { type ResolvedSabnzbdDownloadClient } from "./client-resolution";
+import { type ResolvedDownloadClient } from "./client-resolution";
 import { QueueIndexerResultWorkflowError } from "./errors";
 import { type QueueIndexerResultInput } from "./request-validation";
 import { type ResolvedQueueIndexerResult } from "./result-resolution";
@@ -16,7 +16,7 @@ export async function reserveDownloadRequest(input: {
   request: QueueIndexerResultInput;
   resolvedResult: ResolvedQueueIndexerResult;
   target: ResolvedQueueIndexerResultTarget;
-  downloadClient: ResolvedSabnzbdDownloadClient;
+  downloadClient: ResolvedDownloadClient;
 }): Promise<ReservedDownloadRequest> {
   try {
     return await createDownloadRequest({

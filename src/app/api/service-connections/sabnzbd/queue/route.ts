@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { sabnzbdQueueActionSchema } from "@/modules/service-connections/sabnzbd-queue-actions";
-import { applySabnzbdQueueAction } from "@/modules/service-connections/workflows/apply-sabnzbd-queue-action";
-import { refreshSabnzbdQueueActivity } from "@/modules/service-connections/workflows/refresh-sabnzbd-queue-activity";
+import { applyDownloadQueueAction } from "@/modules/service-connections/workflows/apply-download-queue-action";
+import { getActiveDownloadQueue } from "@/modules/service-connections/workflows/get-active-download-queue";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -15,7 +15,7 @@ export async function GET() {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const queueState = await refreshSabnzbdQueueActivity(session.user.id);
+  const queueState = await getActiveDownloadQueue(session.user.id);
 
   return NextResponse.json(queueState, { status: 200 });
 }
@@ -32,10 +32,10 @@ export async function POST(request: Request) {
     const parsedBody = sabnzbdQueueActionSchema.safeParse(body);
 
     if (!parsedBody.success) {
-      return NextResponse.json({ message: "Invalid SABnzbd queue action." }, { status: 400 });
+      return NextResponse.json({ message: "Invalid download queue action." }, { status: 400 });
     }
 
-    const queueState = await applySabnzbdQueueAction(session.user.id, parsedBody.data);
+    const queueState = await applyDownloadQueueAction(session.user.id, parsedBody.data);
 
     return NextResponse.json(queueState, { status: 200 });
   } catch (error) {
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
         message:
           error instanceof Error
             ? error.message
-            : "Unable to update the SABnzbd queue right now.",
+            : "Unable to update the download queue right now.",
       },
       { status: 400 },
     );

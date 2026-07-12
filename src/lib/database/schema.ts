@@ -98,7 +98,7 @@ export const preferences = sqliteTable("preferences", {
     .default(sql`(unixepoch() * 1000)`),
 });
 
-export const serviceConnectionTypes = ["ai-provider", "tautulli", "plex", "sabnzbd", "tmdb", "tvdb", "trakt"] as const;
+export const serviceConnectionTypes = ["ai-provider", "tautulli", "plex", "sabnzbd", "usenet-server", "tmdb", "tvdb", "trakt"] as const;
 export const serviceConnectionScopes = ["user", "shared"] as const;
 export const serviceConnectionStatuses = ["configured", "verified", "error"] as const;
 
@@ -158,7 +158,7 @@ export const mediaScanRunStatuses = ["pending", "running", "succeeded", "failed"
 export const indexerProtocols = ["newznab", "torznab"] as const;
 export const indexerConnectionStatuses = ["configured", "verified", "error", "disabled"] as const;
 export const indexerSearchRunStatuses = ["pending", "running", "succeeded", "failed"] as const;
-export const downloadClientTypes = ["sabnzbd"] as const;
+export const downloadClientTypes = ["sabnzbd", "nooklet"] as const;
 export const downloadClientStatuses = ["configured", "verified", "error", "disabled"] as const;
 export const downloadRequestStatuses = [
   "pending",
@@ -179,6 +179,17 @@ export const activeDownloadRequestStatuses = [
 ] as const;
 export const downloadQueueItemStatuses = ["queued", "downloading", "paused", "completed", "failed"] as const;
 export const downloadImportRunStatuses = ["pending", "running", "succeeded", "failed", "skipped"] as const;
+export const engineDownloadStates = [
+  "queued",
+  "fetching",
+  "assembling",
+  "repairing",
+  "extracting",
+  "completed",
+  "failed",
+  "paused",
+] as const;
+export const engineDownloadCategories = ["tv", "movies"] as const;
 
 export const mediaLibraries = sqliteTable(
   "media_libraries",
@@ -781,6 +792,51 @@ export const downloadImportedFiles = sqliteTable(
   ],
 );
 
+/**
+ * Built-in usenet download engine state (ADR-0002). One row per accepted NZB.
+ * The engine owns this state directly — no external queue to reconcile.
+ * Per-segment progress is held in memory while a download is active; a
+ * restart mid-fetch restarts that download from its NZB.
+ */
+export const engineDownloads = sqliteTable(
+  "engine_downloads",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    category: text("category", { enum: engineDownloadCategories }).notNull().default("movies"),
+    state: text("state", { enum: engineDownloadStates }).notNull().default("queued"),
+    priority: integer("priority").notNull().default(0),
+    nzbXml: text("nzb_xml").notNull(),
+    password: text("password"),
+    totalBytes: integer("total_bytes").notNull().default(0),
+    downloadedBytes: integer("downloaded_bytes").notNull().default(0),
+    totalSegments: integer("total_segments").notNull().default(0),
+    completedSegments: integer("completed_segments").notNull().default(0),
+    failedSegments: integer("failed_segments").notNull().default(0),
+    errorMessage: text("error_message"),
+    outputPath: text("output_path"),
+    importedAt: integer("imported_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("engine_downloads_user_state_priority_idx").on(
+      table.userId,
+      table.state,
+      table.priority,
+    ),
+    index("engine_downloads_state_updated_idx").on(table.state, table.updatedAt),
+  ],
+);
+
 export const watchHistorySourceTypes = ["manual", "tautulli", "plex", "trakt"] as const;
 export const watchHistorySyncStatuses = ["pending", "succeeded", "failed"] as const;
 export const jobTypes = [
@@ -1148,6 +1204,8 @@ export type DownloadClientType = (typeof downloadClientTypes)[number];
 export type DownloadClientStatus = (typeof downloadClientStatuses)[number];
 export type DownloadRequestStatus = (typeof downloadRequestStatuses)[number];
 export type DownloadQueueItemStatus = (typeof downloadQueueItemStatuses)[number];
+export type EngineDownloadState = (typeof engineDownloadStates)[number];
+export type EngineDownloadCategory = (typeof engineDownloadCategories)[number];
 export type DownloadImportRunStatus = (typeof downloadImportRunStatuses)[number];
 export type WatchHistorySourceType = (typeof watchHistorySourceTypes)[number];
 export type WatchHistorySyncStatus = (typeof watchHistorySyncStatuses)[number];

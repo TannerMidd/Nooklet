@@ -132,7 +132,7 @@ describe("submitDiscoverTitleRequestAction", () => {
     expect(requestWorkflowMock).toHaveBeenCalledWith("u1", expect.objectContaining({ downloadNow: true }));
     expect(result).toEqual({
       status: "success",
-      message: "Titanic was added and a matching release was queued in SABnzbd.",
+      message: "Titanic was added and a matching release was queued for download.",
     });
     expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
   });

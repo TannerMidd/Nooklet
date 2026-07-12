@@ -5,7 +5,7 @@ export function ensureSabnzbdCompatibleResult(resolvedResult: ResolvedQueueIndex
   if (resolvedResult.indexerProtocol !== "newznab") {
     throw new QueueIndexerResultWorkflowError(
       "unsupported_protocol",
-      "Torrent releases are not supported yet. Connect a usenet (Newznab) indexer with SABnzbd to download this release.",
+      "Torrent releases are not supported yet. Use a usenet (Newznab) indexer to download this release.",
     );
   }
 }

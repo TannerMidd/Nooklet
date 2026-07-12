@@ -3,26 +3,26 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
-vi.mock("@/modules/service-connections/workflows/apply-sabnzbd-queue-action", () => ({
-  applySabnzbdQueueAction: vi.fn(),
+vi.mock("@/modules/service-connections/workflows/apply-download-queue-action", () => ({
+  applyDownloadQueueAction: vi.fn(),
 }));
-vi.mock("@/modules/service-connections/workflows/refresh-sabnzbd-queue-activity", () => ({
-  refreshSabnzbdQueueActivity: vi.fn(),
+vi.mock("@/modules/service-connections/workflows/get-active-download-queue", () => ({
+  getActiveDownloadQueue: vi.fn(),
 }));
 
 import { auth } from "@/auth";
-import { refreshSabnzbdQueueActivity } from "@/modules/service-connections/workflows/refresh-sabnzbd-queue-activity";
+import { getActiveDownloadQueue } from "@/modules/service-connections/workflows/get-active-download-queue";
 
 import { GET } from "./route";
 
 const authMock = vi.mocked(auth);
-const refreshSabnzbdQueueActivityMock = vi.mocked(refreshSabnzbdQueueActivity);
+const getActiveDownloadQueueMock = vi.mocked(getActiveDownloadQueue);
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("SABnzbd queue API", () => {
+describe("download queue API", () => {
   it("rejects unauthenticated queue refreshes", async () => {
     authMock.mockResolvedValue(null as never);
 
@@ -30,23 +30,23 @@ describe("SABnzbd queue API", () => {
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ message: "Unauthorized" });
-    expect(refreshSabnzbdQueueActivityMock).not.toHaveBeenCalled();
+    expect(getActiveDownloadQueueMock).not.toHaveBeenCalled();
   });
 
-  it("refreshes SABnzbd activity for the authenticated user", async () => {
+  it("returns the unified download queue for the authenticated user", async () => {
     const queueState = {
       connectionStatus: "verified",
-      statusMessage: "No active SABnzbd requests right now.",
+      statusMessage: "No active downloads right now.",
       snapshot: null,
     };
 
     authMock.mockResolvedValue({ user: { id: "user1" } } as never);
-    refreshSabnzbdQueueActivityMock.mockResolvedValue(queueState as never);
+    getActiveDownloadQueueMock.mockResolvedValue(queueState as never);
 
     const response = await GET();
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(queueState);
-    expect(refreshSabnzbdQueueActivityMock).toHaveBeenCalledWith("user1");
+    expect(getActiveDownloadQueueMock).toHaveBeenCalledWith("user1");
   });
 });

@@ -399,7 +399,7 @@ describe("queueIndexerResultAction", () => {
     expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
     expect(result).toEqual({
       status: "success",
-      message: "Queued in SABnzbd.",
+      message: "Queued for download.",
       downloadRequestId: "request1",
     });
   });

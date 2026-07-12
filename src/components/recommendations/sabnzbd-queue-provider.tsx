@@ -33,7 +33,7 @@ async function fetchSabnzbdQueueState(): Promise<ActiveSabnzbdQueueState> {
     if (!response.ok) {
       return {
         connectionStatus: "error",
-        statusMessage: "Unable to load active SABnzbd requests right now.",
+        statusMessage: "Unable to load active downloads right now.",
         snapshot: null,
       };
     }
@@ -42,7 +42,7 @@ async function fetchSabnzbdQueueState(): Promise<ActiveSabnzbdQueueState> {
   } catch {
     return {
       connectionStatus: "error",
-      statusMessage: "Unable to load active SABnzbd requests right now.",
+      statusMessage: "Unable to load active downloads right now.",
       snapshot: null,
     };
   }

@@ -43,8 +43,10 @@ feedback (👍 / 👎 / hide) shapes future runs.
 
 **Library management** — Browse and filter your media database. Request titles
 from search with episode-level selection. One-click request from any
-recommendation card. Tracks active SABnzbd downloads and auto-imports completed
-files into your library paths.
+recommendation card. A built-in usenet download engine fetches releases
+directly from your news server (NNTP), repairs and extracts them, and
+auto-imports completed files into your library paths — no Sonarr, Radarr, or
+SABnzbd required.
 
 **Discover** — Trending, popular, and top-rated rails powered by TMDB. Rich
 title overviews with artwork, cast, trailers, and watch providers.
@@ -101,7 +103,7 @@ and [`docs/adr/ADR-0001-architecture-principles.md`](docs/adr/ADR-0001-architect
 
 - Node.js **20** or newer
 - An OpenAI-compatible chat-completions endpoint and API key
-- Optional: Plex, Tautulli, Trakt, or SABnzbd reachable from the host
+- Optional: Plex, Tautulli, Trakt reachable from the host (SABnzbd is a legacy fallback; the built-in downloader only needs your usenet provider)
 
 **Run locally**
 
@@ -275,7 +277,8 @@ encrypted at rest.
 | **Plex** | Optional watch-history source. |
 | **Tautulli** | Optional watch-history source with richer history detail. |
 | **Trakt** | Optional watch-history source. |
-| **SABnzbd** | In-progress download tracking. |
+| **Usenet server** | Built-in download engine — direct NNTP downloads, PAR2 repair, archive extraction. |
+| **SABnzbd** | Legacy/optional external downloader. |
 | **Notifications** | Outbound-only channels: Discord, Apprise, or generic webhook. |
 
 ---

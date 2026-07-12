@@ -6,7 +6,7 @@ import {
 import { SabnzbdActivityPanel } from "@/components/recommendations/sabnzbd-activity-panel";
 import { PageHeader } from "@/components/ui/page-header";
 import { listDownloadActivity } from "@/modules/downloads/queries/list-download-activity";
-import { refreshSabnzbdQueueActivity } from "@/modules/service-connections/workflows/refresh-sabnzbd-queue-activity";
+import { getActiveDownloadQueue } from "@/modules/service-connections/workflows/get-active-download-queue";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,7 @@ export default async function InProgressPage() {
   }
 
   const [activeSabnzbdQueue, downloadActivity] = await Promise.all([
-    refreshSabnzbdQueueActivity(session.user.id),
+    getActiveDownloadQueue(session.user.id),
     listDownloadActivity(session.user.id),
   ]);
 

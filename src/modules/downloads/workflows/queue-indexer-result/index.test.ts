@@ -17,13 +17,13 @@ vi.mock("./protocol-guard", () => ({
   ensureSabnzbdCompatibleResult: vi.fn(),
 }));
 vi.mock("./client-resolution", () => ({
-  resolveSabnzbdDownloadClient: vi.fn(),
+  resolveDownloadClient: vi.fn(),
 }));
 vi.mock("./reservation", () => ({
   reserveDownloadRequest: vi.fn(),
 }));
 vi.mock("./download-submission", () => ({
-  submitIndexerResultToSabnzbd: vi.fn(),
+  submitIndexerResultToDownloadClient: vi.fn(),
 }));
 vi.mock("./persistence", () => ({
   persistQueuedIndexerResultDownload: vi.fn(),
@@ -35,8 +35,8 @@ vi.mock("./audit", () => ({
 
 import { recordQueuedIndexerResultAudit } from "./audit";
 import { ensureNoActiveDownloadRequest } from "./active-download-guard";
-import { resolveSabnzbdDownloadClient } from "./client-resolution";
-import { submitIndexerResultToSabnzbd } from "./download-submission";
+import { resolveDownloadClient } from "./client-resolution";
+import { submitIndexerResultToDownloadClient } from "./download-submission";
 import {
   failReservedDownloadRequest,
   persistQueuedIndexerResultDownload,
@@ -53,9 +53,9 @@ const activeGuardMock = vi.mocked(ensureNoActiveDownloadRequest);
 const resolveResultMock = vi.mocked(resolveQueueIndexerResult);
 const protocolGuardMock = vi.mocked(ensureSabnzbdCompatibleResult);
 const resolveTargetMock = vi.mocked(resolveQueueIndexerResultTarget);
-const resolveClientMock = vi.mocked(resolveSabnzbdDownloadClient);
+const resolveClientMock = vi.mocked(resolveDownloadClient);
 const reserveMock = vi.mocked(reserveDownloadRequest);
-const submitMock = vi.mocked(submitIndexerResultToSabnzbd);
+const submitMock = vi.mocked(submitIndexerResultToDownloadClient);
 const persistMock = vi.mocked(persistQueuedIndexerResultDownload);
 const failReservedMock = vi.mocked(failReservedDownloadRequest);
 const auditMock = vi.mocked(recordQueuedIndexerResultAudit);

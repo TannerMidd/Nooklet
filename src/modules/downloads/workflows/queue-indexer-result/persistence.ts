@@ -4,7 +4,7 @@ import {
   updateDownloadRequestStatus,
 } from "@/modules/downloads/repositories/download-repository";
 
-import { type ResolvedSabnzbdDownloadClient } from "./client-resolution";
+import { type ResolvedDownloadClient } from "./client-resolution";
 import { QueueIndexerResultWorkflowError } from "./errors";
 import { type QueueIndexerResultSubmission } from "./download-submission";
 import { type ReservedDownloadRequest } from "./reservation";
@@ -21,7 +21,7 @@ export async function persistQueuedIndexerResultDownload(input: {
   userId: string;
   reservedRequest: ReservedDownloadRequest;
   resolvedResult: ResolvedQueueIndexerResult;
-  downloadClient: ResolvedSabnzbdDownloadClient;
+  downloadClient: ResolvedDownloadClient;
   submission: QueueIndexerResultSubmission;
 }): Promise<QueuedIndexerResultDownload> {
   const primaryQueueId = input.submission.queueIds[0] ?? null;
@@ -31,7 +31,9 @@ export async function persistQueuedIndexerResultDownload(input: {
     requestId: input.reservedRequest.id,
     status: "queued",
     externalJobId: primaryQueueId,
-    statusMessage: "Queued in SABnzbd.",
+    statusMessage: input.downloadClient.kind === "nooklet"
+      ? "Queued in the Nooklet downloader."
+      : "Queued in SABnzbd.",
   });
 
   if (!queuedRequest) {

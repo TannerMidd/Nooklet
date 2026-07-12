@@ -45,7 +45,7 @@ implementation shape. Each row maps to a primary domain module under
 | Add-to-library | Users can add recommended or discovered media to Nooklet's built-in library manager. | TV and movie add flows create or update local media records, capture monitoring/request intent, support season selection where applicable, and return clear pending/search/download states. | media-library, metadata |
 | Indexer management | Users can configure, test, and remove direct indexers without leaving Nooklet. | Each operation is a typed workflow gated by user authorization; indexer credentials and auth-bearing fields are encrypted or masked, field values are not persisted in audit payloads, and no generic proxy endpoint is exposed. | indexers, credential-vault |
 | Indexer search | Users can search configured indexers for requested media. | Search workflows validate filters, resolve credentials server-side, normalize results into safe metadata, persist result ownership and expiry, rate-limit requests, and never return raw download URLs or API keys to the browser. | indexers |
-| Download enqueue and import | Users can enqueue selected releases to SABnzbd and organize completed downloads into configured library paths. | Enqueue workflows submit selected results to SABnzbd server-side, persist request status, track queue/import progress, organize completed files under configured library paths without unsafe path traversal or overwrite behavior, and audit success/failure. | downloads, media-library |
+| Download enqueue and import | Users can enqueue selected releases to the built-in download engine (or legacy SABnzbd) and organize completed downloads into configured library paths. | Enqueue workflows fetch the NZB server-side and submit it to the built-in engine (SABnzbd remains a legacy fallback), persist request status, track queue/import progress, organize completed files under configured library paths without unsafe path traversal or overwrite behavior, and audit success/failure. | downloads, download-engine, media-library |
 | Watch history ingest | Source watch history from Plex, Jellyfin, Tautulli, and Trakt where configured. | Each supported history source has an adapter-backed sync workflow with explicit sync state and persisted results. | watch-history |
 | Watch history controls | Users can control history modes, limits, and source-specific settings. | History preferences are explicit fields in the preferences/source model, validated, and editable via route-based settings flows. | preferences, watch-history |
 | Watch history only mode | Users can run recommendation flows based only on selected watch-history sources. | Recommendation request assembly can derive source context from watch-history-only mode without screen-local branches. | recommendations |
@@ -71,7 +71,7 @@ implementation shape. Each row maps to a primary domain module under
 | External title metadata lookup and normalization | `metadata` |
 | Built-in library paths, scans, media records, and request state | `media-library` |
 | Direct indexer setup, testing, and search | `indexers` |
-| SABnzbd enqueue, queue state, and completed-download import | `downloads` |
+| Download enqueue, queue state, and completed-download import | `downloads`, `download-engine` |
 | Source sync, merge rules, history-source configuration | `watch-history` |
 | Run creation, prompt assembly, normalization, feedback, retry | `recommendations` |
 | User-facing defaults and filters | `preferences` |

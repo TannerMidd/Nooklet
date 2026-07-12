@@ -1,6 +1,7 @@
 import { verifyAiProvider } from "./verify-ai-provider";
 import { verifyPlex } from "./verify-plex";
 import { verifySabnzbd } from "./verify-sabnzbd";
+import { verifyUsenetServer } from "./verify-usenet-server";
 import { verifyTautulli } from "./verify-tautulli";
 import { verifyTmdb } from "./verify-tmdb";
 import { verifyTrakt } from "./verify-trakt";
@@ -28,6 +29,8 @@ export async function verifyServiceConnection(
         return await verifyPlex(input);
       case "sabnzbd":
         return await verifySabnzbd(input);
+      case "usenet-server":
+        return await verifyUsenetServer(input);
       case "tmdb":
         return await verifyTmdb(input);
       case "tvdb":

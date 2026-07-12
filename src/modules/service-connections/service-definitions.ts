@@ -36,10 +36,18 @@ export const serviceConnectionDefinitions = [
     defaultBaseUrl: "http://localhost:32400",
   },
   {
-    serviceType: "sabnzbd",
-    displayName: "SABnzbd",
+    serviceType: "usenet-server",
+    displayName: "Usenet server",
     description:
-      "Connect SABnzbd so Nooklet can surface active download queue progress while requests are in flight.",
+      "Your news server (NNTP) — the built-in downloader fetches releases directly from it. Use nntps://host:port (TLS) or nntp://host:port; add ?connections=N to size the pool.",
+    secretLabel: "Username::Password",
+    defaultBaseUrl: "nntps://news.example.com:563",
+  },
+  {
+    serviceType: "sabnzbd",
+    displayName: "SABnzbd (legacy)",
+    description:
+      "Optional legacy downloader. With a usenet server configured, Nooklet downloads releases itself and SABnzbd is no longer required.",
     secretLabel: "API key",
     defaultBaseUrl: "http://localhost:8080",
   },

@@ -5,7 +5,10 @@ import {
   type StoredJob,
 } from "@/modules/jobs/repositories/job-repository";
 import { listUsersWithActiveDownloadRequestsForImport } from "@/modules/downloads/queries/list-users-with-active-download-requests";
+import { listUsersWithUnimportedFinishedEngineDownloads } from "@/modules/download-engine/queue/engine-repository";
+import { ensureEngineRunnerStarted } from "@/modules/download-engine/runtime/engine-runner";
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
+import { importCompletedEngineDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-engine-downloads";
 import { reconcileDuplicateSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-duplicate-queue-items";
 import { reconcileMissingSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-missing-queue-items";
 import { refreshTvMetadataWorkflow } from "@/modules/media-library/workflows/refresh-tv-metadata";
@@ -197,11 +200,21 @@ async function executeJob(job: StoredJob) {
 }
 
 async function runCompletedDownloadImportPass() {
-  const userIds = await listUsersWithActiveDownloadRequestsForImport();
+  const activeUserIds = await listUsersWithActiveDownloadRequestsForImport();
+  const engineUserIds = await listUsersWithUnimportedFinishedEngineDownloads();
+  const userIds = Array.from(new Set([...activeUserIds, ...engineUserIds]));
 
   for (const userId of userIds) {
+    // The built-in engine import never depends on SABnzbd being reachable,
+    // so it runs first in its own failure domain.
     try {
-      // Order matters:
+      await importCompletedEngineDownloadsWorkflow(userId);
+    } catch {
+      // Engine imports retry on the next worker tick.
+    }
+
+    try {
+      // Order matters (legacy SABnzbd path):
       //  1. import-completed first so SAB-history items are matched and the corresponding
       //     download_requests are promoted to 'succeeded' before any reconciliation pass treats
       //     their queue rows as "missing". (SAB removes a queue slot the instant post-processing
@@ -229,6 +242,8 @@ export async function runDueJobs() {
   sharedWorkerState.running = true;
 
   try {
+    // Kick the built-in download engine's drain loop when queued work exists.
+    await ensureEngineRunnerStarted();
     await runCompletedDownloadImportPass();
 
     const dueJobs = [

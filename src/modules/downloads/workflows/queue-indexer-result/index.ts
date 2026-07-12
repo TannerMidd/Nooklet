@@ -1,7 +1,7 @@
 import { recordQueuedIndexerResultAudit } from "./audit";
 import { ensureNoActiveDownloadRequest } from "./active-download-guard";
-import { resolveSabnzbdDownloadClient } from "./client-resolution";
-import { submitIndexerResultToSabnzbd } from "./download-submission";
+import { resolveDownloadClient } from "./client-resolution";
+import { submitIndexerResultToDownloadClient } from "./download-submission";
 import {
   failReservedDownloadRequest,
   persistQueuedIndexerResultDownload,
@@ -21,7 +21,7 @@ export async function queueIndexerResultWorkflow(userId: string, input: QueueInd
   const resolvedResult = await resolveQueueIndexerResult(userId, request);
   ensureSabnzbdCompatibleResult(resolvedResult);
   const target = await resolveQueueIndexerResultTarget(userId, request, resolvedResult);
-  const downloadClient = await resolveSabnzbdDownloadClient(userId);
+  const downloadClient = await resolveDownloadClient(userId);
   const reservedRequest = await reserveDownloadRequest({
     userId,
     request,
@@ -32,12 +32,12 @@ export async function queueIndexerResultWorkflow(userId: string, input: QueueInd
 
   let submission;
   try {
-    submission = await submitIndexerResultToSabnzbd(resolvedResult, downloadClient);
+    submission = await submitIndexerResultToDownloadClient(resolvedResult, downloadClient);
   } catch (error) {
     await failReservedDownloadRequest({
       userId,
       reservedRequest,
-      reason: error instanceof Error ? error.message : "SABnzbd submission failed.",
+      reason: error instanceof Error ? error.message : "The download submission failed.",
     });
     throw error;
   }

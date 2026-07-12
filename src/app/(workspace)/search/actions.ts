@@ -222,7 +222,7 @@ export async function requestSearchTitleAction(
 
       return {
         status: "success",
-        message: "Added to your library and queued a matching release in SABnzbd.",
+        message: "Added to your library and queued a matching release for download.",
         titleId: requested.title.id,
         seasonId: selectionSeasonId,
         episodeId: selectionEpisodeId,
@@ -348,7 +348,7 @@ export async function queueIndexerResultAction(
 
     return {
       status: "success",
-      message: "Queued in SABnzbd.",
+      message: "Queued for download.",
       downloadRequestId: queued.downloadRequest.id,
     };
   } catch (error) {

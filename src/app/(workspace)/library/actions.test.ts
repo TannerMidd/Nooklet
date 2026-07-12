@@ -673,7 +673,7 @@ describe("searchLibraryItemReleasesAction", () => {
     expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
     expect(result).toEqual({
       status: "success",
-      message: "Queued a matching title release in SABnzbd.",
+      message: "Queued a matching title release for download.",
       downloadRequestId: "download1",
     });
   });
@@ -709,7 +709,7 @@ describe("searchLibraryItemReleasesAction", () => {
     expect(revalidateMock).not.toHaveBeenCalledWith(`/library/tv/${titleId}`);
     expect(result).toMatchObject({
       status: "success",
-      message: "Queued a matching episode release in SABnzbd.",
+      message: "Queued a matching episode release for download.",
       downloadRequestId: "download2",
     });
   });
