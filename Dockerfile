@@ -35,11 +35,13 @@ RUN npm run build
 FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 
-# The built-in download engine shells out to par2 (repair) and 7zz
-# (rar/7z/zip extraction) during finalization; both live in this image so no
-# external download tooling is required.
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends par2 7zip ca-certificates \
+# The built-in download engine shells out to par2 (repair + obfuscated-name
+# restoration), unrar (RAR sets — Debian's 7zz ships without the RAR codec),
+# and 7zz (zip/7z) during finalization; all live in this image so no external
+# download tooling is required. unrar comes from the non-free component.
+RUN sed -i 's/Components: main/Components: main contrib non-free non-free-firmware/' /etc/apt/sources.list.d/debian.sources \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends par2 7zip unrar ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production \

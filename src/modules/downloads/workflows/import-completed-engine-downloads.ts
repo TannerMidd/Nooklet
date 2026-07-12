@@ -1,12 +1,16 @@
+import { rm } from "node:fs/promises";
+
 import {
   createDownloadClient,
   findDownloadClientByServiceConnectionId,
+  findDownloadRequestById,
   listActiveDownloadRequestsForImport,
 } from "@/modules/downloads/repositories/download-repository";
 import {
   listUnimportedFinishedEngineDownloads,
   markEngineDownloadImported,
 } from "@/modules/download-engine/queue/engine-repository";
+import { engineIncompleteDir } from "@/modules/download-engine/runtime/engine-runner";
 import { findServiceConnectionByType } from "@/modules/service-connections/queries/find-service-connection-by-type";
 
 import { recordCompletedDownloadImportAudit } from "./import-completed-downloads/audit";
@@ -98,6 +102,24 @@ export async function importCompletedEngineDownloadsWorkflow(userId: string) {
   // their import ran, unmatched ones (request removed/cancelled) immediately.
   for (const record of finished) {
     await markEngineDownloadImported(record.id);
+
+    // Reclaim disk space. Failed downloads keep nothing (their working dir
+    // is abandoned mid-flight); completed ones drop their output dir once
+    // the matched request actually imported its files into the library.
+    if (record.state === "failed") {
+      await rm(engineIncompleteDir(record.id), { recursive: true, force: true }).catch(() => undefined);
+      continue;
+    }
+
+    const matchedRequest = matches.find((match) => match.historyItem.id === record.id);
+
+    if (matchedRequest && record.outputPath) {
+      const requestAfterImport = await findDownloadRequestById(userId, matchedRequest.request.id);
+
+      if (requestAfterImport?.status === "succeeded") {
+        await rm(record.outputPath, { recursive: true, force: true }).catch(() => undefined);
+      }
+    }
   }
 
   if (matchedEngineIds.size > 0) {

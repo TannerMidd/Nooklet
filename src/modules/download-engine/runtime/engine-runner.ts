@@ -167,6 +167,7 @@ async function processEngineDownload(download: EngineDownloadRecord) {
     const finalized = await finalizeDownload({
       workDir,
       outputDir: engineCompleteDir(download.id),
+      downloadName: download.name,
       files: result.files,
       password: download.password,
     });

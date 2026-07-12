@@ -1,4 +1,7 @@
-import { listDownloadRequestReleaseExclusionsForItem } from "@/modules/downloads/repositories/download-repository";
+import {
+  listDownloadRequestReleaseExclusionsForItem,
+  updateDownloadRequestStatus,
+} from "@/modules/downloads/repositories/download-repository";
 import { searchLibraryItemReleasesWorkflow } from "@/modules/media-library/workflows/search-library-item-releases";
 
 import { type MatchedCompletedDownload } from "./request-matching";
@@ -10,6 +13,13 @@ export type CompletedDownloadRetryResult = {
   queuedCount: number;
   failedCount: number;
 };
+
+/**
+ * Auto-retry stops after this many failed releases for the same item. Without
+ * a cap, an environment-level problem (broken extraction, junk indexer)
+ * silently marches through every available release.
+ */
+export const maxAutoRetriesPerItem = 3;
 
 function retryableFailureMatch(download: OrganizedCompletedDownload): MatchedCompletedDownload | null {
   if (download.kind !== "failed") {
@@ -77,8 +87,6 @@ export async function retryFailedCompletedDownloads(
 
     retriedItemKeys.add(itemKey);
 
-    attemptedCount += 1;
-
     try {
       const exclusions = await listDownloadRequestReleaseExclusionsForItem({
         userId,
@@ -86,6 +94,21 @@ export async function retryFailedCompletedDownloads(
         episodeId: match.request.episodeId,
         seasonId: match.request.seasonId,
       });
+
+      if (exclusions.releaseKeys.length >= maxAutoRetriesPerItem) {
+        // Leave the request failed with an explanation instead of quietly
+        // burning through the entire release list.
+        await updateDownloadRequestStatus({
+          userId,
+          requestId: match.request.id,
+          status: "failed",
+          statusMessage: `${match.historyItem.failMessage ?? "The download failed."} Auto-retry stopped after ${exclusions.releaseKeys.length} failed releases for this title — fix the cause, then retry manually.`,
+        });
+        continue;
+      }
+
+      attemptedCount += 1;
+
       const retry = await searchLibraryItemReleasesWorkflow(userId, {
         titleId: mediaTitleId,
         episodeId: match.request.episodeId ?? undefined,
