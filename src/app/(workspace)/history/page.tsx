@@ -1,12 +1,12 @@
 import Link from "next/link";
 
 import { auth } from "@/auth";
+import { Badge } from "@/components/ui/badge";
 import { RecommendationHistoryItemActions } from "@/components/recommendations/recommendation-history-item-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationTitleOverviewDialog } from "@/components/recommendations/recommendation-title-overview-dialog";
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
-import { Panel } from "@/components/ui/panel";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import { listRecommendationHistory } from "@/modules/recommendations/queries/list-recommendation-history";
 import { getRecommendationTitleOverview } from "@/modules/recommendations/queries/get-recommendation-title-overview";
@@ -81,137 +81,118 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
   const selectedOverview = resolvedSearchParams?.details
     ? await getRecommendationTitleOverview(session.user.id, resolvedSearchParams.details)
     : null;
+
+  const activeFilters = [
+    preferences.historyHideExisting ? "Hiding existing" : null,
+    preferences.historyHideLiked ? "Hiding liked" : null,
+    preferences.historyHideDisliked ? "Hiding disliked" : null,
+    preferences.historyHideHidden ? "Hiding hidden" : null,
+  ].filter((filter): filter is string => Boolean(filter));
+
+  const scopeItems = [
+    { href: buildHistoryHref("all"), label: "All", active: currentView === "all" },
+    { href: buildHistoryHref("tv"), label: "TV", active: currentView === "tv" },
+    { href: buildHistoryHref("movie"), label: "Movies", active: currentView === "movie" },
+  ];
+
+  const pageLinkClass =
+    "relative inline-flex h-8 items-center justify-center rounded-full border border-cream/[0.14] px-3.5 text-xs font-semibold text-foreground transition hover:bg-cream/[0.06]";
+  const pageDisabledClass =
+    "inline-flex h-8 items-center justify-center rounded-full border border-cream/10 px-3.5 text-xs font-semibold text-muted opacity-50";
+
   return (
-    <div className="space-y-5">
-      <PageHeader eyebrow="Recommendation records" title="History" />
+    <div className="nk-enter space-y-7">
+      <PageHeader eyebrow="Every past pick" title="History" />
 
-      <div className="grid gap-6 xl:grid-cols-[1.08fr,0.92fr]">
-        <Panel
-          eyebrow="Views"
-          title="Media scope"
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="mr-2 flex rounded-lg bg-cream/[0.05] p-[3px]">
+          {scopeItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={
+                item.active
+                  ? "relative inline-flex h-[34px] items-center rounded-md bg-accent px-4 text-[13px] font-semibold text-accent-foreground"
+                  : "relative inline-flex h-[34px] items-center rounded-md px-4 text-[13px] font-semibold text-muted transition hover:text-foreground"
+              }
+            >
+              <LinkPendingOverlay />
+              {item.label}
+            </Link>
+          ))}
+        </div>
+        {activeFilters.map((filter) => (
+          <span
+            key={filter}
+            className="inline-flex h-7 items-center rounded-full border border-cream/10 px-3 text-xs font-medium text-muted"
+          >
+            {filter}
+          </span>
+        ))}
+        <Link
+          href="/settings/preferences"
+          className="relative inline-flex h-7 items-center rounded-full px-2 text-xs font-semibold text-accent transition hover:brightness-110"
         >
-          <div className="flex flex-wrap gap-3">
-            {[
-              { href: buildHistoryHref("all"), label: "All", active: currentView === "all" },
-              { href: buildHistoryHref("tv"), label: "TV", active: currentView === "tv" },
-              {
-                href: buildHistoryHref("movie"),
-                label: "Movies",
-                active: currentView === "movie",
-              },
-            ].map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={
-                  item.active
-                    ? "relative inline-flex rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground"
-                    : "relative inline-flex rounded-lg border border-line/45 bg-panel-strong/45 px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/50"
-                }
-              >
-                <LinkPendingOverlay />
-                {item.label}
-              </Link>
-            ))}
-          </div>
-        </Panel>
-
-        <Panel
-          eyebrow="Active filters"
-          title="Saved filters"
-        >
-          <div className="grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
-            <div className="rounded-lg border border-line/60 bg-background/15 px-4 py-3">
-              Hide existing: {preferences.historyHideExisting ? "On" : "Off"}
-            </div>
-            <div className="rounded-lg border border-line/60 bg-background/15 px-4 py-3">
-              Hide liked: {preferences.historyHideLiked ? "On" : "Off"}
-            </div>
-            <div className="rounded-lg border border-line/60 bg-background/15 px-4 py-3">
-              Hide disliked: {preferences.historyHideDisliked ? "On" : "Off"}
-            </div>
-            <div className="rounded-lg border border-line/60 bg-background/15 px-4 py-3">
-              Hide hidden: {preferences.historyHideHidden ? "On" : "Off"}
-            </div>
-          </div>
-        </Panel>
+          <LinkPendingOverlay />
+          Edit filters
+        </Link>
       </div>
 
-      <Panel
-        eyebrow="Recommendation items"
-        title={
-          history.filteredCount > 0
-            ? `Showing ${history.pageStart}-${history.pageEnd} of ${history.filteredCount}`
-            : `Showing 0 of ${history.totalCount}`
-        }
-      >
-        {history.items.length === 0 ? (
-          <div className="space-y-3 text-sm leading-6 text-muted">
-            <p>No recommendation items match the current view and saved filters.</p>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href="/tv"
-                className="relative inline-flex rounded-lg border border-line/45 bg-panel-strong/45 px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/50"
-              >
-                <LinkPendingOverlay />
-                Open TV recommendations
-              </Link>
-              <Link
-                href="/movies"
-                className="relative inline-flex rounded-lg border border-line/45 bg-panel-strong/45 px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/50"
-              >
-                <LinkPendingOverlay />
-                Open movie recommendations
-              </Link>
-            </div>
+      {history.items.length === 0 ? (
+        <div className="space-y-3 rounded-2xl border border-dashed border-cream/[0.12] bg-cream/[0.02] px-6 py-5 text-sm leading-6 text-muted">
+          <p>No recommendation items match the current view and saved filters.</p>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/tv" className={pageLinkClass}>
+              <LinkPendingOverlay />
+              Open TV picks
+            </Link>
+            <Link href="/movies" className={pageLinkClass}>
+              <LinkPendingOverlay />
+              Open movie picks
+            </Link>
           </div>
-        ) : (
-          <div className="max-h-[72vh] space-y-4 overflow-y-auto pr-2">
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-cream/[0.08] bg-cream/[0.03]">
+          <ul className="divide-y divide-cream/[0.05]">
             {history.items.map((item) => (
-              <article
-                key={item.itemId}
-                className="rounded-lg border border-line/45 bg-panel/85 p-5"
-              >
+              <li key={item.itemId} className="px-5 py-4">
                 <Link
                   href={appendDetailsParam(returnTo, item.itemId)}
                   scroll={false}
-                  className="relative flex min-w-0 flex-col gap-4 rounded-lg outline-none transition hover:opacity-90 focus-visible:ring-1 focus-visible:ring-accent/50 sm:flex-row sm:items-start"
+                  className="relative flex min-w-0 items-start gap-4 outline-none transition hover:opacity-90 focus-visible:rounded-lg focus-visible:ring-1 focus-visible:ring-accent/50"
                 >
                   <LinkPendingOverlay className="rounded-lg" />
                   <RecommendationPoster
                     title={item.title}
                     posterUrl={item.providerMetadata?.posterUrl}
+                    className="w-11 rounded-sm sm:w-11"
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <p className="font-medium text-foreground">
-                          {item.title}
-                          {item.year ? ` (${item.year})` : ""}
-                        </p>
-                        <p className="mt-1 text-sm text-muted">
-                          {item.mediaType === "tv" ? "TV" : "Movie"} recommendation from {item.requestPrompt}
-                        </p>
-                      </div>
-                      <div className="text-sm text-muted">
-                        <div>{item.runStatus}</div>
-                        <div>
-                          {new Intl.DateTimeFormat("en", {
-                            dateStyle: "medium",
-                            timeStyle: "short",
-                          }).format(item.runCreatedAt)}
-                        </div>
-                      </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <p className="text-[14.5px] font-semibold text-foreground">
+                        {item.title}
+                        {item.year ? ` (${item.year})` : ""}
+                      </p>
+                      <span className="text-[12.5px] text-muted">
+                        {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(item.runCreatedAt)}
+                      </span>
+                      {item.feedback === "like" ? (
+                        <Badge variant="accent-cool">Liked</Badge>
+                      ) : item.feedback === "dislike" ? (
+                        <Badge variant="wine">Disliked</Badge>
+                      ) : item.existingInLibrary ? (
+                        <Badge variant="accent">In library</Badge>
+                      ) : (
+                        <Badge>No feedback</Badge>
+                      )}
+                      {item.isHidden ? <Badge>Hidden</Badge> : null}
                     </div>
-
-                    <p className="mt-4 text-sm leading-6 text-foreground">{item.rationale}</p>
-
-                    <div className="mt-4 flex flex-wrap gap-3 text-xs font-medium text-muted">
-                      {item.confidenceLabel ? <span>{item.confidenceLabel}</span> : null}
-                      {item.feedback ? <span>feedback: {item.feedback}</span> : null}
-                      {item.isHidden ? <span>hidden</span> : null}
-                      {item.existingInLibrary ? <span>existing in library</span> : null}
-                    </div>
+                    <p className="mt-1 truncate text-[13px] leading-5 text-muted">{item.rationale}</p>
+                    <p className="mt-0.5 text-xs text-muted/80">
+                      {item.mediaType === "tv" ? "TV" : "Movie"} · from “{item.requestPrompt}” · run{" "}
+                      {item.runStatus}
+                    </p>
                   </div>
                 </Link>
 
@@ -226,53 +207,43 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                   returnTo={returnTo}
                   providerMetadata={item.providerMetadata}
                 />
-              </article>
+              </li>
             ))}
-          </div>
-        )}
+          </ul>
 
-        {history.filteredCount > 0 ? (
-          <div className="mt-5 flex flex-col gap-3 border-t border-line/45 pt-5 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm leading-6 text-muted">
-              Page {history.currentPage} of {history.totalPages}.
-              {history.totalCount !== history.filteredCount
-                ? ` ${history.totalCount} total items are available before filters.`
-                : null}
-            </p>
-            {history.totalPages > 1 ? (
-              <div className="flex flex-wrap gap-3">
-                {history.currentPage > 1 ? (
-                  <Link
-                    href={buildHistoryHref(currentView, history.currentPage - 1)}
-                    className="relative inline-flex rounded-lg border border-line/45 bg-panel-strong/45 px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/50"
-                  >
-                    <LinkPendingOverlay />
-                    Previous page
-                  </Link>
-                ) : (
-                  <span className="inline-flex rounded-lg border border-line/50 bg-panel/60 px-3 py-1.5 text-sm font-medium text-muted">
-                    Previous page
-                  </span>
-                )}
-
-                {history.currentPage < history.totalPages ? (
-                  <Link
-                    href={buildHistoryHref(currentView, history.currentPage + 1)}
-                    className="relative inline-flex rounded-lg border border-line/45 bg-panel-strong/45 px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel-raised/50"
-                  >
-                    <LinkPendingOverlay />
-                    Next page
-                  </Link>
-                ) : (
-                  <span className="inline-flex rounded-lg border border-line/50 bg-panel/60 px-3 py-1.5 text-sm font-medium text-muted">
-                    Next page
-                  </span>
-                )}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </Panel>
+          {history.filteredCount > 0 ? (
+            <div className="flex flex-col gap-3 border-t border-cream/[0.05] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-[13px] leading-6 text-muted">
+                Showing {history.pageStart}-{history.pageEnd} of {history.filteredCount} · page{" "}
+                {history.currentPage} of {history.totalPages}
+                {history.totalCount !== history.filteredCount
+                  ? ` · ${history.totalCount} total before filters`
+                  : ""}
+              </p>
+              {history.totalPages > 1 ? (
+                <div className="flex flex-wrap gap-2">
+                  {history.currentPage > 1 ? (
+                    <Link href={buildHistoryHref(currentView, history.currentPage - 1)} className={pageLinkClass}>
+                      <LinkPendingOverlay />
+                      Previous
+                    </Link>
+                  ) : (
+                    <span className={pageDisabledClass}>Previous</span>
+                  )}
+                  {history.currentPage < history.totalPages ? (
+                    <Link href={buildHistoryHref(currentView, history.currentPage + 1)} className={pageLinkClass}>
+                      <LinkPendingOverlay />
+                      Next
+                    </Link>
+                  ) : (
+                    <span className={pageDisabledClass}>Next</span>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {selectedOverview ? (
         <RecommendationTitleOverviewDialog

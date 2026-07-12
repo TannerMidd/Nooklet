@@ -57,7 +57,7 @@ export function LibraryPathForm() {
           <select
             name="mediaType"
             defaultValue="movie"
-            className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/45 focus:ring-1 focus:ring-accent/25"
+            className="min-h-9 w-full rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-cream/[0.04] focus:ring-1 focus:ring-accent/25"
           >
             <option value="movie">Movies</option>
             <option value="tv">TV shows</option>

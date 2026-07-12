@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { auth } from "@/auth";
 import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
 import { RecommendationFeaturedCard } from "@/components/recommendations/recommendation-featured-card";
@@ -10,8 +12,9 @@ import { RecommendationRunAutoRefresh } from "@/components/recommendations/recom
 import { RecommendationSabnzbdStatus } from "@/components/recommendations/recommendation-sabnzbd-status";
 import { RecommendationTitleOverviewDialog } from "@/components/recommendations/recommendation-title-overview-dialog";
 import { RecommendationWatchHistoryModeToggle } from "@/components/recommendations/recommendation-watch-history-mode-toggle";
+import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
-import { Panel } from "@/components/ui/panel";
+import { StatusDot } from "@/components/ui/status-dot";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import {
@@ -97,6 +100,14 @@ function appendDetailsParam(href: string, itemId: string) {
   return `${pathname}?${searchParams.toString()}`;
 }
 
+function heroInitial(title: string) {
+  return title.trim()[0]?.toUpperCase() ?? "?";
+}
+
+function isHighConfidence(value: string | null | undefined) {
+  return Boolean(value && value.trim().toLowerCase().startsWith("high"));
+}
+
 export async function RecommendationWorkspace({
   mediaType,
   routePath,
@@ -152,107 +163,175 @@ export async function RecommendationWorkspace({
     ? formatGenreSummary(featuredRun.selectedGenres)
     : null;
   const featuredRunIsPending = featuredRun?.status === "pending";
+  const featuredRunIsFresh = Boolean(wasJustGenerated && featuredRun && featuredRun.id === activeRunId);
   const currentWorkspaceHref = buildWorkspaceHref(routePath, activeRunId, wasJustGenerated);
   const overviewForModal = selectedOverview?.item.mediaType === mediaType ? selectedOverview : null;
 
+  const heroItem = !featuredRunIsPending && featuredRun && featuredRun.items.length > 0
+    ? featuredRun.items[0]
+    : null;
+  const batchItems = heroItem ? featuredRun!.items.slice(1) : featuredRun?.items ?? [];
+
   return (
-    <div className="space-y-5">
+    <div className="nk-enter space-y-9">
       <RecommendationRunAutoRefresh enabled={Boolean(featuredRunIsPending)} />
-      <PageHeader eyebrow="Recommendation mode" title={title} />
+      <PageHeader
+        eyebrow={mediaType === "tv" ? "TV recommendations" : "Movie recommendations"}
+        title={title}
+        actions={
+          featuredRun && !featuredRunIsPending ? (
+            <p className="text-[13px] text-muted">
+              Batch finished {formatDate(featuredRun.completedAt ?? featuredRun.createdAt)} ·{" "}
+              {featuredRun.aiModel ?? defaultModel}
+            </p>
+          ) : null
+        }
+      />
 
-      <Panel
-        eyebrow="New request"
-        title="Compose a batch"
-        className="bg-panel/85"
-      >
-        <RecommendationWatchHistoryModeToggle
-          enabled={preferences.watchHistoryOnly}
-          redirectPath={routePath}
-        />
-        <RecommendationRequestForm
-          mediaType={mediaType}
-          redirectPath={routePath}
-          defaultResultCount={preferences.defaultResultCount}
-          defaultModel={defaultModel}
-          defaultTemperature={preferences.defaultTemperature}
-          availableModels={availableModels}
-          canSubmit={Boolean(canRequest)}
-          submitBlockedMessage={recommendationRequestBlockedMessage}
-        />
-      </Panel>
+      <section className="rounded-3xl border border-cream/[0.09] bg-cream/[0.03] px-5 py-4.5 sm:px-6 sm:py-5">
+        <div className="space-y-3.5">
+          <RecommendationRequestForm
+            mediaType={mediaType}
+            redirectPath={routePath}
+            defaultResultCount={preferences.defaultResultCount}
+            defaultModel={defaultModel}
+            defaultTemperature={preferences.defaultTemperature}
+            availableModels={availableModels}
+            canSubmit={Boolean(canRequest)}
+            submitBlockedMessage={recommendationRequestBlockedMessage}
+          />
+          <RecommendationWatchHistoryModeToggle
+            enabled={preferences.watchHistoryOnly}
+            redirectPath={routePath}
+          />
+        </div>
+      </section>
 
-      {featuredRun ? (
+      {featuredRunIsPending && featuredRun ? (
+        <section className="rounded-4xl border border-cream/[0.09] bg-cream/[0.03] p-10">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">
+            Fresh batch brewing
+          </p>
+          <h2 className="mt-3 font-heading text-[34px] leading-tight text-foreground">
+            Brewing a fresh batch…
+          </h2>
+          <p className="mt-2 max-w-xl text-[15px] leading-6 text-muted">
+            Settle in — the worker is steeping your picks. Results pour in automatically as they
+            finish.
+          </p>
+          <div className="mt-5 flex items-center gap-3 text-sm text-muted">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+            <RecommendationPendingTimer startedAt={featuredRun.createdAt} className="text-foreground" />
+            <span>elapsed</span>
+          </div>
+        </section>
+      ) : null}
+
+      {heroItem ? (
         <section
-          className={`cozy-panel nooklet-feature-run rounded-xl border border-accent-cool/20 px-6 py-6 md:px-8 xl:px-10 ${
-            wasJustGenerated && featuredRun.id === activeRunId ? "recommendation-featured-run recommendation-featured-run--fresh" : ""
-          }`}
+          className={`relative flex min-h-[340px] items-end overflow-hidden rounded-4xl border border-cream/[0.09] ${
+            mediaType === "tv" ? "nk-hero-tv" : "nk-hero-movie"
+          } ${featuredRunIsFresh ? "recommendation-featured-card" : ""}`}
         >
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">
-                {wasJustGenerated && featuredRun.id === activeRunId ? "Fresh batch" : "Latest batch"}
-              </p>
-              <div className="space-y-2">
-                <h2 className="font-heading text-2xl leading-tight text-foreground md:text-3xl">
-                  {featuredRunIsPending
-                    ? "Brewing a fresh batch\u2026"
-                    : `${featuredRun.items.length} ${mediaType === "tv" ? "TV picks" : "movie picks"} ready`}
-                </h2>
-                <p className="max-w-4xl text-sm leading-6 text-muted md:text-base md:leading-7">
-                  {featuredRunIsPending
-                    ? "Settle in \u2014 the worker is steeping your picks. Results pour in automatically as they finish."
-                    : formatPromptLabel(featuredRun.requestPrompt, featuredRun.selectedGenres)}
-                </p>
-                {featuredRunGenreSummary ? (
-                  <p className="text-sm font-medium text-accent">Genres: {featuredRunGenreSummary}</p>
-                ) : null}
-              </div>
+          <div aria-hidden="true" className="nk-hero-scrim absolute inset-0" />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute right-8 top-6 select-none font-heading text-[200px] italic leading-none text-cream/[0.06]"
+          >
+            {heroInitial(heroItem.title)}
+          </span>
+          <div className="relative max-w-[640px] space-y-3.5 p-7 sm:p-10">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">
+              {featuredRunIsFresh ? "Fresh top pick" : "Tonight's top pick"}
+            </p>
+            <h2 className="font-heading text-[40px] leading-[1.05] text-foreground sm:text-5xl">
+              {heroItem.title}
+            </h2>
+            <div className="flex flex-wrap items-center gap-2.5 text-[13px] text-muted">
+              {heroItem.confidenceLabel ? (
+                <StatusDot
+                  tone={isHighConfidence(heroItem.confidenceLabel) ? "ok" : "neutral"}
+                  label={heroItem.confidenceLabel}
+                />
+              ) : null}
+              {heroItem.year ? <span>{heroItem.year}</span> : null}
+              {featuredRunGenreSummary ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>{featuredRunGenreSummary}</span>
+                </>
+              ) : null}
             </div>
-            <dl className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm leading-6 lg:max-w-sm lg:flex-col lg:gap-y-1 lg:border-l lg:border-line/35 lg:pl-5">
-              <div className="flex items-baseline gap-2">
-                <dt className="text-xs font-medium text-muted">Model</dt>
-                <dd className="min-w-0 break-all text-foreground">{featuredRun.aiModel ?? defaultModel}</dd>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <dt className="text-xs font-medium text-muted">Temperature</dt>
-                <dd className="text-foreground">{formatTemperature(featuredRun.aiTemperature)}</dd>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <dt className="text-xs font-medium text-muted">Requested</dt>
-                <dd className="text-foreground">{featuredRun.requestedCount}</dd>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <dt className="text-xs font-medium text-muted">{featuredRunIsPending ? "Brewing" : "Completed"}</dt>
-                <dd className="text-foreground">
-                  {featuredRunIsPending ? (
-                    <RecommendationPendingTimer startedAt={featuredRun.createdAt} />
-                  ) : (
-                    formatDate(featuredRun.completedAt ?? featuredRun.createdAt)
-                  )}
-                </dd>
-              </div>
-            </dl>
+            <p className="max-w-[540px] text-[15px] leading-[25px] text-foreground/80">
+              {heroItem.rationale}
+            </p>
+            <RecommendationSabnzbdStatus
+              title={heroItem.title}
+              year={heroItem.year}
+              mediaType={heroItem.mediaType}
+              providerMetadata={heroItem.providerMetadata}
+            />
+            <div className="flex flex-wrap items-center gap-2.5 pt-1.5">
+              <RecommendationAddForm
+                itemId={heroItem.id}
+                existingInLibrary={heroItem.existingInLibrary}
+                returnTo={routePath}
+                variant="compact"
+                buttonClassName="whitespace-nowrap"
+                mediaType={heroItem.mediaType}
+                tmdbId={
+                  heroItem.providerMetadata?.tmdbDetails?.mediaType === heroItem.mediaType
+                    ? heroItem.providerMetadata.tmdbDetails.tmdbId ?? null
+                    : null
+                }
+                titleLabel={`${heroItem.title}${heroItem.year ? ` (${heroItem.year})` : ""}`}
+              />
+              <Link
+                href={appendDetailsParam(currentWorkspaceHref, heroItem.id)}
+                scroll={false}
+                className="relative inline-flex min-h-[42px] items-center justify-center rounded-lg border border-cream/[0.14] bg-background/40 px-4 text-sm font-medium text-foreground transition hover:bg-cream/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
+              >
+                <LinkPendingOverlay />
+                Details
+              </Link>
+              <RecommendationFeedbackActions
+                itemId={heroItem.id}
+                feedback={heroItem.feedback}
+                returnTo={routePath}
+                buttonClassName="h-[42px] min-h-[42px] w-[42px] rounded-lg border-cream/[0.14] bg-background/40"
+              />
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {featuredRun && !featuredRunIsPending ? (
+        <section className="space-y-4.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <h3 className="font-heading text-2xl text-foreground">
+              {heroItem ? "The rest of the batch" : "Latest batch"}
+            </h3>
+            <RecommendationRetryForm
+              mediaType={featuredRun.mediaType}
+              requestPrompt={featuredRun.requestPrompt}
+              selectedGenres={featuredRun.selectedGenres}
+              requestedCount={featuredRun.requestedCount}
+              aiModel={featuredRun.aiModel ?? defaultModel}
+              aiTemperature={featuredRun.aiTemperature ?? 0.9}
+              redirectPath={routePath}
+              runStatus={featuredRun.status}
+            />
           </div>
 
-          <RecommendationRetryForm
-            mediaType={featuredRun.mediaType}
-            requestPrompt={featuredRun.requestPrompt}
-            selectedGenres={featuredRun.selectedGenres}
-            requestedCount={featuredRun.requestedCount}
-            aiModel={featuredRun.aiModel ?? defaultModel}
-            aiTemperature={featuredRun.aiTemperature ?? 0.9}
-            redirectPath={routePath}
-            runStatus={featuredRun.status}
-          />
+          {batchItems.length === 0 && !heroItem ? (
+            <p className="text-sm leading-6 text-muted">
+              This run finished without saved items — run it again to get a fresh batch.
+            </p>
+          ) : null}
 
-          {featuredRunIsPending && featuredRun.items.length === 0 ? (
-            <div className="mt-5 flex items-center gap-3 rounded-lg border border-line/45 bg-background/20 px-3 py-2.5 text-sm leading-6 text-muted">
-              <RecommendationPendingTimer startedAt={featuredRun.createdAt} className="text-foreground" />
-              <span>{"Warming up \u2014 titles will land here as soon as the worker finishes."}</span>
-            </div>
-          ) : (
-            <div className="mt-5 grid max-h-[72vh] gap-5 overflow-y-auto pr-2 md:grid-cols-2 xl:grid-cols-3">
-              {featuredRun.items.map((item, index) => (
+          {batchItems.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {batchItems.map((item, index) => (
                 <RecommendationFeaturedCard
                   key={item.id}
                   itemId={item.id}
@@ -266,19 +345,18 @@ export async function RecommendationWorkspace({
                   providerMetadata={item.providerMetadata}
                   routePath={routePath}
                   overviewHref={appendDetailsParam(currentWorkspaceHref, item.id)}
-                  animationDelayMs={index * 90}
+                  animationDelayMs={featuredRunIsFresh ? index * 90 : 0}
                 />
               ))}
             </div>
-          )}
+          ) : null}
         </section>
       ) : null}
 
-      <Panel
-        eyebrow="Recent runs"
-        title={featuredRun ? "Older requests" : "Recent requests"}
-        description="Successful and failed recommendation runs are saved so you can retry, compare, and act on them later."
-      >
+      <section className="space-y-4">
+        <h3 className="font-heading text-2xl text-foreground">
+          {featuredRun ? "Previous batches" : "Recent batches"}
+        </h3>
         {previousRuns.length === 0 ? (
           <p className="text-sm leading-6 text-muted">
             {featuredRun
@@ -286,115 +364,127 @@ export async function RecommendationWorkspace({
               : `No ${mediaType === "tv" ? "TV" : "movie"} recommendation runs yet.`}
           </p>
         ) : (
-          <div className="max-h-[72vh] space-y-4 overflow-y-auto pr-2">
-            {previousRuns.map((run) => (
-              <article
-                key={run.id}
-                className="rounded-lg border border-line/45 bg-background/15 p-5"
-              >
-                {(() => {
-                  const genreSummary = formatGenreSummary(run.selectedGenres);
+          <div className="space-y-2.5">
+            {previousRuns.map((run) => {
+              const genreSummary = formatGenreSummary(run.selectedGenres);
 
-                  return (
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{formatPromptLabel(run.requestPrompt, run.selectedGenres)}</p>
-                    {genreSummary ? (
-                      <p className="mt-1 text-sm text-accent">Genres: {genreSummary}</p>
-                    ) : null}
-                    <p className="mt-1 text-sm text-muted">
-                      {run.itemCount} items, requested {run.requestedCount}, model {run.aiModel ?? defaultModel}, temp {formatTemperature(run.aiTemperature)}
+              return (
+                <article
+                  key={run.id}
+                  className="rounded-xl border border-cream/[0.07] bg-cream/[0.02] px-5 py-4"
+                >
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">
+                        {formatPromptLabel(run.requestPrompt, run.selectedGenres)}
+                      </p>
+                      <p className="mt-0.5 text-[12.5px] text-muted">
+                        {run.itemCount} items · requested {run.requestedCount} ·{" "}
+                        {run.aiModel ?? defaultModel} · temp {formatTemperature(run.aiTemperature)}
+                        {genreSummary ? ` · ${genreSummary}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3.5">
+                      <StatusDot
+                        tone={
+                          run.status === "succeeded"
+                            ? "ok"
+                            : run.status === "failed"
+                              ? "error"
+                              : run.status === "pending"
+                                ? "active"
+                                : "neutral"
+                        }
+                        label={run.status}
+                      />
+                      <span className="text-[12.5px] text-muted">
+                        {formatDate(run.completedAt ?? run.createdAt)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {run.errorMessage ? (
+                    <p className="mt-3 rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2 text-sm text-foreground">
+                      {run.errorMessage}
                     </p>
-                  </div>
-                  <div className="text-sm text-muted">
-                    <div>{run.status}</div>
-                    <div>{formatDate(run.completedAt ?? run.createdAt)}</div>
-                  </div>
-                </div>
-                  );
-                })()}
+                  ) : null}
 
-                {run.errorMessage ? (
-                  <p className="mt-4 rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight">
-                    {run.errorMessage}
-                  </p>
-                ) : null}
+                  <RecommendationRetryForm
+                    mediaType={run.mediaType}
+                    requestPrompt={run.requestPrompt}
+                    selectedGenres={run.selectedGenres}
+                    requestedCount={run.requestedCount}
+                    aiModel={run.aiModel ?? defaultModel}
+                    aiTemperature={run.aiTemperature ?? 0.9}
+                    redirectPath={routePath}
+                    runStatus={run.status}
+                    className="mt-3"
+                  />
 
-                <RecommendationRetryForm
-                  mediaType={run.mediaType}
-                  requestPrompt={run.requestPrompt}
-                  selectedGenres={run.selectedGenres}
-                  requestedCount={run.requestedCount}
-                  aiModel={run.aiModel ?? defaultModel}
-                  aiTemperature={run.aiTemperature ?? 0.9}
-                  redirectPath={routePath}
-                  runStatus={run.status}
-                />
-
-                {run.items.length > 0 ? (
-                  <div className="mt-4 grid max-h-[32rem] gap-4 overflow-y-auto pr-2 xl:grid-cols-2">
-                    {run.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="rounded-lg border border-line/60 bg-panel/80 px-3 py-2.5"
-                      >
-                        <div className="flex min-w-0 flex-col gap-4 sm:flex-row">
-                          <RecommendationPoster
-                            title={item.title}
-                            posterUrl={item.providerMetadata?.posterUrl}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium text-foreground">
-                              {item.title}
-                              {item.year ? ` (${item.year})` : ""}
-                            </p>
-                            <p className="mt-2 text-sm leading-6 text-muted">{item.rationale}</p>
-                            <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium text-muted">
-                              {item.confidenceLabel ? <span>{item.confidenceLabel}</span> : null}
-                              {item.existingInLibrary ? <span>existing in library</span> : null}
-                            </div>
-                            <RecommendationSabnzbdStatus
+                  {run.items.length > 0 ? (
+                    <div className="mt-4 grid max-h-[32rem] gap-3 overflow-y-auto pr-2 xl:grid-cols-2">
+                      {run.items.map((item) => (
+                        <div
+                          key={item.id}
+                          className="rounded-xl border border-cream/[0.08] bg-cream/[0.03] p-4"
+                        >
+                          <div className="flex min-w-0 gap-4">
+                            <RecommendationPoster
                               title={item.title}
-                              year={item.year}
+                              posterUrl={item.providerMetadata?.posterUrl}
+                              className="w-16 rounded-md sm:w-20"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-foreground">
+                                {item.title}
+                                {item.year ? ` (${item.year})` : ""}
+                              </p>
+                              <p className="mt-1.5 text-[13px] leading-5 text-muted">{item.rationale}</p>
+                              <div className="mt-2 flex flex-wrap gap-3 text-xs font-medium text-muted">
+                                {item.confidenceLabel ? <span>{item.confidenceLabel}</span> : null}
+                                {item.existingInLibrary ? <span>existing in library</span> : null}
+                              </div>
+                              <RecommendationSabnzbdStatus
+                                title={item.title}
+                                year={item.year}
+                                mediaType={item.mediaType}
+                                providerMetadata={item.providerMetadata}
+                                className="mt-3"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <RecommendationAddForm
+                              itemId={item.id}
+                              existingInLibrary={item.existingInLibrary}
+                              returnTo={routePath}
+                              variant="compact"
+                              buttonClassName="min-h-8 rounded-full border border-accent/45 bg-transparent px-4 text-xs font-semibold text-accent shadow-none hover:bg-accent/[0.14]"
                               mediaType={item.mediaType}
-                              providerMetadata={item.providerMetadata}
-                              className="mt-4"
+                              tmdbId={
+                                item.providerMetadata?.tmdbDetails?.mediaType === item.mediaType
+                                  ? item.providerMetadata.tmdbDetails.tmdbId ?? null
+                                  : null
+                              }
+                              titleLabel={`${item.title}${item.year ? ` (${item.year})` : ""}`}
+                            />
+                            <RecommendationFeedbackActions
+                              itemId={item.id}
+                              feedback={item.feedback}
+                              returnTo={routePath}
                             />
                           </div>
                         </div>
-
-                        <div className="mt-4 flex flex-wrap gap-3">
-                          <RecommendationFeedbackActions
-                            itemId={item.id}
-                            feedback={item.feedback}
-                            returnTo={routePath}
-                            buttonClassName="h-8 min-h-8 w-8 rounded-lg"
-                          />
-                        </div>
-
-                        <RecommendationAddForm
-                          itemId={item.id}
-                          existingInLibrary={item.existingInLibrary}
-                          returnTo={routePath}
-                          variant="compact"
-                          buttonClassName="min-h-9 rounded-lg px-4 py-2 whitespace-nowrap"
-                          mediaType={item.mediaType}
-                          tmdbId={
-                            item.providerMetadata?.tmdbDetails?.mediaType === item.mediaType
-                              ? item.providerMetadata.tmdbDetails.tmdbId ?? null
-                              : null
-                          }
-                          titleLabel={`${item.title}${item.year ? ` (${item.year})` : ""}`}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </article>
-            ))}
+                      ))}
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
           </div>
         )}
-      </Panel>
+      </section>
 
       {overviewForModal ? (
         <RecommendationTitleOverviewDialog

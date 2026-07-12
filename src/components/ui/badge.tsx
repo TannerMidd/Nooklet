@@ -7,18 +7,18 @@ type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
 };
 
 const badgeVariants = {
-  neutral: "border-line/45 bg-background/25 text-muted",
-  accent: "border-accent/30 bg-accent/10 text-foreground",
-  "accent-cool": "border-accent-cool/30 bg-accent-cool/10 text-foreground",
-  highlight: "border-highlight/30 bg-highlight/10 text-highlight",
-  wine: "border-accent-wine/35 bg-accent-wine/10 text-foreground",
+  neutral: "bg-cream/[0.06] text-muted",
+  accent: "bg-accent/[0.14] text-accent",
+  "accent-cool": "bg-accent-cool/[0.12] text-accent-cool",
+  highlight: "bg-accent/[0.14] text-accent",
+  wine: "bg-accent-wine/[0.12] text-accent-wine",
 } satisfies Record<NonNullable<BadgeProps["variant"]>, string>;
 
 export function Badge({ className, variant = "neutral", ...props }: BadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold",
         badgeVariants[variant],
         className,
       )}

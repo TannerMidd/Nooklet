@@ -35,7 +35,7 @@ function spaceBarTone(percent: number) {
   }
 
   if (percent >= 80) {
-    return "bg-highlight";
+    return "bg-accent-wine";
   }
 
   return "bg-accent-cool";
@@ -45,7 +45,7 @@ function DriveRow({ entry }: { entry: LibraryDriveEntry }) {
   const percent = usedPercent(entry);
 
   return (
-    <li className="rounded-lg border border-line/60 bg-background/15 px-3.5 py-3">
+    <li className="rounded-lg border border-cream/[0.08] bg-cream/[0.03] px-3.5 py-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-0.5">
           <div className="flex flex-wrap items-center gap-2">
@@ -61,7 +61,7 @@ function DriveRow({ entry }: { entry: LibraryDriveEntry }) {
         {!entry.isDownloadDefault ? <SetDefaultPathForm pathId={entry.pathId} /> : null}
       </div>
       <div className="mt-2.5 space-y-1">
-        <div className="h-1.5 overflow-hidden rounded-full bg-panel-strong/35">
+        <div className="h-1.5 overflow-hidden rounded-full bg-cream/[0.04]">
           {percent !== null ? (
             <div
               className={`h-full rounded-full transition-[width] duration-500 ${spaceBarTone(percent)}`}

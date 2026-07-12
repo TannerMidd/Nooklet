@@ -30,11 +30,11 @@ const statusLabels: Record<DownloadActivityEntry["status"], string> = {
 
 function statusBadgeVariant(status: DownloadActivityEntry["status"]) {
   if (status === "succeeded") {
-    return "neutral" as const;
+    return "accent-cool" as const;
   }
 
   if (status === "failed" || status === "cancelled") {
-    return "highlight" as const;
+    return "wine" as const;
   }
 
   return "accent" as const;
@@ -57,7 +57,7 @@ function ActionMessage({ state }: { state: DownloadActivityActionState }) {
   }
 
   return (
-    <p className={state.status === "success" ? "text-xs text-foreground" : "text-xs text-highlight"}>
+    <p className={state.status === "success" ? "text-xs text-foreground" : "text-xs text-accent-wine"}>
       {state.message}
     </p>
   );
@@ -122,9 +122,9 @@ export function DownloadActivityPanel({ entries }: { entries: DownloadActivityEn
   }
 
   return (
-    <ul className="space-y-3">
+    <ul className="divide-y divide-cream/[0.05] overflow-hidden rounded-2xl border border-cream/[0.08] bg-cream/[0.03]">
       {entries.map((entry) => (
-        <li key={entry.id} className="rounded-lg border border-line/45 bg-panel-strong/35 p-4">
+        <li key={entry.id} className="px-5 py-4">
           <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 space-y-1">
               <p className="truncate font-medium text-foreground">{entry.requestedTitle}</p>
@@ -142,7 +142,7 @@ export function DownloadActivityPanel({ entries }: { entries: DownloadActivityEn
                 </p>
               ) : null}
               {entry.statusMessage ? (
-                <p className="text-xs text-highlight">{entry.statusMessage}</p>
+                <p className="text-xs text-accent-wine">{entry.statusMessage}</p>
               ) : null}
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2">

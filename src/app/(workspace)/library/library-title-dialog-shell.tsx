@@ -62,16 +62,16 @@ export function LibraryTitleDialogShell({
           role="dialog"
           aria-modal="true"
           aria-labelledby={labelledBy}
-          className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-line/80 bg-panel shadow-[0_28px_70px_-42px_rgba(0,0,0,0.75)]"
+          className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-cream/[0.08] bg-panel shadow-[0_28px_70px_-42px_rgba(0,0,0,0.75)]"
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="flex justify-end border-b border-line/45 px-4 py-3 sm:px-6">
+          <div className="flex justify-end border-b border-cream/[0.08] px-4 py-3 sm:px-6">
             <button
               type="button"
               aria-label="Close dialog"
               title="Close"
               onClick={closeDialog}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line/45 bg-panel-strong text-muted transition hover:bg-panel-raised hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-cream/[0.08] bg-cream/[0.04] text-muted transition hover:bg-cream/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
             >
               <X aria-hidden="true" size={16} />
             </button>

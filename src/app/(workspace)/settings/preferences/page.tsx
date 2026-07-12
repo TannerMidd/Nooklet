@@ -72,8 +72,8 @@ export default async function PreferencesSettingsPage({
   });
 
   return (
-    <div className="space-y-5">
-      <PageHeader eyebrow="User preferences" title="Preferences" />
+    <div className="nk-enter space-y-7">
+      <PageHeader eyebrow="Defaults &amp; filters" title="Preferences" />
 
       {wasUpdated ? (
         <p className="rounded-lg border border-accent/30 bg-accent/10 px-5 py-4 text-sm leading-6 text-foreground">
@@ -99,25 +99,25 @@ export default async function PreferencesSettingsPage({
             title="Saved values"
           >
             <div className="space-y-3 text-sm leading-6 text-foreground">
-              <div className="rounded-lg border border-line/45 bg-panel-strong/45 px-4 py-3">
+              <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
                 <span className="font-medium">Default media mode:</span> {preferences.defaultMediaMode}
               </div>
-              <div className="rounded-lg border border-line/45 bg-panel-strong/45 px-4 py-3">
+              <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
                 <span className="font-medium">Default result count:</span> {preferences.defaultResultCount}
               </div>
-              <div className="rounded-lg border border-line/45 bg-panel-strong/45 px-4 py-3">
+              <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
                 <span className="font-medium">Library sample size:</span> {preferences.libraryTasteSampleSize}
               </div>
-              <div className="rounded-lg border border-line/45 bg-panel-strong/45 px-4 py-3">
+              <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
                 <span className="font-medium">Language preference:</span> {formatLanguagePreference(preferences.languagePreference)}
               </div>
-              <div className="rounded-lg border border-line/45 bg-panel-strong/45 px-4 py-3">
+              <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
                 <span className="font-medium">Watch-history only:</span> {preferences.watchHistoryOnly ? "Enabled" : "Disabled"}
               </div>
-              <div className="rounded-lg border border-line/45 bg-panel-strong/45 px-4 py-3">
+              <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
                 <span className="font-medium">Selected history sources:</span> {selectedSourceNames}
               </div>
-              <div className="rounded-lg border border-line/45 bg-panel-strong/45 px-4 py-3">
+              <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
                 <span className="font-medium">Last updated:</span>{" "}
                 {hasPersistedUpdate ? formatDate(preferences.updatedAt) : "Never"}
               </div>

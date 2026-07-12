@@ -19,7 +19,7 @@ export default async function MovieRecommendationsPage({
     <RecommendationWorkspace
       mediaType="movie"
       routePath="/movies"
-      title="Movie recommendations"
+      title="Movie picks"
       activeRunId={resolvedSearchParams?.run ?? null}
       wasJustGenerated={resolvedSearchParams?.generated === "1"}
       detailsItemId={resolvedSearchParams?.details ?? null}

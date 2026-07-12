@@ -92,8 +92,8 @@ export function RecommendationAddForm({
         className={cn(
           "rounded-lg px-3 py-2 text-sm leading-6",
           tone === "success" && "border border-accent/20 bg-accent/10 text-foreground",
-          tone === "muted" && "border border-line/45 bg-panel-strong/35 text-muted",
-          tone === "error" && "border border-highlight/20 bg-highlight/10 text-highlight",
+          tone === "muted" && "border border-cream/[0.08] bg-cream/[0.04] text-muted",
+          tone === "error" && "border border-accent-wine/30 bg-accent-wine/10 text-accent-wine",
         )}
       >
         {message}
@@ -157,7 +157,7 @@ export function RecommendationAddForm({
             <button
               type="button"
               onClick={() => setDialogOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-line/55 bg-background/35 px-2.5 py-1.5 text-xs font-medium text-foreground transition hover:bg-panel-strong/35"
+              className="inline-flex items-center gap-1.5 rounded-md border border-cream/[0.08] bg-cream/[0.03] px-2.5 py-1.5 text-xs font-medium text-foreground transition hover:bg-cream/[0.06]"
             >
               <ListChecks aria-hidden="true" size={14} />
               {describeTvSelection(selection)}
@@ -185,7 +185,7 @@ export function RecommendationAddForm({
           className={cn(
             "rounded-lg px-3 py-2 text-sm leading-6",
             state.status === "success" && "border border-accent/20 bg-accent/10 text-foreground",
-            state.status === "error" && "border border-highlight/20 bg-highlight/10 text-highlight",
+            state.status === "error" && "border border-accent-wine/30 bg-accent-wine/10 text-accent-wine",
           )}
         >
           {state.message}

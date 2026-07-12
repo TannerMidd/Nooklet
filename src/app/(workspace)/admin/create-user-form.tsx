@@ -37,7 +37,7 @@ export function CreateUserForm() {
             aria-invalid={Boolean(state.fieldErrors?.displayName)}
           />
           {state.fieldErrors?.displayName ? (
-            <p className="text-sm text-highlight">{state.fieldErrors.displayName}</p>
+            <p className="text-sm text-accent-wine">{state.fieldErrors.displayName}</p>
           ) : null}
         </label>
 
@@ -50,7 +50,7 @@ export function CreateUserForm() {
             aria-invalid={Boolean(state.fieldErrors?.email)}
           />
           {state.fieldErrors?.email ? (
-            <p className="text-sm text-highlight">{state.fieldErrors.email}</p>
+            <p className="text-sm text-accent-wine">{state.fieldErrors.email}</p>
           ) : null}
         </label>
       </div>
@@ -61,14 +61,14 @@ export function CreateUserForm() {
           <select
             name="role"
             defaultValue="user"
-            className="min-h-9 w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+            className="min-h-9 w-full rounded-lg border border-cream/[0.08] bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
             aria-invalid={Boolean(state.fieldErrors?.role)}
           >
             <option value="user">User</option>
             <option value="admin">Admin</option>
           </select>
           {state.fieldErrors?.role ? (
-            <p className="text-sm text-highlight">{state.fieldErrors.role}</p>
+            <p className="text-sm text-accent-wine">{state.fieldErrors.role}</p>
           ) : null}
         </label>
 
@@ -80,7 +80,7 @@ export function CreateUserForm() {
             aria-invalid={Boolean(state.fieldErrors?.password)}
           />
           {state.fieldErrors?.password ? (
-            <p className="text-sm text-highlight">{state.fieldErrors.password}</p>
+            <p className="text-sm text-accent-wine">{state.fieldErrors.password}</p>
           ) : null}
         </label>
 
@@ -92,7 +92,7 @@ export function CreateUserForm() {
             aria-invalid={Boolean(state.fieldErrors?.confirmPassword)}
           />
           {state.fieldErrors?.confirmPassword ? (
-            <p className="text-sm text-highlight">{state.fieldErrors.confirmPassword}</p>
+            <p className="text-sm text-accent-wine">{state.fieldErrors.confirmPassword}</p>
           ) : null}
         </label>
       </div>
@@ -102,7 +102,7 @@ export function CreateUserForm() {
           className={
             state.status === "success"
               ? "rounded-lg border border-accent/20 bg-accent/10 px-3 py-2 text-sm text-foreground"
-              : "rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight"
+              : "rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3 py-2 text-sm text-accent-wine"
           }
         >
           {state.message}

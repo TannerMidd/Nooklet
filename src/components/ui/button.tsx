@@ -8,16 +8,20 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const buttonVariants = {
-  primary: "cozy-glow nooklet-button-primary border border-accent/55 text-accent-foreground",
-  secondary: "border border-line/45 bg-panel-raised/45 text-foreground hover:border-line/45 hover:bg-panel-raised/60",
-  ghost: "border border-transparent bg-transparent text-muted hover:border-line/60 hover:bg-panel-strong/35 hover:text-foreground",
-  danger: "border border-accent-wine/35 bg-accent-wine/12 text-foreground hover:bg-accent-wine/20",
+  primary: "nk-button-primary font-semibold",
+  secondary:
+    "border border-cream/[0.14] bg-cream/[0.04] font-semibold text-foreground hover:bg-cream/[0.08]",
+  ghost:
+    "border border-transparent bg-transparent font-semibold text-muted hover:bg-cream/[0.06] hover:text-foreground",
+  danger:
+    "border border-accent-wine/30 bg-transparent font-semibold text-accent-wine hover:bg-accent-wine/10",
 } satisfies Record<NonNullable<ButtonProps["variant"]>, string>;
 
+/* Small buttons render as pills (row actions); md keeps the 12px control radius. */
 const buttonSizes = {
-  icon: "h-8 min-h-8 w-8 px-0 py-0 text-xs",
-  sm: "min-h-8 px-2.5 py-1 text-xs",
-  md: "min-h-9 px-3.5 py-1.5 text-sm",
+  icon: "h-8 min-h-8 w-8 rounded-full px-0 py-0 text-xs",
+  sm: "min-h-8 rounded-full px-3.5 py-1 text-xs",
+  md: "min-h-[42px] rounded-lg px-5 py-1.5 text-sm",
 } satisfies Record<NonNullable<ButtonProps["size"]>, string>;
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -29,7 +33,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       type={type}
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-55 [&>svg]:shrink-0",
+        "inline-flex items-center justify-center gap-1.5 transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-55 [&>svg]:shrink-0",
         buttonSizes[size],
         buttonVariants[variant],
         className,

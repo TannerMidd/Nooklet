@@ -192,7 +192,7 @@ export function TvRequestPicker({
             className={
               mode === value
                 ? "rounded-lg border border-accent/60 bg-accent/15 px-3 py-1.5 text-foreground"
-                : "rounded-lg border border-line/60 bg-background/20 px-3 py-1.5 text-muted"
+                : "rounded-lg border border-cream/[0.08] bg-cream/[0.03] px-3 py-1.5 text-muted"
             }
           >
             {value === "all" ? "Entire series" : value === "seasons" ? "Specific seasons" : "Specific episodes"}
@@ -223,8 +223,8 @@ export function TvRequestPicker({
                 <label
                   className={
                     alreadyMonitored
-                      ? "flex items-center gap-2 rounded-lg border border-line/50 bg-background/10 px-3 py-2 text-sm opacity-60"
-                      : "flex items-center gap-2 rounded-lg border border-line/50 bg-background/15 px-3 py-2 text-sm"
+                      ? "flex items-center gap-2 rounded-lg border border-cream/[0.08] bg-background/10 px-3 py-2 text-sm opacity-60"
+                      : "flex items-center gap-2 rounded-lg border border-cream/[0.08] bg-cream/[0.03] px-3 py-2 text-sm"
                   }
                 >
                   <input
@@ -239,7 +239,7 @@ export function TvRequestPicker({
                     <span className="text-xs text-muted">{season.episodeCount} episodes</span>
                   ) : null}
                   {alreadyMonitored ? (
-                    <span className="ml-auto rounded-md border border-line/50 bg-background/20 px-2 py-0.5 text-xs text-muted">
+                    <span className="ml-auto rounded-md border border-cream/[0.08] bg-cream/[0.03] px-2 py-0.5 text-xs text-muted">
                       Monitored
                     </span>
                   ) : null}
@@ -260,7 +260,7 @@ export function TvRequestPicker({
                 const value = event.target.value === "" ? null : Number.parseInt(event.target.value, 10);
                 pickEpisodeSeason(value);
               }}
-              className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-2 text-sm text-foreground"
+              className="min-h-9 w-full rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2 text-sm text-foreground"
             >
               <option value="">Pick a season…</option>
               {seasons.map((season) => (
@@ -290,8 +290,8 @@ export function TvRequestPicker({
                       <label
                         className={
                           alreadyMonitored
-                            ? "flex items-center gap-2 rounded-lg border border-line/50 bg-background/10 px-3 py-2 text-sm opacity-60"
-                            : "flex items-center gap-2 rounded-lg border border-line/50 bg-background/15 px-3 py-2 text-sm"
+                            ? "flex items-center gap-2 rounded-lg border border-cream/[0.08] bg-background/10 px-3 py-2 text-sm opacity-60"
+                            : "flex items-center gap-2 rounded-lg border border-cream/[0.08] bg-cream/[0.03] px-3 py-2 text-sm"
                         }
                       >
                         <input
@@ -305,7 +305,7 @@ export function TvRequestPicker({
                           E{String(episode.episodeNumber).padStart(2, "0")} — {episode.name ?? "Episode"}
                         </span>
                         {alreadyMonitored ? (
-                          <span className="ml-auto rounded-md border border-line/50 bg-background/20 px-2 py-0.5 text-xs text-muted">
+                          <span className="ml-auto rounded-md border border-cream/[0.08] bg-cream/[0.03] px-2 py-0.5 text-xs text-muted">
                             Monitored
                           </span>
                         ) : null}
@@ -348,7 +348,7 @@ export function TvRequestDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog">
-      <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-line/45 bg-panel-strong/35 p-5 shadow-2xl">
+      <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-cream/[0.08] bg-cream/[0.04] p-5 shadow-2xl">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <p className="font-heading text-lg text-foreground">Choose what to download</p>

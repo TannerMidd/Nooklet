@@ -65,7 +65,7 @@ function formatOriginalLanguage(value: string | null | undefined) {
 
 function Fact({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
-    <div className="rounded-lg border border-line/45 bg-panel-strong/35 px-4 py-3">
+    <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
       <p className="text-xs font-medium text-muted">{label}</p>
       <p className="mt-1 text-sm leading-6 text-foreground">{value ?? "Unknown"}</p>
     </div>
@@ -102,7 +102,7 @@ export default async function RecommendationOverviewPage({
     : null;
   return (
     <div className="space-y-5">
-      <header className="relative overflow-hidden rounded-xl border border-line/80 bg-panel">
+      <header className="relative overflow-hidden rounded-xl border border-cream/[0.08] bg-panel">
         {details?.backdropUrl ? (
           <Image
             src={details.backdropUrl}
@@ -149,12 +149,12 @@ export default async function RecommendationOverviewPage({
         <Panel eyebrow="Title overview" title="Overview">
           <div className="space-y-5 text-sm leading-7 text-foreground">
             {details?.overview ? <p>{details.overview}</p> : <p>{item.rationale}</p>}
-            <div className="rounded-lg border border-line/45 bg-panel-strong/35 px-4 py-3">
+            <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">Recommendation rationale</p>
               <p className="mt-2 text-sm leading-7 text-foreground">{item.rationale}</p>
             </div>
             {tmdbLookupMessage ? (
-              <p className="rounded-lg border border-line/45 bg-panel-strong/35 px-3 py-2 text-sm text-muted">
+              <p className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2 text-sm text-muted">
                 {tmdbLookupMessage}
               </p>
             ) : null}
@@ -163,7 +163,7 @@ export default async function RecommendationOverviewPage({
 
         <Panel eyebrow="Saved item" title="Actions">
           <div className="space-y-4 text-sm leading-6 text-foreground">
-            <div className="rounded-lg border border-line/45 bg-panel-strong/45 px-4 py-3">
+            <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
               <span className="font-medium">Generated:</span> {formatDate(item.runCreatedAt)}
               <p className="mt-1 text-muted">Prompt: {item.requestPrompt || "Taste-based automatic request"}</p>
             </div>

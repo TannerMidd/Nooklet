@@ -16,9 +16,9 @@ export default async function NotificationsSettingsPage() {
   const channels = await listNotificationChannels(session.user.id);
 
   return (
-    <div className="space-y-5">
+    <div className="nk-enter space-y-7">
       <PageHeader
-        eyebrow="Settings"
+        eyebrow="Outbound events"
         title="Notifications"
         description="Send recommendation and sync events to Discord, Apprise, or any webhook."
       />

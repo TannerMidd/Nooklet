@@ -26,7 +26,7 @@ function ActionStatus({ state }: { state: LibraryPathMutationActionState }) {
   }
 
   return (
-    <p className={state.status === "success" ? "text-xs text-foreground" : "text-xs text-highlight"}>
+    <p className={state.status === "success" ? "text-xs text-foreground" : "text-xs text-accent-wine"}>
       {state.message}
     </p>
   );
@@ -85,7 +85,7 @@ export function LibraryPathManager({
   );
 
   return (
-    <li className="border-t border-line/35 py-2 text-sm first:border-t-0">
+    <li className="border-t border-cream/[0.08] py-2 text-sm first:border-t-0">
       <form action={removeAction} id={removeFormId} className="hidden">
         <input type="hidden" name="pathId" value={libraryPath.id} />
       </form>
@@ -96,7 +96,7 @@ export function LibraryPathManager({
           name="mediaType"
           defaultValue={library.mediaType}
           aria-label="Media type"
-          className="min-h-9 w-full rounded-md border border-line/55 bg-background/45 px-2.5 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:ring-1 focus:ring-accent/25"
+          className="min-h-9 w-full rounded-md border border-cream/[0.08] bg-cream/[0.04] px-2.5 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:ring-1 focus:ring-accent/25"
         >
           <option value="movie">Movies</option>
           <option value="tv">TV shows</option>
@@ -107,7 +107,7 @@ export function LibraryPathManager({
           name="status"
           defaultValue={libraryPath.status}
           aria-label="Status"
-          className="min-h-9 w-full rounded-md border border-line/55 bg-background/45 px-2.5 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:ring-1 focus:ring-accent/25"
+          className="min-h-9 w-full rounded-md border border-cream/[0.08] bg-cream/[0.04] px-2.5 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:ring-1 focus:ring-accent/25"
         >
           <option value="active">Active</option>
           <option value="disabled">Disabled</option>

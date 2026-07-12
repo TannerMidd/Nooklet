@@ -167,7 +167,7 @@ export function SearchableSelect({
           }
         }}
         className={cn(
-          "flex min-h-9 w-full items-center justify-between gap-2 rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-left text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/45 focus:ring-1 focus:ring-accent/25 disabled:cursor-not-allowed disabled:opacity-60",
+          "flex min-h-[42px] w-full items-center justify-between gap-2 rounded-lg border border-cream/10 bg-cream/[0.04] px-3.5 py-1.5 text-left text-sm text-foreground outline-none transition focus:border-accent/45 disabled:cursor-not-allowed disabled:opacity-60",
           triggerClassName,
         )}
       >
@@ -180,8 +180,8 @@ export function SearchableSelect({
       </button>
 
       {open ? (
-        <div className="absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-lg border border-line/45 bg-panel shadow-[0_24px_48px_-32px_rgba(20,14,10,0.9)]">
-          <div className="border-b border-line/60 p-2">
+        <div className="absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-xl border border-cream/10 bg-panel shadow-[0_24px_48px_-32px_rgba(0,0,0,0.9)]">
+          <div className="border-b border-cream/[0.07] p-2">
             <input
               ref={searchRef}
               type="text"
@@ -194,7 +194,7 @@ export function SearchableSelect({
               placeholder={searchPlaceholder}
               autoComplete="off"
               spellCheck={false}
-              className="min-h-8 w-full rounded-lg border border-line/45 bg-background/25 px-3 py-1.5 text-sm text-foreground outline-none placeholder:text-muted focus:border-accent/50 focus:ring-1 focus:ring-accent/25"
+              className="min-h-9 w-full rounded-md border border-cream/10 bg-cream/[0.04] px-3 py-1.5 text-sm text-foreground outline-none placeholder:text-muted focus:border-accent/45"
             />
           </div>
           <ul
@@ -216,7 +216,7 @@ export function SearchableSelect({
                     onClick={() => commitIndex(index)}
                     className={cn(
                       "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition",
-                      isHighlighted ? "bg-accent/10 text-foreground" : "text-foreground hover:bg-panel-strong/45",
+                      isHighlighted ? "bg-accent/10 text-foreground" : "text-foreground hover:bg-cream/[0.05]",
                       isSelected ? "font-medium" : null,
                     )}
                   >
@@ -240,7 +240,7 @@ export function SearchableSelect({
                     "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition",
                     effectiveHighlight === filtered.length
                       ? "bg-accent/10 text-foreground"
-                      : "text-foreground hover:bg-panel-strong/45",
+                      : "text-foreground hover:bg-cream/[0.05]",
                   )}
                 >
                   <span className="text-muted">Use</span>

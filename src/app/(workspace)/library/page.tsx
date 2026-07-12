@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { LibraryPathForm } from "@/app/(workspace)/library/library-path-form";
 import { LibraryPathManager } from "@/app/(workspace)/library/library-path-manager";
@@ -37,7 +38,7 @@ function LibraryList({ libraries }: { libraries: LibrarySummary[] }) {
   return (
     <ul className="space-y-4">
       {libraries.map((library) => (
-        <li key={library.id} className="rounded-lg border border-line/45 bg-background/20 px-3.5 py-3">
+        <li key={library.id} className="rounded-lg border border-cream/[0.08] bg-cream/[0.03] px-3.5 py-3">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-1">
             <p className="text-base font-semibold leading-tight text-foreground">{library.name}</p>
             {library.isDefault ? <Badge variant="accent">Default</Badge> : null}
@@ -82,38 +83,52 @@ export default async function LibraryPage() {
     getLibraryDriveOverview(session.user.id),
   ]);
 
+  const movieLibraries = overview.libraries.filter((library) => library.mediaType === "movie");
+  const tvLibraries = overview.libraries.filter((library) => library.mediaType === "tv");
+  const sumCounts = (libraries: LibrarySummary[], key: "titleCount" | "fileCount") =>
+    libraries.reduce((total, library) => total + library[key], 0);
+
   return (
-    <div className="space-y-5">
+    <div className="nk-enter space-y-8">
       <PageHeader
-        eyebrow="Built-in library"
+        eyebrow="Local media stack"
         title="Library"
-        description="Manage local movie and TV folders for the standalone Nooklet media stack."
         actions={<LibraryScanButton />}
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Libraries" value={overview.totals.libraries} />
         <StatCard label="Folders" value={overview.totals.paths} />
         <StatCard label="Titles" value={overview.totals.titles} />
         <StatCard label="Files" value={overview.totals.files} />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3.5 sm:grid-cols-2">
         <Link
           href="/library/movies"
-          className="relative rounded-lg border border-line/45 bg-panel-strong/35 p-4 text-sm text-foreground transition hover:border-accent/45 hover:bg-panel-raised/50"
+          className="relative flex items-center justify-between gap-3 rounded-2xl border border-cream/[0.08] bg-cream/[0.03] bg-[linear-gradient(120deg,rgba(232,165,80,0.10),transparent_60%)] p-5 transition hover:-translate-y-0.5 hover:border-cream/[0.16]"
         >
           <LinkPendingOverlay />
-          <span className="font-heading text-lg">Browse movie library</span>
-          <span className="mt-1 block text-muted">Open discovered local movies.</span>
+          <span>
+            <span className="block font-heading text-[21px] text-foreground">Movie library</span>
+            <span className="mt-1 block text-[13px] text-muted">
+              {sumCounts(movieLibraries, "titleCount")} titles · {sumCounts(movieLibraries, "fileCount")} files
+            </span>
+          </span>
+          <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
         </Link>
         <Link
           href="/library/tv"
-          className="relative rounded-lg border border-line/45 bg-panel-strong/35 p-4 text-sm text-foreground transition hover:border-accent/45 hover:bg-panel-raised/50"
+          className="relative flex items-center justify-between gap-3 rounded-2xl border border-cream/[0.08] bg-cream/[0.03] bg-[linear-gradient(120deg,rgba(127,181,164,0.10),transparent_60%)] p-5 transition hover:-translate-y-0.5 hover:border-cream/[0.16]"
         >
           <LinkPendingOverlay />
-          <span className="font-heading text-lg">Browse TV library</span>
-          <span className="mt-1 block text-muted">Open discovered local series.</span>
+          <span>
+            <span className="block font-heading text-[21px] text-foreground">TV library</span>
+            <span className="mt-1 block text-[13px] text-muted">
+              {sumCounts(tvLibraries, "titleCount")} titles · {sumCounts(tvLibraries, "fileCount")} files
+            </span>
+          </span>
+          <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
         </Link>
       </div>
 

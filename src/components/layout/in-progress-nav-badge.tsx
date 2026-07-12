@@ -14,8 +14,8 @@ export function InProgressNavBadge() {
 
   return (
     <span
-      aria-label={`${activeQueueCount} active SABnzbd request${activeQueueCount === 1 ? "" : "s"}`}
-      className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full border border-accent/30 bg-accent/15 px-2 text-xs font-semibold tabular-nums text-accent"
+      aria-label={`${activeQueueCount} active download${activeQueueCount === 1 ? "" : "s"}`}
+      className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-accent/[0.14] px-1.5 text-[11px] font-semibold tabular-nums text-accent"
     >
       {label}
     </span>

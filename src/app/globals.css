@@ -3,6 +3,9 @@
 @theme inline {
   --color-background: rgb(var(--background));
   --color-foreground: rgb(var(--foreground));
+  /* Cream is the surface base: cards/borders/inputs are cream at low alpha
+     over the near-black page, e.g. bg-cream/[0.03] border-cream/[0.08]. */
+  --color-cream: rgb(var(--cream));
   --color-panel: rgb(var(--panel));
   --color-panel-strong: rgb(var(--panel-strong));
   --color-panel-raised: rgb(var(--panel-raised));
@@ -15,40 +18,38 @@
   --color-accent-cool-foreground: rgb(var(--accent-cool-foreground));
   --color-accent-wine: rgb(var(--accent-wine));
   --color-highlight: rgb(var(--highlight));
-  /* Headings share the sans body face; the serif display font stays
-     available via --app-font-heading for the brand wordmark only. */
-  --font-heading: var(--app-font-body), sans-serif;
+  /* Display face (Fraunces) for page/section/card headings; body face
+     (Instrument Sans) everywhere else including item titles. */
+  --font-heading: var(--app-font-heading), serif;
   --font-body: var(--app-font-body), sans-serif;
-  /* Soft modern radius scale: cards 8px, controls 6px, chips 4px. */
-  --radius-xs: 3px;
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
-  --radius-2xl: 12px;
-  --radius-3xl: 16px;
-  --radius-4xl: 20px;
+  /* Redesign radius scale: cards 16px, controls/inputs 12px, chips/pills 999px. */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 16px;
+  --radius-3xl: 18px;
+  --radius-4xl: 22px;
 }
 
 :root {
-  /* Warm-neutral dark scale: near-neutral surfaces so the amber/teal
-     accents carry the brand color instead of saturated brown panels. */
-  --background: 23 21 19;
-  --foreground: 240 236 230;
-  --panel: 32 29 26;
-  --panel-strong: 42 38 34;
-  --panel-raised: 54 49 44;
-  --muted: 168 158 146;
-  --line: 86 78 70;
-  --accent: 224 162 94;
+  /* Warm near-black with translucent cream surfaces — official redesign. */
+  --background: 15 14 13;
+  --foreground: 244 239 231;
+  --cream: 255 244 230;
+  --panel: 20 18 16;
+  --panel-strong: 30 28 25;
+  --panel-raised: 42 39 35;
+  --muted: 155 148 138;
+  --line: 70 66 60;
+  --accent: 232 165 80;
   --accent-strong: 242 190 121;
-  --accent-foreground: 38 25 14;
-  --accent-cool: 126 174 157;
+  --accent-foreground: 31 22 12;
+  --accent-cool: 127 181 164;
   --accent-cool-foreground: 18 38 34;
-  --accent-wine: 190 96 108;
-  --highlight: 214 128 82;
-  /* Subtle paper-grain texture, used by body and cozy panels. */
-  --cozy-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.86  0 0 0 0 0.72  0 0 0 0 0.52  0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --accent-wine: 198 106 118;
+  --highlight: 232 165 80;
 }
 
 * {
@@ -80,6 +81,8 @@ a {
   text-decoration: none;
 }
 
+/* Headings default to the sans body face; display surfaces (page titles,
+   section and card headings) opt into Fraunces via `font-heading`. */
 h1,
 h2,
 h3,
@@ -92,10 +95,15 @@ h6 {
   margin: 0;
 }
 
-/* Serif display face reserved for the brand wordmark. */
+.font-heading {
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
 .nooklet-wordmark {
   font-family: var(--app-font-heading), serif;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
 p,
@@ -105,13 +113,17 @@ ol {
 }
 
 ::selection {
-  background: rgba(242, 188, 116, 0.30);
+  background: rgba(232, 165, 80, 0.30);
   color: rgb(var(--foreground));
+}
+
+::placeholder {
+  color: rgba(155, 148, 138, 0.70);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(123, 94, 69, 0.55) transparent;
+  scrollbar-color: rgba(120, 105, 88, 0.5) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -124,24 +136,29 @@ ol {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(123, 94, 69, 0.55);
+  background: rgba(120, 105, 88, 0.5);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(150, 116, 86, 0.75);
+  background: rgba(150, 132, 110, 0.7);
 }
 
-@keyframes recommendation-featured-enter {
-  0% {
+/* Page-level entrance: content fades and settles upward. */
+@keyframes nk-enter {
+  from {
     opacity: 0;
-    transform: translateY(12px) scale(0.995);
+    transform: translateY(10px);
   }
 
-  100% {
+  to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
+}
+
+.nk-enter {
+  animation: nk-enter 480ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes recommendation-card-enter {
@@ -156,124 +173,74 @@ ol {
   }
 }
 
-.recommendation-featured-run {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-}
-
-.recommendation-featured-run::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(ellipse 32rem 18rem at 0% 0%, rgba(242, 188, 116, 0.14), transparent 60%),
-    radial-gradient(ellipse 30rem 18rem at 100% 100%, rgba(117, 169, 154, 0.11), transparent 62%),
-    radial-gradient(ellipse 24rem 14rem at 100% 0%, rgba(179, 91, 105, 0.09), transparent 64%);
-  pointer-events: none;
-}
-
-.recommendation-featured-run--fresh {
-  animation: recommendation-featured-enter 620ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
 .recommendation-featured-card {
   animation: recommendation-card-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Cozy panel: a restrained card treatment — hairline light catch on the
-   top edge and a shallow contact shadow. Flat and quiet by default. */
-.cozy-panel {
-  box-shadow:
-    inset 0 1px 0 0 rgba(249, 239, 221, 0.04),
-    0 1px 2px 0 rgba(26, 18, 12, 0.30);
+/* Primary action: accent fill, dark text, warm floating glow. Lives in the
+   components layer so per-instance Tailwind utilities can override it. */
+@layer components {
+  .nk-button-primary {
+    background: rgb(var(--accent));
+    color: rgb(var(--accent-foreground));
+    box-shadow: 0 12px 28px -14px rgba(232, 165, 80, 0.55);
+    transition: filter 150ms ease;
+  }
+
+  .nk-button-primary:hover:not(:disabled) {
+    filter: brightness(1.12);
+  }
 }
 
-.nooklet-hero-surface {
-  background:
-    linear-gradient(135deg, rgba(54, 49, 44, 0.98), rgba(32, 29, 26, 0.98) 62%, rgba(42, 38, 34, 0.96));
-}
-
-.nooklet-hero-surface::after {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 2px;
-  pointer-events: none;
-  background: linear-gradient(90deg, rgb(var(--accent)), rgb(var(--accent-cool)) 58%, transparent);
-  opacity: 0.46;
-}
-
-.nooklet-brand-mark {
-  color: rgb(var(--accent-foreground));
-  background: linear-gradient(135deg, rgb(var(--accent-strong)), rgb(var(--accent)) 72%, rgb(var(--accent-cool) / 0.86));
-  box-shadow:
-    0 0 0 1px rgba(249, 236, 214, 0.10) inset,
-    0 12px 26px -18px rgba(242, 188, 116, 0.62);
-}
-
-.nooklet-button-primary {
+/* Glowing brand dot used by the sidebar and auth screens. */
+.nk-brand-dot {
+  border-radius: 999px;
   background: rgb(var(--accent));
-  box-shadow:
-    inset 0 1px 0 0 rgba(249, 239, 221, 0.18),
-    0 12px 28px -22px rgba(242, 190, 121, 0.75);
+  box-shadow: 0 0 14px rgba(232, 165, 80, 0.55);
 }
 
-.nooklet-button-primary:hover {
-  background: rgb(var(--accent-strong));
-}
-
-.nooklet-nav-link--active {
-  background: rgba(224, 162, 94, 0.12);
-  box-shadow:
-    inset 0 0 0 1px rgba(242, 190, 121, 0.08),
-    0 10px 26px -24px rgba(242, 190, 121, 0.42);
-}
-
-.nooklet-nav-link--active .nooklet-nav-link__rail {
-  background: rgb(var(--accent-strong));
-}
-
-.nooklet-tab--active {
-  background: rgba(224, 162, 94, 0.92);
-  box-shadow:
-    inset 0 1px 0 0 rgba(249, 239, 221, 0.14),
-    0 10px 24px -20px rgba(242, 190, 121, 0.52);
-}
-
-.nooklet-feature-run,
-.nooklet-feature-card {
+/* Auth backdrop: faint amber/teal ambience over the near-black page. */
+.nk-auth-backdrop {
   background:
-    linear-gradient(180deg, rgba(240, 236, 230, 0.03), rgba(240, 236, 230, 0)),
-    linear-gradient(145deg, rgba(42, 38, 34, 0.98), rgba(30, 27, 24, 0.98));
+    radial-gradient(ellipse 60rem 34rem at 50% -10%, rgba(232, 165, 80, 0.10), transparent 60%),
+    radial-gradient(ellipse 50rem 30rem at 100% 110%, rgba(127, 181, 164, 0.06), transparent 60%),
+    rgb(var(--background));
 }
 
-.nooklet-feature-card {
-  box-shadow:
-    inset 0 1px 0 0 rgba(249, 236, 214, 0.075),
-    0 18px 36px -28px rgba(38, 27, 19, 0.45);
-  transition: border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease;
+/* Hero surfaces for the featured recommendation. */
+.nk-hero-tv {
+  background:
+    linear-gradient(150deg, rgba(30, 58, 66, 0.9), rgba(20, 28, 32, 0.98) 55%, rgb(15, 14, 13)),
+    rgb(20, 18, 16);
 }
 
-.nooklet-feature-card:hover {
-  border-color: rgba(224, 162, 94, 0.40);
-  transform: translateY(-2px);
-  box-shadow:
-    inset 0 1px 0 0 rgba(249, 239, 221, 0.08),
-    0 22px 44px -30px rgba(26, 18, 12, 0.62),
-    0 12px 30px -28px rgba(242, 190, 121, 0.42);
+.nk-hero-movie {
+  background:
+    linear-gradient(150deg, rgba(80, 55, 30, 0.9), rgba(35, 26, 18, 0.98) 55%, rgb(15, 14, 13)),
+    rgb(20, 18, 16);
 }
 
-/* Cozy glow: warm lamplight halo on hover/focus, for primary actions and
-   featured tiles. Pair with `transition` on the target. */
-.cozy-glow {
-  transition: box-shadow 220ms ease, transform 220ms ease, filter 220ms ease;
+.nk-hero-scrim {
+  background: linear-gradient(100deg, rgba(15, 14, 13, 0.94) 22%, rgba(15, 14, 13, 0.55) 58%, rgba(15, 14, 13, 0.15));
 }
 
-.cozy-glow:hover,
-.cozy-glow:focus-visible {
-  box-shadow:
-    0 0 0 1px rgba(224, 162, 94, 0.18),
-    0 12px 30px -18px rgba(224, 162, 94, 0.44);
+/* Poster monogram gradients — warm placeholder art when no artwork exists. */
+.nk-poster-amber {
+  background: linear-gradient(160deg, rgba(232, 165, 80, 0.55), rgba(120, 60, 20, 0.85) 70%, rgba(30, 20, 12, 0.95));
+}
+
+.nk-poster-teal {
+  background: linear-gradient(160deg, rgba(127, 181, 164, 0.5), rgba(30, 80, 68, 0.85) 70%, rgba(12, 24, 20, 0.95));
+}
+
+.nk-poster-wine {
+  background: linear-gradient(160deg, rgba(198, 106, 118, 0.5), rgba(90, 35, 44, 0.85) 70%, rgba(26, 14, 16, 0.95));
+}
+
+.nk-poster-slate {
+  background: linear-gradient(160deg, rgba(150, 160, 178, 0.45), rgba(55, 62, 78, 0.85) 70%, rgba(16, 18, 24, 0.95));
+}
+
+.nk-poster-moss {
+  background: linear-gradient(160deg, rgba(164, 181, 110, 0.45), rgba(66, 78, 32, 0.85) 70%, rgba(20, 22, 12, 0.95));
 }

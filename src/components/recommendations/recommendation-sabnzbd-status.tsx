@@ -65,16 +65,16 @@ export function RecommendationSabnzbdStatus({
         variant === "panel" ? "px-4 py-3" : "px-3 py-3",
         className,
       )}
-      aria-label={`${title} ${mediaType === "tv" ? "TV" : "movie"} SABnzbd status: ${statusLabel}, ${progressLabel}`}
+      aria-label={`${title} ${mediaType === "tv" ? "TV" : "movie"} download status: ${statusLabel}, ${progressLabel}`}
     >
       <LinkPendingOverlay />
       <div className="flex items-center justify-between gap-3">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">SABnzbd</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">Download</span>
         <span className="text-xs font-medium text-muted">
           {statusLabel} / {progressLabel}
         </span>
       </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-panel-strong/35">
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-cream/[0.07]">
         <div
           className="h-full rounded-full bg-accent transition-[width] duration-500"
           style={{ width: progressLabel }}

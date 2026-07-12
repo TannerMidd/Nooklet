@@ -1,19 +1,20 @@
 /**
- * Shared border/background/text tone classes for status-like values across
- * health, timelines, and activity surfaces.
+ * Shared background/text tone classes for status-like values across health,
+ * timelines, and activity surfaces. Teal = healthy, amber = active/attention,
+ * wine = failure, cream = neutral.
  */
 export function statusTone(status: string) {
   if (status === "verified" || status === "succeeded") {
-    return "border-accent/20 bg-accent/10 text-foreground";
+    return "bg-accent-cool/[0.12] text-accent-cool";
   }
 
   if (status === "error" || status === "failed" || status === "cancelled") {
-    return "border-highlight/20 bg-highlight/10 text-highlight";
+    return "bg-accent-wine/[0.12] text-accent-wine";
   }
 
   if (status === "pending") {
-    return "border-line bg-panel text-muted";
+    return "bg-cream/[0.06] text-muted";
   }
 
-  return "border-line/70 bg-panel-strong/70 text-foreground";
+  return "bg-cream/[0.06] text-foreground";
 }

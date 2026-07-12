@@ -84,7 +84,7 @@ export function RecommendationFeedbackActions({
       </form>
 
       {state.status === "error" && state.message ? (
-        <p className="basis-full text-sm text-highlight" role="status">
+        <p className="basis-full text-sm text-accent-wine" role="status">
           {state.message}
         </p>
       ) : null}

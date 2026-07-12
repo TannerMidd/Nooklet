@@ -55,7 +55,7 @@ export function WatchHistoryScheduleForm({
   );
 
   return (
-    <form action={formAction} className="space-y-4 rounded-lg border border-line/45 bg-panel-strong/45 px-3 py-2.5">
+    <form action={formAction} className="space-y-4 rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5">
       <input type="hidden" name="sourceType" value={sourceType} />
 
       <div className="space-y-1">
@@ -64,12 +64,12 @@ export function WatchHistoryScheduleForm({
       </div>
 
       <div className="grid gap-4 md:grid-cols-[0.38fr,0.32fr,0.3fr] md:items-end">
-        <label className="flex items-start gap-3 rounded-lg border border-line bg-panel px-3 py-2.5">
+        <label className="flex items-start gap-3 rounded-lg border border-cream/[0.08] bg-panel px-3 py-2.5">
           <input
             name="enabled"
             type="checkbox"
             defaultChecked={defaultEnabled}
-            className="mt-1 h-4 w-4 rounded border-line text-accent focus:ring-accent/30"
+            className="mt-1 h-4 w-4 rounded border-cream/[0.08] text-accent focus:ring-accent/30"
           />
           <span className="space-y-1">
             <span className="block text-sm font-medium text-foreground">Enable auto-sync</span>
@@ -90,11 +90,11 @@ export function WatchHistoryScheduleForm({
             aria-invalid={Boolean(state.fieldErrors?.intervalHours)}
           />
           {state.fieldErrors?.intervalHours ? (
-            <p className="text-sm text-highlight">{state.fieldErrors.intervalHours}</p>
+            <p className="text-sm text-accent-wine">{state.fieldErrors.intervalHours}</p>
           ) : null}
         </label>
 
-        <div className="rounded-lg border border-line bg-panel px-3 py-2 text-sm leading-6 text-foreground">
+        <div className="rounded-lg border border-cream/[0.08] bg-panel px-3 py-2 text-sm leading-6 text-foreground">
           <p>
             <span className="font-medium">Last run:</span> {formatDate(lastRunAt)}
           </p>
@@ -105,7 +105,7 @@ export function WatchHistoryScheduleForm({
       </div>
 
       {lastError ? (
-        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight">
+        <p className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3 py-2 text-sm text-accent-wine">
           {lastError}
         </p>
       ) : null}
@@ -115,7 +115,7 @@ export function WatchHistoryScheduleForm({
           className={
             state.status === "success"
               ? "rounded-lg border border-accent/20 bg-accent/10 px-3 py-2 text-sm text-foreground"
-              : "rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight"
+              : "rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3 py-2 text-sm text-accent-wine"
           }
         >
           {state.message}

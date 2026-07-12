@@ -1,8 +1,6 @@
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { PageHeader } from "@/components/ui/page-header";
-import { Panel } from "@/components/ui/panel";
 import { getBootstrapStatus } from "@/modules/identity-access/workflows/bootstrap-status";
 
 import { LoginForm } from "./login-form";
@@ -31,23 +29,16 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   }
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        eyebrow="Welcome back"
-        title="Sign in"
-        description="Settle back in — your saved recommendations, connections, and library actions are right where you left them."
-      />
-
-      <div>
-        <Panel
-          eyebrow="Account access"
-          title="Local sign in"
-          description="Sign in to pick up where you left off."
-        >
-          <LoginForm showBootstrapSuccess={resolvedSearchParams?.bootstrapped === "1"} />
-        </Panel>
+    <div className="nk-enter">
+      <div className="mb-7 flex items-center gap-2.5">
+        <span aria-hidden="true" className="nk-brand-dot h-2.5 w-2.5" />
+        <span className="nooklet-wordmark text-[26px] leading-none text-foreground">Nooklet</span>
       </div>
+      <h1 className="font-heading text-[38px] leading-[1.1] text-foreground">Welcome back.</h1>
+      <p className="mb-8 mt-2 text-[15px] leading-6 text-muted">
+        Your picks, library, and queue are right where you left them.
+      </p>
+      <LoginForm showBootstrapSuccess={resolvedSearchParams?.bootstrapped === "1"} />
     </div>
   );
 }
-

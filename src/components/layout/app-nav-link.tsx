@@ -8,7 +8,9 @@ import {
   Download,
   Film,
   History,
+  Library,
   Plug,
+  Search,
   Shield,
   SlidersHorizontal,
   Tv,
@@ -46,11 +48,14 @@ const navigationIcons: Record<string, LucideIcon> = {
   "/tv": Tv,
   "/movies": Film,
   "/discover": Compass,
+  "/search": Search,
+  "/library": Library,
   "/history": History,
   "/in-progress": Download,
   "/analytics": BarChart3,
   "/settings/account": User,
   "/settings/connections": Plug,
+  "/settings/indexers": Search,
   "/settings/preferences": SlidersHorizontal,
   "/settings/history": History,
   "/settings/notifications": Bell,
@@ -77,24 +82,17 @@ export function AppNavLink({ item, badge }: AppNavLinkProps) {
       aria-current={active ? "page" : undefined}
       title={item.description}
       className={cn(
-        "group relative flex min-h-9 items-center gap-2.5 rounded-md px-2.5 py-1.5 transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50",
+        "group relative flex h-[38px] items-center gap-[11px] rounded-md px-3 transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50",
         active
-          ? "nooklet-nav-link--active text-foreground"
-          : "text-muted hover:bg-panel-strong/40 hover:text-foreground",
+          ? "bg-cream/[0.06] text-foreground"
+          : "text-muted hover:bg-cream/[0.05] hover:text-foreground",
       )}
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "nooklet-nav-link__rail absolute left-0 top-1.5 h-[calc(100%-0.75rem)] w-0.5 rounded-full transition",
-          active ? "" : "bg-transparent group-hover:bg-accent/55",
-        )}
-      />
       <Icon
         aria-hidden="true"
         className={cn(
-          "h-4 w-4 shrink-0 transition",
-          active ? "text-accent-strong" : "text-muted/80 group-hover:text-foreground",
+          "h-[17px] w-[17px] shrink-0 transition",
+          active ? "text-accent" : "text-muted/90 group-hover:text-foreground",
         )}
       />
       <span className="flex min-w-0 flex-1 items-center justify-between gap-2">

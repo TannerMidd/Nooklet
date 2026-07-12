@@ -17,7 +17,7 @@ export default async function TvRecommendationsPage({ searchParams }: TvRecommen
     <RecommendationWorkspace
       mediaType="tv"
       routePath="/tv"
-      title="TV recommendations"
+      title="TV picks"
       activeRunId={resolvedSearchParams?.run ?? null}
       wasJustGenerated={resolvedSearchParams?.generated === "1"}
       detailsItemId={resolvedSearchParams?.details ?? null}

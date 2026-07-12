@@ -16,10 +16,10 @@ export default async function ConnectionsSettingsPage() {
   const summaries = await listConnectionSummaries(session.user.id);
 
   return (
-    <div className="space-y-5">
+    <div className="nk-enter space-y-7">
       <PageHeader eyebrow="Services" title="Connections" />
 
-      <div className="grid gap-6">
+      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
         {summaries.map((summary) => (
           <ConnectionCard key={summary.serviceType} summary={summary} />
         ))}

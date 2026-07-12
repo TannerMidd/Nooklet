@@ -6,8 +6,8 @@ type AuthLayoutProps = {
 
 export default function AuthLayout({ children }: AuthLayoutProps) {
   return (
-    <main className="px-6 py-8 md:py-10">
-      <div className="mx-auto max-w-5xl">{children}</div>
+    <main className="nk-auth-backdrop flex min-h-screen items-center justify-center px-6 py-12">
+      <div className="w-full max-w-[400px]">{children}</div>
     </main>
   );
 }

@@ -20,7 +20,7 @@ export function DownloadNowToggle({ defaultDownloadNow = true, className }: Down
   return (
     <fieldset
       className={cn(
-        "inline-flex w-fit overflow-hidden rounded-md border border-line/55 bg-background/35",
+        "inline-flex w-fit overflow-hidden rounded-md border border-cream/[0.08] bg-cream/[0.03]",
         className,
       )}
     >
@@ -35,7 +35,7 @@ export function DownloadNowToggle({ defaultDownloadNow = true, className }: Down
         />
         Download now
       </label>
-      <label className={cn(segmentClass, "border-l border-line/55")}>
+      <label className={cn(segmentClass, "border-l border-cream/[0.08]")}>
         <input
           type="radio"
           name="downloadNow"

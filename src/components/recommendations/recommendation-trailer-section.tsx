@@ -38,7 +38,7 @@ export function RecommendationTrailerSection({ videos, title }: RecommendationTr
     <section className="space-y-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">Trailers and clips</p>
 
-      <div className="overflow-hidden rounded-lg border border-line/45 bg-panel-strong/35">
+      <div className="overflow-hidden rounded-lg border border-cream/[0.08] bg-cream/[0.04]">
         {activeKey ? (
           <div className="relative aspect-video w-full bg-black">
             <iframe

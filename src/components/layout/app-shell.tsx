@@ -2,7 +2,6 @@ import Link from "next/link";
 import { type ReactNode } from "react";
 
 import { AppNavLink } from "@/components/layout/app-nav-link";
-import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { InProgressNavBadge } from "@/components/layout/in-progress-nav-badge";
 import { SignOutForm } from "@/components/layout/sign-out-form";
 import { SabnzbdQueueProvider } from "@/components/recommendations/sabnzbd-queue-provider";
@@ -16,68 +15,73 @@ type AppShellProps = {
   };
 };
 
+function userInitials(name?: string | null, email?: string | null) {
+  const source = (name || email || "Nooklet user").trim();
+  const parts = source.split(/[\s@._-]+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? "N";
+  const second = parts.length > 1 ? parts[1]?.[0] ?? "" : source[1] ?? "";
+  return `${first}${second}`.toUpperCase();
+}
+
 export function AppShell({ children, user }: AppShellProps) {
   return (
     <SabnzbdQueueProvider>
-      <div className="min-h-screen lg:pl-60">
-        <aside className="flex flex-col border-b border-line/45 bg-panel/70 lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:w-60 lg:border-b-0 lg:border-r">
-          <div className="flex items-center gap-2.5 border-b border-line/40 px-4 py-3.5">
-            <Link
-              href="/"
-              className="nooklet-brand-mark relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-accent/35 font-heading text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
-              aria-label="Nooklet home"
-            >
-              <LinkPendingOverlay />
-              NK
-            </Link>
-            <div className="min-w-0">
-              <Link
-                href="/"
-                className="nooklet-wordmark block truncate text-lg leading-none text-foreground"
-              >
-                Nooklet
-              </Link>
-              <p className="mt-0.5 truncate text-[11px] font-medium text-muted">
-                Media taste desk
-              </p>
-            </div>
-          </div>
+      <div className="min-h-screen lg:pl-56">
+        <aside className="flex flex-col border-b border-cream/[0.07] bg-panel/60 lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:w-56 lg:border-b-0 lg:border-r">
+          <Link
+            href="/"
+            className="flex items-center gap-2.5 px-5 pb-4 pt-5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
+            aria-label="Nooklet home"
+          >
+            <span aria-hidden="true" className="nk-brand-dot h-2.5 w-2.5 shrink-0" />
+            <span className="nooklet-wordmark text-[21px] leading-none text-foreground">
+              Nooklet
+            </span>
+          </Link>
 
           <nav
-            className="min-h-0 flex-1 space-y-4 overflow-y-auto px-2.5 py-4"
+            className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 pb-4 pt-1"
             aria-label="Workspace navigation"
           >
-            {navigationGroups.map((group) => (
-              <section key={group.title} className="space-y-1.5">
-                <h2 className="px-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-accent-cool/75">
-                  {group.title}
-                </h2>
-                <div className="space-y-0.5">
-                  {group.items.map((item) => (
-                    <AppNavLink
-                      key={item.href}
-                      item={item}
-                      badge={item.href === "/in-progress" ? <InProgressNavBadge /> : null}
-                    />
-                  ))}
-                </div>
+            {navigationGroups.map((group, groupIndex) => (
+              <section key={group.title} className="space-y-0.5">
+                {groupIndex > 0 ? (
+                  <h2 className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-[0.10em] text-muted/70">
+                    {group.title}
+                  </h2>
+                ) : null}
+                {group.items.map((item) => (
+                  <AppNavLink
+                    key={item.href}
+                    item={item}
+                    badge={item.href === "/in-progress" ? <InProgressNavBadge /> : null}
+                  />
+                ))}
               </section>
             ))}
           </nav>
 
-          <div className="border-t border-line/40 px-4 py-3">
-            <p className="truncate text-sm font-medium text-foreground">
-              {user.name || user.email || "Nooklet user"}
-            </p>
-            {user.email ? <p className="mt-0.5 truncate text-[11px] text-muted">{user.email}</p> : null}
-            <div className="mt-2">
-              <SignOutForm />
+          <div className="m-3 flex items-center gap-2.5 rounded-lg border border-cream/[0.07] bg-cream/[0.03] px-3 py-2.5">
+            <span
+              aria-hidden="true"
+              className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-accent/[0.14] text-xs font-bold text-accent"
+            >
+              {userInitials(user.name, user.email)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-semibold text-foreground">
+                {user.name || user.email || "Nooklet user"}
+              </p>
+              {user.email ? (
+                <p className="truncate text-[11px] text-muted">{user.email}</p>
+              ) : null}
             </div>
+            <SignOutForm />
           </div>
         </aside>
 
-        <main className="min-w-0 px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
-          <div className="w-full max-w-[1200px]">{children}</div>
+        <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-12 lg:py-9">
+          <div className="mx-auto w-full max-w-[1240px]">{children}</div>
         </main>
       </div>
     </SabnzbdQueueProvider>

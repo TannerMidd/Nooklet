@@ -8,11 +8,12 @@ import { RecommendationSabnzbdStatus } from "@/components/recommendations/recomm
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { type RecommendationMediaType, type RecommendationFeedbackValue } from "@/lib/database/schema";
 import { type RecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
+import { cn } from "@/lib/utils";
 
 const rationaleClampStyle: CSSProperties = {
   display: "-webkit-box",
   WebkitBoxOrient: "vertical",
-  WebkitLineClamp: 4,
+  WebkitLineClamp: 3,
   overflow: "hidden",
 };
 
@@ -31,8 +32,15 @@ type RecommendationFeaturedCardProps = {
   animationDelayMs?: number;
 };
 
-function formatConfidenceLabel(value: string) {
-  return value.trim().toUpperCase();
+function isHighConfidence(value: string | null | undefined) {
+  return Boolean(value && value.trim().toLowerCase().startsWith("high"));
+}
+
+function formatConfidenceLabel(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+  return isHighConfidence(value) ? "High confidence" : value.trim().replace(/confidence/i, "").trim() || value.trim();
 }
 
 export function RecommendationFeaturedCard({
@@ -50,47 +58,52 @@ export function RecommendationFeaturedCard({
   animationDelayMs = 0,
 }: RecommendationFeaturedCardProps) {
   const resolvedOverviewHref = overviewHref ?? `/recommendations/${itemId}?returnTo=${encodeURIComponent(routePath)}`;
+  const confidence = formatConfidenceLabel(confidenceLabel);
 
   return (
     <article
-      className="recommendation-featured-card nooklet-feature-card flex h-full flex-col overflow-hidden rounded-lg border border-line/45 p-4"
+      className="recommendation-featured-card flex h-full flex-col rounded-2xl border border-cream/[0.08] bg-cream/[0.03] p-4 transition duration-200 hover:-translate-y-0.5 hover:border-cream/[0.14] hover:bg-cream/[0.05]"
       style={{ animationDelay: `${animationDelayMs}ms` }}
     >
       <Link
         href={resolvedOverviewHref}
         scroll={false}
-        className="relative block space-y-4 rounded-lg outline-none transition hover:opacity-95 focus-visible:ring-1 focus-visible:ring-accent/50"
+        className="relative block outline-none transition hover:opacity-95 focus-visible:rounded-lg focus-visible:ring-1 focus-visible:ring-accent/50"
       >
         <LinkPendingOverlay className="rounded-lg" />
-        <div className="grid gap-4 sm:grid-cols-[7rem_minmax(0,1fr)] sm:items-start">
-          <div className="mx-auto sm:mx-0">
-            <RecommendationPoster title={title} posterUrl={providerMetadata?.posterUrl} />
-          </div>
-
-          <div className="min-w-0 space-y-3 sm:pt-1">
-            <div className="flex flex-wrap gap-2 text-xs text-muted">
-              {confidenceLabel ? (
-                <span className="rounded-md border border-accent-cool/30 bg-accent-cool/10 px-2.5 py-1 font-medium text-foreground">
-                  {formatConfidenceLabel(confidenceLabel)}
+        <div className="flex gap-4">
+          <RecommendationPoster
+            title={title}
+            posterUrl={providerMetadata?.posterUrl}
+            className="w-[84px] rounded-md sm:w-[84px]"
+          />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+              {confidence ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "h-[7px] w-[7px] rounded-full",
+                      isHighConfidence(confidenceLabel) ? "bg-accent-cool" : "bg-muted",
+                    )}
+                  />
+                  {confidence}
                 </span>
               ) : null}
-              {existingInLibrary ? (
-                <span className="rounded-md border border-accent/30 bg-accent/10 px-2.5 py-1 font-medium text-foreground">
-                  Existing in library
-                </span>
+              {year ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>{year}</span>
+                </>
               ) : null}
-              {year ? <span className="px-1 py-1 text-muted">{year}</span> : null}
             </div>
-
-            <h3 className="text-[1.25rem] font-semibold leading-tight text-foreground sm:text-[1.4rem]">
-              {title}
-            </h3>
+            <h3 className="text-[17px] font-semibold leading-tight text-foreground">{title}</h3>
+            <p className="text-[13px] leading-5 text-muted" style={rationaleClampStyle}>
+              {rationale}
+            </p>
           </div>
         </div>
-
-        <p className="min-h-[6.5rem] text-sm leading-6 text-muted" style={rationaleClampStyle}>
-          {rationale}
-        </p>
       </Link>
 
       <RecommendationSabnzbdStatus
@@ -98,26 +111,17 @@ export function RecommendationFeaturedCard({
         year={year}
         mediaType={mediaType}
         providerMetadata={providerMetadata}
-        className="mt-4"
+        className="mt-3"
       />
 
-      <div className="mt-auto pt-5">
-        <div className="flex flex-col gap-3 border-t border-line/45 pt-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <RecommendationFeedbackActions
-              itemId={itemId}
-              feedback={feedback}
-              returnTo={routePath}
-              buttonClassName="h-8 min-h-8 w-8 rounded-lg"
-            />
-          </div>
-
+      <div className="mt-auto pt-4">
+        <div className="flex flex-wrap items-center gap-2">
           <RecommendationAddForm
             itemId={itemId}
             existingInLibrary={existingInLibrary}
             returnTo={routePath}
             variant="compact"
-            buttonClassName="min-h-9 rounded-lg px-4 py-2 whitespace-nowrap"
+            buttonClassName="min-h-8 rounded-full border border-accent/45 bg-transparent px-4 text-xs font-semibold text-accent shadow-none hover:bg-accent/[0.14]"
             mediaType={mediaType}
             tmdbId={
               providerMetadata?.tmdbDetails?.mediaType === mediaType
@@ -125,6 +129,11 @@ export function RecommendationFeaturedCard({
                 : null
             }
             titleLabel={`${title}${year ? ` (${year})` : ""}`}
+          />
+          <RecommendationFeedbackActions
+            itemId={itemId}
+            feedback={feedback}
+            returnTo={routePath}
           />
         </div>
       </div>

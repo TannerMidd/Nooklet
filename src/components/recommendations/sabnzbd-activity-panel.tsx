@@ -1,12 +1,14 @@
 "use client";
 
+import { GripVertical } from "lucide-react";
 import Link from "next/link";
 
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Panel } from "@/components/ui/panel";
+import { StatCard } from "@/components/ui/stat-card";
+import { cn } from "@/lib/utils";
 import {
   getSabnzbdQueueActionKey,
   type SabnzbdQueueActionInput,
@@ -24,7 +26,7 @@ function formatProgressPercent(value: number) {
 
 function ProgressBar({ progressPercent }: { progressPercent: number }) {
   return (
-    <div className="h-2.5 overflow-hidden rounded-full bg-panel-strong">
+    <div className="h-2.5 overflow-hidden rounded-full bg-cream/[0.04]">
       <div
         className="h-full rounded-full bg-accent transition-[width] duration-500"
         style={{ width: `${Math.max(0, Math.min(100, progressPercent))}%` }}
@@ -179,243 +181,210 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
         },
         {
           label: "Speed",
-          value: snapshot.speed ? `${snapshot.speed}/s` : "Unavailable",
+          value: snapshot.speed ? `${snapshot.speed}/s` : "—",
         },
         {
           label: "Time left",
-          value: snapshot.timeLeft ?? "Unavailable",
+          value: snapshot.timeLeft ?? "—",
         },
       ]
     : [];
 
   return (
-    <Panel
-      eyebrow="Downloads"
-      title="SABnzbd queue"
-      className={className}
-    >
-      <div className="space-y-4 text-sm leading-6 text-foreground">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <p className="text-sm text-muted">{queueState.statusMessage}</p>
-          <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-muted">
-            {snapshot?.queueStatus ? <span>{snapshot.queueStatus}</span> : null}
-            {snapshot?.speed ? <span>{snapshot.speed}/s</span> : null}
-            {snapshot?.timeLeft ? <span>{snapshot.timeLeft} left</span> : null}
-            {isRefreshing ? <span>Refreshing</span> : null}
-            {isMutating ? <span>Updating queue</span> : null}
-          </div>
+    <div className={cn("space-y-7", className)}>
+      {actionError ? (
+        <div className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2 text-sm text-foreground">
+          {actionError}
         </div>
+      ) : null}
 
-        {actionError ? (
-          <div className="rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-highlight">
-            {actionError}
-          </div>
-        ) : null}
+      {summaryItems.length > 0 ? (
+        <div className="grid gap-3.5 md:grid-cols-2 xl:grid-cols-4">
+          {summaryItems.map((item) => (
+            <StatCard key={item.label} label={item.label} value={item.value} className="[&>p:first-child]:text-[clamp(17px,2.2vw,28px)]" />
+          ))}
+        </div>
+      ) : null}
 
-        {summaryItems.length > 0 ? (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {summaryItems.map((item) => (
-              <div
-                key={item.label}
-                className="rounded-lg border border-line/45 bg-panel-strong/35 px-4 py-3"
-              >
-                <p className="font-heading text-xs italic text-muted">
-                  {item.label}
-                </p>
-                <p className="mt-2 font-medium text-foreground">{item.value}</p>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {queueState.connectionStatus === "verified" && snapshot ? (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="secondary"
-              className="min-h-9 rounded-xl px-3 py-1.5 text-xs"
-              disabled={isRefreshing || isMutating || snapshot.paused}
-              onClick={() => {
-                void submitQueueAction({
-                  type: "pauseQueue",
-                });
-              }}
-            >
-              {pendingActionKey === "pauseQueue" ? "Pausing queue..." : "Pause queue"}
-            </Button>
-            <Button
-              variant="secondary"
-              className="min-h-9 rounded-xl px-3 py-1.5 text-xs"
-              disabled={isRefreshing || isMutating || !snapshot.paused}
-              onClick={() => {
-                void submitQueueAction({
-                  type: "resumeQueue",
-                });
-              }}
-            >
-              {pendingActionKey === "resumeQueue" ? "Resuming queue..." : "Resume queue"}
-            </Button>
-          </div>
-        ) : null}
-
-        {queueState.connectionStatus !== "verified" ? (
-          <div className="rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-highlight">
-            <p>{queueState.statusMessage}</p>
-            <Link
-              href="/settings/connections"
-              className="relative mt-2 inline-flex font-medium text-foreground underline decoration-current/60 underline-offset-4 transition hover:text-highlight"
-            >
-              <LinkPendingOverlay />
-              Open connections
-            </Link>
-          </div>
-        ) : snapshot && snapshot.items.length > 0 ? (
-          <div className="rounded-lg border border-line/45 bg-panel-strong/35 p-3 sm:p-4">
-            <div className="flex flex-col gap-2 border-b border-line/45 px-1 pb-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">Queue items</p>
-                <p className="text-sm text-muted">
-                  Scroll this list when the downloader backlog is long, then drag cards to reorder them or use the fallback queue controls.
-                </p>
-              </div>
-              <p className="font-heading text-xs italic text-muted">
-                Showing {snapshot.items.length} of {snapshot.totalQueueCount}
-              </p>
+      {queueState.connectionStatus !== "verified" ? (
+        <div className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2.5 text-sm text-foreground">
+          <p>{queueState.statusMessage}</p>
+          <Link
+            href="/settings/connections"
+            className="relative mt-1.5 inline-flex font-semibold text-accent transition hover:brightness-110"
+          >
+            <LinkPendingOverlay />
+            Open connections
+          </Link>
+        </div>
+      ) : (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="font-heading text-2xl text-foreground">Queue</h3>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-xs text-muted">
+                {isRefreshing ? "Refreshing…" : isMutating ? "Updating queue…" : queueState.statusMessage}
+              </span>
+              {snapshot ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={isRefreshing || isMutating}
+                  onClick={() => {
+                    void submitQueueAction({
+                      type: snapshot.paused ? "resumeQueue" : "pauseQueue",
+                    });
+                  }}
+                >
+                  {pendingActionKey === "pauseQueue"
+                    ? "Pausing queue..."
+                    : pendingActionKey === "resumeQueue"
+                      ? "Resuming queue..."
+                      : snapshot.paused
+                        ? "Resume queue"
+                        : "Pause queue"}
+                </Button>
+              ) : null}
             </div>
+          </div>
 
-            <div className="mt-3 max-h-[68vh] space-y-3 overflow-y-auto pr-1 sm:pr-2">
+          {snapshot && snapshot.items.length > 0 ? (
+            <div className="max-h-[68vh] space-y-2.5 overflow-y-auto pr-1">
               {snapshot.items.map((item, index) => {
                 const isPaused = item.status.toLowerCase() === "paused";
                 const currentActionKey = `${isPaused ? "resume" : "pause"}:${item.id}`;
 
                 return (
-                <article
-                  key={item.id}
-                  draggable={!isRefreshing && !isMutating}
-                  aria-grabbed={draggedItemId === item.id}
-                  onDragStart={(event) => {
-                    handleDragStart(event, item.id);
-                  }}
-                  onDragOver={(event) => {
-                    handleDragOver(event, item.id);
-                  }}
-                  onDrop={(event) => {
-                    handleDrop(event, item.id);
-                  }}
-                  onDragEnd={handleDragEnd}
-                  className={`rounded-lg border px-3 py-2.5 transition ${
-                    draggedItemId === item.id
-                      ? "border-accent/50 bg-panel-strong opacity-70"
-                      : dragTargetItemId === item.id
-                        ? "border-accent bg-panel-strong"
-                        : "border-line/45 bg-panel"
-                  }`}
-                >
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                        <span className="rounded-full border border-line/45 bg-panel-strong px-2 py-1">
-                          Drag to reorder
+                  <article
+                    key={item.id}
+                    draggable={!isRefreshing && !isMutating}
+                    aria-grabbed={draggedItemId === item.id}
+                    onDragStart={(event) => {
+                      handleDragStart(event, item.id);
+                    }}
+                    onDragOver={(event) => {
+                      handleDragOver(event, item.id);
+                    }}
+                    onDrop={(event) => {
+                      handleDrop(event, item.id);
+                    }}
+                    onDragEnd={handleDragEnd}
+                    className={`flex flex-col gap-3 rounded-2xl border px-5 py-4 transition ${
+                      draggedItemId === item.id
+                        ? "border-accent/50 bg-cream/[0.04] opacity-70"
+                        : dragTargetItemId === item.id
+                          ? "border-accent bg-cream/[0.04]"
+                          : "border-cream/[0.08] bg-cream/[0.03] hover:border-cream/[0.14]"
+                    }`}
+                  >
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <GripVertical
+                          aria-hidden="true"
+                          className="h-4 w-4 shrink-0 cursor-grab text-muted"
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-foreground">{item.title}</p>
+                          <p className="mt-0.5 text-xs text-muted">
+                            {[
+                              item.category,
+                              item.priority ? `${item.priority} priority` : null,
+                              item.sizeLabel,
+                              ...item.labels,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ") || item.status}
+                            {dragTargetItemId === item.id ? " · Drop here" : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap items-center gap-3 lg:gap-4">
+                        <span className="text-[13px] font-semibold text-accent">
+                          {isPaused ? "Paused" : formatProgressPercent(item.progressPercent)}
                         </span>
-                        {dragTargetItemId === item.id ? <span>Drop here</span> : null}
-                      </div>
-                      <p className="font-medium text-foreground">{item.title}</p>
-                      <div className="flex flex-wrap gap-3 text-xs text-muted">
-                        <span>{item.status}</span>
-                        {item.category ? <span>{item.category}</span> : null}
-                        {item.priority ? <span>{item.priority}</span> : null}
-                        {item.labels.map((label) => (
-                          <span key={label}>{label}</span>
-                        ))}
+                        {item.timeLeft ? (
+                          <span className="text-[12.5px] text-muted">{item.timeLeft} left</span>
+                        ) : null}
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={isRefreshing || isMutating || index === 0}
+                          onClick={() => {
+                            void submitQueueAction({
+                              type: "move",
+                              itemId: item.id,
+                              direction: "up",
+                            });
+                          }}
+                        >
+                          Up
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={isRefreshing || isMutating || index >= snapshot.totalQueueCount - 1}
+                          onClick={() => {
+                            void submitQueueAction({
+                              type: "move",
+                              itemId: item.id,
+                              direction: "down",
+                            });
+                          }}
+                        >
+                          Down
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={isRefreshing || isMutating}
+                          onClick={() => {
+                            void submitQueueAction({
+                              type: isPaused ? "resume" : "pause",
+                              itemId: item.id,
+                            });
+                          }}
+                        >
+                          {pendingActionKey === currentActionKey
+                            ? isPaused
+                              ? "Resuming..."
+                              : "Pausing..."
+                            : isPaused
+                              ? "Resume"
+                              : "Pause"}
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          disabled={isRefreshing || isMutating}
+                          onClick={() => {
+                            void submitQueueAction({
+                              type: "remove",
+                              itemId: item.id,
+                            });
+                          }}
+                        >
+                          {pendingActionKey === `remove:${item.id}` ? "Removing..." : "Remove"}
+                        </Button>
                       </div>
                     </div>
-                    <div className="text-sm text-muted lg:text-right">
-                      <div>{formatProgressPercent(item.progressPercent)}</div>
-                      {item.timeLeft ? <div>{item.timeLeft} left</div> : null}
-                      {item.sizeLeftLabel ? <div>{item.sizeLeftLabel} remaining</div> : null}
-                    </div>
-                  </div>
-
-                  <div className="mt-3 space-y-2">
                     <ProgressBar progressPercent={item.progressPercent} />
-                    <div className="flex flex-wrap justify-between gap-3 text-xs text-muted">
-                      <span>{item.sizeLabel ?? "Size unavailable"}</span>
-                      <span>{formatProgressPercent(item.progressPercent)} complete</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Button
-                      variant="secondary"
-                      className="min-h-9 rounded-xl px-3 py-1.5 text-xs"
-                      disabled={isRefreshing || isMutating || index === 0}
-                      onClick={() => {
-                        void submitQueueAction({
-                          type: "move",
-                          itemId: item.id,
-                          direction: "up",
-                        });
-                      }}
-                    >
-                      Move up
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      className="min-h-9 rounded-xl px-3 py-1.5 text-xs"
-                      disabled={isRefreshing || isMutating || index >= snapshot.totalQueueCount - 1}
-                      onClick={() => {
-                        void submitQueueAction({
-                          type: "move",
-                          itemId: item.id,
-                          direction: "down",
-                        });
-                      }}
-                    >
-                      Move down
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      className="min-h-9 rounded-xl px-3 py-1.5 text-xs"
-                      disabled={isRefreshing || isMutating}
-                      onClick={() => {
-                        void submitQueueAction({
-                          type: isPaused ? "resume" : "pause",
-                          itemId: item.id,
-                        });
-                      }}
-                    >
-                      {pendingActionKey === currentActionKey
-                        ? isPaused
-                          ? "Resuming..."
-                          : "Pausing..."
-                        : isPaused
-                          ? "Resume"
-                          : "Pause"}
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      className="min-h-9 rounded-xl border-highlight/20 px-3 py-1.5 text-xs text-highlight hover:bg-highlight/10"
-                      disabled={isRefreshing || isMutating}
-                      onClick={() => {
-                        void submitQueueAction({
-                          type: "remove",
-                          itemId: item.id,
-                        });
-                      }}
-                    >
-                      {pendingActionKey === `remove:${item.id}` ? "Removing..." : "Remove"}
-                    </Button>
-                  </div>
-                </article>
+                  </article>
                 );
               })}
+              {snapshot.totalQueueCount > snapshot.items.length ? (
+                <p className="px-1 text-xs text-muted">
+                  Showing {snapshot.items.length} of {snapshot.totalQueueCount} queue items.
+                </p>
+              ) : null}
             </div>
-          </div>
-        ) : (
-          <div className="rounded-lg border border-line/45 bg-panel-strong/45 px-3 py-2.5 text-muted">
-            No active SABnzbd requests right now. This panel refreshes automatically while the queue is busy.
-          </div>
-        )}
-      </div>
-    </Panel>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-cream/[0.12] bg-cream/[0.02] px-5 py-4 text-sm text-muted">
+              No active downloads right now. This panel refreshes automatically while the queue is
+              busy.
+            </div>
+          )}
+        </section>
+      )}
+    </div>
   );
 }

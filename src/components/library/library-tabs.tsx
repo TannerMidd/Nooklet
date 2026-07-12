@@ -29,7 +29,7 @@ export function LibraryTabs({ tabs, defaultTabId }: LibraryTabsProps) {
       <div
         role="tablist"
         aria-label="Library views"
-        className="grid gap-1 rounded-lg border border-line/45 bg-background/20 p-1 sm:inline-grid sm:grid-flow-col"
+        className="grid gap-0.5 rounded-lg bg-cream/[0.05] p-[3px] sm:inline-grid sm:grid-flow-col"
       >
         {tabs.map((tab) => {
           const active = tab.id === activeTab.id;
@@ -43,10 +43,10 @@ export function LibraryTabs({ tabs, defaultTabId }: LibraryTabsProps) {
               id={`library-tab-${tab.id}`}
               onClick={() => setActiveTabId(tab.id)}
               className={cn(
-                "min-h-9 rounded-md px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50",
+                "h-9 rounded-md px-4 text-[13px] font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50",
                 active
-                  ? "nooklet-tab--active text-accent-foreground"
-                  : "text-muted hover:bg-panel-strong/45 hover:text-foreground",
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted hover:text-foreground",
               )}
             >
               {tab.label}

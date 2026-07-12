@@ -9,6 +9,7 @@ import {
 import { submitRecommendationRetryAction } from "@/app/(workspace)/recommendation-actions";
 import { Button } from "@/components/ui/button";
 import { type RecommendationMediaType, type RecommendationRunStatus } from "@/lib/database/schema";
+import { cn } from "@/lib/utils";
 import { type RecommendationGenre } from "@/modules/recommendations/recommendation-genres";
 
 type RecommendationRetryFormProps = {
@@ -20,6 +21,7 @@ type RecommendationRetryFormProps = {
   aiTemperature: number;
   redirectPath: string;
   runStatus: RecommendationRunStatus;
+  className?: string;
 };
 
 function SubmitButton({ runStatus }: { runStatus: RecommendationRunStatus }) {
@@ -27,13 +29,17 @@ function SubmitButton({ runStatus }: { runStatus: RecommendationRunStatus }) {
 
   if (runStatus === "failed") {
     return (
-      <Button type="submit" variant="secondary">
+      <Button type="submit" variant="secondary" size="sm">
         {pending ? "Retrying..." : "Retry request"}
       </Button>
     );
   }
 
-  return <Button type="submit" variant="secondary">{pending ? "Running..." : "Run again"}</Button>;
+  return (
+    <Button type="submit" variant="secondary" size="sm">
+      {pending ? "Running..." : "Run again"}
+    </Button>
+  );
 }
 
 export function RecommendationRetryForm({
@@ -45,6 +51,7 @@ export function RecommendationRetryForm({
   aiTemperature,
   redirectPath,
   runStatus,
+  className,
 }: RecommendationRetryFormProps) {
   const [state, formAction] = useActionState(
     submitRecommendationRetryAction,
@@ -52,7 +59,7 @@ export function RecommendationRetryForm({
   );
 
   return (
-    <form action={formAction} className="mt-4 space-y-3">
+    <form action={formAction} className={cn("space-y-2", className)}>
       <input type="hidden" name="mediaType" value={mediaType} />
       <input type="hidden" name="requestPrompt" value={requestPrompt} />
       {selectedGenres.map((genre) => (
@@ -68,7 +75,7 @@ export function RecommendationRetryForm({
       </div>
 
       {state.message ? (
-        <p className="text-sm text-highlight">{state.message}</p>
+        <p className="text-sm text-accent-wine">{state.message}</p>
       ) : null}
     </form>
   );

@@ -19,7 +19,7 @@ function QueueStatus({ state }: { state: QueueIndexerResultActionState }) {
   }
 
   return (
-    <p className={state.status === "success" ? "text-xs text-foreground" : "text-xs text-highlight"}>
+    <p className={state.status === "success" ? "text-xs text-foreground" : "text-xs text-accent-wine"}>
       {state.message}
     </p>
   );

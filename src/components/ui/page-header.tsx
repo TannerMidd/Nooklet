@@ -3,7 +3,7 @@ import { type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 type PageHeaderProps = {
-  /** Retained for API compatibility; category eyebrows are no longer rendered. */
+  /** Short uppercase kicker rendered above the title in the accent color. */
   eyebrow?: string;
   title: string;
   description?: string;
@@ -13,6 +13,7 @@ type PageHeaderProps = {
 };
 
 export function PageHeader({
+  eyebrow,
   title,
   description,
   actions,
@@ -20,26 +21,26 @@ export function PageHeader({
   className,
 }: PageHeaderProps) {
   return (
-    <header
-      className={cn(
-        "relative border-b border-line/50 pb-4",
-        className,
-      )}
-    >
-      <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="min-w-0 max-w-4xl space-y-1">
-          <h1 className="font-heading text-2xl leading-tight text-foreground">
+    <header className={cn("relative", className)}>
+      <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0 max-w-4xl">
+          {eyebrow ? (
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.10em] text-accent">
+              {eyebrow}
+            </p>
+          ) : null}
+          <h1 className="font-heading text-[40px] leading-[1.05] text-foreground">
             {title}
           </h1>
           {description ? (
-            <p className="max-w-3xl text-sm leading-6 text-muted">
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
               {description}
             </p>
           ) : null}
         </div>
-        {actions ? <div className="shrink-0">{actions}</div> : null}
+        {actions ? <div className="flex shrink-0 items-center gap-2.5">{actions}</div> : null}
       </div>
-      {children ? <div className="mt-3">{children}</div> : null}
+      {children ? <div className="mt-4">{children}</div> : null}
     </header>
   );
 }

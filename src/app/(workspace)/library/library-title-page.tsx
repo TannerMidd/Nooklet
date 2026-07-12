@@ -1,13 +1,11 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Search } from "lucide-react";
 
 import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Input } from "@/components/ui/input";
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
-import { PageHeader } from "@/components/ui/page-header";
-import { Panel } from "@/components/ui/panel";
+import { StatusDot } from "@/components/ui/status-dot";
 import { LibraryScanButton } from "@/app/(workspace)/library/library-scan-button";
 import { LibraryTitleDialog } from "@/app/(workspace)/library/library-title-dialog";
 import { getLibraryLastScannedAt } from "@/modules/media-library/queries/get-library-last-scanned-at";
@@ -74,37 +72,32 @@ function PaginationControls({
     ? "No titles"
     : `Showing ${pagination.firstItem}-${pagination.lastItem}`;
 
+  const pageLinkClass =
+    "relative inline-flex h-8 items-center justify-center rounded-full border border-cream/[0.14] px-3.5 text-xs font-semibold text-foreground transition hover:bg-cream/[0.06]";
+  const pageDisabledClass =
+    "inline-flex h-8 items-center justify-center rounded-full border border-cream/10 px-3.5 text-xs font-semibold text-muted opacity-50";
+
   return (
-    <div className="flex flex-col gap-3 border-t border-line/60 pt-4 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 px-5 py-3.5 text-[13px] text-muted sm:flex-row sm:items-center sm:justify-between">
       <p>
         {rangeLabel} / page {pagination.page} of {pagination.pageCount}
       </p>
       <div className="flex gap-2">
         {pagination.hasPreviousPage ? (
-          <Link
-            href={buildLibraryPageHref(mediaType, query, pagination.page - 1)}
-            className="relative inline-flex min-h-9 items-center justify-center rounded-lg border border-line/50 bg-panel-strong/45 px-2.5 py-1 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/50"
-          >
+          <Link href={buildLibraryPageHref(mediaType, query, pagination.page - 1)} className={pageLinkClass}>
             <LinkPendingOverlay />
             Previous
           </Link>
         ) : (
-          <span className="inline-flex min-h-9 items-center justify-center rounded-lg border border-line/50 bg-background/20 px-2.5 py-1 text-xs font-semibold text-muted opacity-60">
-            Previous
-          </span>
+          <span className={pageDisabledClass}>Previous</span>
         )}
         {pagination.hasNextPage ? (
-          <Link
-            href={buildLibraryPageHref(mediaType, query, pagination.page + 1)}
-            className="relative inline-flex min-h-9 items-center justify-center rounded-lg border border-line/50 bg-panel-strong/45 px-2.5 py-1 text-xs font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/50"
-          >
+          <Link href={buildLibraryPageHref(mediaType, query, pagination.page + 1)} className={pageLinkClass}>
             <LinkPendingOverlay />
             Next
           </Link>
         ) : (
-          <span className="inline-flex min-h-9 items-center justify-center rounded-lg border border-line/50 bg-background/20 px-2.5 py-1 text-xs font-semibold text-muted opacity-60">
-            Next
-          </span>
+          <span className={pageDisabledClass}>Next</span>
         )}
       </div>
     </div>
@@ -131,11 +124,11 @@ function TitleRow({
       <Link
         href={titleHref}
         scroll={false}
-        className="relative grid gap-3 px-3.5 py-2.5 text-sm transition hover:bg-panel-strong/35 md:grid-cols-[minmax(0,1.8fr)_minmax(140px,0.8fr)_120px_120px_120px] md:items-center"
+        className="relative grid gap-3 px-5 py-3 text-sm transition hover:bg-cream/[0.03] md:grid-cols-[minmax(0,1.8fr)_minmax(140px,0.8fr)_130px_120px_130px] md:items-center"
       >
         <LinkPendingOverlay />
         <div className="min-w-0">
-          <p className="truncate font-medium text-foreground">
+          <p className="truncate font-semibold text-foreground">
             {title.title}{title.year ? ` (${title.year})` : ""}
           </p>
           <p className="truncate text-xs text-muted md:hidden">
@@ -143,12 +136,14 @@ function TitleRow({
           </p>
         </div>
         <p className="hidden truncate text-muted md:block">{title.libraryName ?? "Unassigned"}</p>
-        <p className="hidden text-muted md:block">{getMediaQualityProfileLabel(title.qualityProfile)}</p>
-        <div className="hidden items-center gap-2 md:flex">
-          <span className={title.status === "missing" ? "h-2 w-2 rounded-full bg-amber-400" : "h-2 w-2 rounded-full bg-emerald-400"} />
-          <span className="capitalize text-muted">{title.status}</span>
+        <p className="hidden text-[13px] text-muted md:block">{getMediaQualityProfileLabel(title.qualityProfile)}</p>
+        <div className="hidden md:block">
+          <StatusDot
+            tone={title.status === "missing" ? "active" : "ok"}
+            label={title.status === "missing" ? "Missing" : "Available"}
+          />
         </div>
-        <div className="hidden text-muted md:block">
+        <div className="hidden text-[13px] text-muted md:block">
           <p>{fileLabel}</p>
           <p className="text-xs">{updatedLabel}</p>
         </div>
@@ -159,51 +154,6 @@ function TitleRow({
         </div>
       </Link>
     </li>
-  );
-}
-
-function TitleRows({
-  titles,
-  mediaType,
-  query,
-  page,
-}: {
-  titles: MediaLibraryTitleSummary[];
-  mediaType: RecommendationMediaType;
-  query?: string | null;
-  page: number;
-}) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-line/45 bg-background/15">
-      <div className="hidden border-b border-line/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted md:grid md:grid-cols-[minmax(0,1.8fr)_minmax(140px,0.8fr)_120px_120px_120px]">
-        <span>Title</span>
-        <span>Library</span>
-        <span>Profile</span>
-        <span>Status</span>
-        <span>Files</span>
-      </div>
-      <ul className="divide-y divide-line/55">
-        {titles.map((title) => (
-          <TitleRow key={title.id} title={title} mediaType={mediaType} query={query} page={page} />
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function LibrarySummary({
-  mediaType,
-  totals,
-}: {
-  mediaType: RecommendationMediaType;
-  totals: Awaited<ReturnType<typeof listMediaLibraryTitles>>["totals"];
-}) {
-  const titleLabel = titleCountLabel(mediaType, totals.titles);
-
-  return (
-    <p className="text-sm text-muted">
-      {titleLabel} / {totals.files} files / {totals.monitored} monitored / {totals.missing} missing
-    </p>
   );
 }
 
@@ -248,48 +198,73 @@ export async function LibraryTitlePage({
   const closeDetailsHref = buildLibraryPageHref(mediaType, query, currentPage);
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        eyebrow="Built-in library"
-        title={mediaTypeLabel(mediaType)}
-        description={mediaType === "tv" ? "Browse series discovered in local TV folders." : "Browse movies discovered in local movie folders."}
-        actions={(
-          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-            <div className="flex flex-col gap-0 text-xs text-muted sm:text-right">
-              <span>Last synced</span>
-              <span className="font-semibold text-foreground">
-                {lastScannedAt ? lastScannedAt.toLocaleString() : "Never"}
-              </span>
-            </div>
-            <LibraryScanButton />
-            <Link
-              href="/library"
-              className="relative inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-line/50 bg-panel-strong/45 px-3 py-1.5 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/50"
-            >
-              <LinkPendingOverlay />
-              <ArrowLeft aria-hidden="true" size={16} />
-              Library home
-            </Link>
+    <div className="nk-enter space-y-7">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <Link
+            href="/library"
+            className="relative mb-2.5 inline-flex items-center gap-1.5 text-[13px] font-semibold text-muted transition hover:text-foreground"
+          >
+            <LinkPendingOverlay />
+            <ArrowLeft aria-hidden="true" size={14} />
+            Library
+          </Link>
+          <h1 className="font-heading text-[40px] leading-[1.05] text-foreground">
+            {mediaTypeLabel(mediaType)}
+          </h1>
+          <p className="mt-2 text-[13px] text-muted">
+            {titleCountLabel(mediaType, library.totals.titles)} / {library.totals.files} files /{" "}
+            {library.totals.monitored} monitored / {library.totals.missing} missing
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-3.5">
+          <div className="text-right">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Last synced</p>
+            <p className="mt-0.5 text-[13px] font-semibold text-foreground">
+              {lastScannedAt ? lastScannedAt.toLocaleString() : "Never"}
+            </p>
           </div>
-        )}
-      />
+          <LibraryScanButton />
+        </div>
+      </header>
 
-      <Panel eyebrow="Browse" title={titleCountLabel(mediaType, library.totals.titles)}>
-        <LibrarySummary mediaType={mediaType} totals={library.totals} />
-        <form className="mb-5 mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]" action={mediaType === "tv" ? "/library/tv" : "/library/movies"}>
-          <Input name="q" defaultValue={query ?? ""} placeholder={mediaType === "tv" ? "Filter series" : "Filter movies"} />
-          <Button type="submit" variant="secondary">Filter</Button>
-        </form>
-        {library.titles.length === 0 ? (
-          <EmptyState message="No titles found." />
-        ) : (
-          <div className="space-y-5">
-            <PaginationControls mediaType={mediaType} query={query} pagination={library.pagination} />
-            <TitleRows titles={library.titles} mediaType={mediaType} query={query} page={currentPage} />
+      <form
+        className="flex max-w-[440px] items-center gap-3 rounded-xl border border-cream/[0.09] bg-cream/[0.03] px-4"
+        action={mediaType === "tv" ? "/library/tv" : "/library/movies"}
+      >
+        <Search aria-hidden="true" className="h-[18px] w-[18px] shrink-0 text-muted" />
+        <input
+          name="q"
+          defaultValue={query ?? ""}
+          placeholder={mediaType === "tv" ? "Filter series by title…" : "Filter movies by title…"}
+          className="h-[42px] min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted/70"
+        />
+        <Button type="submit" variant="ghost" size="sm" className="shrink-0 text-accent">
+          Filter
+        </Button>
+      </form>
+
+      {library.titles.length === 0 ? (
+        <EmptyState message="No titles found." />
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-cream/[0.08] bg-cream/[0.03]">
+          <div className="hidden border-b border-cream/[0.07] px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted md:grid md:grid-cols-[minmax(0,1.8fr)_minmax(140px,0.8fr)_130px_120px_130px] md:gap-3">
+            <span>Title</span>
+            <span>Library</span>
+            <span>Profile</span>
+            <span>Status</span>
+            <span>Files</span>
+          </div>
+          <ul className="divide-y divide-cream/[0.05]">
+            {library.titles.map((title) => (
+              <TitleRow key={title.id} title={title} mediaType={mediaType} query={query} page={currentPage} />
+            ))}
+          </ul>
+          <div className="border-t border-cream/[0.05]">
             <PaginationControls mediaType={mediaType} query={query} pagination={library.pagination} />
           </div>
-        )}
-      </Panel>
+        </div>
+      )}
 
       {selectedTvTitle ? (
         <LibraryTitleDialog

@@ -5,7 +5,6 @@ import {
 } from "@/app/(workspace)/in-progress/download-activity-panel";
 import { SabnzbdActivityPanel } from "@/components/recommendations/sabnzbd-activity-panel";
 import { PageHeader } from "@/components/ui/page-header";
-import { Panel } from "@/components/ui/panel";
 import { listDownloadActivity } from "@/modules/downloads/queries/list-download-activity";
 import { refreshSabnzbdQueueActivity } from "@/modules/service-connections/workflows/refresh-sabnzbd-queue-activity";
 
@@ -24,19 +23,19 @@ export default async function InProgressPage() {
   ]);
 
   return (
-    <div className="space-y-5">
+    <div className="nk-enter space-y-8">
       <PageHeader
-        eyebrow="Live activity"
+        eyebrow="Live · refreshes automatically"
         title="In progress"
-        description="Track active SABnzbd downloads."
         actions={<ImportNowButton />}
       />
 
       <SabnzbdActivityPanel initialState={activeSabnzbdQueue} />
 
-      <Panel eyebrow="Requests" title="Download activity">
+      <section className="space-y-4">
+        <h3 className="font-heading text-2xl text-foreground">Recent activity</h3>
         <DownloadActivityPanel entries={downloadActivity} />
-      </Panel>
+      </section>
     </div>
   );
 }

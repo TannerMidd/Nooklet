@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarDays, DatabaseZap, Download, HardDrive, Search } from "lucide-react";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -26,7 +26,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InlineAlert } from "@/components/ui/inline-alert";
-import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
 
@@ -52,9 +51,8 @@ function SearchSubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" className="w-full sm:w-auto" disabled={pending}>
-      <Search aria-hidden="true" size={17} />
-      {pending ? "Searching..." : "Search titles"}
+    <Button type="submit" className="shrink-0" disabled={pending}>
+      {pending ? "Searching..." : "Search"}
     </Button>
   );
 }
@@ -108,14 +106,14 @@ function formatPublishedAt(value: string | null) {
 function TitleMeta({ title }: { title: TitleSearchResultView }) {
   return (
     <div className="flex flex-wrap gap-2 text-xs text-muted">
-      <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
+      <span className="rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">
         {title.mediaType === "tv" ? "TV" : "Movie"}
       </span>
       {title.year ? (
-        <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">{title.year}</span>
+        <span className="rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">{title.year}</span>
       ) : null}
       {title.voteAverage !== null ? (
-        <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
+        <span className="rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">
           TMDB {title.voteAverage.toFixed(1)}
         </span>
       ) : null}
@@ -141,27 +139,27 @@ function ReleaseResults({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-line/45 bg-background/15 p-3">
+    <div className="space-y-3 rounded-lg border border-cream/[0.08] bg-cream/[0.03] p-3">
       <p className="text-sm font-medium text-foreground">Release candidates</p>
       <ul className="space-y-2">
         {results.map((result) => (
-          <li key={result.id} className="rounded-lg border border-line/60 bg-panel-strong/35 p-3">
+          <li key={result.id} className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] p-3">
             <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 space-y-2">
                 <p className="break-words text-sm font-medium text-foreground">{result.title}</p>
                 <div className="flex flex-wrap gap-2 text-xs text-muted">
                   {result.qualityLabel ? (
-                    <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">{result.qualityLabel}</span>
+                    <span className="rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">{result.qualityLabel}</span>
                   ) : null}
-                  <span className="inline-flex items-center gap-1 rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
+                  <span className="inline-flex items-center gap-1 rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">
                     <HardDrive aria-hidden="true" size={13} />
                     {formatBytes(result.sizeBytes)}
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
+                  <span className="inline-flex items-center gap-1 rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">
                     <CalendarDays aria-hidden="true" size={13} />
                     {formatPublishedAt(result.publishedAt)}
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
+                  <span className="inline-flex items-center gap-1 rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">
                     <DatabaseZap aria-hidden="true" size={13} />
                     S {result.seeders ?? "?"} / L {result.leechers ?? "?"}
                   </span>
@@ -197,7 +195,7 @@ function RequestTitleForm({
 
   return (
     <div className="space-y-3">
-      <form action={formAction} className="space-y-3 rounded-lg border border-line/45 bg-background/15 p-3">
+      <form action={formAction} className="space-y-3 rounded-lg border border-cream/[0.08] bg-cream/[0.03] p-3">
         <input type="hidden" name="mediaType" value={title.mediaType} />
         <input type="hidden" name="tmdbId" value={title.tmdbId} />
         <input type="hidden" name="title" value={title.title} />
@@ -241,7 +239,7 @@ function TitleResultCard({
   pathOptions: MediaLibraryPathOption[];
 }) {
   return (
-    <li className="rounded-lg border border-line/45 bg-panel-strong/35 p-4">
+    <li className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] p-4">
       <div className="grid gap-4 lg:grid-cols-[120px_minmax(0,1fr)]">
         <RecommendationPoster title={title.title} posterUrl={title.posterUrl} />
         <div className="min-w-0 space-y-4">
@@ -295,29 +293,51 @@ function TitleResults({
 
 export function TitleSearchForm({ libraries, qualityProfiles, pathOptions }: TitleSearchFormProps) {
   const [state, formAction] = useActionState(searchTitlesAction, initialTitleSearchActionState);
+  const [mediaType, setMediaType] = useState<"movie" | "tv">("movie");
 
   return (
-    <div className="space-y-5">
-      <form action={formAction} className="space-y-4">
-        <StatusBanner state={state} />
-        <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)_auto] md:items-end">
-          <label className="space-y-1 text-sm">
-            <span className="font-medium text-foreground">Media type</span>
-            <select
-              name="mediaType"
-              defaultValue="movie"
-              className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/45 focus:ring-1 focus:ring-accent/25"
-            >
-              <option value="movie">Movies</option>
-              <option value="tv">TV shows</option>
-            </select>
-          </label>
-          <label className="space-y-1 text-sm">
-            <span className="font-medium text-foreground">Title</span>
-            <Input name="query" placeholder="Arrival" required />
-          </label>
-          <SearchSubmitButton />
+    <div className="space-y-6">
+      <form action={formAction} className="space-y-3">
+        <input type="hidden" name="mediaType" value={mediaType} />
+        <div className="flex max-w-3xl flex-col gap-3 rounded-3xl border border-cream/[0.09] bg-cream/[0.03] p-2 pl-5 sm:flex-row sm:items-center">
+          <Search aria-hidden="true" className="hidden h-[18px] w-[18px] shrink-0 text-muted sm:block" />
+          <input
+            name="query"
+            required
+            placeholder="Search for a movie or show…"
+            className="h-11 min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted/70"
+          />
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex rounded-lg bg-cream/[0.05] p-[3px]" role="group" aria-label="Media type">
+              <button
+                type="button"
+                aria-pressed={mediaType === "movie"}
+                onClick={() => setMediaType("movie")}
+                className={`h-9 rounded-md px-4 text-[13px] font-semibold transition ${
+                  mediaType === "movie" ? "bg-accent text-accent-foreground" : "text-muted hover:text-foreground"
+                }`}
+              >
+                Movies
+              </button>
+              <button
+                type="button"
+                aria-pressed={mediaType === "tv"}
+                onClick={() => setMediaType("tv")}
+                className={`h-9 rounded-md px-4 text-[13px] font-semibold transition ${
+                  mediaType === "tv" ? "bg-accent text-accent-foreground" : "text-muted hover:text-foreground"
+                }`}
+              >
+                TV
+              </button>
+            </div>
+            <SearchSubmitButton />
+          </div>
         </div>
+        <StatusBanner state={state} />
+        <p className="max-w-3xl text-[13px] leading-[22px] text-muted">
+          Find titles first, pick quality and destination folder, then Nooklet requests, downloads,
+          and imports them into your library.
+        </p>
       </form>
 
       <TitleResults state={state} libraries={libraries} qualityProfiles={qualityProfiles} pathOptions={pathOptions} />

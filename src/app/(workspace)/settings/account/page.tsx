@@ -18,7 +18,7 @@ export default async function AccountSettingsPage() {
   const user = await getAccountUser(session.user.id);
 
   return (
-    <div className="space-y-5">
+    <div className="nk-enter space-y-7">
       <PageHeader eyebrow="User settings" title="Account" />
 
       <div className="grid gap-6 xl:grid-cols-[1.05fr,0.95fr]">

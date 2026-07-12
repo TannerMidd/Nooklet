@@ -1,3 +1,4 @@
+import { Star } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -62,12 +63,8 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
   const qualityProfiles = listMediaQualityProfiles();
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        eyebrow="Browse"
-        title="Discover"
-        description="Trending, popular, and top-rated titles powered by TMDB."
-      />
+    <div className="nk-enter space-y-9">
+      <PageHeader eyebrow="Powered by TMDB" title="Discover" />
 
       {!overview.ok ? (
         <Panel
@@ -78,23 +75,21 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
         </Panel>
       ) : (
         overview.rails.map((rail) => (
-          <Panel key={`${rail.category}-${rail.mediaType}`} eyebrow="TMDB" title={rail.label}>
+          <section key={`${rail.category}-${rail.mediaType}`} className="space-y-4">
+            <h3 className="font-heading text-2xl text-foreground">{rail.label}</h3>
             {rail.titles.length === 0 ? (
               <p className="text-sm leading-6 text-muted">TMDB returned no titles for this rail right now.</p>
             ) : (
-              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+              <ul className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
                 {rail.titles.map((title) => (
-                  <li
-                    key={`${rail.category}-${rail.mediaType}-${title.tmdbId}`}
-                    className="flex flex-col gap-2 rounded-lg border border-line/45 bg-panel-strong/45 p-3"
-                  >
+                  <li key={`${rail.category}-${rail.mediaType}-${title.tmdbId}`}>
                     <Link
                       href={buildOverviewHref(rail.mediaType, title.tmdbId)}
                       scroll={false}
-                      className="relative flex flex-col gap-2"
+                      className="relative flex flex-col gap-2 transition duration-200 hover:-translate-y-1"
                     >
                       <LinkPendingOverlay className="rounded-xl" />
-                      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl border border-line/60 bg-panel">
+                      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl border border-cream/10 bg-panel shadow-[0_18px_34px_-24px_rgba(0,0,0,0.8)]">
                         {title.posterUrl ? (
                           <Image
                             src={title.posterUrl}
@@ -109,20 +104,23 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
                             No artwork
                           </span>
                         )}
+                        {title.voteAverage ? (
+                          <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-background/70 px-2 py-0.5 text-[11px] font-semibold text-foreground">
+                            <Star aria-hidden="true" className="h-2.5 w-2.5 fill-current" />
+                            {title.voteAverage.toFixed(1)}
+                          </span>
+                        ) : null}
                       </div>
                       <div className="min-w-0 text-sm leading-5">
-                        <p className="truncate font-medium text-foreground">{title.title}</p>
-                        <p className="text-xs text-muted">
-                          {title.year ?? "Unknown year"}
-                          {title.voteAverage ? ` • ${title.voteAverage.toFixed(1)} TMDB` : ""}
-                        </p>
+                        <p className="truncate font-semibold text-foreground">{title.title}</p>
+                        <p className="mt-0.5 text-xs text-muted">{title.year ?? "Unknown year"}</p>
                       </div>
                     </Link>
                   </li>
                 ))}
               </ul>
             )}
-          </Panel>
+          </section>
         ))
       )}
 

@@ -12,12 +12,16 @@ export function StatCard({ label, value, className }: StatCardProps) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-line/45 bg-panel-strong/45 px-3 py-2.5 text-sm leading-6",
+        "min-w-0 overflow-hidden rounded-2xl border border-cream/[0.08] bg-cream/[0.03] p-5",
         className,
       )}
     >
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-0.5 font-heading text-lg text-foreground">{value}</p>
+      <p className="break-words font-heading text-3xl leading-none text-foreground">
+        {value}
+      </p>
+      <p className="mt-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+        {label}
+      </p>
     </div>
   );
 }

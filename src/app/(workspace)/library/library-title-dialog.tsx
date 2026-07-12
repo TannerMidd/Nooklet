@@ -48,14 +48,14 @@ function DialogPills({
 }) {
   return (
     <div className="flex flex-wrap gap-2 text-xs text-muted">
-      <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5 capitalize">{title.status}</span>
-      <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
+      <span className="rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5 capitalize">{title.status}</span>
+      <span className="rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">
         {title.monitored ? "Monitored" : "Unmonitored"}
       </span>
-      <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
+      <span className="rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">
         {getMediaQualityProfileLabel(title.qualityProfile)}
       </span>
-      <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
+      <span className="rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">
         {title.libraryName ?? "Unassigned"}
       </span>
     </div>
@@ -76,7 +76,7 @@ function DialogControls({
   currentLibraryPathId: string | null;
 }) {
   return (
-    <section className="space-y-4 rounded-lg border border-line/60 bg-background/15 p-4">
+    <section className="space-y-4 rounded-lg border border-cream/[0.08] bg-cream/[0.03] p-4">
       <div>
         <h3 className="font-heading text-lg text-foreground">Settings and search</h3>
       </div>
@@ -209,7 +209,7 @@ function TvDialog({
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-line/60 bg-background/20 p-3">
+    <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.03] p-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
       <p className="mt-1 text-sm text-foreground">{value}</p>
     </div>
@@ -221,7 +221,7 @@ export function LibraryTitleDialog(props: LibraryTitleDialogProps) {
 
   return (
     <LibraryTitleDialogShell labelledBy={dialogTitleId} closeHref={props.closeHref}>
-      <div className="border-b border-line/45 px-5 py-5 sm:px-6">
+      <div className="border-b border-cream/[0.08] px-5 py-5 sm:px-6">
         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">
           {props.mediaType === "tv" ? "TV series" : "Movie"}
         </p>

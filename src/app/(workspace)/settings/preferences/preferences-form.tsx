@@ -51,12 +51,12 @@ type CheckboxFieldProps = {
 
 function CheckboxField({ name, label, description, defaultChecked }: CheckboxFieldProps) {
   return (
-    <label className="flex items-start gap-2.5 rounded-md bg-panel-strong/35 px-3 py-2 transition hover:bg-panel-strong/45">
+    <label className="flex items-start gap-2.5 rounded-md bg-cream/[0.04] px-3 py-2 transition hover:bg-cream/[0.06]">
       <input
         name={name}
         type="checkbox"
         defaultChecked={defaultChecked}
-        className="mt-0.5 h-4 w-4 rounded border-line text-accent focus:ring-accent/30"
+        className="mt-0.5 h-4 w-4 rounded border-cream/[0.08] text-accent focus:ring-accent/30"
       />
       <span className="space-y-0.5">
         <span className="block text-sm font-medium text-foreground">{label}</span>
@@ -97,7 +97,7 @@ export function PreferencesForm({
           <select
             name="defaultMediaMode"
             defaultValue={preferences.defaultMediaMode}
-            className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+            className="min-h-9 w-full rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
             aria-invalid={Boolean(state.fieldErrors?.defaultMediaMode)}
           >
             <option value="tv">TV</option>
@@ -105,7 +105,7 @@ export function PreferencesForm({
             <option value="both">Both</option>
           </select>
           {state.fieldErrors?.defaultMediaMode ? (
-            <p className="text-sm text-highlight">{state.fieldErrors.defaultMediaMode}</p>
+            <p className="text-sm text-accent-wine">{state.fieldErrors.defaultMediaMode}</p>
           ) : null}
         </label>
 
@@ -120,7 +120,7 @@ export function PreferencesForm({
             aria-invalid={Boolean(state.fieldErrors?.defaultResultCount)}
           />
           {state.fieldErrors?.defaultResultCount ? (
-            <p className="text-sm text-highlight">{state.fieldErrors.defaultResultCount}</p>
+            <p className="text-sm text-accent-wine">{state.fieldErrors.defaultResultCount}</p>
           ) : null}
         </label>
 
@@ -138,7 +138,7 @@ export function PreferencesForm({
             More titles give the AI a broader taste signal for large libraries.
           </p>
           {state.fieldErrors?.libraryTasteSampleSize ? (
-            <p className="text-sm text-highlight">{state.fieldErrors.libraryTasteSampleSize}</p>
+            <p className="text-sm text-accent-wine">{state.fieldErrors.libraryTasteSampleSize}</p>
           ) : null}
         </label>
 
@@ -154,7 +154,7 @@ export function PreferencesForm({
             aria-invalid={Boolean(state.fieldErrors?.defaultTemperature)}
           />
           {state.fieldErrors?.defaultTemperature ? (
-            <p className="text-sm text-highlight">{state.fieldErrors.defaultTemperature}</p>
+            <p className="text-sm text-accent-wine">{state.fieldErrors.defaultTemperature}</p>
           ) : null}
         </label>
 
@@ -163,7 +163,7 @@ export function PreferencesForm({
           <select
             name="languagePreference"
             defaultValue={preferences.languagePreference}
-            className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+            className="min-h-9 w-full rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
             aria-invalid={Boolean(state.fieldErrors?.languagePreference)}
           >
             {languagePreferenceOptions.map((option) => (
@@ -173,7 +173,7 @@ export function PreferencesForm({
             ))}
           </select>
           {state.fieldErrors?.languagePreference ? (
-            <p className="text-sm text-highlight">{state.fieldErrors.languagePreference}</p>
+            <p className="text-sm text-accent-wine">{state.fieldErrors.languagePreference}</p>
           ) : null}
         </label>
       </div>
@@ -185,7 +185,7 @@ export function PreferencesForm({
           description="Use configured watch-history sources as the recommendation context instead of mixing in other source inputs."
           defaultChecked={preferences.watchHistoryOnly}
         />
-        <div className="rounded-md bg-panel-strong/35 px-3 py-2.5 md:col-span-2">
+        <div className="rounded-md bg-cream/[0.04] px-3 py-2.5 md:col-span-2">
           <div className="space-y-1">
             <p className="text-sm font-medium text-foreground">Watch-history sources</p>
             <p className="text-sm leading-6 text-muted">
@@ -196,14 +196,14 @@ export function PreferencesForm({
             {availableWatchHistorySources.map((source) => (
               <label
                 key={source.sourceType}
-                className="flex items-start gap-2.5 rounded-md bg-background/25 px-3 py-2"
+                className="flex items-start gap-2.5 rounded-md bg-cream/[0.03] px-3 py-2"
               >
                 <input
                   name="watchHistorySourceTypes"
                   type="checkbox"
                   value={source.sourceType}
                   defaultChecked={preferences.watchHistorySourceTypes.includes(source.sourceType)}
-                  className="mt-0.5 h-4 w-4 rounded border-line text-accent focus:ring-accent/30"
+                  className="mt-0.5 h-4 w-4 rounded border-cream/[0.08] text-accent focus:ring-accent/30"
                 />
                 <span className="space-y-0.5">
                   <span className="block text-sm font-medium text-foreground">{source.label}</span>
@@ -214,7 +214,7 @@ export function PreferencesForm({
             ))}
           </div>
           {state.fieldErrors?.watchHistorySourceTypes ? (
-            <p className="mt-3 text-sm text-highlight">{state.fieldErrors.watchHistorySourceTypes}</p>
+            <p className="mt-3 text-sm text-accent-wine">{state.fieldErrors.watchHistorySourceTypes}</p>
           ) : null}
         </div>
         <CheckboxField
@@ -244,7 +244,7 @@ export function PreferencesForm({
       </div>
 
       {state.status === "error" && state.message ? (
-        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight">
+        <p className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3 py-2 text-sm text-accent-wine">
           {state.message}
         </p>
       ) : null}

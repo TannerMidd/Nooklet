@@ -63,7 +63,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
 
   return (
     <div className="min-w-[320px] space-y-4">
-      <form action={roleAction} className="space-y-2 rounded-lg border border-line/45 bg-panel px-3 py-3">
+      <form action={roleAction} className="space-y-2 rounded-lg border border-cream/[0.08] bg-panel px-3 py-3">
         <input type="hidden" name="userId" value={user.id} />
         <label className="space-y-1.5">
           <span className="text-xs font-medium text-muted">
@@ -73,7 +73,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
             name="role"
             defaultValue={user.role}
             disabled={isCurrentAdmin}
-            className="min-h-9 w-full rounded-lg border border-line bg-panel-strong px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-9 w-full rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <option value="user">User</option>
             <option value="admin">Admin</option>
@@ -85,13 +85,13 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
           disabled={isCurrentAdmin}
         />
         {roleState.message ? (
-          <p className={roleState.status === "success" ? "text-sm text-muted" : "text-sm text-highlight"}>
+          <p className={roleState.status === "success" ? "text-sm text-muted" : "text-sm text-accent-wine"}>
             {roleState.message}
           </p>
         ) : null}
       </form>
 
-      <form action={statusAction} className="space-y-2 rounded-lg border border-line/45 bg-panel px-3 py-3">
+      <form action={statusAction} className="space-y-2 rounded-lg border border-cream/[0.08] bg-panel px-3 py-3">
         <input type="hidden" name="userId" value={user.id} />
         <input type="hidden" name="isDisabled" value={user.isDisabled ? "false" : "true"} />
         <div className="text-xs font-medium text-muted">
@@ -104,13 +104,13 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
           disabled={isCurrentAdmin}
         />
         {statusState.message ? (
-          <p className={statusState.status === "success" ? "text-sm text-muted" : "text-sm text-highlight"}>
+          <p className={statusState.status === "success" ? "text-sm text-muted" : "text-sm text-accent-wine"}>
             {statusState.message}
           </p>
         ) : null}
       </form>
 
-      <form action={passwordAction} className="space-y-2 rounded-lg border border-line/45 bg-panel px-3 py-3">
+      <form action={passwordAction} className="space-y-2 rounded-lg border border-cream/[0.08] bg-panel px-3 py-3">
         <input type="hidden" name="userId" value={user.id} />
         <div className="text-xs font-medium text-muted">
           Reset password
@@ -123,7 +123,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
           aria-invalid={Boolean(passwordState.fieldErrors?.newPassword)}
         />
         {passwordState.fieldErrors?.newPassword ? (
-          <p className="text-sm text-highlight">{passwordState.fieldErrors.newPassword}</p>
+          <p className="text-sm text-accent-wine">{passwordState.fieldErrors.newPassword}</p>
         ) : null}
         <Input
           name="confirmPassword"
@@ -133,7 +133,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
           aria-invalid={Boolean(passwordState.fieldErrors?.confirmPassword)}
         />
         {passwordState.fieldErrors?.confirmPassword ? (
-          <p className="text-sm text-highlight">{passwordState.fieldErrors.confirmPassword}</p>
+          <p className="text-sm text-accent-wine">{passwordState.fieldErrors.confirmPassword}</p>
         ) : null}
         <InlineSubmitButton
           label="Reset password"
@@ -142,7 +142,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
           disabled={isCurrentAdmin}
         />
         {passwordState.message ? (
-          <p className={passwordState.status === "success" ? "text-sm text-muted" : "text-sm text-highlight"}>
+          <p className={passwordState.status === "success" ? "text-sm text-muted" : "text-sm text-accent-wine"}>
             {passwordState.message}
           </p>
         ) : null}

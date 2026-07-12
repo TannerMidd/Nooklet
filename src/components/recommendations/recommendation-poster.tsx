@@ -1,24 +1,41 @@
 import Image from "next/image";
 
+import { cn } from "@/lib/utils";
+
 type RecommendationPosterProps = {
   title: string;
   posterUrl?: string | null;
+  className?: string;
 };
 
-function buildPosterFallbackLabel(title: string) {
-  return title
-    .split(/\s+/)
-    .filter((entry) => entry.length > 0)
-    .slice(0, 2)
-    .map((entry) => entry[0]?.toUpperCase() ?? "")
-    .join("") || "?";
+const posterHues = [
+  "nk-poster-amber",
+  "nk-poster-teal",
+  "nk-poster-wine",
+  "nk-poster-slate",
+  "nk-poster-moss",
+] as const;
+
+function posterHueForTitle(title: string) {
+  let hash = 0;
+  for (let index = 0; index < title.length; index += 1) {
+    hash = (hash * 31 + title.charCodeAt(index)) | 0;
+  }
+  return posterHues[Math.abs(hash) % posterHues.length];
 }
 
-export function RecommendationPoster({ title, posterUrl }: RecommendationPosterProps) {
-  const fallbackLabel = buildPosterFallbackLabel(title);
+function buildPosterFallbackLabel(title: string) {
+  return title.trim()[0]?.toUpperCase() ?? "?";
+}
 
+export function RecommendationPoster({ title, posterUrl, className }: RecommendationPosterProps) {
   return (
-    <div className="relative aspect-[2/3] w-24 shrink-0 overflow-hidden rounded-md border border-line/60 bg-panel-strong shadow-[0_18px_34px_-28px_rgba(20,14,10,0.8)] sm:w-28">
+    <div
+      className={cn(
+        "relative aspect-[2/3] w-24 shrink-0 overflow-hidden rounded-md border border-cream/10 shadow-[0_18px_34px_-24px_rgba(0,0,0,0.8)] sm:w-28",
+        className,
+      )}
+    >
       {posterUrl ? (
         <Image
           src={posterUrl}
@@ -29,9 +46,15 @@ export function RecommendationPoster({ title, posterUrl }: RecommendationPosterP
           className="object-cover"
         />
       ) : (
-        <div className="flex h-full w-full flex-col justify-between bg-[linear-gradient(180deg,_rgb(var(--panel-raised)/0.92),_rgb(var(--background)/0.98)),linear-gradient(90deg,_rgb(var(--accent)/0.14),_transparent_38%,_rgb(var(--accent-cool)/0.10))] p-3 text-foreground">
-          <span className="font-heading text-2xl leading-none text-accent-strong">{fallbackLabel}</span>
-          <span className="h-1 w-10 bg-accent/55" aria-hidden="true" />
+        <div
+          className={cn(
+            "flex h-full w-full items-end p-3",
+            posterHueForTitle(title),
+          )}
+        >
+          <span className="font-heading text-3xl italic leading-none text-cream/85">
+            {buildPosterFallbackLabel(title)}
+          </span>
         </div>
       )}
     </div>

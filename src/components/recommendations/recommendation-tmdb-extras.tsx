@@ -24,9 +24,9 @@ export function RecommendationCastSection({ cast }: { cast: TmdbCastMember[] }) 
         {cast.map((member) => (
           <li
             key={member.id}
-            className="flex items-center gap-3 rounded-lg border border-line/45 bg-panel-strong/35 p-3"
+            className="flex items-center gap-3 rounded-lg border border-cream/[0.08] bg-cream/[0.04] p-3"
           >
-            <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-full border border-line/60 bg-panel">
+            <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-full border border-cream/[0.08] bg-panel">
               {member.profileUrl ? (
                 <Image
                   src={member.profileUrl}
@@ -99,11 +99,11 @@ export function RecommendationWatchProvidersSection({
               {list.map((provider) => (
                 <li
                   key={`${category}-${provider.providerId}`}
-                  className="flex items-center gap-2 rounded-md border border-line/45 bg-panel-strong/35 px-3 py-2 text-sm text-foreground"
+                  className="flex items-center gap-2 rounded-md border border-cream/[0.08] bg-cream/[0.04] px-3 py-2 text-sm text-foreground"
                   title={provider.providerName}
                 >
                   {provider.logoUrl ? (
-                    <span className="relative h-6 w-6 overflow-hidden rounded-md border border-line/60">
+                    <span className="relative h-6 w-6 overflow-hidden rounded-md border border-cream/[0.08]">
                       <Image
                         src={provider.logoUrl}
                         alt=""
@@ -144,9 +144,9 @@ export function RecommendationSimilarTitlesSection({
         {similar.map((title) => (
           <li
             key={`${title.mediaType}-${title.tmdbId}`}
-            className="flex flex-col gap-2 rounded-lg border border-line/45 bg-panel-strong/35 p-3"
+            className="flex flex-col gap-2 rounded-lg border border-cream/[0.08] bg-cream/[0.04] p-3"
           >
-            <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border border-line/60 bg-panel">
+            <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border border-cream/[0.08] bg-panel">
               {title.posterUrl ? (
                 <Image
                   src={title.posterUrl}

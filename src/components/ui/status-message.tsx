@@ -20,7 +20,7 @@ export function StatusMessage({ status, message, className }: StatusMessageProps
       role={status === "error" ? "alert" : undefined}
       className={cn(
         "text-sm leading-6",
-        status === "success" ? "text-muted" : "text-highlight",
+        status === "success" ? "text-accent-cool" : "text-accent-wine",
         className,
       )}
     >

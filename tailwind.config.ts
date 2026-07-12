@@ -13,6 +13,7 @@ const config: Config = {
       colors: {
         background: "rgb(var(--background) / <alpha-value>)",
         foreground: "rgb(var(--foreground) / <alpha-value>)",
+        cream: "rgb(var(--cream) / <alpha-value>)",
         panel: "rgb(var(--panel) / <alpha-value>)",
         "panel-strong": "rgb(var(--panel-strong) / <alpha-value>)",
         "panel-raised": "rgb(var(--panel-raised) / <alpha-value>)",

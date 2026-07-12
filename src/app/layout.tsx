@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import { Fraunces, Instrument_Sans } from "next/font/google";
 import { type ReactNode } from "react";
 
 import { AppProviders } from "@/app/providers";
@@ -10,10 +10,11 @@ const headingFont = Fraunces({
   subsets: ["latin"],
   variable: "--app-font-heading",
   style: ["normal", "italic"],
+  weight: ["400", "500", "600"],
   axes: ["opsz"],
 });
 
-const bodyFont = Inter({
+const bodyFont = Instrument_Sans({
   subsets: ["latin"],
   variable: "--app-font-body",
   weight: ["400", "500", "600", "700"],

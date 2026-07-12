@@ -57,7 +57,7 @@ export function RequestMoreContentForm({
   }
 
   return (
-    <form action={formAction} className="space-y-3 rounded-lg border border-line/60 bg-background/15 p-4">
+    <form action={formAction} className="space-y-3 rounded-lg border border-cream/[0.08] bg-cream/[0.03] p-4">
       <div>
         <p className="font-heading text-base text-foreground">Request more from {titleLabel}</p>
         <p className="text-xs text-muted">

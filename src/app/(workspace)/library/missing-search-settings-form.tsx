@@ -44,12 +44,12 @@ export function MissingSearchSettingsForm({ settings }: { settings: MissingSearc
   return (
     <form action={formAction} className="space-y-4">
       <div className="grid gap-4 md:grid-cols-[minmax(0,0.45fr)_minmax(0,0.25fr)_minmax(0,0.3fr)] md:items-end">
-        <label className="flex items-start gap-2.5 rounded-lg border border-line/60 bg-background/20 px-3 py-2.5">
+        <label className="flex items-start gap-2.5 rounded-lg border border-cream/[0.08] bg-cream/[0.03] px-3 py-2.5">
           <input
             name="enabled"
             type="checkbox"
             defaultChecked={settings.enabled}
-            className="mt-1 h-4 w-4 rounded border-line bg-panel text-accent"
+            className="mt-1 h-4 w-4 rounded border-cream/[0.08] bg-panel text-accent"
           />
           <span className="space-y-1">
             <span className="block text-sm font-medium text-foreground">Auto-search</span>
@@ -70,11 +70,11 @@ export function MissingSearchSettingsForm({ settings }: { settings: MissingSearc
             aria-invalid={Boolean(state.fieldErrors?.intervalMinutes)}
           />
           {state.fieldErrors?.intervalMinutes ? (
-            <p className="text-sm text-highlight">{state.fieldErrors.intervalMinutes}</p>
+            <p className="text-sm text-accent-wine">{state.fieldErrors.intervalMinutes}</p>
           ) : null}
         </label>
 
-        <div className="rounded-lg border border-line/60 bg-background/15 px-3 py-2 text-sm leading-6 text-muted">
+        <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.03] px-3 py-2 text-sm leading-6 text-muted">
           <p className="flex items-center gap-2 text-foreground">
             <Radar aria-hidden="true" size={15} />
             {settings.lastStatus ?? "idle"}
@@ -85,7 +85,7 @@ export function MissingSearchSettingsForm({ settings }: { settings: MissingSearc
       </div>
 
       {settings.lastError ? (
-        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight">
+        <p className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3 py-2 text-sm text-accent-wine">
           {settings.lastError}
         </p>
       ) : null}

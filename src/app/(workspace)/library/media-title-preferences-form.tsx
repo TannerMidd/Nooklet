@@ -41,9 +41,9 @@ export function MediaTitlePreferencesForm({
   );
 
   return (
-    <form action={formAction} className="grid gap-3 rounded-lg border border-line/60 bg-background/15 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+    <form action={formAction} className="grid gap-3 rounded-lg border border-cream/[0.08] bg-cream/[0.03] p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
       <input type="hidden" name="titleId" value={titleId} />
-      <label className="inline-flex min-h-9 items-center gap-2 rounded-md border border-line/55 bg-background/35 px-2.5 py-1.5 text-sm text-muted">
+      <label className="inline-flex min-h-9 items-center gap-2 rounded-md border border-cream/[0.08] bg-cream/[0.03] px-2.5 py-1.5 text-sm text-muted">
         <input type="checkbox" name="monitored" defaultChecked={monitored} className="h-4 w-4 accent-accent" />
         Monitor
       </label>
@@ -52,7 +52,7 @@ export function MediaTitlePreferencesForm({
         <select
           name="qualityProfile"
           defaultValue={qualityProfile}
-          className="min-h-9 w-full rounded-lg border border-line/55 bg-background/45 px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-panel-strong/45 focus:ring-1 focus:ring-accent/25"
+          className="min-h-9 w-full rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-cream/[0.04] focus:ring-1 focus:ring-accent/25"
         >
           {qualityProfiles.map((profile) => (
             <option key={profile.value} value={profile.value}>{profile.label}</option>
@@ -61,7 +61,7 @@ export function MediaTitlePreferencesForm({
       </label>
       <SaveButton />
       {state.message ? (
-        <p className={state.status === "success" ? "text-sm text-muted md:col-span-3" : "text-sm text-highlight md:col-span-3"}>
+        <p className={state.status === "success" ? "text-sm text-muted md:col-span-3" : "text-sm text-accent-wine md:col-span-3"}>
           {state.message}
         </p>
       ) : null}

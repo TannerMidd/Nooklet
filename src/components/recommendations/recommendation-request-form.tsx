@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Sparkles } from "lucide-react";
 
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import {
@@ -83,8 +84,8 @@ function SubmitButton({ canSubmit }: { canSubmit: boolean }) {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" className="w-full sm:w-auto" disabled={!canSubmit || pending}>
-      {pending ? "Queuing recommendations..." : "Queue recommendations"}
+    <Button type="submit" className="shrink-0 whitespace-nowrap" disabled={!canSubmit || pending}>
+      {pending ? "Queuing..." : "Get picks"}
     </Button>
   );
 }
@@ -120,9 +121,9 @@ function RequestProgressPanel() {
   const activeStage = requestProgressStages[activeStageIndex];
 
   return (
-    <div className="rounded-lg border border-accent/20 bg-accent/10 px-4 py-3" role="status">
+    <div className="rounded-lg border border-accent/25 bg-accent/10 px-4 py-3" role="status">
       <div className="flex items-center gap-3">
-        <div className="mt-1 h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-accent" />
+        <div className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent" />
         <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground">Working on your recommendations</p>
           <p className="text-sm leading-6 text-muted">{activeStage.label}</p>
@@ -274,69 +275,68 @@ export function RecommendationRequestForm({
   }
 
   return (
-    <form ref={formRef} action={formAction} className="space-y-5">
+    <form ref={formRef} action={formAction} className="space-y-3.5">
       <input type="hidden" name="mediaType" value={mediaType} />
       <input type="hidden" name="redirectPath" value={redirectPath} />
       {selectedGenres.map((genre) => (
         <input key={genre} type="hidden" name="selectedGenres" value={genre} />
       ))}
 
-      <label className="block rounded-lg border border-line/45 bg-background/20 p-4 transition focus-within:border-accent/45 focus-within:bg-background/30">
-        <span className="text-sm font-medium text-foreground">Optional request focus</span>
-        <textarea
+      <div className="flex items-center gap-3">
+        <Sparkles aria-hidden="true" className="h-5 w-5 shrink-0 text-accent" />
+        <input
           name="requestPrompt"
-          rows={4}
           placeholder={
             mediaType === "tv"
-              ? "Leave blank to use your library and watch history, or add guidance like slow-burn sci-fi with emotional stakes."
-              : "Leave blank to use your library and watch history, or add guidance like tense modern thrillers with sharp pacing."
+              ? "Ask for picks — e.g. slow-burn sci-fi with emotional stakes…"
+              : "Ask for picks — e.g. tense modern thrillers with sharp pacing…"
           }
-          className="mt-3 min-h-28 w-full resize-y bg-transparent text-sm leading-6 text-foreground outline-none placeholder:text-muted/75"
+          className="h-11 min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted/70"
           aria-invalid={Boolean(state.fieldErrors?.requestPrompt)}
         />
-        {state.fieldErrors?.requestPrompt ? (
-          <p className="text-sm text-highlight">{state.fieldErrors.requestPrompt}</p>
-        ) : null}
-      </label>
-
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-foreground">Genres</p>
-        </div>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Quick genre selectors">
-          {genreOptions.map((option) => {
-            const isSelected = selectedGenres.includes(option.value);
-
-            return (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={isSelected}
-                onClick={() => toggleSelectedGenre(option.value)}
-                className={`inline-flex min-h-9 items-center justify-center rounded-md border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50 ${
-                  isSelected
-                    ? "border-accent/45 bg-accent/15 text-foreground"
-                    : "border-line/45 bg-background/20 text-muted hover:border-accent/30 hover:bg-panel-strong/45 hover:text-foreground"
-                }`}
-              >
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
-        {selectedGenres.length > 0 ? (
-          <p className="text-sm text-foreground">
-            Prioritizing: {formatRecommendationGenres(selectedGenres).join(", ")}
-          </p>
-        ) : null}
-        {state.fieldErrors?.selectedGenres ? (
-          <p className="text-sm text-highlight">{state.fieldErrors.selectedGenres}</p>
-        ) : null}
+        <SubmitButton canSubmit={canSubmit} />
       </div>
+      {state.fieldErrors?.requestPrompt ? (
+        <p className="pl-8 text-sm text-accent-wine">{state.fieldErrors.requestPrompt}</p>
+      ) : null}
 
-      <div className="grid gap-4 rounded-lg border border-line/55 bg-background/15 p-4 lg:grid-cols-[minmax(0,1fr),180px,180px]">
-        <label className="space-y-1.5">
-          <span className="text-sm font-medium text-foreground">Model</span>
+      <div
+        className="flex flex-wrap items-center gap-2 pl-8"
+        role="group"
+        aria-label="Quick genre selectors"
+      >
+        {genreOptions.map((option) => {
+          const isSelected = selectedGenres.includes(option.value);
+
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={isSelected}
+              onClick={() => toggleSelectedGenre(option.value)}
+              className={`inline-flex h-7 items-center rounded-full border px-3 text-[12.5px] font-medium transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50 ${
+                isSelected
+                  ? "border-accent/45 bg-accent/[0.14] text-accent"
+                  : "border-cream/10 bg-transparent text-muted hover:border-accent/45 hover:text-foreground"
+              }`}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+      {selectedGenres.length > 0 ? (
+        <p className="pl-8 text-sm text-muted">
+          Prioritizing: <span className="text-foreground">{formatRecommendationGenres(selectedGenres).join(", ")}</span>
+        </p>
+      ) : null}
+      {state.fieldErrors?.selectedGenres ? (
+        <p className="pl-8 text-sm text-accent-wine">{state.fieldErrors.selectedGenres}</p>
+      ) : null}
+
+      <div className="flex flex-wrap items-end gap-3 border-t border-cream/[0.06] pt-3.5 pl-8">
+        <label className="w-full max-w-[260px] space-y-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Model</span>
           <SearchableSelect
             name="aiModel"
             value={selectedModel}
@@ -346,14 +346,12 @@ export function RecommendationRequestForm({
             searchPlaceholder="Search models…"
             emptyLabel="Available model IDs will appear after the next successful provider check."
             ariaInvalid={Boolean(state.fieldErrors?.aiModel)}
+            triggerClassName="min-h-9 rounded-md px-3"
           />
-          {state.fieldErrors?.aiModel ? (
-            <p className="text-sm text-highlight">{state.fieldErrors.aiModel}</p>
-          ) : null}
         </label>
 
-        <label className="space-y-1.5">
-          <span className="text-sm font-medium text-foreground">Temperature</span>
+        <label className="w-24 space-y-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Temp</span>
           <Input
             name="temperature"
             type="number"
@@ -364,14 +362,12 @@ export function RecommendationRequestForm({
             onBlur={saveDefaultsOnFieldExit}
             onMouseLeave={saveDefaultsOnFieldExit}
             aria-invalid={Boolean(state.fieldErrors?.temperature)}
+            className="min-h-9 rounded-md px-3"
           />
-          {state.fieldErrors?.temperature ? (
-            <p className="text-sm text-highlight">{state.fieldErrors.temperature}</p>
-          ) : null}
         </label>
 
-        <label className="space-y-1.5">
-          <span className="text-sm font-medium text-foreground">How many results?</span>
+        <label className="w-24 space-y-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Results</span>
           <Input
             name="requestedCount"
             type="number"
@@ -381,15 +377,22 @@ export function RecommendationRequestForm({
             onBlur={saveDefaultsOnFieldExit}
             onMouseLeave={saveDefaultsOnFieldExit}
             aria-invalid={Boolean(state.fieldErrors?.requestedCount)}
+            className="min-h-9 rounded-md px-3"
           />
-          {state.fieldErrors?.requestedCount ? (
-            <p className="text-sm text-highlight">{state.fieldErrors.requestedCount}</p>
-          ) : null}
         </label>
       </div>
+      {state.fieldErrors?.aiModel ? (
+        <p className="pl-8 text-sm text-accent-wine">{state.fieldErrors.aiModel}</p>
+      ) : null}
+      {state.fieldErrors?.temperature ? (
+        <p className="pl-8 text-sm text-accent-wine">{state.fieldErrors.temperature}</p>
+      ) : null}
+      {state.fieldErrors?.requestedCount ? (
+        <p className="pl-8 text-sm text-accent-wine">{state.fieldErrors.requestedCount}</p>
+      ) : null}
 
       {state.message ? (
-        <p className="rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm leading-6 text-highlight">
+        <p className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2 text-sm leading-6 text-foreground">
           {state.message}
         </p>
       ) : null}
@@ -397,23 +400,19 @@ export function RecommendationRequestForm({
       <RequestProgressPanel />
 
       {!canSubmit ? (
-        <div className="rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm leading-6 text-highlight">
+        <div className="rounded-lg border border-accent/25 bg-accent/10 px-3.5 py-2.5 text-sm leading-6 text-foreground">
           <p>
             {submitBlockedMessage ?? "Verify the AI provider connection before requesting recommendations."}
           </p>
           <Link
             href="/settings/connections"
-            className="relative mt-2 inline-flex font-medium text-foreground underline decoration-current/60 underline-offset-4 transition hover:text-highlight"
+            className="relative mt-1.5 inline-flex font-semibold text-accent transition hover:brightness-110"
           >
             <LinkPendingOverlay />
             Open connections
           </Link>
         </div>
       ) : null}
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <SubmitButton canSubmit={canSubmit} />
-      </div>
     </form>
   );
 }

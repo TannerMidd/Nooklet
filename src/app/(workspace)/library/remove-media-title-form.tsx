@@ -38,7 +38,7 @@ export function RemoveMediaTitleForm({ titleId }: RemoveMediaTitleFormProps) {
       </label>
       <RemoveButton />
       {state.message ? (
-        <span className={state.status === "error" ? "text-xs text-highlight" : "text-xs text-muted"}>
+        <span className={state.status === "error" ? "text-xs text-accent-wine" : "text-xs text-muted"}>
           {state.message}
         </span>
       ) : null}

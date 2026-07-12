@@ -41,7 +41,7 @@ export default async function HealthPage() {
   const activeJobs = jobs.filter((job) => job.isEnabled || job.lastStatus === "running");
 
   return (
-    <div className="space-y-5">
+    <div className="nk-enter space-y-7">
       <PageHeader eyebrow="Operations" title="Health" />
 
       <Panel eyebrow="Overview" title="System snapshot">
@@ -73,7 +73,7 @@ export default async function HealthPage() {
           ))}
         </div>
         <div className="mt-4">
-          <Link href="/settings/connections" className="relative inline-flex min-h-9 items-center rounded-lg border border-line/50 bg-panel-strong/45 px-3 py-1.5 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-panel-raised/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"><LinkPendingOverlay />
+          <Link href="/settings/connections" className="relative inline-flex min-h-9 items-center rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-cream/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"><LinkPendingOverlay />
             Manage connections
           </Link>
         </div>
@@ -117,7 +117,7 @@ export default async function HealthPage() {
                     <span>Last completed {formatDate(job.lastCompletedAt)}</span>
                   </div>
                   {job.lastError ? (
-                    <p className="mt-3 rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-highlight">
+                    <p className="mt-3 rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3 py-2 text-accent-wine">
                       {job.lastError}
                     </p>
                   ) : null}

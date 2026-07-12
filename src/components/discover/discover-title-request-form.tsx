@@ -85,7 +85,7 @@ export function DiscoverTitleRequestForm({
           className={
             state.status === "success"
               ? "rounded-lg border border-accent/20 bg-accent/10 px-3 py-2 text-sm text-foreground"
-              : "rounded-lg border border-highlight/20 bg-highlight/10 px-3 py-2 text-sm text-highlight"
+              : "rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3 py-2 text-sm text-accent-wine"
           }
         >
           {state.message}

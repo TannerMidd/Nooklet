@@ -79,7 +79,7 @@ function SeasonAccordion({
 
   return (
     <details
-      className="overflow-hidden rounded-lg border border-line/60 bg-background/15"
+      className="overflow-hidden rounded-lg border border-cream/[0.08] bg-cream/[0.03]"
       open={defaultOpen}
       onToggle={(event) => {
         if (event.currentTarget.open) {
@@ -87,7 +87,7 @@ function SeasonAccordion({
         }
       }}
     >
-      <summary className="cursor-pointer px-4 py-3 transition hover:bg-panel-strong/45">
+      <summary className="cursor-pointer px-4 py-3 transition hover:bg-cream/[0.06]">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <span className="font-heading text-lg text-foreground">
             {season.title ?? `Season ${season.seasonNumber}`}
@@ -97,7 +97,7 @@ function SeasonAccordion({
           </span>
         </div>
       </summary>
-      <div className="space-y-3 border-t border-line/60 px-4 py-3">
+      <div className="space-y-3 border-t border-cream/[0.08] px-4 py-3">
         <TvSeasonMonitoringForm seasonId={season.id} monitored={season.monitored} />
         <LibraryItemSearchForm
           titleId={titleId}
@@ -108,18 +108,18 @@ function SeasonAccordion({
         />
       </div>
       {state.kind === "loading" ? (
-        <p className="border-t border-line/60 px-3 py-2 text-sm text-muted">Loading episodes...</p>
+        <p className="border-t border-cream/[0.08] px-3 py-2 text-sm text-muted">Loading episodes...</p>
       ) : null}
       {state.kind === "error" ? (
-        <p className="border-t border-line/60 px-3 py-2 text-sm text-highlight">{state.message}</p>
+        <p className="border-t border-cream/[0.08] px-3 py-2 text-sm text-accent-wine">{state.message}</p>
       ) : null}
       {state.kind === "loaded" ? (
         state.episodes.length === 0 ? (
-          <p className="border-t border-line/60 px-3 py-2 text-sm text-muted">
+          <p className="border-t border-cream/[0.08] px-3 py-2 text-sm text-muted">
             No episodes have been discovered for this season yet.
           </p>
         ) : (
-          <ul className="divide-y divide-line/50 border-t border-line/60">
+          <ul className="divide-y divide-cream/[0.06] border-t border-cream/[0.08]">
             {state.episodes.map((episode) => {
               const updatedLabel = episode.lastFileModifiedAt ? episode.lastFileModifiedAt.toLocaleDateString() : null;
 
@@ -133,10 +133,10 @@ function SeasonAccordion({
                       {updatedLabel ? ` / ${updatedLabel}` : ""}
                     </p>
                     <div className="flex flex-wrap gap-2 text-xs text-muted">
-                      <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
+                      <span className="rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">
                         {episode.hasFile || episode.fileCount > 0 ? "Available" : "Missing"}
                       </span>
-                      <span className="rounded-md border border-line/50 bg-background/25 px-1.5 py-0.5">
+                      <span className="rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">
                         {episode.monitored ? "Monitored" : "Unmonitored"}
                       </span>
                     </div>

@@ -18,7 +18,7 @@ function ConfiguredIndexers({ indexers }: { indexers: IndexerSettingsView[] }) {
   return (
     <ul className="space-y-4">
       {indexers.map((indexer) => (
-        <li key={indexer.id} className="rounded-lg border border-line/45 bg-panel-strong/35 p-4">
+        <li key={indexer.id} className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] p-4">
           <IndexerSettingsForm indexer={indexer} />
         </li>
       ))}
@@ -36,9 +36,9 @@ export default async function IndexerSettingsPage() {
   const indexers = await listIndexerSettings(session.user.id);
 
   return (
-    <div className="space-y-5">
+    <div className="nk-enter space-y-7">
       <PageHeader
-        eyebrow="Settings"
+        eyebrow="Built-in search"
         title="Indexers"
         description="Configure direct Newznab and Torznab indexers for built-in search."
       />
