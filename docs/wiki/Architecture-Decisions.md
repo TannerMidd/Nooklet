@@ -1,0 +1,102 @@
+# Architecture Decisions
+
+> ADRs preserve decision history. They describe accepted direction and tradeoffs, but current runtime claims must still be verified against code and tests.
+
+## Decision index
+
+| ADR | Status | Decision | Current implementation note |
+| --- | --- | --- | --- |
+| [ADR-0001: Architecture Principles](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0001-architecture-principles.md) | Accepted | Domain-oriented, workflow-oriented Next.js application with one-container deployment | Core dependency direction remains active; several inventory examples predate the current module tree and integrations |
+| [ADR-0002: In-House Download Engine](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0002-in-house-download-engine.md) | Accepted | Native Usenet engine behind Nooklet-owned queue state, with SABnzbd retained as legacy fallback | Native transfer/repair/extraction is implemented; some planned state and multi-server behavior is not |
+
+## ADR-0001 implementation alignment
+
+Still reflected in current code:
+
+- App Router pages and boundaries delegate to domain commands, queries, and workflows.
+- UI code is not intended to call raw vendor adapters.
+- Server writes are task-shaped rather than a generic settings mutation endpoint.
+- SQLite, Drizzle, Auth.js, Zod, and an in-process persisted worker form the core runtime.
+- Local login and explicit first-admin bootstrap are implemented.
+- The shipped deployment remains one container.
+
+Inventory drift that should not be presented as current behavior:
+
+- Jellyfin is mentioned, but current service/watch-history types are Plex, Tautulli, Trakt, and manual history where applicable.
+- Auth.js currently exposes credentials login only. Trakt's OAuth token is stored connection data, not an Auth.js provider.
+- `credential-vault` and `metadata` are conceptual ownership areas, not physical module directories.
+- The current schema uses JWT sessions and does not implement the ADR's illustrative `sessions`, `oauth_accounts`, or separate service-user-selection tables.
+- The dependency list does not show shadcn/Radix packages; UI primitives are repository components styled with Tailwind.
+- The project-structure inventory predates current routes and 17 physical modules.
+
+## ADR-0002 implementation alignment
+
+Implemented:
+
+- Pure NZB parsing and yEnc/CRC32 logic.
+- NNTP client and per-download connection-pool scheduler.
+- Persisted engine queue, progress, priority, pause/resume/remove/reorder controls.
+- PAR2 verification/repair, name restoration, guarded RAR/7z/ZIP extraction.
+- Worker-backed completion import.
+- Built-in queue presentation alongside legacy SABnzbd.
+- Conservative staging-capacity admission check.
+
+Planned language that is not current runtime behavior:
+
+- One Usenet service connection is resolved; multiple priority/block servers are not implemented.
+- `importing` is not an engine state. It belongs to the outer download-request/import workflow.
+- `assembling` remains in the schema enum but is not persisted by the current runner.
+- A restart requeues and starts the download from the stored NZB; segment-level resume is not implemented.
+- The runner drains one engine download at a time, using concurrent NNTP connections within that transfer.
+
+See [Downloads and Import](Downloads-and-Import) for the observed state model.
+
+## How to add an ADR
+
+Create the next sequential file under `docs/adr/` using this structure:
+
+```md
+# ADR-NNNN: Decision title
+
+## Status
+
+Proposed | Accepted | Superseded | Rejected
+
+## Date
+
+YYYY-MM-DD
+
+## Context
+
+What problem and constraints require a durable decision?
+
+## Decision
+
+What is being chosen, including explicit scope and boundaries?
+
+## Consequences
+
+### Positive
+
+### Negative
+
+### Risks to manage
+```
+
+An ADR should:
+
+- decide one durable architectural concern;
+- name alternatives and constraints without becoming an implementation diary;
+- distinguish requirements from delivery sequencing;
+- link to related decisions;
+- be amended or superseded when the decision changes;
+- retain historical text while clearly labelling later implementation divergence.
+
+## Review policy
+
+- Review accepted ADRs when a change alters their named boundary, deployment model, state machine, security policy, or module ownership.
+- Add a dated implementation note or a superseding ADR instead of silently editing historical rationale into a different decision.
+- Do not cite an ADR as evidence that a feature is implemented. Link the workflow, schema, test, or deployment source as well.
+- Keep [Architecture](Architecture) focused on observed current structure and this page focused on decision history.
+
+Related: [Architecture](Architecture) | [Documentation Policy](Documentation-Policy) | [Development Guide](Development-Guide)

@@ -14,7 +14,8 @@
     "test": "vitest run --environment node",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "docs:wiki:check": "node scripts/validate-wiki.mjs",
+    "check": "npm run docs:wiki:check && npm run typecheck && npm run lint && npm test && npm run build",
     "db:backup": "node --env-file=.env scripts/backup-database.mjs",
     "account:recover": "node --env-file=.env scripts/recover-account.mjs",
     "db:generate": "drizzle-kit generate"

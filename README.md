@@ -1,406 +1,337 @@
 # Nooklet
 
-> A cozy corner for what's next.
+> A self-hosted home for discovering, recommending, requesting, downloading, and organizing movies and TV.
 
-Nooklet is a self-hosted media recommendation and library manager. It connects
-your media stack to an OpenAI-compatible model and turns your library and watch
-history into duplicate-aware TV and movie recommendations — then helps you
-request, download, and organize them into your Plex library.
+[![CI](https://github.com/TannerMidd/Nooklet/actions/workflows/ci.yml/badge.svg)](https://github.com/TannerMidd/Nooklet/actions/workflows/ci.yml)
+[![Engineering dossier](https://github.com/TannerMidd/Nooklet/actions/workflows/engineering-dossier-pages.yml/badge.svg)](https://tannermidd.github.io/Nooklet/)
+![Node.js 24](https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-<p align="center">
-  <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs">
-  <img alt="React 19" src="https://img.shields.io/badge/React-19-149eca?logo=react">
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6-3178c6?logo=typescript">
-  <img alt="Tailwind CSS v4" src="https://img.shields.io/badge/Tailwind-v4-38bdf8?logo=tailwindcss">
-  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-Drizzle-003b57?logo=sqlite">
-  <img alt="Auth.js" src="https://img.shields.io/badge/Auth.js-credentials-7e3ff2">
-</p>
+Nooklet combines media discovery, optional AI recommendations, direct Newznab search, a built-in Usenet downloader, and library organization in one hardened container. Plex, Tautulli, Trakt, SABnzbd, and notifications are optional integrations rather than required media managers.
 
----
+[Quick start](#quick-start) | [Wiki](https://github.com/TannerMidd/Nooklet/wiki) | [Technical architecture](https://tannermidd.github.io/Nooklet/) | [Report an issue](https://github.com/TannerMidd/Nooklet/issues)
 
-## Table of contents
+## What Nooklet does
 
-- [Features](#features)
-- [Screenshots](#screenshots)
-- [Architecture](#architecture)
-- [Quick start](#quick-start)
-- [Docker](#docker)
-- [Configuration](#configuration)
-- [Integrations](#integrations)
-- [Development](#development)
-- [Operations](#operations)
-- [Project layout](#project-layout)
-- [Security](#security)
-- [Documentation](#documentation)
-- [License](#license)
+| Area | What you get |
+| --- | --- |
+| Discover | TMDB-powered search, trending rails, artwork, cast, trailers, and watch-provider context. |
+| Recommend | Personalized movie and TV suggestions from an OpenAI-compatible provider, with duplicate suppression and feedback. |
+| Request | One request flow from search or recommendations, including season and episode selection for TV. |
+| Download | Direct Newznab search and a native NNTP engine with PAR2 repair, archive extraction, queue controls, and an optional SABnzbd fallback. |
+| Organize | File-aware imports into configured movie and TV destinations, followed by library discovery and visible workflow status. |
+| Operate | Guided readiness checks, health reporting, audit history, encrypted secrets, verified backups, and recovery tooling. |
 
----
+### What do I need?
 
-## Features
-
-**Recommendations** — TV and movie suggestions from any OpenAI-compatible
-endpoint. Duplicate-aware prompts use your library and watch history. Per-item
-feedback (👍 / 👎 / hide) shapes future runs.
-
-**Library management** — Browse and filter your media database. Request titles
-from search with episode-level selection. One-click request from any
-recommendation card. A built-in usenet download engine fetches releases
-directly from your news server (NNTP), repairs and extracts them, and
-auto-imports completed files into your library paths — no Sonarr, Radarr, or
-SABnzbd required.
-
-**Discover** — Trending, popular, and top-rated rails powered by TMDB. Rich
-title overviews with artwork, cast, trailers, and watch providers.
-
-**Notifications** — Discord, Apprise, or generic webhook channels with
-per-user event subscriptions and dispatch audit history.
-
-**Analytics** — Recommendation quality, AI token usage, and feedback-derived
-taste signals.
-
-**Identity & access** — Local credentials auth (Auth.js), first-admin
-bootstrap, multi-user with per-user preferences, admin console.
-
----
+| Goal | Required configuration |
+| --- | --- |
+| Browse and identify titles | TMDB |
+| Request and import media | TMDB, one verified Newznab indexer, Usenet or SABnzbd, and a writable library destination |
+| Generate personal recommendations | The above request path plus an OpenAI-compatible provider; watch history is optional |
+| Receive external updates | An optional Discord, Apprise, or webhook notification channel |
 
 ## Screenshots
 
-<img width="3822" height="1826" alt="image" src="https://github.com/user-attachments/assets/33e127d1-6744-44ce-9f44-dea8953baed9" />
-<br>
-<img width="3806" height="1826" alt="image" src="https://github.com/user-attachments/assets/e94382ed-2c58-4164-bd2c-8e8e4962ba12" />
-<br>
-<img width="3818" height="1816" alt="image" src="https://github.com/user-attachments/assets/ecfbcff5-342c-4c2b-82dd-57b61e03355c" />
-<br>
-<img width="3828" height="1820" alt="image" src="https://github.com/user-attachments/assets/0ae21d72-835f-4d43-b815-ecfd8885f298" />
-<br>
-<img width="3818" height="1824" alt="image" src="https://github.com/user-attachments/assets/b9ad74b3-d845-4413-b612-27bfb229cac7" />
+<p align="center">
+  <img width="100%" alt="Nooklet movie and TV workspace" src="https://github.com/user-attachments/assets/33e127d1-6744-44ce-9f44-dea8953baed9">
+</p>
 
----
+<details>
+<summary>View more screens</summary>
 
-## Architecture
+<p align="center">
+  <img width="49%" alt="Nooklet recommendations" src="https://github.com/user-attachments/assets/e94382ed-2c58-4164-bd2c-8e8e4962ba12">
+  <img width="49%" alt="Nooklet media detail" src="https://github.com/user-attachments/assets/ecfbcff5-342c-4c2b-82dd-57b61e03355c">
+</p>
+<p align="center">
+  <img width="49%" alt="Nooklet library" src="https://github.com/user-attachments/assets/0ae21d72-835f-4d43-b815-ecfd8885f298">
+  <img width="49%" alt="Nooklet settings" src="https://github.com/user-attachments/assets/b9ad74b3-d845-4413-b612-27bfb229cac7">
+</p>
 
-Nooklet is a single Next.js 16 application using the App Router with
-React Server Components and server actions throughout. Domain logic lives in
-explicit workflows under `src/modules/`, route handlers stay thin, and vendor
-clients are never called directly from UI code.
-
-| Layer | Stack |
-| --- | --- |
-| Framework | Next.js 16, React 19, TypeScript 6 |
-| UI | Tailwind CSS v4, Lucide icons, TanStack Query |
-| Data | Drizzle ORM, SQLite (`better-sqlite3`) |
-| Auth | Auth.js v5 (credentials provider), Zod validation |
-| Tests | Vitest (Node environment) |
-
-For a deeper tour, see
-[`docs/architecture/project-structure.md`](docs/architecture/project-structure.md)
-and [`docs/adr/ADR-0001-architecture-principles.md`](docs/adr/ADR-0001-architecture-principles.md).
-
----
+</details>
 
 ## Quick start
 
-**Requirements**
+Docker Compose is the recommended installation path. It includes Node.js, SQLite, PAR2, UnRAR, 7-Zip, the background worker, and the native downloader.
 
-- Node.js **24.11 (LTS)** or newer
-- An OpenAI-compatible chat-completions endpoint and API key (optional; needed
-  only for AI recommendations)
-- Optional: Plex, Tautulli, Trakt reachable from the host (SABnzbd is a legacy fallback; the built-in downloader only needs your usenet provider)
+### 1. Install the prerequisites
 
-**Run locally**
+- Docker Desktop, or Docker Engine with Compose v2
+- Git
+- Host folders for your movie/TV libraries and download staging
+- Credentials for the services you intend to use
+
+Create every host media and download directory before starting Nooklet. Compose can otherwise create a missing bind source as an empty directory, which is especially confusing when an external disk or NAS is offline.
+
+### 2. Clone Nooklet
 
 ```bash
-git clone https://github.com/<your-fork>/nooklet.git
-cd nooklet
-npm ci
-cp .env.example .env
-# edit .env — set independent random AUTH_SECRET and BOOTSTRAP_TOKEN values
-npm run dev
+git clone https://github.com/TannerMidd/Nooklet.git
+cd Nooklet
 ```
 
-Open <http://localhost:42021>, complete the first-admin bootstrap, then
-configure your services under **Settings → Connections**. Request your first
-recommendations from `/tv` or `/movies`.
+### 3. Create the environment file
 
----
+macOS or Linux:
 
-## Docker
+```bash
+cp .env.example .env
+```
 
-The fastest path from a clean checkout to a running instance:
+Windows PowerShell:
 
-1. **Copy the env template.**
-   ```bash
-   cp .env.example .env       # macOS / Linux
-   ```
-   ```powershell
-   Copy-Item .env.example .env  # Windows / PowerShell
-   ```
-2. **Set the deployment values** in `.env`:
-   - `APP_URL` — the canonical URL users will open, e.g.
-     `http://localhost:42021` or `https://nooklet.example.com`.
-   - `APP_PORT` — optional host port to publish (default `42021`).
-   - `AUTH_SECRET` — at least 32 characters. Generate one with
-     `openssl rand -base64 48` (any OS with OpenSSL) or
-     `[Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))`
-     in PowerShell.
-   - `BOOTSTRAP_TOKEN` — a separate random value of at least 32 characters.
-     You must enter it when creating the first administrator; remove it from
-     `.env` and recreate the container after bootstrap succeeds.
-   - `SECRET_BOX_KEY` — strongly recommended as a third independent random
-     value so stored integration secrets do not share the session-signing key.
-3. **(Optional) Add bind mounts** for your media library and download working
-   folder — see [Mounting media and downloads](#mounting-media-and-downloads)
-   below. Skip this step if you only want to poke around the UI.
-4. **Build and start.**
-   ```bash
-   docker compose up -d --build
-   ```
-5. **Open `APP_URL`** and create the first admin account using the bootstrap
-   token. The bootstrap flow self-disables after the first user is created.
+```powershell
+Copy-Item .env.example .env
+```
 
-To pick up changes later (env edits, new mounts, new image), re-run
-`docker compose up -d --build`. To stop without losing data, `docker compose
-down` — the SQLite database lives in the named `nooklet-data` volume and
-survives container rebuilds.
+Generate three independent random values and place them in `.env` as `AUTH_SECRET`, `BOOTSTRAP_TOKEN`, and `SECRET_BOX_KEY`.
 
-What the shipped compose file does for you:
+macOS or Linux with OpenSSL:
 
-- Persists SQLite in the named `nooklet-data` volume.
-- Forces `DATABASE_URL=file:/app/data/nooklet.db` inside the container so a
-  host-style `DATABASE_URL` in `.env` can't accidentally write outside the
-  volume.
-- Publishes the app on `APP_PORT` (default `42021`).
-- Exposes `/api/health` for container health checks.
+```bash
+openssl rand -base64 48
+openssl rand -base64 48
+openssl rand -base64 48
+```
 
-**Always** put TLS in front of any internet-exposed deployment.
+Windows PowerShell:
 
-### Mounting media and downloads
+```powershell
+function New-NookletSecret {
+    $bytes = New-Object byte[] 48
+    [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+    [Convert]::ToBase64String($bytes)
+}
 
-Nooklet runs entirely inside the container, so any folders that live on the
-host (or on a NAS/SMB share mounted on the host) must be exposed to the
-container as **bind mounts**. Edit the `volumes:` section of
-`docker-compose.yml` (the file ships with commented examples):
+1..3 | ForEach-Object { New-NookletSecret }
+```
+
+Your edited values should look like this:
+
+```dotenv
+AUTH_SECRET=<first-generated-value>
+BOOTSTRAP_TOKEN=<second-generated-value>
+SECRET_BOX_KEY=<third-generated-value>
+```
+
+Keep the default `APP_URL=http://localhost:42021` for a local-only install. Change it to the exact HTTPS URL users will open when deploying behind a reverse proxy.
+
+### 4. Mount media and download storage
+
+Create the host folders first, then add `docker-compose.override.yml`. This file is ignored by Git, so upgrades will not overwrite your machine-specific paths.
 
 ```yaml
 services:
   app:
     volumes:
-      - nooklet-data:/app/data
-      # Media library roots. Format is "<host path>:<container path>".
-      - "D:\\Media\\TV:/media/tv"
-      - "D:\\Media\\Movies:/media/movies"
-      # Built-in downloader workspace and/or SABnzbd completed downloads.
-      - "F:\\Usenet\\Downloads:/downloads"
+      - "/srv/media/tv:/media/tv"
+      - "/srv/media/movies:/media/movies"
+      - "/srv/nooklet-downloads:/downloads"
 ```
 
-Two rules to remember:
+On Windows, use quoted forward-slash paths:
 
-- **Always enter the container-side path in Settings → Storage** (`/media/tv`,
-  `/media/movies` in the example above). Nooklet stores library paths in the
-  database verbatim and resolves them from inside the container; the host
-  path on the left side of the bind mount is invisible to the app.
-- **Set `DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine`** to make the built-in
-  downloader use the mounted download drive. Without that setting, Docker uses
-  `/app/data/downloads` on the `nooklet-data` volume. The safety check runs
-  against this working directory—not the final media folder—and allows room
-  for both the downloaded archive and its unpacked contents plus a 512 MiB
-  reserve.
-- **Quote any Windows path that contains a space, a colon, or backslashes**
-  in YAML, and double the backslashes (`"D:\\Plex Media:/media/plex"`). A
-  bare drive root like `G:\` becomes `"G:\\:/media/g"`.
-
-After editing the file, run `docker compose up -d` to recreate the container
-with the new mounts. Restarting the container is not enough — bind mounts are
-fixed at create time.
-
-### SAB path translation
-
-When SAB finishes a download it tells Nooklet where the files landed. If
-Nooklet's container can read that exact same path (because you bind-mounted
-SAB's completed folder at the same path SAB itself uses), nothing else is
-needed — leave `SABNZBD_PATH_MAPPINGS` empty.
-
-Set `SABNZBD_PATH_MAPPINGS` only when the path SAB reports does **not**
-resolve inside Nooklet's container. Format is
-`<path SAB reports>=<path Nooklet should read>`, separated by `;` or new
-lines. Both sides must be paths that exist somewhere — usually you map
-SAB's container path to Nooklet's container path:
-
-```env
-# SAB reports /sab-downloads/..., Nooklet sees the same files at /downloads/...
-SABNZBD_PATH_MAPPINGS=/sab-downloads=/downloads
+```yaml
+services:
+  app:
+    volumes:
+      - "D:/Media/TV:/media/tv"
+      - "D:/Media/Movies:/media/movies"
+      - "F:/Nooklet/Downloads:/downloads"
 ```
 
-If you run Nooklet directly on the host (no container) while SAB is
-containerized, the right side becomes a host path:
+For the built-in downloader, also set this in `.env`:
 
-```env
-SABNZBD_PATH_MAPPINGS=/downloads=F:\Usenet\Downloads
+```dotenv
+DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine
+APPROVED_MEDIA_ROOTS=/media
+APPROVED_DOWNLOAD_ROOTS=/downloads
 ```
 
-### Permissions
+### 5. Build and start
 
-The container runs as a non-root user (`node`). Mounted host folders need to
-be readable by that user. They also need to be **writable** if you plan to
-use Nooklet's delete-with-cleanup option that removes files from disk. On
-Docker Desktop (Windows / macOS) bind mounts are usually world-accessible by
-default; on a Linux host you may need `chmod` / `chown` or a `user:` override
-in compose.
+```bash
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100 app
+```
 
-### Running multiple instances
+`docker compose config --quiet` validates Compose structure. Application secret validation happens when the container starts, so inspect the logs if it exits.
 
-To run a second instance side-by-side (e.g. a dev branch alongside a stable
-release) without disturbing the first:
+Verify readiness:
 
-- Use a separate compose file (`docker-compose.alpha.yml`) with its own
-  `name:`, `container_name`, image tag, host port, and named data volume.
-- Use a separate `.env` file (`env_file: - .env.alpha`) with a different
-  `AUTH_SECRET` so session cookies don't collide.
-- Manage it with `docker compose -f docker-compose.alpha.yml up -d --build`
-  / `down`. Plain `docker compose` commands continue to operate on the
-  default file only.
+```bash
+curl http://localhost:42021/api/health
+```
 
----
+Or with PowerShell:
+
+```powershell
+Invoke-RestMethod http://localhost:42021/api/health
+```
+
+Inspect the response body: the database and background worker checks should be `ok`. A responsive worker can return HTTP 200 with an overall `degraded` status after a failed maintenance pass.
+
+Open [http://localhost:42021](http://localhost:42021), enter the one-time bootstrap token, and create the first administrator. Nooklet signs you in and opens **Setup Center**, which measures the real request path rather than relying on a static checklist.
+
+After the administrator exists, remove `BOOTSTRAP_TOKEN` from `.env` and recreate the container:
+
+```bash
+docker compose up -d --force-recreate
+```
+
+## First-request checklist
+
+Setup Center marks a request path ready when these checks pass:
+
+1. **TMDB** is verified.
+2. **A downloader** is verified: the built-in Usenet connection or SABnzbd.
+3. **An indexer** is enabled, verified, and assigned movie or TV categories.
+4. **A destination** for that media type is reachable and writable.
+5. **Download staging** is writable and has usable capacity when using the built-in engine.
+6. **The background worker** is healthy.
+
+AI recommendations, watch history, and notifications are optional. You can request media without configuring them.
+
+## Storage paths: the important rule
+
+Nooklet runs inside the container. Configure the path on the **right-hand side** of each bind mount in the UI.
+
+| Host folder | Container path | Enter in Nooklet |
+| --- | --- | --- |
+| `D:/Media/TV` | `/media/tv` | `/media/tv` |
+| `D:/Media/Movies` | `/media/movies` | `/media/movies` |
+| `F:/Nooklet/Downloads` | `/downloads` | Set `DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine` in `.env` |
+
+> [!IMPORTANT]
+> The built-in downloader checks free space on `DOWNLOAD_ENGINE_DIR`, not on the final media drive. Its request-time threshold is 512 MiB plus twice the remaining active-download bytes plus twice the new release's declared bytes. If a request reports insufficient space, confirm the configured staging path under **Settings -> Storage**.
+
+Changing an environment value or bind mount requires container recreation; a simple restart is not enough:
+
+```bash
+docker compose up -d --force-recreate
+```
+
+See [Storage and path mapping](https://github.com/TannerMidd/Nooklet/wiki/Storage-and-Path-Mapping) for NAS examples, SAB path translation, permissions, and capacity troubleshooting.
+
+## Everyday operations
+
+| Task | Command |
+| --- | --- |
+| Show status | `docker compose ps` |
+| Follow logs | `docker compose logs -f app` |
+| Show recent logs | `docker compose logs --tail=200 app` |
+| Recreate after env/mount edits | `docker compose up -d --force-recreate` |
+| Stop without deleting data | `docker compose down` |
+| Start again | `docker compose up -d` |
+
+### Update safely
+
+Create and copy an off-host backup first, then:
+
+```bash
+git pull --ff-only
+docker compose up -d --build
+docker compose ps
+```
+
+Database migrations run automatically during startup. Do not run `docker compose down -v` unless you intentionally want to delete the persistent database volume.
+
+Detailed procedures:
+
+- [Backup, restore, and upgrades](https://github.com/TannerMidd/Nooklet/wiki/Backup-Restore-and-Upgrades)
+- [Health and diagnostics](https://github.com/TannerMidd/Nooklet/wiki/Health-and-Diagnostics)
+- [Troubleshooting](https://github.com/TannerMidd/Nooklet/wiki/Troubleshooting)
 
 ## Configuration
 
-The canonical environment list lives in [`.env.example`](.env.example).
+The annotated template at [`.env.example`](.env.example) is the canonical starting point. The full explanation, including reverse proxies, private LAN services, key rotation, SAB mappings, and AI timeouts, is in the [configuration reference](https://github.com/TannerMidd/Nooklet/wiki/Configuration-Reference).
 
-| Variable | Required | Notes |
+| Variable | When needed | Default or guidance |
 | --- | --- | --- |
-| `APP_URL` | production | Canonical app origin, e.g. `https://nooklet.example.com`; local default is `http://localhost:42021`. |
-| `DATABASE_URL` | optional | SQLite URL. Local default: `file:./data/nooklet.db`; Compose forces the persistent-volume path. |
-| `AUTH_SECRET` | ✅ | Auth.js signing secret. Must be at least 32 characters. |
-| `BOOTSTRAP_TOKEN` | first setup | Separate 32+ character token required to create the first admin. Remove after bootstrap. |
-| `APP_PORT` | ⛔ | Docker host port to publish. Defaults to `42021`. |
-| `APP_BIND_ADDRESS` | ⛔ | Docker bind address. Defaults to loopback; set `0.0.0.0` only for intentional remote access. |
-| `SECRET_BOX_KEY` | ⛔ | Separate encryption key for stored service secrets. Falls back to `AUTH_SECRET`. |
-| `SECRET_BOX_PREVIOUS_KEYS` | ⛔ | Semicolon/newline-separated old encryption keys used during lazy key rotation. |
-| `APPROVED_MEDIA_ROOTS` | file operations | Roots the scanner/import/delete workflows may access. Empty fails closed. |
-| `APPROVED_DOWNLOAD_ROOTS` | SAB import | SAB completed roots Nooklet may read. Empty fails closed. |
-| `DOWNLOAD_ENGINE_DIR` | built-in downloads | Incomplete/completed working directory. Local default: `./data/downloads`; Docker image default: `/app/data/downloads`. Point it beneath a download-drive bind mount (for example `/downloads/nooklet-engine`) to use that drive. |
-| `PRIVATE_SERVICE_HOST_ALLOWLIST` | optional | Exact semicolon-separated hostnames/IPs permitted to resolve to private LAN addresses. Prefer this over the broad override. |
-| `TRUST_PROXY_HEADERS` | ⛔ | Defaults to `false`. Enable only behind a proxy that overwrites forwarded client-IP headers. |
-| `ALLOW_PRIVATE_SERVICE_HOSTS` | ⛔ | Defaults to `false`. Enable only when trusted users must configure LAN-hosted services. Link-local/metadata ranges remain blocked. |
-| `SABNZBD_PATH_MAPPINGS` | ⛔ | Translate SAB-reported paths when they don't resolve inside Nooklet's container. Format `<sab-path>=<nooklet-path>`, multiple entries separated by `;`. Leave empty if your SAB completed folder is bind-mounted at the same path SAB itself reports. See the [Docker](#docker) section for examples. |
-
----
+| `AUTH_SECRET` | Always | Required, independent random value, 32-512 characters |
+| `BOOTSTRAP_TOKEN` | First administrator only | Independent one-time value, 32-512 characters |
+| `SECRET_BOX_KEY` | Strongly recommended | Independent key for encrypted connection secrets |
+| `APP_URL` | Always | `http://localhost:42021`; use the exact public HTTPS origin behind a proxy |
+| `APP_BIND_ADDRESS` | Docker exposure | `127.0.0.1`; change deliberately, never by accident |
+| `APP_PORT` | Docker exposure | `42021` |
+| `DOWNLOAD_ENGINE_DIR` | Built-in downloader | `/app/data/downloads` in the image; use `/downloads/nooklet-engine` for a bind-mounted staging drive |
+| `APPROVED_MEDIA_ROOTS` | Library scans/imports | Semicolon/newline-separated container roots; empty fails closed |
+| `APPROVED_DOWNLOAD_ROOTS` | SAB imports | Semicolon/newline-separated container roots; empty fails closed |
 
 ## Integrations
 
-All integrations are configured per-user under **Settings → Connections** and
-verified through dedicated workflows before being saved. Secrets are stored
-encrypted at rest.
+Connections can be tested in the UI, and saved secrets are encrypted at rest.
 
-| Service | Purpose |
-| --- | --- |
-| **OpenAI-compatible** | Chat model used to generate recommendations. |
-| **TMDB** | Title overviews, artwork, genres, cast, trailers, watch providers, and the Discover rails. |
-| **Plex** | Optional watch-history source. |
-| **Tautulli** | Optional watch-history source with richer history detail. |
-| **Trakt** | Optional watch-history source. |
-| **Usenet server** | Built-in download engine — direct NNTP downloads, PAR2 repair, archive extraction. |
-| **SABnzbd** | Legacy/optional external downloader. |
-| **Notifications** | Outbound-only channels: Discord, Apprise, or generic webhook. |
+- **TMDB** for metadata and discovery
+- **OpenAI-compatible providers** for optional AI recommendations
+- **Newznab indexers** for release search
+- **Usenet/NNTP** for the built-in downloader
+- **SABnzbd** as an optional legacy downloader
+- **Plex, Tautulli, and Trakt** for optional watch-history context
+- **Discord, Apprise, and generic webhooks** for notifications
 
----
+## Local development
 
-## Development
+Requirements:
 
-```bash
-npm run dev          # start Next.js locally
-npm run typecheck    # TypeScript checks
-npm run lint         # ESLint
-npm test             # Vitest
-npm run build        # production build
-npm run db:generate  # generate Drizzle migrations after schema changes
-```
-
-## Operations
-
-Create regular, off-host database backups. The backup command uses SQLite's
-online backup API, verifies both the live database and the resulting copy, and
-never overwrites an existing file:
+- Node.js `>=24.11.0`
+- npm
+- Native `par2`, `unrar`, and `7zz` executables on `PATH` for full host-side download finalization
 
 ```bash
-npm run db:backup
-# Or choose an explicit destination:
-node --env-file=.env scripts/backup-database.mjs /secure/backups/nooklet.db
+npm ci
+cp .env.example .env
+# Set AUTH_SECRET and, for web bootstrap, BOOTSTRAP_TOKEN.
+npm run dev
 ```
 
-For Docker, write a verified snapshot inside the persistent volume and then
-copy it off the host before treating it as a backup:
+`npm run dev` listens on port `42021`. For a bare-metal production start, build first and set `PORT=42021` before running `npm start`.
+
+Quality commands:
 
 ```bash
-docker compose exec app node scripts/backup-database.mjs /app/data/backups/nooklet.db
-docker compose cp app:/app/data/backups/nooklet.db ./backups/nooklet.db
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npm run docs:wiki:check
 ```
 
-If every administrator is locked out, run the local recovery command. It
-generates a strong temporary password, prints it once, invalidates existing
-sessions, and requires the account owner to replace it immediately after
-sign-in. Omit `--email` only when the instance has exactly one active admin:
+Tests are colocated as `*.test.ts` and use isolated SQLite state. Generate a migration with `npm run db:generate` only after intentionally changing the Drizzle schema.
 
-```bash
-npm run account:recover -- --email admin@example.com
-# Docker installation:
-docker compose exec app node scripts/recover-account.mjs --email admin@example.com
-```
+## Architecture and security
 
-Test restores periodically. Stop the app before replacing `nooklet.db`, retain
-the current database as a rollback copy, remove obsolete `-wal` and `-shm`
-sidecars, then start the app and confirm `/api/health` reports healthy. Backups
-contain sensitive account and integration data even though reversible secrets
-are encrypted, so protect them like credentials.
-
-Tests live beside the code they cover as `*.test.ts` and use an isolated
-SQLite database configured by [`vitest.setup.ts`](vitest.setup.ts).
-
----
-
-## Project layout
+Nooklet is an intentionally single-instance modular monolith:
 
 ```text
-src/app/          Next.js routes, layouts, and server actions
-src/components/   shared UI and feature components
-src/config/       navigation and project-wide configuration
-src/lib/          database, integrations, security, and framework helpers
-src/modules/      domain workflows, repositories, schemas, and adapters
-drizzle/          generated SQL migrations and snapshots
-docs/             ADRs, architecture notes, and product behavior matrix
+App Router page or component
+  -> authenticated server action / route handler
+  -> named domain workflow
+  -> repository or typed adapter
+  -> SQLite, approved filesystem, or explicit external service
 ```
 
-Domain modules under `src/modules/` include `recommendations`, `discover`,
-`service-connections`, `watch-history`, `notifications`, `identity-access`,
-`preferences`, `users`, `admin`, and `jobs`.
+The runtime uses SQLite in WAL mode, an in-process persisted job worker, a native NNTP engine, canonical filesystem boundaries, SSRF-aware outbound requests, AES-256-GCM secret envelopes, non-root container execution, dropped Linux capabilities, and `no-new-privileges`.
 
----
+- [Interactive engineering dossier](https://tannermidd.github.io/Nooklet/)
+- [Current architecture](https://github.com/TannerMidd/Nooklet/wiki/Architecture)
+- [Architecture decision history](https://github.com/TannerMidd/Nooklet/wiki/Architecture-Decisions)
+- [Security model](https://github.com/TannerMidd/Nooklet/wiki/Security-Model)
 
-## Security
-
-- Encrypted-at-rest service secrets using a dedicated `SECRET_BOX_KEY`.
-- Database-backed rate limits on auth and high-risk endpoints.
-- Strict security headers and CSRF-aware server actions.
-- Audit logging for administrative and security-sensitive actions.
-- Scoped authorization checks on every workflow and route.
-- SSRF guard for outbound requests to user-configured services
-  (`ALLOW_PRIVATE_SERVICE_HOSTS=false` for cloud deployments).
-
-If you discover a vulnerability, please open a **private GitHub security
-advisory** rather than a public issue.
-
----
+For vulnerabilities, use a [private GitHub security advisory](https://github.com/TannerMidd/Nooklet/security/advisories/new) rather than a public issue.
 
 ## Documentation
 
-- [`docs/adr/ADR-0001-architecture-principles.md`](docs/adr/ADR-0001-architecture-principles.md) — architectural rules
-- [`docs/architecture/project-structure.md`](docs/architecture/project-structure.md) — module map
-- [`docs/product/behavior-matrix.md`](docs/product/behavior-matrix.md) — product behavior matrix
-- [`docs/api.md`](docs/api.md) — API surface
-
----
+| Resource | Purpose |
+| --- | --- |
+| [Wiki](https://github.com/TannerMidd/Nooklet/wiki) | Installation, setup, configuration, operation, troubleshooting, and development guides |
+| [Engineering dossier](https://tannermidd.github.io/Nooklet/) | Source-backed architecture diagrams, charts, trust boundaries, and release evidence |
+| [HTTP API](https://github.com/TannerMidd/Nooklet/wiki/HTTP-API) | Current public route contracts, status semantics, and authentication boundaries |
+| [Documentation map](https://github.com/TannerMidd/Nooklet/wiki/Documentation-Map) | Source-of-truth hierarchy and task-oriented guide index |
 
 ## License
 
-Released under the [MIT License](LICENSE) — free for personal and commercial
-use, modification, and distribution. Attribution required.
+Nooklet is released under the [MIT License](LICENSE).
