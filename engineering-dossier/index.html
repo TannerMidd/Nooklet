@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <meta
+      name="description"
+      content="The engineering dossier for Nooklet's explainable storage, standalone download, and end-to-end user experience overhaul."
+    />
+    <meta name="theme-color" content="#0f0e0d" />
+    <link rel="canonical" href="https://tannermidd.github.io/Nooklet/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Nooklet Engineering Dossier" />
+    <meta
+      property="og:description"
+      content="Calm on the surface. Rigorous underneath. A traceable case study in removing configuration uncertainty from a self-hosted media workflow."
+    />
+    <meta property="og:url" content="https://tannermidd.github.io/Nooklet/" />
+    <link rel="icon" href="data:," />
+    <title>Nooklet Engineering Dossier</title>
+    <script>
+      document.documentElement.classList.add("js");
+      try {
+        const savedTheme = localStorage.getItem("nooklet-dossier-theme");
+        if (savedTheme === "dark" || savedTheme === "light") {
+          document.documentElement.dataset.theme = savedTheme;
+        }
+      } catch {
+        // The system theme remains the safe default when storage is unavailable.
+      }
+    </script>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to dossier</a>
+    <div class="reading-progress" aria-hidden="true"><span id="reading-progress-bar"></span></div>
+
+    <header class="site-header" data-header>
+      <div class="header-inner">
+        <a class="brand" href="#top" aria-label="Nooklet engineering dossier home">
+          <span class="brand-dot" aria-hidden="true"></span>
+          <span class="brand-name">Nooklet</span>
+          <span class="brand-context">Engineering dossier</span>
+        </a>
+
+        <button
+          class="nav-toggle"
+          id="nav-toggle"
+          type="button"
+          aria-controls="site-nav"
+          aria-expanded="false"
+        >
+          <span class="sr-only">Open section navigation</span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+        </button>
+
+        <nav class="site-nav" id="site-nav" aria-label="Dossier sections">
+          <a href="#experience">Experience</a>
+          <a href="#architecture">Architecture</a>
+          <a href="#downloads">Downloads</a>
+          <a href="#trust">Trust</a>
+          <a href="#evidence">Evidence</a>
+          <a href="#operations">Operations</a>
+        </nav>
+
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Change color theme">
+            <span class="theme-mark" aria-hidden="true"></span>
+            <span id="theme-label">System</span>
+          </button>
+          <a class="source-link" href="https://github.com/TannerMidd/Nooklet">GitHub</a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="hero shell" id="top" aria-labelledby="hero-title">
+        <div class="hero-copy" data-reveal>
+          <p class="eyebrow">Engineering dossier <span>2026.07</span></p>
+          <h1 id="hero-title">Calm on the surface.<br /><em>Rigorous underneath.</em></h1>
+          <p class="hero-lede">
+            Nooklet is a self-hosted recommendation, download, and library system. This dossier traces the
+            overhaul that turned opaque failures and scattered configuration into an explainable, resilient
+            workflow from first setup through final import.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#overview">Explore the system</a>
+            <a class="button button-secondary" href="https://github.com/TannerMidd/Nooklet/tree/main">View source</a>
+          </div>
+          <ul class="stack-list" aria-label="Core technology">
+            <li>Next.js 16</li>
+            <li>React 19</li>
+            <li>TypeScript 6</li>
+            <li>SQLite + Drizzle</li>
+            <li>Node 24</li>
+          </ul>
+        </div>
+
+        <aside class="verification-card" aria-labelledby="verification-title" data-reveal>
+          <div class="card-kicker">
+            <span class="status-pulse" aria-hidden="true"></span>
+            Verified release snapshot
+          </div>
+          <h2 id="verification-title">Evidence before adjectives.</h2>
+          <dl class="verification-list">
+            <div><dt>Automated tests</dt><dd>930 passing</dd></div>
+            <div><dt>Test files</dt><dd>173</dd></div>
+            <div><dt>Production build</dt><dd>Passed</dd></div>
+            <div><dt>Container health</dt><dd>Passed</dd></div>
+            <div><dt>Responsive signed-in QA</dt><dd>Passed</dd></div>
+          </dl>
+          <div class="commit-stamp">
+            <span>Application release</span>
+            <a href="https://github.com/TannerMidd/Nooklet/commit/49432fb1aabd0afc34e00c374ebe8e9507c42776">
+              <code>49432fb</code>
+            </a>
+          </div>
+        </aside>
+
+        <div class="hero-metrics" aria-label="Release highlights" data-reveal>
+          <div><strong>5</strong><span>primary destinations</span></div>
+          <div><strong>8</strong><span>readiness capabilities</span></div>
+          <div><strong>3</strong><span>safety migrations</span></div>
+          <div><strong>0</strong><span>required external managers</span></div>
+        </div>
+      </section>
+
+      <section class="section shell" id="overview" aria-labelledby="overview-title">
+        <div class="section-heading" data-reveal>
+          <p class="eyebrow">The turning point</p>
+          <h2 id="overview-title">Remove uncertainty, not just errors.</h2>
+          <p>
+            The initiating frustration was simple: a movie request reported insufficient disk space even though
+            the download and media drives appeared to have room. The old message hid the filesystem being checked,
+            the safety calculation, and the action required. The solution became a broader product principle:
+            every consequential state should be visible, attributable, and recoverable.
+          </p>
+        </div>
+
+        <div class="comparison-grid" data-reveal>
+          <article class="comparison-card friction-card">
+            <p class="card-kicker">Before · friction</p>
+            <h3>The system knew more than the person.</h3>
+            <ul class="issue-list">
+              <li>A generic capacity error without path, free space, reserve, or required bytes.</li>
+              <li>Download staging and final media destinations presented as if they were one concern.</li>
+              <li>Configuration spread across service-shaped pages with weak readiness context.</li>
+              <li>Request forms expanded repeatedly, turning search results into a wall of controls.</li>
+              <li>Raw activity states without a clear next action or trustworthy outcome language.</li>
+            </ul>
+          </article>
+          <article class="comparison-card response-card">
+            <p class="card-kicker">After · engineering response</p>
+            <h3>The interface explains the decision.</h3>
+            <ul class="issue-list">
+              <li>Exact workspace path, reachability, write access, capacity, reserve, and request ceiling.</li>
+              <li>Temporary staging and permanent library storage are deliberately separated.</li>
+              <li>A Setup Center evaluates complete capabilities and links directly to remediation.</li>
+              <li>Unified request controls stay compact until the person chooses to review them.</li>
+              <li>Activity groups attention states, preserves technical detail, and exposes recovery actions.</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="principle-strip" data-reveal>
+          <p>Design principle</p>
+          <blockquote>“Do not make people reverse-engineer the system from its failure message.”</blockquote>
+        </div>
+      </section>
+
+      <section class="section section-tinted" id="experience" aria-labelledby="experience-title">
+        <div class="shell">
+          <div class="section-heading section-heading-split" data-reveal>
+            <div>
+              <p class="eyebrow">Experience architecture</p>
+              <h2 id="experience-title">One coherent journey.</h2>
+            </div>
+            <p>
+              The application now leads with the outcome a person wants, then reveals configuration only when it
+              is relevant. Five stable destinations replace a sprawling service-first navigation model.
+            </p>
+          </div>
+
+          <ol class="journey" aria-label="Nooklet experience journey" data-reveal>
+            <li><span>01</span><strong>Set up</strong><small>Know what is ready</small></li>
+            <li><span>02</span><strong>Discover</strong><small>Find the right title</small></li>
+            <li><span>03</span><strong>Request</strong><small>Make one clear choice</small></li>
+            <li><span>04</span><strong>Track</strong><small>See progress or recover</small></li>
+            <li><span>05</span><strong>Enjoy</strong><small>Find it in the library</small></li>
+          </ol>
+
+          <div class="feature-grid">
+            <article class="feature-card feature-card-wide" data-reveal>
+              <div class="feature-number">01</div>
+              <div>
+                <p class="card-kicker">Home + Setup Center</p>
+                <h3>Readiness is a capability, not a green connection dot.</h3>
+                <p>
+                  Discover, recommendations, movie downloads, TV downloads, storage, worker health, watch history,
+                  and notifications are evaluated independently. A download is “ready” only when its downloader,
+                  indexer, destination, storage, and worker path are all usable.
+                </p>
+              </div>
+              <div class="mini-ui readiness-preview" aria-label="Illustration of readiness cards">
+                <div><span>Discover</span><b>Ready</b></div>
+                <div><span>Movie downloads</span><b>Ready</b></div>
+                <div><span>TV downloads</span><b>Ready</b></div>
+                <div><span>Notifications</span><b class="optional">Optional</b></div>
+              </div>
+            </article>
+
+            <article class="feature-card" data-reveal>
+              <div class="feature-number">02</div>
+              <p class="card-kicker">Search + Discover</p>
+              <h3>Find first. Configure second.</h3>
+              <p>
+                URL-backed search, deduplicated discovery rails, filters, rich title context, and collapsed request
+                panels keep browsing fast while preserving destination, quality, monitoring, and download choices.
+              </p>
+              <div class="mini-ui request-preview" aria-hidden="true">
+                <div class="poster-shape"><span>N</span></div>
+                <div><i>Movie · 2026</i><strong>A title worth watching</strong><span>Review &amp; request</span></div>
+              </div>
+            </article>
+
+            <article class="feature-card" data-reveal>
+              <div class="feature-number">03</div>
+              <p class="card-kicker">Activity</p>
+              <h3>Problems arrive with a next step.</h3>
+              <p>
+                Attention, active, and history views add filtering and pagination without flattening technical state.
+                Retry, import, queue, and configuration recovery actions appear where they are useful.
+              </p>
+              <ul class="compact-list">
+                <li><span class="dot dot-wine"></span>Plain-language problem summary</li>
+                <li><span class="dot dot-amber"></span>Collapsed technical details</li>
+                <li><span class="dot dot-teal"></span>Contextual recovery action</li>
+              </ul>
+            </article>
+
+            <article class="feature-card" data-reveal>
+              <div class="feature-number">04</div>
+              <p class="card-kicker">Library + Settings</p>
+              <h3>Dense systems, understandable surfaces.</h3>
+              <p>
+                Library browsing gains file-grounded status, media filters, sorting, list/grid modes, and pagination.
+                Settings becomes an overview for connections, indexers, storage, automation, preferences, history,
+                notifications, account, and health.
+              </p>
+              <div class="token-row" aria-label="Interface qualities">
+                <span>44 px targets</span><span>Focus managed</span><span>Mobile ready</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section shell" id="architecture" aria-labelledby="architecture-title">
+        <div class="section-heading" data-reveal>
+          <p class="eyebrow">System architecture</p>
+          <h2 id="architecture-title">Thin edges. Explicit workflows.</h2>
+          <p>
+            Nooklet is one deployable Next.js application, but it is not one undifferentiated code path. Routes own
+            transport, workflows own use cases, repositories own persistence, and adapters own external protocols.
+            Authorization and validation remain server-side at the boundary of every consequential action.
+          </p>
+        </div>
+
+        <ol class="architecture-flow" aria-label="Request architecture flow" data-reveal>
+          <li><span>Interface</span><strong>App Router pages</strong><small>Server components + accessible client controls</small></li>
+          <li><span>Boundary</span><strong>Actions &amp; routes</strong><small>Authentication, validation, response contracts</small></li>
+          <li><span>Domain</span><strong>Commands &amp; workflows</strong><small>One named use case, explicit phases</small></li>
+          <li><span>Data</span><strong>Repositories &amp; queries</strong><small>Typed records, transactions, ownership</small></li>
+          <li><span>Edges</span><strong>Filesystem &amp; services</strong><small>SQLite, NNTP, TMDB, AI, Plex, webhooks</small></li>
+        </ol>
+
+        <div class="architecture-grid">
+          <article class="module-map" data-reveal>
+            <p class="card-kicker">Module map</p>
+            <h3>Organized by responsibility.</h3>
+            <div class="module-groups">
+              <div><b>Experience</b><span>Home · Discover · Search · Library · Activity</span></div>
+              <div><b>Media</b><span>Metadata · Requests · Downloads · Imports · Scans</span></div>
+              <div><b>Automation</b><span>Jobs · Scheduling · Retry · Reconciliation</span></div>
+              <div><b>Trust</b><span>Identity · Secrets · Filesystem · Network policy</span></div>
+              <div><b>Platform</b><span>Database · Health · Notifications · Configuration</span></div>
+            </div>
+          </article>
+
+          <article class="architecture-notes" data-reveal>
+            <p class="card-kicker">Boundary rules</p>
+            <h3>Constraints that keep change legible.</h3>
+            <ul class="issue-list">
+              <li>Vendor clients are not called directly from UI code.</li>
+              <li>Server actions do not become generic service proxies.</li>
+              <li>Stored records use normalized identifiers and ownership.</li>
+              <li>Filesystem access is constrained to approved roots.</li>
+              <li>Failures preserve phase and recovery context.</li>
+            </ul>
+          </article>
+        </div>
+
+        <details class="deep-note" data-reveal>
+          <summary>Why a modular monolith?</summary>
+          <div>
+            <p>
+              A self-hosted application benefits from a single container, one local database, and straightforward
+              backup semantics. Domain boundaries still matter, so Nooklet uses explicit module ownership rather than
+              introducing a distributed system whose operational cost would be paid by every user.
+            </p>
+            <a href="https://github.com/TannerMidd/Nooklet/blob/main/docs/architecture/project-structure.md">
+              Read the project structure
+            </a>
+          </div>
+        </details>
+      </section>
+
+      <section class="section download-section" id="downloads" aria-labelledby="downloads-title">
+        <div class="shell">
+          <div class="section-heading section-heading-split" data-reveal>
+            <div>
+              <p class="eyebrow">Built-in downloader</p>
+              <h2 id="downloads-title">A safe path from result to library.</h2>
+            </div>
+            <p>
+              Sonarr, Radarr, and SABnzbd remain optional integrations. Nooklet can own the full Usenet path itself:
+              select a release, fetch and repair it, extract it, apply import policy, and organize it into a library.
+            </p>
+          </div>
+
+          <ol class="download-flow" aria-label="Built-in download workflow" data-reveal>
+            <li><b>01</b><span>Indexer result</span><small>Resolve a signed, owned result</small></li>
+            <li><b>02</b><span>Preflight</span><small>Validate target and workspace</small></li>
+            <li><b>03</b><span>NNTP transfer</span><small>Parse NZB and decode yEnc</small></li>
+            <li><b>04</b><span>Repair + extract</span><small>PAR2, archives, retry boundaries</small></li>
+            <li><b>05</b><span>Import policy</span><small>Choose media; retain useful extras</small></li>
+            <li><b>06</b><span>Library arrival</span><small>Organize, scan, notify, audit</small></li>
+          </ol>
+
+          <div class="storage-story" data-reveal>
+            <article class="storage-card staging-card">
+              <p class="card-kicker">Temporary staging</p>
+              <h3>Download workspace</h3>
+              <code>/downloads/nooklet-engine</code>
+              <p>Archives, repair blocks, and unpacked files coexist here during processing.</p>
+              <ul>
+                <li>Live filesystem capacity</li>
+                <li>Reachability + write access</li>
+                <li>Active-download reservation</li>
+                <li>Exact request preflight</li>
+              </ul>
+            </article>
+            <div class="storage-transfer" aria-hidden="true"><span>Import</span></div>
+            <article class="storage-card destination-card">
+              <p class="card-kicker">Permanent storage</p>
+              <h3>Final library destination</h3>
+              <code>/media/movies</code>
+              <p>Only organized, accepted media and its retained companion files arrive here.</p>
+              <ul>
+                <li>Media-type destination</li>
+                <li>Approved filesystem root</li>
+                <li>Independent capacity reading</li>
+                <li>File-grounded library status</li>
+              </ul>
+            </article>
+          </div>
+
+          <article class="capacity-card" data-reveal>
+            <div>
+              <p class="card-kicker">Explainable capacity model</p>
+              <h3>Every byte has a reason.</h3>
+              <p>
+                The estimate reserves room for existing work, keeps a fixed safety floor, and assumes a temporary
+                second copy while a new archive is unpacked. The request-time check reports the effective path,
+                available bytes, and required bytes when it cannot proceed.
+              </p>
+            </div>
+            <div class="formula" role="group" aria-label="Storage preflight formula">
+              <p><span>processing reserve</span><code>512 MiB + (2 × active remaining)</code></p>
+              <p><span>available for new work</span><code>free bytes − processing reserve</code></p>
+              <p><span>largest safe new release</span><code>floor(available ÷ 2)</code></p>
+            </div>
+          </article>
+
+          <div class="honesty-grid">
+            <article data-reveal><span>Ownership</span><h3>No duplicate active request</h3><p>Associations are validated and active work is unique before a queue reservation is accepted.</p></article>
+            <article data-reveal><span>Recovery</span><h3>Restart-safe phases</h3><p>Persistent queue state, job leases, bounded retries, and reconciliation keep interrupted work understandable.</p></article>
+            <article data-reveal><span>Import</span><h3>Policy before movement</h3><p>Samples are rejected while multipart media, sidecars, subtitles, and meaningful extras are handled deliberately.</p></article>
+            <article data-reveal><span>Outcomes</span><h3>Partial is not success</h3><p>Catalog-only, queued, attention, partial import, and failure outcomes are represented honestly.</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section shell" id="trust" aria-labelledby="trust-title">
+        <div class="section-heading" data-reveal>
+          <p class="eyebrow">Trust and resilience</p>
+          <h2 id="trust-title">Safety is part of the experience.</h2>
+          <p>
+            Configuration becomes easier only when safer defaults, scoped policies, and recoverable operations sit
+            underneath it. These controls reduce accidental exposure and destructive ambiguity without requiring a
+            security expert at the keyboard.
+          </p>
+        </div>
+
+        <div class="trust-grid">
+          <article data-reveal><span class="trust-index">01</span><h3>Local identity</h3><p>First-admin bootstrap, role checks, login limits, safe callbacks, and secure session handling.</p></article>
+          <article data-reveal><span class="trust-index">02</span><h3>Recovery without lingering risk</h3><p>Managed recovery passwords must be replaced, and a scoped account-recovery runbook is shipped.</p></article>
+          <article data-reveal><span class="trust-index">03</span><h3>Protected secrets</h3><p>Service credentials use authenticated encryption at rest with explicit secret-key configuration.</p></article>
+          <article data-reveal><span class="trust-index">04</span><h3>Network policy</h3><p>Private-host rules, URL validation, SSRF-resistant fetches, redaction, and bounded responses protect outbound edges.</p></article>
+          <article data-reveal><span class="trust-index">05</span><h3>Filesystem policy</h3><p>Approved roots, resolved paths, writability checks, and safe destructive confirmations constrain file operations.</p></article>
+          <article data-reveal><span class="trust-index">06</span><h3>Operational recovery</h3><p>SQLite backups, migration repair, job leases, health checks, audit history, retries, and notifications preserve context.</p></article>
+        </div>
+
+        <aside class="scope-note" data-reveal>
+          <strong>Claim boundary</strong>
+          <p>
+            This work is defense-in-depth engineering with automated and hands-on verification. It is not presented
+            as a formal security audit, penetration test, or proof that every external service is trustworthy.
+          </p>
+        </aside>
+      </section>
+
+      <section class="section evidence-section" id="evidence" aria-labelledby="evidence-title">
+        <div class="shell">
+          <div class="section-heading section-heading-split" data-reveal>
+            <div>
+              <p class="eyebrow">Quality evidence</p>
+              <h2 id="evidence-title">Verified across layers.</h2>
+            </div>
+            <p>
+              Static checks, automated behavior, production packaging, a real container, and signed-in browser flows
+              answer different questions. The release was required to pass all of them.
+            </p>
+          </div>
+
+          <ol class="quality-pipeline" aria-label="Release verification pipeline" data-reveal>
+            <li><span>01</span><b>Lint</b><small>Source quality</small></li>
+            <li><span>02</span><b>Typecheck</b><small>Contract integrity</small></li>
+            <li><span>03</span><b>930 tests</b><small>Behavior</small></li>
+            <li><span>04</span><b>Build</b><small>Production artifact</small></li>
+            <li><span>05</span><b>Docker</b><small>Runtime health</small></li>
+            <li><span>06</span><b>Browser QA</b><small>Human workflow</small></li>
+          </ol>
+
+          <div class="evidence-grid">
+            <article data-reveal>
+              <p class="card-kicker">Automated</p>
+              <h3>173 test files · 930 tests</h3>
+              <p>
+                Coverage spans identity, rate limiting, safe fetches, secret storage, migrations, job leases,
+                readiness, release selection, download phases, capacity, retries, imports, notifications, and API contracts.
+              </p>
+            </article>
+            <article data-reveal>
+              <p class="card-kicker">Packaged</p>
+              <h3>Clean production container</h3>
+              <p>
+                A Node 24 multi-stage image built the Next.js standalone artifact, sanitized it, started as the
+                non-root runtime, applied migrations, and returned healthy database and worker checks.
+              </p>
+            </article>
+            <article data-reveal>
+              <p class="card-kicker">Hands-on</p>
+              <h3>Signed-in desktop + mobile QA</h3>
+              <p>
+                Home, Setup, Search, Discover, Activity, Library, Connections, Indexers, Automation, Settings, and
+                Storage were reviewed at desktop and mobile widths with keyboard, focus, overflow, and console checks.
+              </p>
+            </article>
+          </div>
+
+          <div class="ci-callout" data-reveal>
+            <div><span>Continuous verification</span><strong>Main is guarded by Node 24 CI and a hardened Docker smoke test.</strong></div>
+            <a href="https://github.com/TannerMidd/Nooklet/actions">View GitHub Actions</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="section shell" id="operations" aria-labelledby="operations-title">
+        <div class="section-heading" data-reveal>
+          <p class="eyebrow">Operations</p>
+          <h2 id="operations-title">Self-hosted should remain operable.</h2>
+          <p>
+            Nooklet keeps deployment intentionally small: one hardened application container, one persistent SQLite
+            volume, explicit media and download mounts, and outbound integrations chosen by the operator.
+          </p>
+        </div>
+
+        <div class="topology" aria-label="Nooklet deployment topology" data-reveal>
+          <div class="topology-user"><span>People</span><small>Browser over TLS</small></div>
+          <div class="topology-arrow" aria-hidden="true">&rarr;</div>
+          <div class="topology-core">
+            <p class="card-kicker">Nooklet container</p>
+            <strong>Next.js + worker</strong>
+            <div><span>App routes</span><span>Job loop</span><span>Download engine</span></div>
+          </div>
+          <div class="topology-arrow" aria-hidden="true">&rarr;</div>
+          <div class="topology-edges">
+            <div><span>SQLite</span><small>Persistent volume</small></div>
+            <div><span>Media</span><small>Approved mounts</small></div>
+            <div><span>Services</span><small>Explicit outbound edges</small></div>
+          </div>
+        </div>
+
+        <div class="operations-grid">
+          <article data-reveal><p class="card-kicker">Observe</p><h3><code>/api/health</code></h3><p>Database and background-worker state support container health checks and operational diagnosis.</p></article>
+          <article data-reveal><p class="card-kicker">Protect</p><h3>Verified backups</h3><p>A dedicated command creates timestamped SQLite backups and verifies that the result can be opened.</p></article>
+          <article data-reveal><p class="card-kicker">Recover</p><h3>Account runbook</h3><p>A safe command lists or resets local accounts without turning recovery into a permanent weak credential.</p></article>
+          <article data-reveal><p class="card-kicker">Upgrade</p><h3>Repair-aware migrations</h3><p>Startup migration handling repairs known historical states before applying forward schema changes.</p></article>
+        </div>
+
+        <div class="runbooks">
+          <details data-reveal>
+            <summary>Production verification path</summary>
+            <div class="code-block">
+              <button type="button" data-copy-target="verify-command">Copy</button>
+              <pre id="verify-command"><code>npm ci
+npm run check
+docker build --tag nooklet:verified .</code></pre>
+            </div>
+          </details>
+          <details data-reveal>
+            <summary>Backup and account recovery</summary>
+            <div class="code-block">
+              <button type="button" data-copy-target="recovery-command">Copy</button>
+              <pre id="recovery-command"><code>npm run db:backup
+npm run account:recover -- --list</code></pre>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <section class="section decisions-section" id="decisions" aria-labelledby="decisions-title">
+        <div class="shell">
+          <div class="section-heading" data-reveal>
+            <p class="eyebrow">Engineering decisions</p>
+            <h2 id="decisions-title">The shape of the system is intentional.</h2>
+          </div>
+          <div class="decision-grid">
+            <a href="https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0001-architecture-principles.md" data-reveal>
+              <span>ADR 0001</span><h3>Domain ownership</h3><p>Workflows, repositories, and routes have separate responsibilities.</p>
+            </a>
+            <a href="https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0002-in-house-download-engine.md" data-reveal>
+              <span>ADR 0002</span><h3>In-house download engine</h3><p>A self-contained path reduces required services while preserving optional integrations.</p>
+            </a>
+            <a href="https://github.com/TannerMidd/Nooklet/blob/main/docs/architecture/project-structure.md" data-reveal>
+              <span>Architecture</span><h3>Project structure</h3><p>A navigable map of boundaries, modules, and dependency direction.</p>
+            </a>
+            <a href="https://github.com/TannerMidd/Nooklet/blob/main/docs/product/behavior-matrix.md" data-reveal>
+              <span>Product</span><h3>Behavior matrix</h3><p>Observable behavior and ownership remain documented outside implementation detail.</p>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="closing shell" aria-labelledby="closing-title" data-reveal>
+        <p class="eyebrow">The result</p>
+        <h2 id="closing-title">Control without configuration fatigue.</h2>
+        <p>
+          Nooklet now exposes what it checks, why a request can or cannot proceed, where work is going, and what to
+          do next. The interface is calmer because the engineering beneath it is more explicit.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://github.com/TannerMidd/Nooklet">Explore Nooklet on GitHub</a>
+          <a class="button button-secondary" href="https://github.com/TannerMidd/Nooklet/blob/main/README.md">Read the operating guide</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-grid">
+        <div>
+          <a class="brand footer-brand" href="#top"><span class="brand-dot" aria-hidden="true"></span><span class="brand-name">Nooklet</span></a>
+          <p>A cozy corner for what’s next—engineered for clarity.</p>
+        </div>
+        <nav aria-label="Dossier resources">
+          <a href="https://github.com/TannerMidd/Nooklet">Repository</a>
+          <a href="https://github.com/TannerMidd/Nooklet/blob/main/README.md">README</a>
+          <a href="https://github.com/TannerMidd/Nooklet/security/advisories/new">Security advisory</a>
+          <a href="https://github.com/TannerMidd/Nooklet/blob/main/LICENSE">MIT license</a>
+        </nav>
+        <p class="revision">Application release <code>49432fb</code><br />Dossier published July 15, 2026</p>
+      </div>
+    </footer>
+
+    <p class="sr-only" id="copy-status" aria-live="polite"></p>
+  </body>
+</html>

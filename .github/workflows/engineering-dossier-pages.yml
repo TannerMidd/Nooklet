@@ -1,0 +1,85 @@
+name: Engineering dossier
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "engineering-dossier/**"
+      - ".github/workflows/engineering-dossier-pages.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Package dossier
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Validate static dossier
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [[ ! -f engineering-dossier/index.html ]]; then
+            echo "engineering-dossier/index.html is required."
+            exit 1
+          fi
+
+          symlink="$(find engineering-dossier -type l -print -quit)"
+          if [[ -n "$symlink" ]]; then
+            echo "Symlinks are not permitted in the Pages artifact: $symlink"
+            exit 1
+          fi
+
+          sensitive_file="$(find engineering-dossier -type f \( \
+            -iname '.env' -o \
+            -iname '.env.*' -o \
+            -iname '*.db' -o \
+            -iname '*.db-wal' -o \
+            -iname '*.db-shm' -o \
+            -iname '*.sqlite' -o \
+            -iname '*.sqlite3' -o \
+            -iname '*.pem' -o \
+            -iname '*.key' -o \
+            -iname '*.p12' -o \
+            -iname '*.pfx' -o \
+            -iname '*.log' -o \
+            -iname '*.bak' \
+          \) -print -quit)"
+          if [[ -n "$sensitive_file" ]]; then
+            echo "Sensitive file type is not permitted in the Pages artifact: $sensitive_file"
+            exit 1
+          fi
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload dossier artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./engineering-dossier
+
+  deploy:
+    name: Deploy dossier
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
