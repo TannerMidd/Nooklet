@@ -10,7 +10,10 @@
   --color-panel-strong: rgb(var(--panel-strong));
   --color-panel-raised: rgb(var(--panel-raised));
   --color-muted: rgb(var(--muted));
+  --color-placeholder: rgb(var(--placeholder));
   --color-line: rgb(var(--line));
+  --color-control: rgb(var(--control));
+  --color-focus: rgb(var(--focus));
   --color-accent: rgb(var(--accent));
   --color-accent-strong: rgb(var(--accent-strong));
   --color-accent-foreground: rgb(var(--accent-foreground));
@@ -42,7 +45,10 @@
   --panel-strong: 30 28 25;
   --panel-raised: 42 39 35;
   --muted: 155 148 138;
-  --line: 70 66 60;
+  --line: 96 89 80;
+  --control: 118 108 96;
+  --placeholder: 180 171 160;
+  --focus: 242 190 121;
   --accent: 232 165 80;
   --accent-strong: 242 190 121;
   --accent-foreground: 31 22 12;
@@ -118,7 +124,12 @@ ol {
 }
 
 ::placeholder {
-  color: rgba(155, 148, 138, 0.70);
+  color: rgb(var(--placeholder));
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--focus));
+  outline-offset: 2px;
 }
 
 * {
@@ -243,4 +254,25 @@ ol {
 
 .nk-poster-moss {
   background: linear-gradient(160deg, rgba(164, 181, 110, 0.45), rgba(66, 78, 32, 0.85) 70%, rgba(20, 22, 12, 0.95));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Touch-first layouts should never require pixel-perfect taps. Compact
+   controls remain available to pointer-accurate desktop tables. */
+@media (pointer: coarse) {
+  button:not([aria-hidden="true"]),
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }

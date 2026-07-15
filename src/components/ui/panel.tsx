@@ -7,7 +7,7 @@ type PanelProps = {
   children?: ReactNode;
   className?: string;
   description?: string;
-  /** Retained for API compatibility; panel-level eyebrows are not rendered. */
+  /** Short category label rendered above the panel title. */
   eyebrow?: string;
   /** Right-aligned header actions (buttons, links). */
   actions?: ReactNode;
@@ -18,6 +18,7 @@ export function Panel({
   children,
   className,
   description,
+  eyebrow,
   actions,
 }: PanelProps) {
   return (
@@ -29,6 +30,11 @@ export function Panel({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
+          {eyebrow ? (
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-accent">
+              {eyebrow}
+            </p>
+          ) : null}
           <h2 className="font-heading text-[21px] leading-snug text-foreground">
             {title}
           </h2>

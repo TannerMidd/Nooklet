@@ -1,16 +1,14 @@
 "use client";
 
-import { CalendarDays, DatabaseZap, Download, HardDrive, Search } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, DatabaseZap, Download, HardDrive, Search } from "lucide-react";
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
   requestSearchTitleAction,
-  searchTitlesAction,
 } from "@/app/(workspace)/search/actions";
 import {
   initialRequestSearchTitleActionState,
-  initialTitleSearchActionState,
   type RequestSearchTitleActionState,
   type SearchResultView,
   type TitleSearchActionState,
@@ -29,10 +27,16 @@ import { InlineAlert } from "@/components/ui/inline-alert";
 import { Spinner } from "@/components/ui/spinner";
 import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
 
-type TitleSearchFormProps = {
+type RequestOptionsProps = {
   libraries: LibraryOption[];
   qualityProfiles: readonly QualityProfileOption[];
   pathOptions: MediaLibraryPathOption[];
+};
+
+type TitleSearchFormProps = RequestOptionsProps & {
+  initialQuery: string;
+  initialMediaType: "movie" | "tv";
+  initialState: TitleSearchActionState;
 };
 
 function StatusBanner({ state }: { state: TitleSearchActionState | RequestSearchTitleActionState }) {
@@ -41,7 +45,10 @@ function StatusBanner({ state }: { state: TitleSearchActionState | RequestSearch
   }
 
   return (
-    <InlineAlert variant={state.status === "success" ? "info" : "error"} className="py-2 text-foreground">
+    <InlineAlert
+      variant={state.status === "success" ? "success" : state.status === "warning" ? "warning" : "error"}
+      className="py-2 text-foreground"
+    >
       {state.message}
     </InlineAlert>
   );
@@ -57,14 +64,31 @@ function SearchSubmitButton() {
   );
 }
 
-function AddTitleButton() {
+function AddTitleButton({
+  downloadNow,
+  state,
+}: {
+  downloadNow: boolean;
+  state: RequestSearchTitleActionState;
+}) {
   const { pending } = useFormStatus();
+  const isComplete = state.status === "success" || state.status === "warning";
+  const label = state.outcome === "queued"
+    ? "Download queued"
+    : state.outcome === "catalog_added"
+      ? "Added to catalog"
+      : isComplete
+        ? "Added; download needs attention"
+        : downloadNow
+          ? "Request & download"
+          : "Add to library only";
+  const Icon = isComplete ? Check : Download;
 
   return (
     <div className="space-y-2">
-      <Button type="submit" className="w-full sm:w-auto" disabled={pending}>
-        {pending ? <Spinner /> : <Download aria-hidden="true" size={17} />}
-        {pending ? "Adding..." : "Add to Nooklet"}
+      <Button type="submit" className="w-full sm:w-auto" disabled={pending || isComplete}>
+        {pending ? <Spinner /> : <Icon aria-hidden="true" size={17} />}
+        {pending ? "Requesting..." : label}
       </Button>
       {pending ? (
         <p className="text-xs text-muted" role="status">
@@ -148,6 +172,9 @@ function ReleaseResults({
               <div className="min-w-0 space-y-2">
                 <p className="break-words text-sm font-medium text-foreground">{result.title}</p>
                 <div className="flex flex-wrap gap-2 text-xs text-muted">
+                  <span className="rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">
+                    {result.protocol === "newznab" ? "Usenet" : result.protocol === "torznab" ? "Torrent" : "Unknown protocol"}
+                  </span>
                   {result.qualityLabel ? (
                     <span className="rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">{result.qualityLabel}</span>
                   ) : null}
@@ -165,13 +192,19 @@ function ReleaseResults({
                   </span>
                 </div>
               </div>
-              <QueueResultButton
-                resultId={result.id}
-                mediaTitleId={mediaTitleId}
-                seasonId={seasonId}
-                episodeId={episodeId}
-                targetLibraryPathId={targetLibraryPathId}
-              />
+              {result.protocol === "newznab" ? (
+                <QueueResultButton
+                  resultId={result.id}
+                  mediaTitleId={mediaTitleId}
+                  seasonId={seasonId}
+                  episodeId={episodeId}
+                  targetLibraryPathId={targetLibraryPathId}
+                />
+              ) : (
+                <div className="max-w-52 rounded-lg border border-accent/25 bg-accent/10 px-3 py-2 text-xs leading-5 text-muted">
+                  Nooklet is Usenet-only. This release cannot be queued.
+                </div>
+              )}
             </div>
           </li>
         ))}
@@ -192,6 +225,7 @@ function RequestTitleForm({
   pathOptions: MediaLibraryPathOption[];
 }) {
   const [state, formAction] = useActionState(requestSearchTitleAction, initialRequestSearchTitleActionState);
+  const [downloadNow, setDownloadNow] = useState(true);
 
   return (
     <div className="space-y-3">
@@ -213,8 +247,9 @@ function RequestTitleForm({
           libraries={libraries}
           qualityProfiles={qualityProfiles}
           pathOptions={pathOptions}
+          onDownloadNowChange={setDownloadNow}
         />
-        <AddTitleButton />
+        <AddTitleButton downloadNow={downloadNow} state={state} />
       </form>
       <ReleaseResults
         results={state.results}
@@ -250,12 +285,23 @@ function TitleResultCard({
             </p>
             {title.overview ? <p className="line-clamp-3 text-sm leading-6 text-muted">{title.overview}</p> : null}
           </div>
-          <RequestTitleForm
-            title={title}
-            libraries={libraries}
-            qualityProfiles={qualityProfiles}
-            pathOptions={pathOptions}
-          />
+          <details className="group overflow-hidden rounded-lg border border-cream/[0.08] bg-cream/[0.02]">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold text-foreground transition hover:bg-cream/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus [&::-webkit-details-marker]:hidden">
+              Review &amp; request
+              <ChevronDown
+                aria-hidden="true"
+                className="h-4 w-4 shrink-0 text-muted transition-transform group-open:rotate-180"
+              />
+            </summary>
+            <div className="border-t border-cream/[0.08] p-3">
+              <RequestTitleForm
+                title={title}
+                libraries={libraries}
+                qualityProfiles={qualityProfiles}
+                pathOptions={pathOptions}
+              />
+            </div>
+          </details>
         </div>
       </div>
     </li>
@@ -267,7 +313,7 @@ function TitleResults({
   libraries,
   qualityProfiles,
   pathOptions,
-}: TitleSearchFormProps & { state: TitleSearchActionState }) {
+}: RequestOptionsProps & { state: TitleSearchActionState }) {
   if (state.status === "idle") {
     return <EmptyState message="No title search has run yet." />;
   }
@@ -291,19 +337,27 @@ function TitleResults({
   );
 }
 
-export function TitleSearchForm({ libraries, qualityProfiles, pathOptions }: TitleSearchFormProps) {
-  const [state, formAction] = useActionState(searchTitlesAction, initialTitleSearchActionState);
-  const [mediaType, setMediaType] = useState<"movie" | "tv">("movie");
+export function TitleSearchForm({
+  initialQuery,
+  initialMediaType,
+  initialState,
+  libraries,
+  qualityProfiles,
+  pathOptions,
+}: TitleSearchFormProps) {
+  const [mediaType, setMediaType] = useState<"movie" | "tv">(initialMediaType);
 
   return (
     <div className="space-y-6">
-      <form action={formAction} className="space-y-3">
-        <input type="hidden" name="mediaType" value={mediaType} />
+      <form action="/search" method="get" className="space-y-3">
+        <input type="hidden" name="type" value={mediaType} />
         <div className="flex max-w-3xl flex-col gap-3 rounded-3xl border border-cream/[0.09] bg-cream/[0.03] p-2 pl-5 sm:flex-row sm:items-center">
           <Search aria-hidden="true" className="hidden h-[18px] w-[18px] shrink-0 text-muted sm:block" />
           <input
-            name="query"
+            name="q"
+            defaultValue={initialQuery}
             required
+            aria-label="Search for a movie or TV show"
             placeholder="Search for a movie or show…"
             className="h-11 min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted/70"
           />
@@ -313,7 +367,7 @@ export function TitleSearchForm({ libraries, qualityProfiles, pathOptions }: Tit
                 type="button"
                 aria-pressed={mediaType === "movie"}
                 onClick={() => setMediaType("movie")}
-                className={`h-9 rounded-md px-4 text-[13px] font-semibold transition ${
+                className={`min-h-11 rounded-md px-4 text-[13px] font-semibold transition ${
                   mediaType === "movie" ? "bg-accent text-accent-foreground" : "text-muted hover:text-foreground"
                 }`}
               >
@@ -323,7 +377,7 @@ export function TitleSearchForm({ libraries, qualityProfiles, pathOptions }: Tit
                 type="button"
                 aria-pressed={mediaType === "tv"}
                 onClick={() => setMediaType("tv")}
-                className={`h-9 rounded-md px-4 text-[13px] font-semibold transition ${
+                className={`min-h-11 rounded-md px-4 text-[13px] font-semibold transition ${
                   mediaType === "tv" ? "bg-accent text-accent-foreground" : "text-muted hover:text-foreground"
                 }`}
               >
@@ -333,14 +387,14 @@ export function TitleSearchForm({ libraries, qualityProfiles, pathOptions }: Tit
             <SearchSubmitButton />
           </div>
         </div>
-        <StatusBanner state={state} />
+        <StatusBanner state={initialState} />
         <p className="max-w-3xl text-[13px] leading-[22px] text-muted">
-          Find titles first, pick quality and destination folder, then Nooklet requests, downloads,
-          and imports them into your library.
+          Search finds the title first. Request & download then adds it to your catalog, searches
+          indexers, and queues the best match; Add to library only skips the search and download.
         </p>
       </form>
 
-      <TitleResults state={state} libraries={libraries} qualityProfiles={qualityProfiles} pathOptions={pathOptions} />
+      <TitleResults state={initialState} libraries={libraries} qualityProfiles={qualityProfiles} pathOptions={pathOptions} />
     </div>
   );
 }

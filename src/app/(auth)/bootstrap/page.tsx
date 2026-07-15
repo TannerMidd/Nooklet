@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { isWebBootstrapConfigured } from "@/lib/security/bootstrap-token";
 import { getBootstrapStatus } from "@/modules/identity-access/workflows/bootstrap-status";
 
 import { BootstrapForm } from "./bootstrap-form";
@@ -24,7 +25,14 @@ export default async function BootstrapPage() {
         Create the administrator account for this install — you&apos;ll use it to sign in and
         invite anyone else.
       </p>
-      <BootstrapForm />
+      {isWebBootstrapConfigured() ? (
+        <BootstrapForm />
+      ) : (
+        <p className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-3 text-sm text-foreground">
+          Web setup is locked. Set a random <code>BOOTSTRAP_TOKEN</code> in the server environment,
+          restart Nooklet, then return to this page.
+        </p>
+      )}
     </div>
   );
 }

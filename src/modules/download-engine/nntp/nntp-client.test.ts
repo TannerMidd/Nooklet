@@ -16,11 +16,27 @@ function client(port: number, overrides: Partial<ConstructorParameters<typeof Nn
     port,
     tls: false,
     timeoutMs: 3_000,
+    resolvedAddresses: [{ address: "127.0.0.1", family: 4 }],
     ...overrides,
   });
 }
 
 describe("NntpClient", () => {
+  it("connects only through the prevalidated address instead of resolving the host again", async () => {
+    server = await startFakeNntpServer({ articles: new Map() });
+    const nntp = new NntpClient({
+      host: "dns-rebind.invalid",
+      port: server.port,
+      tls: false,
+      timeoutMs: 3_000,
+      resolvedAddresses: [{ address: "127.0.0.1", family: 4 }],
+    });
+
+    await nntp.connect();
+    expect(await nntp.date()).toBe("20260711000000");
+    await nntp.quit();
+  });
+
   it("connects, runs DATE, fetches a body, and quits", async () => {
     server = await startFakeNntpServer({
       articles: new Map([["hello@test", "line one\r\nline two"]]),
@@ -96,6 +112,20 @@ describe("NntpClient", () => {
     await nntp.quit();
   });
 
+  it("rejects message ids containing NNTP command delimiters", async () => {
+    server = await startFakeNntpServer({ articles: new Map() });
+
+    const nntp = client(server.port);
+    await nntp.connect();
+
+    await expect(nntp.body("safe@test>\r\nDATE")).rejects.toMatchObject({
+      kind: "protocol-error",
+      permanent: true,
+    });
+
+    await nntp.quit();
+  });
+
   it("returns an empty buffer for empty bodies", async () => {
     server = await startFakeNntpServer({ articles: new Map([["empty@test", ""]]) });
 
@@ -107,6 +137,22 @@ describe("NntpClient", () => {
     expect(body.length).toBeLessThanOrEqual(2);
 
     await nntp.quit();
+  });
+
+  it("closes the connection when an article exceeds the configured byte limit", async () => {
+    server = await startFakeNntpServer({
+      articles: new Map([["large@test", "x".repeat(4096)]]),
+      chunkSize: 128,
+    });
+
+    const nntp = client(server.port, { maxArticleBytes: 1024 });
+    await nntp.connect();
+
+    await expect(nntp.body("large@test")).rejects.toMatchObject({
+      kind: "protocol-error",
+      permanent: true,
+    });
+    expect(nntp.isConnected).toBe(false);
   });
 
   it("times out when the server goes silent", async () => {

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
@@ -14,6 +15,7 @@ import {
   listUnimportedFinishedEngineDownloads,
   markEngineDownloadImported,
   requeueStrandedEngineDownloads,
+  resolveEngineDownloadPayload,
   setEngineDownloadPriority,
   setEngineDownloadState,
   transitionEngineDownloadState,
@@ -56,6 +58,28 @@ beforeEach(async () => {
 });
 
 describe("engine repository", () => {
+  it("encrypts NZB XML and archive passwords at rest", async () => {
+    const record = await createEngineDownload(baseInput({ password: "archive-secret" }));
+    const stored = ensureDatabaseReady()
+      .select()
+      .from(engineDownloads)
+      .where(eq(engineDownloads.id, record.id))
+      .get()!;
+
+    expect(stored.nzbXml).not.toContain("<nzb>");
+    expect(stored.password).not.toBe("archive-secret");
+    expect(stored.nzbXml.startsWith("v1:")).toBe(true);
+    expect(resolveEngineDownloadPayload(stored)).toEqual({
+      nzbXml: "<nzb><file/></nzb>",
+      password: "archive-secret",
+    });
+
+    await setEngineDownloadState(record.id, "failed", { completedAt: new Date() });
+    const terminal = await findEngineDownloadById(userId, record.id);
+    expect(terminal?.password).toBeNull();
+    expect(terminal && resolveEngineDownloadPayload(terminal).nzbXml).toBe("");
+  });
+
   it("creates and claims queued downloads in priority order", async () => {
     const low = await createEngineDownload(baseInput({ name: "low", priority: 5 }));
     const high = await createEngineDownload(baseInput({ name: "high", priority: 1 }));
@@ -137,4 +161,15 @@ describe("engine repository", () => {
     expect(await deleteEngineDownload(userId, record.id)).toBe(true);
     expect(await findEngineDownloadById(userId, record.id)).toBeNull();
   });
+
+  it.each(["assembling", "repairing", "extracting"] as const)(
+    "refuses to delete a download while it is %s",
+    async (state) => {
+      const record = await createEngineDownload(baseInput());
+      await setEngineDownloadState(record.id, state);
+
+      expect(await deleteEngineDownload(userId, record.id)).toBe(false);
+      expect((await findEngineDownloadById(userId, record.id))?.state).toBe(state);
+    },
+  );
 });

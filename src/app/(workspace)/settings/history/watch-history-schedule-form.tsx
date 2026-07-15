@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 
 import { initialWatchHistoryScheduleActionState } from "@/app/(workspace)/settings/history/action-state";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ScheduleIntervalSelect } from "@/components/ui/schedule-interval-select";
 
 import { submitWatchHistoryScheduleAction } from "./actions";
 
@@ -80,14 +80,12 @@ export function WatchHistoryScheduleForm({
         </label>
 
         <label className="space-y-1.5">
-          <span className="text-sm font-medium text-foreground">Interval hours</span>
-          <Input
+          <span className="text-sm font-medium text-foreground">Run</span>
+          <ScheduleIntervalSelect
             name="intervalHours"
-            type="number"
-            min={1}
-            max={168}
             defaultValue={Math.max(defaultIntervalHours, 1)}
-            aria-invalid={Boolean(state.fieldErrors?.intervalHours)}
+            unit="hours"
+            invalid={Boolean(state.fieldErrors?.intervalHours)}
           />
           {state.fieldErrors?.intervalHours ? (
             <p className="text-sm text-accent-wine">{state.fieldErrors.intervalHours}</p>

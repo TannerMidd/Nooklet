@@ -20,7 +20,7 @@ export default async function NotificationsSettingsPage() {
       <PageHeader
         eyebrow="Outbound events"
         title="Notifications"
-        description="Send recommendation and sync events to Discord, Apprise, or any webhook."
+        description="Send download, import, recommendation, and sync outcomes to Discord, Apprise, or any webhook."
       />
 
       <Panel eyebrow="Channels" title="Outbound notifications">

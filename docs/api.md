@@ -11,7 +11,7 @@ Use the deployed app origin as the base URL.
 
 | Environment | Base URL |
 | --- | --- |
-| Local Next dev | `http://localhost:3000` unless Next.js is started on another port |
+| Local Next dev | `http://localhost:42021` (`npm run dev`) |
 | Local Docker Compose | `http://localhost:42021` by default |
 | Deployment | The configured `APP_URL` origin |
 
@@ -33,9 +33,9 @@ requests.
 
 | Route | Methods | Auth | Purpose | Source |
 | --- | --- | --- | --- | --- |
-| `/api/health` | `GET` | None | Readiness check for the app and database migrations. | `src/app/api/health/route.ts` |
+| `/api/health` | `GET` | None | Readiness check for database migrations and the background worker. | `src/app/api/health/route.ts` |
 | `/api/auth/[...nextauth]` | `GET`, `POST` | Auth.js-managed | Credentials login, logout, session, CSRF, and provider endpoints. | `src/app/api/auth/[...nextauth]/route.ts` |
-| `/api/service-connections/sabnzbd/queue` | `GET`, `POST` | Required | Read and mutate the signed-in user's active SABnzbd queue. | `src/app/api/service-connections/sabnzbd/queue/route.ts` |
+| `/api/service-connections/sabnzbd/queue` | `GET`, `POST` | Required | Read and mutate source-aware built-in and legacy SABnzbd queues. | `src/app/api/service-connections/sabnzbd/queue/route.ts` |
 
 ## Common Error Shape
 
@@ -52,8 +52,14 @@ application-owned endpoints below.
 
 ## `GET /api/health`
 
-Lightweight liveness and readiness probe. It calls `ensureDatabaseReady()`, so a
-successful response means SQLite is reachable and migrations have been applied.
+Readiness probe for SQLite migrations and the in-process background worker. A
+`200` response means the database is ready and the worker has ticked in the
+last 60 seconds. If an individual workload failed, the response stays `200`
+but reports `status: "degraded"` and `backgroundWorker: "degraded"`; this keeps
+a bad optional integration from taking the whole container out of service. A
+stopped or stale worker, or a database failure, returns `503`. The public probe
+never exposes internal error messages; authenticated operators can see those
+on `/health`.
 
 Authentication: not required.
 
@@ -66,11 +72,23 @@ Content-Type: application/json
 
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "checks": {
+    "database": "ok",
+    "backgroundWorker": "ok"
+  },
+  "worker": {
+    "started": true,
+    "runningMaintenance": false,
+    "lastTickAt": "2026-07-14T18:30:00.000Z",
+    "lastSuccessAt": "2026-07-14T18:30:00.000Z",
+    "hasError": false
+  },
+  "timestamp": "2026-07-14T18:30:01.000Z"
 }
 ```
 
-Failure response:
+Stopped/stale worker response:
 
 ```http
 HTTP/1.1 503 Service Unavailable
@@ -79,14 +97,26 @@ Content-Type: application/json
 
 ```json
 {
-  "status": "error"
+  "status": "degraded",
+  "checks": {
+    "database": "ok",
+    "backgroundWorker": "error"
+  },
+  "worker": {
+    "started": true,
+    "runningMaintenance": false,
+    "lastTickAt": "2026-07-14T18:20:00.000Z",
+    "lastSuccessAt": "2026-07-14T18:19:59.000Z",
+    "hasError": true
+  },
+  "timestamp": "2026-07-14T18:30:01.000Z"
 }
 ```
 
 Example:
 
 ```bash
-curl http://localhost:3000/api/health
+curl http://localhost:42021/api/health
 ```
 
 ## `/api/auth/[...nextauth]`
@@ -120,19 +150,21 @@ Additional login behavior:
 - Login attempts are rate limited to 10 attempts per normalized email in a five
   minute window.
 - Credentials login is disabled while first-admin bootstrap is still open.
-- Successful app login redirects to `/tv`.
+- Successful app login returns to the same-origin protected URL supplied in
+  `callbackUrl`; invalid, external, login, and bootstrap targets fall back to
+  `/tv`.
 
 Direct client example with a cookie jar:
 
 ```bash
-curl -c cookies.txt http://localhost:3000/api/auth/csrf
+curl -c cookies.txt http://localhost:42021/api/auth/csrf
 curl -b cookies.txt -c cookies.txt \
-  -X POST http://localhost:3000/api/auth/callback/credentials \
+  -X POST http://localhost:42021/api/auth/callback/credentials \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "csrfToken=<csrf-token-from-previous-response>" \
   --data-urlencode "email=admin@example.com" \
   --data-urlencode "password=your-password"
-curl -b cookies.txt http://localhost:3000/api/auth/session
+curl -b cookies.txt http://localhost:42021/api/auth/session
 ```
 
 Auth.js may redirect or return different payloads depending on request headers
@@ -141,8 +173,10 @@ than an application-specific JSON API.
 
 ## `GET /api/service-connections/sabnzbd/queue`
 
-Returns the signed-in user's active SABnzbd queue state. This endpoint never
-exposes the saved SABnzbd API key.
+Returns the signed-in user's built-in downloader and legacy SABnzbd queues as
+separate sources plus an aggregate snapshot used by badges and title progress.
+This endpoint never exposes saved connection secrets and does not mutate queue
+state while reading it.
 
 Authentication: required.
 
@@ -152,13 +186,23 @@ Status codes:
 
 | Status | Body | Notes |
 | --- | --- | --- |
-| `200` | `ActiveSabnzbdQueueState` | Returned for authenticated callers, including disconnected or unverifiable SABnzbd states. |
+| `200` | `ActiveDownloadQueueState` | Returned for authenticated callers, including disconnected sources. |
 | `401` | `ApiError` | Returned when no valid app session exists. |
+| `503` | `ApiError` | Queue sources could not be read. |
 
 Response type:
 
 ```ts
-type ActiveSabnzbdQueueState = {
+type ActiveDownloadQueueState = {
+  connectionStatus: "disconnected" | "configured" | "verified" | "error";
+  statusMessage: string;
+  snapshot: SabnzbdQueueSnapshot | null;
+  sources: DownloadQueueSourceState[];
+};
+
+type DownloadQueueSourceState = {
+  source: "engine" | "sabnzbd";
+  label: string;
   connectionStatus: "disconnected" | "configured" | "verified" | "error";
   statusMessage: string;
   snapshot: SabnzbdQueueSnapshot | null;
@@ -192,48 +236,53 @@ type SabnzbdQueueItem = {
 };
 ```
 
-Example success response for a verified connection:
+Example success response with an idle built-in downloader:
 
 ```json
 {
   "connectionStatus": "verified",
-  "statusMessage": "1 active SABnzbd request.",
+  "statusMessage": "Built-in downloader: No active built-in downloads right now.",
   "snapshot": {
-    "version": "4.4.1",
-    "queueStatus": "Downloading",
+    "version": null,
+    "queueStatus": "Idle",
     "paused": false,
-    "speed": "12.3 MB/s",
-    "kbPerSec": 12595.2,
-    "timeLeft": "00:08:12",
-    "activeQueueCount": 1,
-    "totalQueueCount": 1,
-    "items": [
-      {
-        "id": "SABnzbd_nzo_id",
-        "title": "Example.Title.2026.1080p",
-        "status": "Downloading",
-        "progressPercent": 42.5,
-        "timeLeft": "00:08:12",
-        "category": "movies",
-        "priority": "Normal",
-        "labels": [],
-        "sizeLabel": "5.0 GB",
-        "sizeLeftLabel": "2.9 GB",
-        "totalMb": 5120,
-        "remainingMb": 2969.6
+    "speed": null,
+    "kbPerSec": null,
+    "timeLeft": null,
+    "activeQueueCount": 0,
+    "totalQueueCount": 0,
+    "items": []
+  },
+  "sources": [
+    {
+      "source": "engine",
+      "label": "Built-in downloader",
+      "connectionStatus": "verified",
+      "statusMessage": "No active built-in downloads right now.",
+      "snapshot": {
+        "version": "nooklet-engine",
+        "queueStatus": "Idle",
+        "paused": false,
+        "speed": null,
+        "kbPerSec": null,
+        "timeLeft": null,
+        "activeQueueCount": 0,
+        "totalQueueCount": 0,
+        "items": []
       }
-    ]
-  }
+    }
+  ]
 }
 ```
 
-Example response when SABnzbd is not connected:
+Example response when no downloader is configured:
 
 ```json
 {
   "connectionStatus": "disconnected",
-  "statusMessage": "Connect SABnzbd to track active request progress.",
-  "snapshot": null
+  "statusMessage": "Add a usenet server under Settings â†’ Connections to download releases with the built-in downloader.",
+  "snapshot": null,
+  "sources": []
 }
 ```
 
@@ -245,22 +294,23 @@ const response = await fetch("/api/service-connections/sabnzbd/queue", {
 });
 
 if (!response.ok) {
-  throw new Error("Unable to load the SABnzbd queue.");
+  throw new Error("Unable to load the download queues.");
 }
 
-const queueState = (await response.json()) as ActiveSabnzbdQueueState;
+const queueState = (await response.json()) as ActiveDownloadQueueState;
 ```
 
 `curl` example using a previously authenticated cookie jar:
 
 ```bash
-curl -b cookies.txt http://localhost:3000/api/service-connections/sabnzbd/queue
+curl -b cookies.txt http://localhost:42021/api/service-connections/sabnzbd/queue
 ```
 
 ## `POST /api/service-connections/sabnzbd/queue`
 
-Applies a queue action to the signed-in user's verified SABnzbd connection, then
-returns the refreshed active queue state.
+Applies a queue action to one explicitly selected source, then returns the
+refreshed source-aware queue state. Ordering and queue-wide pause controls are
+local to that source; items cannot be moved between downloaders.
 
 Authentication: required.
 
@@ -270,21 +320,25 @@ Status codes:
 
 | Status | Body | Notes |
 | --- | --- | --- |
-| `200` | `ActiveSabnzbdQueueState` | Action succeeded, or `moveToIndex` targeted the item's current position. |
-| `400` | `ApiError` | Request body is invalid, SABnzbd is not connected or verified, the item cannot be moved, or SABnzbd rejects the action. |
+| `200` | `ActiveDownloadQueueState` | Action succeeded. |
+| `400` | `ApiError` | JSON, source, or action fields are invalid. |
 | `401` | `ApiError` | Returned when no valid app session exists. |
+| `500` | `ApiError` | The selected downloader rejected or failed the action. |
 
 Request body:
 
 ```ts
-type SabnzbdQueueActionInput =
+type DownloadQueueActionInput = {
+  source: "engine" | "sabnzbd";
+} & (
   | { type: "pauseQueue" }
   | { type: "resumeQueue" }
   | { type: "pause"; itemId: string }
   | { type: "resume"; itemId: string }
   | { type: "remove"; itemId: string }
   | { type: "move"; itemId: string; direction: "up" | "down" }
-  | { type: "moveToIndex"; itemId: string; targetIndex: number };
+  | { type: "moveToIndex"; itemId: string; targetIndex: number }
+);
 ```
 
 Validation rules:
@@ -298,11 +352,11 @@ Action behavior:
 
 | Action | Effect |
 | --- | --- |
-| `pauseQueue` | Pauses all SABnzbd queue activity. |
-| `resumeQueue` | Resumes all SABnzbd queue activity. |
+| `pauseQueue` | Pauses the selected source's queue activity. |
+| `resumeQueue` | Resumes the selected source's queue activity. |
 | `pause` | Pauses one queue item. |
 | `resume` | Resumes one queue item. |
-| `remove` | Removes one queue item from SABnzbd. Already downloaded files are kept by SABnzbd. |
+| `remove` | Cancels one item in the selected source. Built-in-engine working/completed files are deleted; SABnzbd already-completed files are retained. |
 | `move` | Moves one queue item up or down by one position. |
 | `moveToIndex` | Moves one queue item to a zero-based queue position. |
 
@@ -310,9 +364,9 @@ Example request:
 
 ```bash
 curl -b cookies.txt \
-  -X POST http://localhost:3000/api/service-connections/sabnzbd/queue \
+  -X POST http://localhost:42021/api/service-connections/sabnzbd/queue \
   -H "Content-Type: application/json" \
-  -d '{"type":"move","itemId":"SABnzbd_nzo_id","direction":"up"}'
+  -d '{"source":"sabnzbd","type":"move","itemId":"SABnzbd_nzo_id","direction":"up"}'
 ```
 
 Example invalid body response:
@@ -324,7 +378,8 @@ Content-Type: application/json
 
 ```json
 {
-  "message": "Invalid SABnzbd queue action."
+  "code": "invalid_action",
+  "message": "Invalid download queue action."
 }
 ```
 

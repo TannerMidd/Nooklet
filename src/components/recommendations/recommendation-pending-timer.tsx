@@ -46,7 +46,7 @@ export function RecommendationPendingTimer({
   return (
     <span
       className={`inline-flex items-center gap-2 ${className ?? ""}`.trim()}
-      aria-live="polite"
+      aria-label={`Recommendation processing for ${formatElapsed(elapsedSeconds)}`}
     >
       <span
         aria-hidden="true"

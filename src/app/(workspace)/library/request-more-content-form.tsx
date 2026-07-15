@@ -14,6 +14,7 @@ import {
 } from "@/components/media-library/tv-request-dialog";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { InlineAlert } from "@/components/ui/inline-alert";
 
 type RequestMoreContentFormProps = {
   titleId: string;
@@ -98,15 +99,12 @@ export function RequestMoreContentForm({
         <SubmitButton disabled={!selection} />
       </div>
 
-      {state.status === "error" && state.message ? (
-        <p className="rounded-lg border border-accent-wine/40 bg-accent-wine/10 px-3 py-2 text-sm text-foreground">
+      {state.status !== "idle" && state.message ? (
+        <InlineAlert
+          variant={state.status === "error" ? "error" : state.status === "warning" ? "warning" : "success"}
+        >
           {state.message}
-        </p>
-      ) : null}
-      {state.status === "success" && state.message ? (
-        <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-          {state.message}
-        </p>
+        </InlineAlert>
       ) : null}
     </form>
   );

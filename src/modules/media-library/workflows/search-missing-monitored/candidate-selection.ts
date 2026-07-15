@@ -23,9 +23,16 @@ export async function selectMissingContentCandidates(
   userId: string,
   limit: number = MISSING_SEARCH_CANDIDATE_LIMIT,
 ): Promise<MissingContentCandidate[]> {
+  const now = new Date();
   const [movies, episodes] = await Promise.all([
-    listMonitoredMissingMovieTitles(userId, limit),
-    listMonitoredMissingTvEpisodes(userId, limit),
+    listMonitoredMissingMovieTitles(userId, limit, {
+      keyPrefix: "auto-search:title:",
+      now,
+    }),
+    listMonitoredMissingTvEpisodes(userId, limit, now.toISOString().slice(0, 10), {
+      keyPrefix: "auto-search:episode:",
+      now,
+    }),
   ]);
 
   const movieCandidates: MissingContentCandidate[] = movies.map((title) => ({

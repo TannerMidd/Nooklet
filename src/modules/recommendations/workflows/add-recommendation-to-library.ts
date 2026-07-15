@@ -8,18 +8,28 @@ import {
   requestTitleWithReleaseSearchWorkflow,
 } from "@/modules/media-library/workflows/request-title-with-release-search";
 import {
+  summarizeRequestSubmission,
+  type RequestSubmissionOutcome,
+} from "@/modules/media-library/workflows/request-title-with-release-search/outcome-summary";
+import {
   createRecommendationItemTimelineEvent,
   findRecommendationItemForUser,
   markRecommendationItemExistingInLibrary,
 } from "@/modules/recommendations/repositories/recommendation-repository";
 
+export type RecommendationLibraryAddOutcome = RequestSubmissionOutcome | "failed";
+
 type AddRecommendationToLibraryResult =
   | {
       ok: true;
+      outcome: "catalog_added" | "queued";
+      catalogAdded: true;
       message: string;
     }
   | {
       ok: false;
+      outcome: "partial_queue" | "no_match" | "search_failed" | "queue_failed" | "failed";
+      catalogAdded: boolean;
       message: string;
       field?: "libraryId" | "targetLibraryPathId" | "qualityProfile";
     };
@@ -45,6 +55,8 @@ export async function addRecommendationToLibrary(
   if (!item) {
     return {
       ok: false,
+      outcome: "failed",
+      catalogAdded: false,
       message: "Recommendation item not found.",
     };
   }
@@ -52,6 +64,8 @@ export async function addRecommendationToLibrary(
   if (item.existingInLibrary) {
     return {
       ok: false,
+      outcome: "failed",
+      catalogAdded: false,
       message: "This recommendation is already marked as existing in the library.",
     };
   }
@@ -61,7 +75,7 @@ export async function addRecommendationToLibrary(
   const tmdbDetailsForItem = tmdbDetails?.mediaType === item.mediaType ? tmdbDetails : null;
 
   try {
-    const { title: mediaTitle, queuedDownload } = await requestTitleWithReleaseSearchWorkflow(userId, {
+    const requested = await requestTitleWithReleaseSearchWorkflow(userId, {
       mediaType: item.mediaType,
       libraryId: input.libraryId,
       targetLibraryPathId: input.targetLibraryPathId,
@@ -79,31 +93,59 @@ export async function addRecommendationToLibrary(
       downloadNow: input.downloadNow,
     });
 
-    await markRecommendationItemExistingInLibrary(item.itemId, true);
+    const summary = summarizeRequestSubmission({
+      title: item.title,
+      downloadNow: input.downloadNow,
+      qualityProfile: input.qualityProfile,
+      result: requested,
+    });
+    const { outcome, message } = summary;
+    const ok = outcome === "catalog_added" || outcome === "queued";
+
+    if (ok) {
+      await markRecommendationItemExistingInLibrary(item.itemId, true);
+    }
     await createRecommendationItemTimelineEvent({
       userId,
       itemId: item.itemId,
       eventType: "library-add",
-      status: "succeeded",
-      title: "Added to Nooklet",
-      message: `${item.title} was requested in your Nooklet library.`,
+      status: ok ? "succeeded" : "failed",
+      title: outcome === "queued"
+        ? "Added and queued"
+        : outcome === "catalog_added"
+          ? "Added to catalog"
+          : "Added to catalog; download needs attention",
+      message,
       metadata: {
-        mediaTitleId: mediaTitle.id,
-        libraryId: mediaTitle.libraryId,
+        outcome,
+        catalogAdded: true,
+        mediaTitleId: requested.title.id,
+        libraryId: requested.title.libraryId,
         targetLibraryPathId: input.targetLibraryPathId ?? null,
         qualityProfile: input.qualityProfile,
         monitored: input.monitored,
         tmdbId: tmdbDetailsForItem?.tmdbId ?? null,
-        queued: queuedDownload.queued,
-        queuedReason: queuedDownload.reason,
-        queuedMessage: queuedDownload.message,
-        queuedReleaseId: queuedDownload.selectedResultId,
+        queued: requested.queuedDownload.queued,
+        queuedReason: requested.queuedDownload.reason,
+        queuedMessage: requested.queuedDownload.message,
+        queuedReleaseId: requested.queuedDownload.selectedResultId,
       },
     });
 
+    if (outcome === "catalog_added" || outcome === "queued") {
+      return {
+        ok: true,
+        outcome,
+        catalogAdded: true,
+        message,
+      };
+    }
+
     return {
-      ok: true,
-      message: `${item.title} was requested in your Nooklet library.`,
+      ok: false,
+      outcome,
+      catalogAdded: true,
+      message,
     };
   } catch (error) {
     if (error instanceof RequestTitleAlreadyInFlightError) {
@@ -122,6 +164,8 @@ export async function addRecommendationToLibrary(
 
       return {
         ok: false,
+        outcome: "failed",
+        catalogAdded: false,
         message: error.message,
       };
     }
@@ -149,6 +193,8 @@ export async function addRecommendationToLibrary(
 
     return {
       ok: false,
+      outcome: "failed",
+      catalogAdded: false,
       message,
       field,
     };

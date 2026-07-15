@@ -119,7 +119,7 @@ describe("organizeCompletedDownloadFiles", () => {
     await expect(readdir(destinationFolder)).resolves.toEqual(["Arrival (2016).mkv"]);
   });
 
-  it("fails an import collision instead of creating a numbered duplicate", async () => {
+  it("fails an equal-size content collision instead of treating it as an idempotent retry", async () => {
     const sourceRoot = await tempRoot("movie-collision-source");
     const targetRoot = await tempRoot("movie-collision-target");
     const moviePath = path.join(sourceRoot, "Arrival.2016.1080p.mkv");
@@ -128,7 +128,7 @@ describe("organizeCompletedDownloadFiles", () => {
 
     await mkdir(destinationFolder, { recursive: true });
     await writeFile(moviePath, "new movie file");
-    await writeFile(destinationPath, "different existing movie file");
+    await writeFile(destinationPath, "old movie file");
 
     const organized = await organizeCompletedDownloadFiles([
       {

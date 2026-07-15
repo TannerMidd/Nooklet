@@ -24,7 +24,9 @@ export type TvMetadataRefreshReport = {
 export async function refreshTvMetadataWorkflow(
   userId: string,
 ): Promise<TvMetadataRefreshReport> {
-  const candidates = await listMonitoredTvTitlesWithTmdbId(userId, REFRESH_CANDIDATE_LIMIT);
+  const candidates = await listMonitoredTvTitlesWithTmdbId(userId, REFRESH_CANDIDATE_LIMIT, {
+    keyPrefix: "metadata-refresh:title:",
+  });
   const report: TvMetadataRefreshReport = {
     refreshedCount: 0,
     newEpisodeCount: 0,

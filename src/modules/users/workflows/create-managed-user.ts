@@ -23,8 +23,9 @@ export async function createManagedUser(
   const createdUser = await createUser({
     email: input.email,
     displayName: input.displayName,
-    passwordHash: hashPassword(input.password),
+    passwordHash: await hashPassword(input.password),
     role: input.role,
+    mustChangePassword: true,
   });
 
   if (!createdUser) {
@@ -47,6 +48,6 @@ export async function createManagedUser(
 
   return {
     ok: true,
-    message: `${createdUser.displayName} created.`,
+    message: `${createdUser.displayName} created. They will be asked to replace the temporary password at first sign-in.`,
   };
 }

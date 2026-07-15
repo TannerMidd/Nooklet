@@ -9,7 +9,7 @@ import {
 } from "@/modules/media-library/repositories/media-library-repository";
 
 import { type MatchedCompletedDownload } from "./request-matching";
-import { mapCompletedDownloadSourcePath } from "./source-path-mapping";
+import { resolveCompletedDownloadSourcePath } from "./source-path-mapping";
 
 export type FailedCompletedDownloadResolution = {
   kind: "failed";
@@ -33,6 +33,7 @@ export type ResolvedCompletedDownload = FailedCompletedDownloadResolution | Impo
 export async function resolveCompletedDownloadDestinations(
   userId: string,
   matches: MatchedCompletedDownload[],
+  options: { sourcePathKind?: "sabnzbd" | "local" } = {},
 ): Promise<ResolvedCompletedDownload[]> {
   const resolvedDownloads: ResolvedCompletedDownload[] = [];
 
@@ -88,15 +89,28 @@ export async function resolveCompletedDownloadDestinations(
         ? await listTvEpisodesForTitle(match.request.mediaTitleId)
         : [];
 
-    resolvedDownloads.push({
-      kind: "importable",
-      match,
-      target,
-      title: importItem.title,
-      episode: importItem.episode,
-      titleEpisodes,
-      sourceRootPath: mapCompletedDownloadSourcePath(match.historyItem.storagePath),
-    });
+    try {
+      resolvedDownloads.push({
+        kind: "importable",
+        match,
+        target,
+        title: importItem.title,
+        episode: importItem.episode,
+        titleEpisodes,
+        sourceRootPath: await resolveCompletedDownloadSourcePath(
+          match.historyItem.storagePath,
+          { trustedLocalSource: options.sourcePathKind === "local" },
+        ),
+      });
+    } catch (error) {
+      resolvedDownloads.push({
+        kind: "failed",
+        match,
+        message: error instanceof Error
+          ? error.message
+          : "The completed-download path could not be resolved safely.",
+      });
+    }
   }
 
   return resolvedDownloads;

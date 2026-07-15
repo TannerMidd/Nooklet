@@ -64,7 +64,7 @@ describe("createFirstAdmin", () => {
     // Password must never be stored in plaintext.
     expect(created?.passwordHash).not.toBe("Sup3rSecret!Pass");
     expect(created?.passwordHash).toMatch(/^scrypt\$/);
-    expect(verifyPassword("Sup3rSecret!Pass", created!.passwordHash)).toBe(true);
+    await expect(verifyPassword("Sup3rSecret!Pass", created!.passwordHash)).resolves.toBe(true);
 
     const audit = database
       .select()

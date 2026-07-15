@@ -1,7 +1,7 @@
 "use client";
 
 import { Save, Trash2 } from "lucide-react";
-import { useActionState, useId } from "react";
+import { useActionState, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -12,6 +12,7 @@ import {
   initialLibraryPathMutationActionState,
   type LibraryPathMutationActionState,
 } from "@/app/(workspace)/library/action-state";
+import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { type LibraryPathSummary, type LibrarySummary } from "@/modules/media-library/queries/list-library-overview";
@@ -26,7 +27,10 @@ function ActionStatus({ state }: { state: LibraryPathMutationActionState }) {
   }
 
   return (
-    <p className={state.status === "success" ? "text-xs text-foreground" : "text-xs text-accent-wine"}>
+    <p
+      role={state.status === "success" ? "status" : "alert"}
+      className={state.status === "success" ? "text-xs text-foreground" : "text-xs text-accent-wine"}
+    >
       {state.message}
     </p>
   );
@@ -49,16 +53,14 @@ function SaveButton() {
   );
 }
 
-function RemoveButton({ formId }: { formId: string }) {
-  const { pending } = useFormStatus();
-
+function RemoveButton({ pending, onClick }: { pending: boolean; onClick: () => void }) {
   return (
     <Button
-      type="submit"
-      form={formId}
+      type="button"
       variant="danger"
       size="icon"
       disabled={pending}
+      onClick={onClick}
       aria-label="Remove folder"
       title="Remove folder"
     >
@@ -74,19 +76,24 @@ export function LibraryPathManager({
   library: Pick<LibrarySummary, "mediaType" | "name">;
   path: LibraryPathSummary;
 }) {
-  const removeFormId = useId();
+  const removeFormRef = useRef<HTMLFormElement | null>(null);
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [updateState, updateAction] = useActionState(
     updateLibraryPathAction,
     initialLibraryPathMutationActionState,
   );
-  const [removeState, removeAction] = useActionState(
+  const [removeState, removeAction, removePending] = useActionState(
     removeLibraryPathAction,
     initialLibraryPathMutationActionState,
   );
 
   return (
     <li className="border-t border-cream/[0.08] py-2 text-sm first:border-t-0">
-      <form action={removeAction} id={removeFormId} className="hidden">
+      <form
+        ref={removeFormRef}
+        action={removeAction}
+        className="hidden"
+      >
         <input type="hidden" name="pathId" value={libraryPath.id} />
       </form>
       <form action={updateAction} className={libraryPathGridClass}>
@@ -96,7 +103,7 @@ export function LibraryPathManager({
           name="mediaType"
           defaultValue={library.mediaType}
           aria-label="Media type"
-          className="min-h-9 w-full rounded-md border border-cream/[0.08] bg-cream/[0.04] px-2.5 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:ring-1 focus:ring-accent/25"
+          className="min-h-11 w-full rounded-md border border-cream/[0.08] bg-cream/[0.04] px-2.5 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:ring-1 focus:ring-accent/25"
         >
           <option value="movie">Movies</option>
           <option value="tv">TV shows</option>
@@ -107,14 +114,14 @@ export function LibraryPathManager({
           name="status"
           defaultValue={libraryPath.status}
           aria-label="Status"
-          className="min-h-9 w-full rounded-md border border-cream/[0.08] bg-cream/[0.04] px-2.5 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:ring-1 focus:ring-accent/25"
+          className="min-h-11 w-full rounded-md border border-cream/[0.08] bg-cream/[0.04] px-2.5 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:ring-1 focus:ring-accent/25"
         >
           <option value="active">Active</option>
           <option value="disabled">Disabled</option>
         </select>
         <div className="flex items-center gap-1.5">
           <SaveButton />
-          <RemoveButton formId={removeFormId} />
+          <RemoveButton pending={removePending} onClick={() => setConfirmationOpen(true)} />
         </div>
       </form>
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
@@ -123,6 +130,23 @@ export function LibraryPathManager({
         <ActionStatus state={updateState} />
         <ActionStatus state={removeState} />
       </div>
+      <AlertDialog
+        open={confirmationOpen}
+        title={`Remove ${libraryPath.label}?`}
+        description={(
+          <>
+            Nooklet will stop scanning this folder and stop offering it as a request destination. Files on disk are kept. Removal is blocked while a download or import still targets the folder.
+          </>
+        )}
+        confirmLabel="Remove folder"
+        pending={removePending}
+        tone="danger"
+        onClose={() => setConfirmationOpen(false)}
+        onConfirm={() => {
+          removeFormRef.current?.requestSubmit();
+          setConfirmationOpen(false);
+        }}
+      />
     </li>
   );
 }

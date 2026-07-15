@@ -86,7 +86,7 @@ describe("getActiveSabnzbdQueue", () => {
       ],
     });
 
-    await expect(getActiveSabnzbdQueue("user-1")).resolves.toEqual({
+    await expect(getActiveSabnzbdQueue("user-1", { timeoutMs: 3_000 })).resolves.toEqual({
       connectionStatus: "verified",
       statusMessage: "1 active SABnzbd request.",
       snapshot: expect.objectContaining({
@@ -94,5 +94,8 @@ describe("getActiveSabnzbdQueue", () => {
         queueStatus: "Downloading",
       }),
     });
+    expect(mockedListSabnzbdQueue).toHaveBeenCalledWith(expect.objectContaining({
+      timeoutMs: 3_000,
+    }));
   });
 });

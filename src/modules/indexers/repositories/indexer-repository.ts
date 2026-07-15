@@ -1,8 +1,13 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, gt, lte } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
+import {
+  decryptSecretWithMetadata,
+  encryptSecret,
+} from "@/lib/security/secret-box";
 import {
   indexerMediaCategories,
   indexerSearchResultSecrets,
@@ -21,6 +26,56 @@ export type IndexerSearchRunRecord = typeof indexerSearchRuns.$inferSelect;
 export type IndexerSearchResultRecord = typeof indexerSearchResults.$inferSelect;
 export type IndexerSecretRecord = typeof indexerSecrets.$inferSelect;
 export type IndexerSearchResultSecretRecord = typeof indexerSearchResultSecrets.$inferSelect;
+
+function rotateIndexerSecret(secret: IndexerSecretRecord | null): IndexerSecretRecord | null {
+  if (!secret) {
+    return null;
+  }
+
+  try {
+    const decrypted = decryptSecretWithMetadata(secret.encryptedApiKey);
+    if (!decrypted.needsRotation) {
+      return secret;
+    }
+
+    const encryptedApiKey = encryptSecret(decrypted.value);
+    const updatedAt = new Date();
+    ensureDatabaseReady()
+      .update(indexerSecrets)
+      .set({ encryptedApiKey, updatedAt })
+      .where(eq(indexerSecrets.indexerId, secret.indexerId))
+      .run();
+    return { ...secret, encryptedApiKey, updatedAt };
+  } catch {
+    return secret;
+  }
+}
+
+function rotateSearchResultSecret(
+  secret: IndexerSearchResultSecretRecord | null,
+): IndexerSearchResultSecretRecord | null {
+  if (!secret) {
+    return null;
+  }
+
+  try {
+    const decrypted = decryptSecretWithMetadata(secret.encryptedDownloadUrl);
+    if (!decrypted.needsRotation) {
+      return secret;
+    }
+
+    const encryptedDownloadUrl = encryptSecret(decrypted.value);
+    const updatedAt = new Date();
+    ensureDatabaseReady()
+      .update(indexerSearchResultSecrets)
+      .set({ encryptedDownloadUrl, updatedAt })
+      .where(eq(indexerSearchResultSecrets.resultId, secret.resultId))
+      .run();
+    return { ...secret, encryptedDownloadUrl, updatedAt };
+  } catch {
+    return secret;
+  }
+}
 
 export async function createIndexer(input: {
   userId: string;
@@ -58,10 +113,25 @@ export async function createIndexer(input: {
 export async function findIndexerById(userId: string, id: string) {
   const database = ensureDatabaseReady();
 
-  return database
+  const owned = database
     .select()
     .from(indexers)
     .where(and(eq(indexers.userId, userId), eq(indexers.id, id)))
+    .get() ?? null;
+
+  if (owned) {
+    return owned;
+  }
+
+  const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
+  if (instanceOwnerId === userId) {
+    return null;
+  }
+
+  return database
+    .select()
+    .from(indexers)
+    .where(and(eq(indexers.userId, instanceOwnerId), eq(indexers.id, id)))
     .get() ?? null;
 }
 
@@ -96,6 +166,15 @@ export async function updateIndexer(input: {
     .run();
 
   return findIndexerById(input.userId, input.id);
+}
+
+export function deleteIndexer(userId: string, id: string) {
+  const result = ensureDatabaseReady()
+    .delete(indexers)
+    .where(and(eq(indexers.userId, userId), eq(indexers.id, id)))
+    .run();
+
+  return result.changes > 0;
 }
 
 export async function updateIndexerConnectionStatus(input: {
@@ -156,11 +235,13 @@ export async function saveIndexerSecret(input: {
 export async function findIndexerSecret(indexerId: string): Promise<IndexerSecretRecord | null> {
   const database = ensureDatabaseReady();
 
-  return database
-    .select()
-    .from(indexerSecrets)
-    .where(eq(indexerSecrets.indexerId, indexerId))
-    .get() ?? null;
+  return rotateIndexerSecret(
+    database
+      .select()
+      .from(indexerSecrets)
+      .where(eq(indexerSecrets.indexerId, indexerId))
+      .get() ?? null,
+  );
 }
 
 export async function setIndexerMediaCategories(
@@ -243,19 +324,27 @@ export async function listEnabledIndexersForMedia(
 ) {
   const database = ensureDatabaseReady();
 
-  const rows = database
+  const loadRows = (ownerUserId: string) => database
     .select({ indexer: indexers })
     .from(indexers)
     .innerJoin(indexerMediaCategories, eq(indexerMediaCategories.indexerId, indexers.id))
     .where(
       and(
-        eq(indexers.userId, userId),
+        eq(indexers.userId, ownerUserId),
         eq(indexers.isEnabled, true),
         eq(indexerMediaCategories.mediaType, mediaType),
       ),
     )
     .orderBy(asc(indexers.priority), asc(indexers.name))
     .all();
+
+  let rows = loadRows(userId);
+  if (rows.length === 0) {
+    const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
+    if (instanceOwnerId !== userId) {
+      rows = loadRows(instanceOwnerId);
+    }
+  }
 
   return Array.from(new Map(rows.map((row) => [row.indexer.id, row.indexer])).values());
 }
@@ -272,19 +361,31 @@ export async function createIndexerSearchRun(input: {
   const database = ensureDatabaseReady();
   const id = randomUUID();
 
-  database
-    .insert(indexerSearchRuns)
-    .values({
-      id,
-      userId: input.userId,
-      indexerId: input.indexerId ?? null,
-      mediaType: input.mediaType,
-      query: input.query,
-      normalizedKey: input.normalizedKey ?? null,
-      status: input.status ?? "pending",
-      expiresAt: input.expiresAt,
-    })
-    .run();
+  database.transaction((tx) => {
+    tx
+      .delete(indexerSearchRuns)
+      .where(
+        and(
+          eq(indexerSearchRuns.userId, input.userId),
+          lte(indexerSearchRuns.expiresAt, new Date()),
+        ),
+      )
+      .run();
+
+    tx
+      .insert(indexerSearchRuns)
+      .values({
+        id,
+        userId: input.userId,
+        indexerId: input.indexerId ?? null,
+        mediaType: input.mediaType,
+        query: input.query,
+        normalizedKey: input.normalizedKey ?? null,
+        status: input.status ?? "pending",
+        expiresAt: input.expiresAt,
+      })
+      .run();
+  });
 
   return database
     .select()
@@ -409,12 +510,36 @@ export async function findSearchResultById(userId: string, resultId: string) {
     .get() ?? null;
 }
 
-export async function findSearchResultSecret(resultId: string): Promise<IndexerSearchResultSecretRecord | null> {
+export async function findUnexpiredSearchResultById(
+  userId: string,
+  resultId: string,
+  now = new Date(),
+) {
   const database = ensureDatabaseReady();
 
   return database
-    .select()
-    .from(indexerSearchResultSecrets)
-    .where(eq(indexerSearchResultSecrets.resultId, resultId))
-    .get() ?? null;
+    .select({ result: indexerSearchResults })
+    .from(indexerSearchResults)
+    .innerJoin(indexerSearchRuns, eq(indexerSearchRuns.id, indexerSearchResults.searchRunId))
+    .where(
+      and(
+        eq(indexerSearchResults.userId, userId),
+        eq(indexerSearchResults.id, resultId),
+        eq(indexerSearchRuns.userId, userId),
+        gt(indexerSearchRuns.expiresAt, now),
+      ),
+    )
+    .get()?.result ?? null;
+}
+
+export async function findSearchResultSecret(resultId: string): Promise<IndexerSearchResultSecretRecord | null> {
+  const database = ensureDatabaseReady();
+
+  return rotateSearchResultSecret(
+    database
+      .select()
+      .from(indexerSearchResultSecrets)
+      .where(eq(indexerSearchResultSecrets.resultId, resultId))
+      .get() ?? null,
+  );
 }

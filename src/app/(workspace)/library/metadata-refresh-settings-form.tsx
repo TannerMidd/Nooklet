@@ -9,7 +9,7 @@ import {
   initialMetadataRefreshScheduleActionState,
 } from "@/app/(workspace)/library/action-state";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ScheduleIntervalSelect } from "@/components/ui/schedule-interval-select";
 import { StatusMessage } from "@/components/ui/status-message";
 import { type MetadataRefreshSettings } from "@/modules/media-library/queries/get-metadata-refresh-settings";
 
@@ -60,14 +60,12 @@ export function MetadataRefreshSettingsForm({ settings }: { settings: MetadataRe
         </label>
 
         <label className="space-y-1.5 text-sm">
-          <span className="font-medium text-foreground">Interval minutes</span>
-          <Input
+          <span className="font-medium text-foreground">Run</span>
+          <ScheduleIntervalSelect
             name="intervalMinutes"
-            type="number"
-            min={15}
-            max={10080}
             defaultValue={settings.intervalMinutes}
-            aria-invalid={Boolean(state.fieldErrors?.intervalMinutes)}
+            unit="minutes"
+            invalid={Boolean(state.fieldErrors?.intervalMinutes)}
           />
           {state.fieldErrors?.intervalMinutes ? (
             <p className="text-sm text-accent-wine">{state.fieldErrors.intervalMinutes}</p>

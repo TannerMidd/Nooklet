@@ -233,8 +233,20 @@ describe("addLibraryPathAction", () => {
     expect(addLibraryPathMock).not.toHaveBeenCalled();
   });
 
+  it("rejects library-folder changes from non-admin users", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "user" } } as never);
+
+    const result = await addLibraryPathAction(initialLibraryPathActionState, validForm());
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Only an administrator can manage library folders.",
+    });
+    expect(addLibraryPathMock).not.toHaveBeenCalled();
+  });
+
   it("validates submitted media type", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     const form = validForm();
     form.set("mediaType", "music");
 
@@ -245,7 +257,7 @@ describe("addLibraryPathAction", () => {
   });
 
   it("maps command errors to friendly messages", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     addLibraryPathMock.mockRejectedValue(
       new LibraryPathCommandError("That folder is already attached to your library.", "path_already_exists"),
     );
@@ -259,7 +271,7 @@ describe("addLibraryPathAction", () => {
   });
 
   it("adds the path and revalidates the library page", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     addLibraryPathMock.mockResolvedValue(undefined as never);
 
     const result = await addLibraryPathAction(initialLibraryPathActionState, validForm());
@@ -424,7 +436,7 @@ describe("updateLibraryPathAction", () => {
   });
 
   it("validates submitted status", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     const form = validForm();
     form.set("status", "archived");
 
@@ -435,7 +447,7 @@ describe("updateLibraryPathAction", () => {
   });
 
   it("maps command errors to friendly messages", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     updateLibraryPathMock.mockRejectedValue(
       new UpdateLibraryPathCommandError("That folder is already attached to your library.", "path_already_exists"),
     );
@@ -446,7 +458,7 @@ describe("updateLibraryPathAction", () => {
   });
 
   it("updates the path and revalidates the library page", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     updateLibraryPathMock.mockResolvedValue(undefined as never);
 
     const result = await updateLibraryPathAction(initialLibraryPathMutationActionState, validForm());
@@ -481,7 +493,7 @@ describe("removeLibraryPathAction", () => {
   });
 
   it("maps command errors to friendly messages", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     removeLibraryPathMock.mockRejectedValue(
       new RemoveLibraryPathCommandError("Library folder was not found.", "path_not_found"),
     );
@@ -492,7 +504,7 @@ describe("removeLibraryPathAction", () => {
   });
 
   it("removes the path and revalidates the library page", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     removeLibraryPathMock.mockResolvedValue(undefined as never);
 
     const result = await removeLibraryPathAction(initialLibraryPathMutationActionState, validForm());
@@ -728,7 +740,7 @@ describe("searchLibraryItemReleasesAction", () => {
     const result = await searchLibraryItemReleasesAction(initialLibraryItemSearchActionState, validForm());
 
     expect(result).toEqual({
-      status: "success",
+      status: "warning",
       message: "Search finished, but no releases matched UHD 2160p.",
       downloadRequestId: null,
     });

@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
+import {
+  applyEngineQueueAction,
+  EngineQueueActionError,
+} from "@/modules/download-engine/workflows/apply-engine-queue-action";
 import { sabnzbdQueueActionSchema } from "@/modules/service-connections/sabnzbd-queue-actions";
-import { applyDownloadQueueAction } from "@/modules/service-connections/workflows/apply-download-queue-action";
-import { getActiveDownloadQueue } from "@/modules/service-connections/workflows/get-active-download-queue";
+import { applySabnzbdQueueAction } from "@/modules/service-connections/workflows/apply-sabnzbd-queue-action";
+
+import { downloadQueueSourceSchema } from "./contract";
+import { getActiveDownloadQueueView } from "./queue-view";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -15,9 +21,20 @@ export async function GET() {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const queueState = await getActiveDownloadQueue(session.user.id);
+  try {
+    const queueState = await getActiveDownloadQueueView(session.user.id);
 
-  return NextResponse.json(queueState, { status: 200 });
+    return NextResponse.json(queueState, {
+      status: 200,
+      headers: { "Cache-Control": "no-store" },
+    });
+  } catch (error) {
+    console.error("[download-queue] refresh failed", error);
+    return NextResponse.json(
+      { code: "queue_unavailable", message: "Unable to load the download queues right now." },
+      { status: 503 },
+    );
+  }
 }
 
 export async function POST(request: Request) {
@@ -27,26 +44,53 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    const body = await request.json();
-    const parsedBody = sabnzbdQueueActionSchema.safeParse(body);
+  let body: unknown;
 
-    if (!parsedBody.success) {
-      return NextResponse.json({ message: "Invalid download queue action." }, { status: 400 });
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { code: "invalid_json", message: "Request body must be valid JSON." },
+      { status: 400 },
+    );
+  }
+
+  const source = downloadQueueSourceSchema.safeParse(
+    typeof body === "object" && body !== null ? (body as { source?: unknown }).source : undefined,
+  );
+  const actionBody = typeof body === "object" && body !== null
+    ? Object.fromEntries(Object.entries(body).filter(([key]) => key !== "source"))
+    : body;
+  const action = sabnzbdQueueActionSchema.safeParse(actionBody);
+
+  if (!source.success || !action.success) {
+    return NextResponse.json(
+      { code: "invalid_action", message: "Invalid download queue action." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    if (source.data === "engine") {
+      await applyEngineQueueAction(session.user.id, action.data);
+    } else {
+      await applySabnzbdQueueAction(session.user.id, action.data);
     }
 
-    const queueState = await applyDownloadQueueAction(session.user.id, parsedBody.data);
-
-    return NextResponse.json(queueState, { status: 200 });
+    return NextResponse.json(await getActiveDownloadQueueView(session.user.id), { status: 200 });
   } catch (error) {
+    console.error(`[download-queue] ${source.data} action failed`, error);
+
+    if (error instanceof EngineQueueActionError) {
+      return NextResponse.json(
+        { code: "queue_action_conflict", message: error.message },
+        { status: 409 },
+      );
+    }
+
     return NextResponse.json(
-      {
-        message:
-          error instanceof Error
-            ? error.message
-            : "Unable to update the download queue right now.",
-      },
-      { status: 400 },
+      { code: "queue_action_failed", message: "Unable to update that download queue right now." },
+      { status: 500 },
     );
   }
 }

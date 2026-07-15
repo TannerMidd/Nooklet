@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
@@ -28,7 +28,7 @@ function localImportRetryCutoff() {
 function importableRequestPredicate() {
   return or(
     and(
-      inArray(downloadRequests.status, ["queued", "downloading"]),
+      inArray(downloadRequests.status, ["queued", "downloading", "requeuing"]),
       inArray(downloadQueueItems.status, ["queued", "downloading"]),
     ),
     and(
@@ -206,6 +206,85 @@ export async function recordDownloadQueueItem(input: {
     .get()!;
 }
 
+/**
+ * Atomically publishes a reserved request and all queue ids returned by the
+ * downloader. Either the complete local tracking record exists or none of it
+ * does, allowing the caller to compensate the remote submission safely.
+ */
+export async function recordSubmittedDownload(input: {
+  userId: string;
+  requestId: string;
+  clientId?: string | null;
+  externalQueueIds: string[];
+  sizeBytes?: number | null;
+  category?: string | null;
+  statusMessage: string;
+}) {
+  if (input.externalQueueIds.length === 0) {
+    throw new Error("A submitted download must have at least one queue id.");
+  }
+
+  const database = ensureDatabaseReady();
+  const now = new Date();
+  const queueItemIds = input.externalQueueIds.map(() => randomUUID());
+
+  database.transaction((tx) => {
+    const updated = tx
+      .update(downloadRequests)
+      .set({
+        status: "queued",
+        externalJobId: input.externalQueueIds[0],
+        statusMessage: input.statusMessage,
+        submittedAt: now,
+        missingTickCount: 0,
+        updatedAt: now,
+      })
+      .where(and(
+        eq(downloadRequests.userId, input.userId),
+        eq(downloadRequests.id, input.requestId),
+        eq(downloadRequests.status, "pending"),
+      ))
+      .run();
+
+    if (updated.changes !== 1) {
+      throw new Error("The reserved download request is no longer pending.");
+    }
+
+    for (let index = 0; index < input.externalQueueIds.length; index += 1) {
+      tx
+        .insert(downloadQueueItems)
+        .values({
+          id: queueItemIds[index],
+          requestId: input.requestId,
+          userId: input.userId,
+          clientId: input.clientId ?? null,
+          externalQueueId: input.externalQueueIds[index],
+          status: "queued",
+          progressPercent: 0,
+          sizeBytes: input.sizeBytes ?? null,
+          category: input.category ?? null,
+        })
+        .run();
+    }
+  });
+
+  const queueItems = database
+    .select()
+    .from(downloadQueueItems)
+    .where(inArray(downloadQueueItems.id, queueItemIds))
+    .all();
+  const queueItemById = new Map(queueItems.map((item) => [item.id, item]));
+
+  return {
+    request: database
+      .select()
+      .from(downloadRequests)
+      .where(and(eq(downloadRequests.userId, input.userId), eq(downloadRequests.id, input.requestId)))
+      .get()!,
+    queueItems: queueItemIds.map((id) => queueItemById.get(id)!),
+  };
+}
+
 export async function updateDownloadQueueItemStatus(input: {
   userId: string;
   queueItemId: string;
@@ -290,6 +369,79 @@ export async function listRecentDownloadRequestsWithQueueItems(userId: string, l
     .all();
 }
 
+function downloadRequestHistoryFilters(input: {
+  userId: string;
+  statuses?: DownloadRequestStatus[];
+  query?: string;
+}) {
+  const filters: SQL[] = [eq(downloadRequests.userId, input.userId)];
+  if (input.statuses?.length) filters.push(inArray(downloadRequests.status, input.statuses));
+  if (input.query) {
+    const escaped = input.query.replace(/[\\%_]/g, (character) => `\\${character}`);
+    const pattern = `%${escaped}%`;
+    filters.push(sql`(
+      lower(${downloadRequests.requestedTitle}) like lower(${pattern}) escape '\\'
+      or lower(coalesce(${downloadRequests.releaseTitle}, '')) like lower(${pattern}) escape '\\'
+    )`);
+  }
+  return and(...filters);
+}
+
+export async function listDownloadRequestHistoryPage(input: {
+  userId: string;
+  statuses?: DownloadRequestStatus[];
+  query?: string;
+  limit: number;
+  offset: number;
+}) {
+  const database = ensureDatabaseReady();
+  const filters = downloadRequestHistoryFilters(input);
+  const requests = database
+    .select()
+    .from(downloadRequests)
+    .where(filters)
+    .orderBy(desc(downloadRequests.createdAt), desc(downloadRequests.id))
+    .limit(input.limit)
+    .offset(input.offset)
+    .all();
+  const total = database
+    .select({ value: count(downloadRequests.id) })
+    .from(downloadRequests)
+    .where(filters)
+    .get()?.value ?? 0;
+
+  if (requests.length === 0) return { rows: [], total };
+  const requestById = new Map(requests.map((request) => [request.id, request]));
+  const rows = database
+    .select({ request: downloadRequests, queueItem: downloadQueueItems })
+    .from(downloadRequests)
+    .leftJoin(downloadQueueItems, eq(downloadQueueItems.requestId, downloadRequests.id))
+    .where(inArray(downloadRequests.id, requests.map((request) => request.id)))
+    .all()
+    .sort((left, right) => (
+      requests.findIndex((request) => request.id === left.request.id)
+      - requests.findIndex((request) => request.id === right.request.id)
+    ));
+
+  return {
+    rows: rows.filter((row) => requestById.has(row.request.id)),
+    total,
+  };
+}
+
+export async function countDownloadRequestHistory(input: {
+  userId: string;
+  statuses: DownloadRequestStatus[];
+  query?: string;
+}) {
+  const database = ensureDatabaseReady();
+  return database
+    .select({ value: count(downloadRequests.id) })
+    .from(downloadRequests)
+    .where(downloadRequestHistoryFilters(input))
+    .get()?.value ?? 0;
+}
+
 export async function findActiveDownloadRequestForItem(input: {
   userId: string;
   mediaTitleId: string;
@@ -331,12 +483,60 @@ export async function listActiveDownloadRequestsForImport(userId: string, client
     .all();
 }
 
+/**
+ * Engine downloads are local and remain importable even if the usenet
+ * connection/client row was removed or recreated after they completed.
+ */
+export async function listDownloadRequestsForExternalQueueIdsForImport(
+  userId: string,
+  externalQueueIds: string[],
+) {
+  if (externalQueueIds.length === 0) {
+    return [];
+  }
+
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({ request: downloadRequests, queueItem: downloadQueueItems })
+    .from(downloadQueueItems)
+    .innerJoin(downloadRequests, eq(downloadRequests.id, downloadQueueItems.requestId))
+    .where(and(
+      eq(downloadRequests.userId, userId),
+      inArray(downloadQueueItems.externalQueueId, externalQueueIds),
+      importableRequestPredicate(),
+    ))
+    .orderBy(desc(downloadRequests.createdAt))
+    .all();
+}
+
+export async function listDownloadRequestsForExternalQueueIds(
+  userId: string,
+  externalQueueIds: string[],
+) {
+  if (externalQueueIds.length === 0) {
+    return [];
+  }
+
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({ request: downloadRequests, queueItem: downloadQueueItems })
+    .from(downloadQueueItems)
+    .innerJoin(downloadRequests, eq(downloadRequests.id, downloadQueueItems.requestId))
+    .where(and(
+      eq(downloadRequests.userId, userId),
+      inArray(downloadQueueItems.externalQueueId, externalQueueIds),
+    ))
+    .all();
+}
+
 export async function listUsersWithActiveDownloadRequests() {
   const database = ensureDatabaseReady();
   const activeRows = database
     .select({ userId: downloadRequests.userId })
     .from(downloadRequests)
-    .where(inArray(downloadRequests.status, ["queued", "downloading"]))
+    .where(inArray(downloadRequests.status, ["queued", "downloading", "requeuing"]))
     .all();
   const localImportRetryRows = database
     .select({ userId: downloadRequests.userId })

@@ -14,7 +14,11 @@ describe("recommendation-action-helpers", () => {
   it("normalizes return paths and strips search params for revalidation", () => {
     expect(safeReturnTo("/movies?run=123")).toBe("/movies?run=123");
     expect(safeReturnTo("https://example.com/movies")).toBe("/history");
+    expect(safeReturnTo("//example.com/movies")).toBe("/history");
+    expect(safeReturnTo("/\\example.com/movies")).toBe("/history");
+    expect(safeReturnTo("\\example.com/movies")).toBe("/history");
     expect(safeRevalidatePath("/movies?run=123&generated=1")).toBe("/movies");
+    expect(safeRevalidatePath("/movies#recommendations")).toBe("/movies");
   });
 
   it("builds a generated recommendation redirect path", () => {

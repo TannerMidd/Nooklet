@@ -9,6 +9,11 @@ import {
 } from "@/lib/integrations/sabnzbd";
 import { decryptSecret } from "@/lib/security/secret-box";
 import {
+  listActiveRequestsForExternalQueueId,
+  updateDownloadQueueItemStatus,
+  updateDownloadRequestStatus,
+} from "@/modules/downloads/repositories/download-repository";
+import {
   formatSabnzbdQueueActionMessage,
   sabnzbdQueuePageLimit,
   type SabnzbdQueueActionInput,
@@ -165,6 +170,23 @@ export async function applySabnzbdQueueAction(
       apiKey: context.apiKey,
       itemId: action.itemId,
     });
+
+    for (const entry of await listActiveRequestsForExternalQueueId(userId, action.itemId)) {
+      await updateDownloadQueueItemStatus({
+        userId,
+        queueItemId: entry.queueItem.id,
+        status: "failed",
+        completedAt: new Date(),
+      });
+      await updateDownloadRequestStatus({
+        userId,
+        requestId: entry.request.id,
+        status: "cancelled",
+        externalJobId: action.itemId,
+        statusMessage: "Removed from the download queue.",
+        completedAt: new Date(),
+      });
+    }
   }
 
   const snapshot = await listSabnzbdQueue({

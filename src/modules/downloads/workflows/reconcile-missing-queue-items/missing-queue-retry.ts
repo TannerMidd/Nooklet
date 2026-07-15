@@ -12,6 +12,7 @@ import {
   updateDownloadRequestStatus,
 } from "@/modules/downloads/repositories/download-repository";
 import { searchLibraryItemReleasesWorkflow } from "@/modules/media-library/workflows/search-library-item-releases";
+import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
 
 import { type ResolvedImportSabnzbdClient } from "../import-completed-downloads/client-resolution";
 
@@ -34,12 +35,16 @@ export const MIN_SAB_VISIBILITY_WINDOW_MS = 5 * 60 * 1000;
 export const MISSING_TICKS_THRESHOLD = 4;
 export const MAX_MISSING_RETRY_COUNT = 3;
 
-function retryKey(mediaTitleId: string | null, episodeId: string | null) {
+function retryKey(
+  mediaTitleId: string | null,
+  episodeId: string | null,
+  seasonId: string | null,
+) {
   if (!mediaTitleId) {
     return null;
   }
 
-  return `${mediaTitleId}:${episodeId ?? "movie"}`;
+  return `${mediaTitleId}:${episodeId ?? seasonId ?? "title"}`;
 }
 
 function isTrackedActiveDownload(entry: ActiveDownloadRequest) {
@@ -66,6 +71,11 @@ export async function retryMissingSabnzbdQueueItems(
   const currentQueueIds = new Set(snapshot.items.map((item) => item.id));
   const historyQueueIds = new Set(history.items.map((item) => item.id));
   const retriedItemKeys = new Set<string>();
+  const terminalFailures = new Map<string, {
+    title: string;
+    mediaType: "tv" | "movie";
+    message: string;
+  }>();
   const now = Date.now();
   let missingCount = 0;
   let attemptedCount = 0;
@@ -140,13 +150,31 @@ export async function retryMissingSabnzbdQueueItems(
     });
 
     if (retriesExhausted) {
+      terminalFailures.set(
+        retryKey(entry.request.mediaTitleId, entry.request.episodeId, entry.request.seasonId)
+          ?? `request:${entry.request.id}`,
+        {
+          title: entry.request.requestedTitle,
+          mediaType: entry.request.mediaType,
+          message: exhaustedRetriesMessage,
+        },
+      );
       continue;
     }
 
     const mediaTitleId = entry.request.mediaTitleId;
-    const itemKey = retryKey(mediaTitleId, entry.request.episodeId);
+    const itemKey = retryKey(mediaTitleId, entry.request.episodeId, entry.request.seasonId);
 
-    if (!mediaTitleId || !itemKey || retriedItemKeys.has(itemKey)) {
+    if (!mediaTitleId || !itemKey) {
+      terminalFailures.set(`request:${entry.request.id}`, {
+        title: entry.request.requestedTitle,
+        mediaType: entry.request.mediaType,
+        message: missingQueueMessage,
+      });
+      continue;
+    }
+
+    if (retriedItemKeys.has(itemKey)) {
       continue;
     }
 
@@ -163,6 +191,7 @@ export async function retryMissingSabnzbdQueueItems(
       });
       const retry = await searchLibraryItemReleasesWorkflow(userId, {
         titleId: mediaTitleId,
+        ...(entry.request.seasonId ? { seasonId: entry.request.seasonId } : {}),
         episodeId: entry.request.episodeId ?? undefined,
         targetLibraryPathId: entry.request.targetLibraryPathId ?? undefined,
         excludedResultIds: exclusions.resultIds,
@@ -173,10 +202,32 @@ export async function retryMissingSabnzbdQueueItems(
         queuedCount += 1;
       } else {
         failedCount += 1;
+        terminalFailures.set(itemKey, {
+          title: entry.request.requestedTitle,
+          mediaType: entry.request.mediaType,
+          message: missingQueueMessage,
+        });
       }
     } catch {
       failedCount += 1;
+      terminalFailures.set(itemKey, {
+        title: entry.request.requestedTitle,
+        mediaType: entry.request.mediaType,
+        message: missingQueueMessage,
+      });
     }
+  }
+
+  for (const failure of terminalFailures.values()) {
+    await safeDispatchNotificationWorkflow({
+      userId,
+      payload: {
+        eventType: "download_failed",
+        title: failure.title,
+        mediaType: failure.mediaType,
+        message: failure.message,
+      },
+    });
   }
 
   return { missingCount, attemptedCount, queuedCount, failedCount, graceCount, awaitingImportCount };

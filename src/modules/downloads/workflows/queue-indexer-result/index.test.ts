@@ -10,6 +10,9 @@ vi.mock("./result-resolution", () => ({
 vi.mock("./active-download-guard", () => ({
   ensureNoActiveDownloadRequest: vi.fn(),
 }));
+vi.mock("./association-validation", () => ({
+  validateQueueIndexerResultAssociations: vi.fn(),
+}));
 vi.mock("./target-resolution", () => ({
   resolveQueueIndexerResultTarget: vi.fn(),
 }));
@@ -24,6 +27,7 @@ vi.mock("./reservation", () => ({
 }));
 vi.mock("./download-submission", () => ({
   submitIndexerResultToDownloadClient: vi.fn(),
+  compensateIndexerResultSubmission: vi.fn(),
 }));
 vi.mock("./persistence", () => ({
   persistQueuedIndexerResultDownload: vi.fn(),
@@ -35,8 +39,12 @@ vi.mock("./audit", () => ({
 
 import { recordQueuedIndexerResultAudit } from "./audit";
 import { ensureNoActiveDownloadRequest } from "./active-download-guard";
+import { validateQueueIndexerResultAssociations } from "./association-validation";
 import { resolveDownloadClient } from "./client-resolution";
-import { submitIndexerResultToDownloadClient } from "./download-submission";
+import {
+  compensateIndexerResultSubmission,
+  submitIndexerResultToDownloadClient,
+} from "./download-submission";
 import {
   failReservedDownloadRequest,
   persistQueuedIndexerResultDownload,
@@ -50,12 +58,14 @@ import { queueIndexerResultWorkflow } from "./index";
 
 const validateMock = vi.mocked(validateQueueIndexerResultRequest);
 const activeGuardMock = vi.mocked(ensureNoActiveDownloadRequest);
+const associationMock = vi.mocked(validateQueueIndexerResultAssociations);
 const resolveResultMock = vi.mocked(resolveQueueIndexerResult);
 const protocolGuardMock = vi.mocked(ensureSabnzbdCompatibleResult);
 const resolveTargetMock = vi.mocked(resolveQueueIndexerResultTarget);
 const resolveClientMock = vi.mocked(resolveDownloadClient);
 const reserveMock = vi.mocked(reserveDownloadRequest);
 const submitMock = vi.mocked(submitIndexerResultToDownloadClient);
+const compensateMock = vi.mocked(compensateIndexerResultSubmission);
 const persistMock = vi.mocked(persistQueuedIndexerResultDownload);
 const failReservedMock = vi.mocked(failReservedDownloadRequest);
 const auditMock = vi.mocked(recordQueuedIndexerResultAudit);
@@ -93,6 +103,9 @@ describe("queueIndexerResultWorkflow", () => {
       calls.push("resolve-result");
       return resolvedResult as never;
     });
+    associationMock.mockImplementation(async () => {
+      calls.push("association");
+    });
     protocolGuardMock.mockImplementation(() => {
       calls.push("protocol-guard");
     });
@@ -124,8 +137,9 @@ describe("queueIndexerResultWorkflow", () => {
 
     expect(calls).toEqual([
       "validate",
-      "active-guard",
       "resolve-result",
+      "association",
+      "active-guard",
       "protocol-guard",
       "resolve-target",
       "resolve-client",
@@ -136,6 +150,7 @@ describe("queueIndexerResultWorkflow", () => {
     ]);
     expect(activeGuardMock).toHaveBeenCalledWith("user1", request);
     expect(resolveResultMock).toHaveBeenCalledWith("user1", request);
+    expect(associationMock).toHaveBeenCalledWith("user1", request, resolvedResult);
     expect(protocolGuardMock).toHaveBeenCalledWith(resolvedResult);
     expect(resolveTargetMock).toHaveBeenCalledWith("user1", request, resolvedResult);
     expect(resolveClientMock).toHaveBeenCalledWith("user1");
@@ -188,6 +203,37 @@ describe("queueIndexerResultWorkflow", () => {
       reason: "sab boom",
     });
     expect(persistMock).not.toHaveBeenCalled();
+    expect(auditMock).not.toHaveBeenCalled();
+  });
+
+  it("removes the downloader job and fails the reservation when local persistence fails", async () => {
+    const request = {
+      resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9",
+      mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+    };
+    const resolvedResult = { result: { id: request.resultId, title: "Arrival" } };
+    const reservedRequest = { id: "request3" };
+    const downloadClient = { kind: "sabnzbd", client: { id: "client1" } };
+    const submission = { queueIds: ["nzo-3"], category: "movies" };
+    const persistenceError = new Error("database full");
+
+    validateMock.mockReturnValue(request as never);
+    activeGuardMock.mockResolvedValue(undefined);
+    resolveResultMock.mockResolvedValue(resolvedResult as never);
+    resolveTargetMock.mockResolvedValue(null as never);
+    resolveClientMock.mockResolvedValue(downloadClient as never);
+    reserveMock.mockResolvedValue(reservedRequest as never);
+    submitMock.mockResolvedValue(submission);
+    persistMock.mockRejectedValue(persistenceError);
+    compensateMock.mockResolvedValue(undefined);
+
+    await expect(queueIndexerResultWorkflow("user1", request as never)).rejects.toBe(persistenceError);
+    expect(compensateMock).toHaveBeenCalledWith("user1", downloadClient, submission);
+    expect(failReservedMock).toHaveBeenCalledWith({
+      userId: "user1",
+      reservedRequest,
+      reason: "database full The downloader job was removed automatically.",
+    });
     expect(auditMock).not.toHaveBeenCalled();
   });
 });

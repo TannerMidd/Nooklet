@@ -4,6 +4,8 @@ out/
 dist/
 coverage/
 data/
+backups/
+.codex-tmp/
 *.tsbuildinfo
 .env
 .env.local
@@ -16,3 +18,4 @@ docker-compose.override.yml
 
 .env.alpha
 docker-compose.alpha.yml
+.claude/settings.local.json

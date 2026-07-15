@@ -1,24 +1,14 @@
 "use client";
 
 import { useActionState } from "react";
-import { useFormStatus } from "react-dom";
 
 import {
   initialCreateManagedUserActionState,
 } from "@/app/(workspace)/admin/action-state";
 import { submitCreateManagedUserAction } from "@/app/(workspace)/admin/actions";
-import { Button } from "@/components/ui/button";
+import { AsyncButton } from "@/components/ui/async-button";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button type="submit" className="w-full sm:w-auto">
-      {pending ? "Creating user..." : "Create user"}
-    </Button>
-  );
-}
 
 export function CreateUserForm() {
   const [state, formAction] = useActionState(
@@ -29,76 +19,42 @@ export function CreateUserForm() {
   return (
     <form action={formAction} className="space-y-5">
       <div className="grid gap-3.5 md:grid-cols-2">
-        <label className="space-y-1.5">
-          <span className="text-sm font-medium text-foreground">Display name</span>
-          <Input
-            name="displayName"
-            placeholder="Taylor Example"
-            aria-invalid={Boolean(state.fieldErrors?.displayName)}
-          />
-          {state.fieldErrors?.displayName ? (
-            <p className="text-sm text-accent-wine">{state.fieldErrors.displayName}</p>
-          ) : null}
-        </label>
+        <FormField label="Display name" required error={state.fieldErrors?.displayName}>
+          {(controlProps) => <Input {...controlProps} name="displayName" autoComplete="name" placeholder="Taylor Example" />}
+        </FormField>
 
-        <label className="space-y-1.5">
-          <span className="text-sm font-medium text-foreground">Email</span>
-          <Input
-            name="email"
-            type="email"
-            placeholder="taylor@example.com"
-            aria-invalid={Boolean(state.fieldErrors?.email)}
-          />
-          {state.fieldErrors?.email ? (
-            <p className="text-sm text-accent-wine">{state.fieldErrors.email}</p>
-          ) : null}
-        </label>
+        <FormField label="Email" required error={state.fieldErrors?.email}>
+          {(controlProps) => <Input {...controlProps} name="email" type="email" autoComplete="email" placeholder="taylor@example.com" />}
+        </FormField>
       </div>
 
       <div className="grid gap-3.5 md:grid-cols-[0.7fr,1fr,1fr]">
-        <label className="space-y-1.5">
-          <span className="text-sm font-medium text-foreground">Role</span>
-          <select
-            name="role"
-            defaultValue="user"
-            className="min-h-9 w-full rounded-lg border border-cream/[0.08] bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
-            aria-invalid={Boolean(state.fieldErrors?.role)}
-          >
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
-          </select>
-          {state.fieldErrors?.role ? (
-            <p className="text-sm text-accent-wine">{state.fieldErrors.role}</p>
-          ) : null}
-        </label>
+        <FormField label="Role" required error={state.fieldErrors?.role} description="Users can request media; admins can change instance configuration.">
+          {(controlProps) => (
+            <select
+              {...controlProps}
+              name="role"
+              defaultValue="user"
+              className="min-h-11 w-full rounded-lg border border-control bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
+            >
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+          )}
+        </FormField>
 
-        <label className="space-y-1.5">
-          <span className="text-sm font-medium text-foreground">Temporary password</span>
-          <Input
-            name="password"
-            type="password"
-            aria-invalid={Boolean(state.fieldErrors?.password)}
-          />
-          {state.fieldErrors?.password ? (
-            <p className="text-sm text-accent-wine">{state.fieldErrors.password}</p>
-          ) : null}
-        </label>
+        <FormField label="Temporary password" required error={state.fieldErrors?.password} description="At least 12 characters with uppercase, lowercase, and a number.">
+          {(controlProps) => <Input {...controlProps} name="password" type="password" autoComplete="new-password" minLength={12} />}
+        </FormField>
 
-        <label className="space-y-1.5">
-          <span className="text-sm font-medium text-foreground">Confirm password</span>
-          <Input
-            name="confirmPassword"
-            type="password"
-            aria-invalid={Boolean(state.fieldErrors?.confirmPassword)}
-          />
-          {state.fieldErrors?.confirmPassword ? (
-            <p className="text-sm text-accent-wine">{state.fieldErrors.confirmPassword}</p>
-          ) : null}
-        </label>
+        <FormField label="Confirm password" required error={state.fieldErrors?.confirmPassword}>
+          {(controlProps) => <Input {...controlProps} name="confirmPassword" type="password" autoComplete="new-password" minLength={12} />}
+        </FormField>
       </div>
 
       {state.message ? (
         <p
+          role={state.status === "error" ? "alert" : "status"}
           className={
             state.status === "success"
               ? "rounded-lg border border-accent/20 bg-accent/10 px-3 py-2 text-sm text-foreground"
@@ -110,9 +66,11 @@ export function CreateUserForm() {
       ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <SubmitButton />
+        <AsyncButton type="submit" pendingLabel="Creating user…" className="w-full sm:w-auto">
+          Create user
+        </AsyncButton>
         <p className="text-sm leading-6 text-muted">
-          New accounts are created in the normalized users table and immediately inherit the local login flow.
+          New accounts can use shared services and storage immediately. History and notifications remain personal.
         </p>
       </div>
     </form>

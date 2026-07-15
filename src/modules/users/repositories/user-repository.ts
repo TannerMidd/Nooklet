@@ -57,6 +57,7 @@ type CreateUserInput = {
   displayName: string;
   passwordHash: string;
   role: UserRole;
+  mustChangePassword?: boolean;
 };
 
 export async function createUser(input: CreateUserInput) {
@@ -71,20 +72,29 @@ export async function createUser(input: CreateUserInput) {
       displayName: input.displayName,
       passwordHash: input.passwordHash,
       role: input.role,
+      mustChangePassword: input.mustChangePassword ?? false,
     })
     .run();
 
   return database.select().from(users).where(eq(users.id, id)).get() ?? null;
 }
 
-export async function updateUserPassword(userId: string, passwordHash: string) {
+export async function updateUserPassword(
+  userId: string,
+  passwordHash: string,
+  options: { mustChangePassword?: boolean } = {},
+) {
   const database = ensureDatabaseReady();
   const now = new Date();
+  const passwordState = typeof options.mustChangePassword === "boolean"
+    ? { mustChangePassword: options.mustChangePassword }
+    : {};
 
   database
     .update(users)
     .set({
       passwordHash,
+      ...passwordState,
       passwordChangedAt: now,
       failedLoginAttempts: 0,
       lockedUntil: null,
@@ -96,7 +106,7 @@ export async function updateUserPassword(userId: string, passwordHash: string) {
   return findUserById(userId);
 }
 
-export async function recordFailedLogin(userId: string, lockoutThreshold: number, lockoutDurationMs: number) {
+export async function recordFailedLogin(userId: string) {
   const database = ensureDatabaseReady();
   const now = new Date();
 
@@ -105,18 +115,16 @@ export async function recordFailedLogin(userId: string, lockoutThreshold: number
     if (!user) return null;
 
     const nextAttempts = (user.failedLoginAttempts ?? 0) + 1;
-    const shouldLock = nextAttempts >= lockoutThreshold;
 
     tx.update(users)
       .set({
         failedLoginAttempts: nextAttempts,
-        lockedUntil: shouldLock ? new Date(now.getTime() + lockoutDurationMs) : user.lockedUntil,
         updatedAt: now,
       })
       .where(eq(users.id, userId))
       .run();
 
-    return { attempts: nextAttempts, locked: shouldLock };
+    return { attempts: nextAttempts };
   });
 }
 
@@ -134,34 +142,87 @@ export async function clearFailedLogins(userId: string) {
     .run();
 }
 
-export async function updateUserRole(userId: string, role: UserRole) {
+type GuardedUserUpdateResult =
+  | { status: "updated"; user: typeof users.$inferSelect; previousUser: typeof users.$inferSelect }
+  | { status: "unchanged"; user: typeof users.$inferSelect }
+  | { status: "actor_not_authorized" | "not_found" | "self_update" | "last_active_admin" };
+
+export async function updateUserRoleGuarded(
+  actorUserId: string,
+  userId: string,
+  role: UserRole,
+): Promise<GuardedUserUpdateResult> {
   const database = ensureDatabaseReady();
 
-  database
-    .update(users)
-    .set({
-      role,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.id, userId))
-    .run();
+  return database.transaction((tx) => {
+    const actor = tx.select().from(users).where(eq(users.id, actorUserId)).get();
+    if (!actor || actor.role !== "admin" || actor.isDisabled) {
+      return { status: "actor_not_authorized" } as const;
+    }
 
-  return findUserById(userId);
+    const target = tx.select().from(users).where(eq(users.id, userId)).get();
+    if (!target) return { status: "not_found" } as const;
+    if (target.id === actorUserId) return { status: "self_update" } as const;
+    if (target.role === role) return { status: "unchanged", user: target } as const;
+
+    if (target.role === "admin" && role !== "admin" && !target.isDisabled) {
+      const activeAdminCount = tx
+        .select({ count: count() })
+        .from(users)
+        .where(and(eq(users.role, "admin"), eq(users.isDisabled, false)))
+        .get()?.count ?? 0;
+      if (activeAdminCount <= 1) {
+        return { status: "last_active_admin" } as const;
+      }
+    }
+
+    tx.update(users)
+      .set({ role, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .run();
+
+    const updated = tx.select().from(users).where(eq(users.id, userId)).get()!;
+    return { status: "updated", user: updated, previousUser: target } as const;
+  });
 }
 
-export async function updateUserDisabledState(userId: string, isDisabled: boolean) {
+export async function updateUserDisabledStateGuarded(
+  actorUserId: string,
+  userId: string,
+  isDisabled: boolean,
+): Promise<GuardedUserUpdateResult> {
   const database = ensureDatabaseReady();
 
-  database
-    .update(users)
-    .set({
-      isDisabled,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.id, userId))
-    .run();
+  return database.transaction((tx) => {
+    const actor = tx.select().from(users).where(eq(users.id, actorUserId)).get();
+    if (!actor || actor.role !== "admin" || actor.isDisabled) {
+      return { status: "actor_not_authorized" } as const;
+    }
 
-  return findUserById(userId);
+    const target = tx.select().from(users).where(eq(users.id, userId)).get();
+    if (!target) return { status: "not_found" } as const;
+    if (target.id === actorUserId) return { status: "self_update" } as const;
+    if (target.isDisabled === isDisabled) return { status: "unchanged", user: target } as const;
+
+    if (isDisabled && target.role === "admin" && !target.isDisabled) {
+      const activeAdminCount = tx
+        .select({ count: count() })
+        .from(users)
+        .where(and(eq(users.role, "admin"), eq(users.isDisabled, false)))
+        .get()?.count ?? 0;
+      if (activeAdminCount <= 1) {
+        return { status: "last_active_admin" } as const;
+      }
+    }
+
+    tx.update(users)
+      .set({ isDisabled, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .run();
+
+    const updated = tx.select().from(users).where(eq(users.id, userId)).get()!;
+    return { status: "updated", user: updated, previousUser: target } as const;
+  });
 }
 
 type CreateAuditEventInput = {

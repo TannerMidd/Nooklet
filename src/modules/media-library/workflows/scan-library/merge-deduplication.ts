@@ -1,11 +1,12 @@
 import {
   countMediaFilesForTitle,
   countMediaTitleExternalIds,
-  deleteMediaFilesByLibraryPath,
+  deleteMediaFilesByIds,
   deleteMediaTitleByIdForUser,
   findMediaFileByUserPath,
   findMediaTitleByIdForUser,
-  listMediaFileTitleIdsByLibraryPath,
+  listMediaFilesByLibraryPath,
+  reconcileMediaTitleFileAvailability,
   type MediaTitleRecord,
   upsertMediaFile,
   upsertMediaTitle,
@@ -13,7 +14,7 @@ import {
   upsertTvSeason,
 } from "@/modules/media-library/repositories/media-library-repository";
 
-import { type NormalizedLibraryFile, type NormalizedLibraryScan } from "./normalization";
+import { type NormalizedLibraryScan } from "./normalization";
 
 export type MergedLibraryScan = {
   sources: NormalizedLibraryScan["sources"];
@@ -30,21 +31,21 @@ export type MergedLibraryScan = {
 
 function ensurePathStats(
   stats: Map<string, { libraryId: string; libraryPathId: string; fileCount: number; titleIds: Set<string> }>,
-  file: NormalizedLibraryFile,
+  source: NormalizedLibraryScan["sources"][number],
 ) {
-  const existing = stats.get(file.source.path.id);
+  const existing = stats.get(source.path.id);
 
   if (existing) {
     return existing;
   }
 
   const created = {
-    libraryId: file.source.library.id,
-    libraryPathId: file.source.path.id,
+    libraryId: source.library.id,
+    libraryPathId: source.path.id,
     fileCount: 0,
     titleIds: new Set<string>(),
   };
-  stats.set(file.source.path.id, created);
+  stats.set(source.path.id, created);
 
   return created;
 }
@@ -73,31 +74,33 @@ async function deleteOrphanedScannerTitle(userId: string, titleId: string) {
   }
 }
 
-async function clearSuccessfullyScannedPathFiles(userId: string, scan: NormalizedLibraryScan) {
+async function snapshotSuccessfullyScannedPathFiles(userId: string, scan: NormalizedLibraryScan) {
   const failedPathIds = new Set(scan.failedPaths.map((failedPath) => failedPath.source.path.id));
-  const clearedPathIds = new Set<string>();
-  const staleTitleIds = new Set<string>();
+  const snapshots = new Map<string, Awaited<ReturnType<typeof listMediaFilesByLibraryPath>>>();
 
   for (const source of scan.sources) {
-    if (failedPathIds.has(source.path.id) || clearedPathIds.has(source.path.id)) {
+    if (failedPathIds.has(source.path.id) || snapshots.has(source.path.id)) {
       continue;
     }
 
-    for (const titleId of await listMediaFileTitleIdsByLibraryPath(userId, source.path.id)) {
-      staleTitleIds.add(titleId);
-    }
-
-    await deleteMediaFilesByLibraryPath(userId, source.path.id);
-    clearedPathIds.add(source.path.id);
+    snapshots.set(source.path.id, await listMediaFilesByLibraryPath(userId, source.path.id));
   }
 
-  return staleTitleIds;
+  return snapshots;
 }
 
 export async function mergeLibraryScanFiles(userId: string, scan: NormalizedLibraryScan): Promise<MergedLibraryScan> {
   const pathStats = new Map<string, { libraryId: string; libraryPathId: string; fileCount: number; titleIds: Set<string> }>();
+  const failedPathIds = new Set(scan.failedPaths.map((failedPath) => failedPath.source.path.id));
+  for (const source of scan.sources) {
+    if (!failedPathIds.has(source.path.id)) {
+      ensurePathStats(pathStats, source);
+    }
+  }
+
   const matchedTitleIds = new Set<string>();
-  const staleTitleIds = await clearSuccessfullyScannedPathFiles(userId, scan);
+  const previousFilesByPath = await snapshotSuccessfullyScannedPathFiles(userId, scan);
+  const observedPathsByLibraryPath = new Map<string, Set<string>>();
 
   for (const file of scan.files) {
     const title = await upsertMediaTitle({
@@ -116,6 +119,9 @@ export async function mergeLibraryScanFiles(userId: string, scan: NormalizedLibr
     }
 
     const existingFile = await findMediaFileByUserPath(userId, file.filePath);
+    const observedPaths = observedPathsByLibraryPath.get(file.source.path.id) ?? new Set<string>();
+    observedPaths.add(file.filePath);
+    observedPathsByLibraryPath.set(file.source.path.id, observedPaths);
 
     const season = file.source.library.mediaType === "tv" && file.seasonNumber !== null
       ? await upsertTvSeason({
@@ -150,16 +156,38 @@ export async function mergeLibraryScanFiles(userId: string, scan: NormalizedLibr
 
     if (existingFile?.titleId && existingFile.titleId !== title.id) {
       await deleteOrphanedScannerTitle(userId, existingFile.titleId);
+      await reconcileMediaTitleFileAvailability(userId, existingFile.titleId);
     }
 
-    const stats = ensurePathStats(pathStats, file);
+    const stats = ensurePathStats(pathStats, file.source);
     stats.fileCount += 1;
     stats.titleIds.add(title.id);
     matchedTitleIds.add(title.id);
   }
 
+  // Remove stale rows only after every newly observed file has been persisted.
+  // A crash during the upsert phase therefore leaves an over-complete inventory
+  // that the next scan can safely reconcile instead of an empty library.
+  const staleTitleIds = new Set<string>();
+  const staleFileIds: string[] = [];
+  for (const [libraryPathId, previousFiles] of previousFilesByPath) {
+    const observedPaths = observedPathsByLibraryPath.get(libraryPathId) ?? new Set<string>();
+    for (const previousFile of previousFiles) {
+      if (!observedPaths.has(previousFile.filePath)) {
+        staleFileIds.push(previousFile.id);
+        staleTitleIds.add(previousFile.titleId);
+      }
+    }
+  }
+  await deleteMediaFilesByIds(userId, staleFileIds);
+
   for (const titleId of staleTitleIds) {
     await deleteOrphanedScannerTitle(userId, titleId);
+    await reconcileMediaTitleFileAvailability(userId, titleId);
+  }
+
+  for (const titleId of matchedTitleIds) {
+    await reconcileMediaTitleFileAvailability(userId, titleId);
   }
 
   return {

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { lstat, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, realpath, rename, rm, stat } from "node:fs/promises";
 
 import { sanitizeDownloadFileName } from "@/modules/download-engine/assembly/sanitize-file-name";
 import { deobfuscateDownloadFiles } from "@/modules/download-engine/finalize/deobfuscate-files";
@@ -66,8 +66,23 @@ async function binaryAvailable(binary: string): Promise<boolean> {
   return available;
 }
 
-function shortError(error: unknown) {
-  return error instanceof Error ? error.message.slice(0, 300) : "unknown error";
+export function redactArchiveToolText(value: string, secrets: Array<string | null> = []) {
+  let redacted = value;
+
+  for (const secret of secrets) {
+    if (secret) {
+      redacted = redacted.replaceAll(secret, "[REDACTED]");
+    }
+  }
+
+  return redacted
+    .replace(/(^|[\s"'`,\[\]])(-p)(?:"[^"]*"|'[^']*'|\S+)/gi, "$1$2[REDACTED]")
+    .replace(/\b(password\s*[=:]\s*)(?:"[^"]*"|'[^']*'|\S+)/gi, "$1[REDACTED]");
+}
+
+function shortError(error: unknown, secrets: Array<string | null> = []) {
+  const message = error instanceof Error ? error.message : "unknown error";
+  return redactArchiveToolText(message, secrets).slice(0, 300);
 }
 
 async function listFiles(dir: string) {
@@ -121,6 +136,533 @@ function isZipOr7zArchive(name: string) {
   return lower.endsWith(".7z") || lower.endsWith(".zip");
 }
 
+export type ArchiveListingEntry = {
+  path: string;
+  kind: "file" | "directory";
+  size: number;
+};
+
+type ArchivePlan = {
+  archive: string;
+  archivePath: string;
+  entries: ArchiveListingEntry[];
+  tool: "unrar" | "7zz";
+};
+
+function archivePasswordSwitch(password: string | null) {
+  // A bare `-p` can prompt interactively. `-p-` disables UnRAR prompts and
+  // supplies a concrete sentinel password to 7zz, keeping both subprocesses
+  // non-interactive when the NZB did not provide one.
+  return `-p${password || "-"}`;
+}
+
+export function buildUnrarExtractionArguments(
+  archivePath: string,
+  stagingDir: string,
+  password: string | null,
+) {
+  return [
+    "x",
+    "-o+",
+    "-y",
+    "-ol-",
+    archivePasswordSwitch(password),
+    archivePath,
+    `${stagingDir}${path.sep}`,
+  ];
+}
+
+function assertSafeArchiveEntry(entryName: string) {
+  const normalized = entryName.replaceAll("\\", "/").replace(/\/+$/, "");
+  const segments = normalized.split("/");
+
+  if (
+    normalized.length === 0
+    || normalized.includes("\0")
+    || /[\u0000-\u001f\u007f]/.test(normalized)
+    || normalized.startsWith("/")
+    || path.posix.isAbsolute(normalized)
+    || path.win32.isAbsolute(entryName)
+    || segments.some((segment) => segment === "" || segment === "." || segment === "..")
+    || segments.some((segment) => segment.includes(":"))
+  ) {
+    throw new FinalizeDownloadError(`Archive contains an unsafe path: ${entryName.slice(0, 160)}`);
+  }
+}
+
+function isMeaningfulMetadata(value: string) {
+  return !new Set(["", "-", "0", "false", "no", "none", "null"]).has(value.trim().toLowerCase());
+}
+
+function assertNoArchiveLinkMetadata(fields: ReadonlyMap<string, string>, entryName: string) {
+  for (const [rawKey, rawValue] of fields) {
+    const key = rawKey.trim().toLowerCase();
+    const value = rawValue.trim().toLowerCase();
+    const linkKey = /(?:symbolic|sym|hard)\s*link|^link$|link\s*target|redir(?:ection)?|junction|reparse|^target$/.test(key);
+    const linkValue = /symbolic\s+link|symlink|hard\s+link|junction|reparse(?:\s+point)?/.test(value);
+    const unixLinkMode = /(?:attribute|mode|type)/.test(key) && /(?:^|\s)l[rwxst-]{9}(?:\s|$)/.test(value);
+    const genericLinkType = key === "type" && value === "link";
+
+    if ((linkKey && isMeaningfulMetadata(value)) || linkValue || unixLinkMode || genericLinkType) {
+      throw new FinalizeDownloadError(
+        `Archive contains a link or reparse entry: ${entryName.slice(0, 160)}`,
+      );
+    }
+  }
+}
+
+function parseNonNegativeSize(value: string | undefined, entryName: string) {
+  if (!value || !/^\d+$/.test(value.trim())) {
+    throw new FinalizeDownloadError(`Archive has an invalid declared size for: ${entryName.slice(0, 160)}`);
+  }
+
+  const size = Number(value.trim());
+
+  if (!Number.isSafeInteger(size) || size < 0) {
+    throw new FinalizeDownloadError(`Archive has an invalid declared size for: ${entryName.slice(0, 160)}`);
+  }
+
+  return size;
+}
+
+function parseTechnicalRecords(
+  listing: string,
+  entryKey: string,
+  separator: ":" | "=",
+): Array<Map<string, string>> {
+  const records: Array<Map<string, string>> = [];
+  let current: Map<string, string> | null = null;
+  const fieldPattern = separator === ":"
+    ? /^\s*([^:]+?)\s*:\s*(.*)$/
+    : /^\s*([^=]+?)\s*=\s*(.*)$/;
+
+  for (const line of listing.split(/\r?\n/)) {
+    const match = line.match(fieldPattern);
+
+    if (!match) {
+      continue;
+    }
+
+    const key = match[1].trim();
+    const value = match[2].trim();
+
+    if (key.toLowerCase() === entryKey.toLowerCase()) {
+      if (current) {
+        records.push(current);
+      }
+      current = new Map([[key, value]]);
+    } else if (current) {
+      const duplicateKey = [...current.keys()].some(
+        (existingKey) => existingKey.toLowerCase() === key.toLowerCase(),
+      );
+
+      if (duplicateKey) {
+        throw new FinalizeDownloadError(`Archive technical listing repeats the ${key.slice(0, 80)} field.`);
+      }
+
+      current.set(key, value);
+    }
+  }
+
+  if (current) {
+    records.push(current);
+  }
+
+  return records;
+}
+
+function getField(fields: ReadonlyMap<string, string>, key: string) {
+  const wanted = key.toLowerCase();
+
+  for (const [fieldKey, value] of fields) {
+    if (fieldKey.toLowerCase() === wanted) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+/** Parses `unrar lt` technical output without trusting display-oriented columns. */
+export function parseUnrarTechnicalListing(listing: string): ArchiveListingEntry[] {
+  const records = parseTechnicalRecords(listing, "Name", ":");
+
+  return records.map((fields) => {
+    const entryName = getField(fields, "Name") ?? "";
+    const rawType = (getField(fields, "Type") ?? "").trim().toLowerCase();
+
+    assertSafeArchiveEntry(entryName);
+    assertNoArchiveLinkMetadata(fields, entryName);
+
+    let kind: ArchiveListingEntry["kind"];
+
+    if (rawType === "file") {
+      kind = "file";
+    } else if (rawType === "directory" || rawType === "folder") {
+      kind = "directory";
+    } else {
+      throw new FinalizeDownloadError(
+        `Archive contains an unsupported entry type for: ${entryName.slice(0, 160)}`,
+      );
+    }
+
+    return {
+      path: entryName,
+      kind,
+      size: kind === "file" ? parseNonNegativeSize(getField(fields, "Size"), entryName) : 0,
+    };
+  });
+}
+
+/** Parses the per-entry portion of `7zz l -slt` output. */
+export function parse7zTechnicalListing(listing: string): ArchiveListingEntry[] {
+  const separatorMatch = listing.match(/^\s*-{10,}\s*$/m);
+  const entriesText = separatorMatch
+    ? listing.slice((separatorMatch.index ?? 0) + separatorMatch[0].length)
+    : listing;
+  const records = parseTechnicalRecords(entriesText, "Path", "=");
+
+  return records.map((fields) => {
+    const entryName = getField(fields, "Path") ?? "";
+    const folder = (getField(fields, "Folder") ?? "").trim() === "+";
+    const attributes = (getField(fields, "Attributes") ?? "").trim();
+    const kind: ArchiveListingEntry["kind"] = folder || /^d/i.test(attributes)
+      ? "directory"
+      : "file";
+
+    assertSafeArchiveEntry(entryName);
+    assertNoArchiveLinkMetadata(fields, entryName);
+
+    if ((getField(fields, "Anti") ?? "").trim() === "+") {
+      throw new FinalizeDownloadError(
+        `Archive contains an unsupported anti-item: ${entryName.slice(0, 160)}`,
+      );
+    }
+
+    return {
+      path: entryName,
+      kind,
+      size: kind === "file" ? parseNonNegativeSize(getField(fields, "Size"), entryName) : 0,
+    };
+  });
+}
+
+export function assertArchiveListingQuota(
+  entries: readonly ArchiveListingEntry[],
+  maxExtractedBytes: number,
+  maxExtractedFiles: number,
+) {
+  if (
+    !Number.isSafeInteger(maxExtractedBytes)
+    || maxExtractedBytes < 0
+    || !Number.isSafeInteger(maxExtractedFiles)
+    || maxExtractedFiles < 0
+  ) {
+    throw new FinalizeDownloadError("Extraction quota must use non-negative safe integers.");
+  }
+
+  let totalBytes = 0;
+  let totalEntries = 0;
+
+  for (const entry of entries) {
+    totalEntries += 1;
+    totalBytes += entry.size;
+
+    if (
+      !Number.isSafeInteger(totalBytes)
+      || totalBytes > maxExtractedBytes
+      || totalEntries > maxExtractedFiles
+    ) {
+      throw new FinalizeDownloadError("Archive exceeds the configured extraction quota.");
+    }
+  }
+
+  return { totalBytes, totalEntries };
+}
+
+function isContainedPath(rootPath: string, candidatePath: string) {
+  const relative = path.relative(rootPath, candidatePath);
+
+  return relative === "" || (!path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(`..${path.sep}`));
+}
+
+/**
+ * Validates the filesystem tree emitted by an archive tool. Links, special
+ * files, hard links and anything resolving outside the staging root fail
+ * closed; nothing is merely removed after the fact.
+ */
+export async function verifyStagedArchiveTree(
+  rootDir: string,
+  maxExtractedBytes: number,
+  maxExtractedFiles: number,
+) {
+  assertArchiveListingQuota([], maxExtractedBytes, maxExtractedFiles);
+  const rootStats = await lstat(rootDir);
+
+  if (!rootStats.isDirectory() || rootStats.isSymbolicLink()) {
+    throw new FinalizeDownloadError("Archive staging root is not a regular directory.");
+  }
+
+  const resolvedRoot = await realpath(rootDir);
+  let totalBytes = 0;
+  let totalEntries = 0;
+
+  function assertWithinQuota() {
+    if (
+      !Number.isSafeInteger(totalBytes)
+      || totalBytes > maxExtractedBytes
+      || totalEntries > maxExtractedFiles
+    ) {
+      throw new FinalizeDownloadError("Extracted output exceeds the configured safety quota.");
+    }
+  }
+
+  async function visit(currentDir: string): Promise<void> {
+    for (const entry of await readdir(currentDir, { withFileTypes: true })) {
+      const entryPath = path.join(currentDir, entry.name);
+      const entryStats = await lstat(entryPath);
+
+      totalEntries += 1;
+      assertWithinQuota();
+      assertSafeArchiveEntry(path.relative(rootDir, entryPath));
+
+      if (entryStats.isSymbolicLink()) {
+        throw new FinalizeDownloadError(`Archive extracted a link or reparse entry: ${entry.name.slice(0, 160)}`);
+      }
+
+      const resolvedEntry = await realpath(entryPath);
+
+      if (!isContainedPath(resolvedRoot, resolvedEntry)) {
+        throw new FinalizeDownloadError(`Archive output escaped its staging directory: ${entry.name.slice(0, 160)}`);
+      }
+
+      if (entryStats.isDirectory()) {
+        await visit(entryPath);
+      } else if (entryStats.isFile()) {
+        if (entryStats.nlink > 1) {
+          throw new FinalizeDownloadError(`Archive extracted a hard link: ${entry.name.slice(0, 160)}`);
+        }
+
+        totalBytes += entryStats.size;
+        assertWithinQuota();
+      } else {
+        throw new FinalizeDownloadError(`Archive extracted a non-regular file: ${entry.name.slice(0, 160)}`);
+      }
+    }
+  }
+
+  await visit(rootDir);
+  return { totalBytes, totalEntries };
+}
+
+export async function withArchiveStaging<T>(
+  parentDir: string,
+  label: string,
+  operation: (stagingDir: string) => Promise<T>,
+): Promise<T> {
+  await mkdir(parentDir, { recursive: true });
+  const safeLabel = label.replace(/[^a-z0-9_-]+/gi, "-").slice(0, 40) || "archive";
+  const stagingDir = await mkdtemp(path.join(parentDir, `.nooklet-${safeLabel}-`));
+
+  try {
+    return await operation(stagingDir);
+  } finally {
+    await rm(stagingDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+  }
+}
+
+async function pathStatsOrNull(filePath: string) {
+  try {
+    return await lstat(filePath);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+async function assertMergeHasNoCollisions(sourceDir: string, targetDir: string): Promise<void> {
+  for (const entry of await readdir(sourceDir, { withFileTypes: true })) {
+    const sourcePath = path.join(sourceDir, entry.name);
+    const targetPath = path.join(targetDir, entry.name);
+    const sourceStats = await lstat(sourcePath);
+    const targetStats = await pathStatsOrNull(targetPath);
+
+    if (
+      sourceStats.isSymbolicLink()
+      || (!sourceStats.isDirectory() && !sourceStats.isFile())
+      || (sourceStats.isFile() && sourceStats.nlink > 1)
+    ) {
+      throw new FinalizeDownloadError(`Archive merge source is not a regular tree: ${entry.name.slice(0, 160)}`);
+    }
+
+    if (!sourceStats.isDirectory()) {
+      if (targetStats) {
+        throw new FinalizeDownloadError(`Archive output collides with an existing path: ${entry.name.slice(0, 160)}`);
+      }
+      continue;
+    }
+
+    if (targetStats && (!targetStats.isDirectory() || targetStats.isSymbolicLink())) {
+      throw new FinalizeDownloadError(`Archive output collides with an existing path: ${entry.name.slice(0, 160)}`);
+    }
+
+    await assertMergeHasNoCollisions(sourcePath, targetPath);
+  }
+}
+
+async function moveDirectoryContents(sourceDir: string, targetDir: string): Promise<void> {
+  await mkdir(targetDir, { recursive: true });
+
+  for (const entry of await readdir(sourceDir, { withFileTypes: true })) {
+    const sourcePath = path.join(sourceDir, entry.name);
+    const targetPath = path.join(targetDir, entry.name);
+    const targetStats = await pathStatsOrNull(targetPath);
+
+    if (entry.isDirectory() && targetStats?.isDirectory() && !targetStats.isSymbolicLink()) {
+      await moveDirectoryContents(sourcePath, targetPath);
+      await rm(sourcePath, { recursive: true, force: true });
+      continue;
+    }
+
+    await rename(sourcePath, targetPath);
+  }
+}
+
+export async function mergeStagedArchiveTree(sourceDir: string, targetDir: string) {
+  const targetStats = await lstat(targetDir);
+
+  if (!targetStats.isDirectory() || targetStats.isSymbolicLink()) {
+    throw new FinalizeDownloadError("Archive merge target is not a regular directory.");
+  }
+
+  await assertMergeHasNoCollisions(sourceDir, targetDir);
+  await moveDirectoryContents(sourceDir, targetDir);
+}
+
+async function inspectArchives(
+  workDir: string,
+  password: string | null,
+  maxExtractedBytes: number,
+  maxExtractedFiles: number,
+): Promise<ArchivePlan[]> {
+  const files = await listFiles(workDir);
+  const rarArchives = files.filter(isRarEntryPoint);
+  const sevenZipArchives = files.filter(isZipOr7zArchive);
+
+  if (rarArchives.length > 0 && !(await binaryAvailable("unrar"))) {
+    throw new FinalizeDownloadError("unrar is not installed — RAR archives could not be extracted.");
+  }
+
+  if (sevenZipArchives.length > 0 && !(await binaryAvailable("7zz"))) {
+    throw new FinalizeDownloadError("7zz is not installed — zip/7z archives could not be extracted.");
+  }
+
+  const plans: ArchivePlan[] = [];
+
+  for (const archive of rarArchives) {
+    const archivePath = path.join(workDir, archive);
+
+    try {
+      const result = await execFileAsync(
+        "unrar",
+        ["lt", "-c-", archivePasswordSwitch(password), archivePath],
+        { cwd: workDir, timeout: 5 * 60_000, maxBuffer: 32 * 1024 * 1024 },
+      );
+      plans.push({
+        archive,
+        archivePath,
+        entries: parseUnrarTechnicalListing(String(result.stdout)),
+        tool: "unrar",
+      });
+    } catch (error) {
+      throw new FinalizeDownloadError(
+        `RAR inspection failed for ${archive}: ${shortError(error, [password])}`,
+      );
+    }
+  }
+
+  for (const archive of sevenZipArchives) {
+    const archivePath = path.join(workDir, archive);
+
+    try {
+      const result = await execFileAsync(
+        "7zz",
+        ["l", "-slt", archivePasswordSwitch(password), archivePath],
+        { cwd: workDir, timeout: 5 * 60_000, maxBuffer: 32 * 1024 * 1024 },
+      );
+      plans.push({
+        archive,
+        archivePath,
+        entries: parse7zTechnicalListing(String(result.stdout)),
+        tool: "7zz",
+      });
+    } catch (error) {
+      throw new FinalizeDownloadError(
+        `Archive inspection failed for ${archive}: ${shortError(error, [password])}`,
+      );
+    }
+  }
+
+  assertArchiveListingQuota(
+    plans.flatMap((plan) => plan.entries),
+    maxExtractedBytes,
+    maxExtractedFiles,
+  );
+
+  return plans;
+}
+
+async function extractInspectedArchives(
+  workDir: string,
+  password: string | null,
+  plans: readonly ArchivePlan[],
+  maxExtractedBytes: number,
+  maxExtractedFiles: number,
+) {
+  if (plans.length === 0) {
+    return 0;
+  }
+
+  const stagingParent = path.dirname(workDir);
+
+  await withArchiveStaging(stagingParent, "archive-merge", async (combinedStagingDir) => {
+    for (const [index, plan] of plans.entries()) {
+      await withArchiveStaging(stagingParent, `archive-${index + 1}`, async (archiveStagingDir) => {
+        try {
+          if (plan.tool === "unrar") {
+            await execFileAsync(
+              "unrar",
+              buildUnrarExtractionArguments(plan.archivePath, archiveStagingDir, password),
+              { cwd: workDir, timeout: 60 * 60_000, maxBuffer: 32 * 1024 * 1024 },
+            );
+          } else {
+            await execFileAsync(
+              "7zz",
+              ["x", "-y", `-o${archiveStagingDir}`, archivePasswordSwitch(password), plan.archivePath],
+              { cwd: workDir, timeout: 60 * 60_000, maxBuffer: 32 * 1024 * 1024 },
+            );
+          }
+        } catch (error) {
+          throw new FinalizeDownloadError(
+            `Extraction failed for ${plan.archive}: ${shortError(error, [password])}`,
+          );
+        }
+
+        await verifyStagedArchiveTree(archiveStagingDir, maxExtractedBytes, maxExtractedFiles);
+        await mergeStagedArchiveTree(archiveStagingDir, combinedStagingDir);
+        await verifyStagedArchiveTree(combinedStagingDir, maxExtractedBytes, maxExtractedFiles);
+      });
+    }
+
+    await mergeStagedArchiveTree(combinedStagingDir, workDir);
+  });
+
+  return plans.length;
+}
+
 /**
  * Runs PAR2 verify/repair. Beyond fixing damaged blocks this restores the
  * real file names of obfuscated posts, so it runs whenever a recovery set is
@@ -158,99 +700,6 @@ async function runPar2(workDir: string, warnings: string[]): Promise<{ ran: bool
   } catch (error) {
     warnings.push(`PAR2 repair failed: ${shortError(error)}`);
     return { ran: true, ok: false };
-  }
-}
-
-async function extractRarSets(
-  workDir: string,
-  password: string | null,
-  warnings: string[],
-): Promise<{ attempted: number; extracted: number }> {
-  const entries = await listFiles(workDir);
-  const rarEntryPoints = entries.filter(isRarEntryPoint);
-
-  if (rarEntryPoints.length === 0) {
-    return { attempted: 0, extracted: 0 };
-  }
-
-  if (!(await binaryAvailable("unrar"))) {
-    warnings.push("unrar is not installed — RAR archives could not be extracted.");
-    return { attempted: rarEntryPoints.length, extracted: 0 };
-  }
-
-  let extracted = 0;
-
-  for (const archive of rarEntryPoints) {
-    try {
-      await execFileAsync(
-        "unrar",
-        ["x", "-o+", "-y", `-p${password ?? "-"}`, path.join(workDir, archive), `${workDir}${path.sep}`],
-        { cwd: workDir, timeout: 60 * 60_000, maxBuffer: 32 * 1024 * 1024 },
-      );
-      extracted += 1;
-    } catch (error) {
-      warnings.push(`RAR extraction failed for ${archive}: ${shortError(error)}`);
-    }
-  }
-
-  return { attempted: rarEntryPoints.length, extracted };
-}
-
-async function extractZipAnd7z(
-  workDir: string,
-  password: string | null,
-  warnings: string[],
-): Promise<{ attempted: number; extracted: number }> {
-  const entries = await listFiles(workDir);
-  const archives = entries.filter(isZipOr7zArchive);
-
-  if (archives.length === 0) {
-    return { attempted: 0, extracted: 0 };
-  }
-
-  if (!(await binaryAvailable("7zz"))) {
-    warnings.push("7zz is not installed — zip/7z archives could not be extracted.");
-    return { attempted: archives.length, extracted: 0 };
-  }
-
-  let extracted = 0;
-
-  for (const archive of archives) {
-    try {
-      // Always pass a password switch so 7zz never blocks on a prompt.
-      await execFileAsync(
-        "7zz",
-        ["x", "-y", `-o${workDir}`, `-p${password ?? ""}`, path.join(workDir, archive)],
-        { cwd: workDir, timeout: 60 * 60_000, maxBuffer: 32 * 1024 * 1024 },
-      );
-      extracted += 1;
-    } catch (error) {
-      warnings.push(`Extraction failed for ${archive}: ${shortError(error)}`);
-    }
-  }
-
-  return { attempted: archives.length, extracted };
-}
-
-/**
- * Removes anything that could point outside the directory after extraction.
- */
-async function stripSymlinks(rootDir: string, warnings: string[]) {
-  const entries = await readdir(rootDir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    const entryPath = path.join(rootDir, entry.name);
-    const stats = await lstat(entryPath);
-
-    if (stats.isSymbolicLink()) {
-      warnings.push(`Removed symlink from extracted output: ${entry.name}`);
-      await rm(entryPath, { force: true });
-      continue;
-    }
-
-    if (entry.isDirectory()) {
-      await stripSymlinks(entryPath, warnings);
-    }
   }
 }
 
@@ -318,9 +767,18 @@ export async function finalizeDownload(input: {
   downloadName: string;
   files: DownloadedNzbFile[];
   password: string | null;
+  maxExtractedBytes?: number;
+  maxExtractedFiles?: number;
 }): Promise<FinalizeDownloadResult> {
   const warnings: string[] = [];
   const hasDamagedFiles = input.files.some((file) => !file.ok);
+  const downloadedBytes = input.files.reduce((total, file) => total + file.bytesWritten, 0);
+  const maxExtractedBytes = input.maxExtractedBytes
+    ?? Math.min(Math.max(downloadedBytes * 20, 4 * 1024 ** 3), 250 * 1024 ** 3);
+  const maxExtractedFiles = input.maxExtractedFiles ?? 100_000;
+
+  // Validate caller-provided limits even when the download contains no archive.
+  assertArchiveListingQuota([], maxExtractedBytes, maxExtractedFiles);
 
   // 1. Deobfuscate by magic bytes so PAR2 sets and archives become visible.
   await deobfuscateDownloadFiles(input.workDir);
@@ -328,6 +786,12 @@ export async function finalizeDownload(input: {
   // 2. PAR2 verify/repair + true-name restoration whenever a set exists.
   const par2Result = await runPar2(input.workDir, warnings);
   const repaired = par2Result.ran && par2Result.ok;
+
+  if (par2Result.ran && !par2Result.ok) {
+    throw new FinalizeDownloadError(
+      `PAR2 verification/repair failed. ${warnings[warnings.length - 1] ?? ""}`.trim(),
+    );
+  }
 
   if (hasDamagedFiles && !repaired) {
     const damagedPayload = input.files.some(
@@ -343,20 +807,40 @@ export async function finalizeDownload(input: {
     }
   }
 
-  // 3. Extract archives (RAR sets via unrar, zip/7z via 7zz).
-  const rar = await extractRarSets(input.workDir, input.password, warnings);
-  const zip = await extractZipAnd7z(input.workDir, input.password, warnings);
-  const attemptedArchives = rar.attempted + zip.attempted;
-  const extractedArchives = rar.extracted + zip.extracted;
+  // 3. Inspect every archive before any extraction, then unpack into isolated
+  // staging directories and merge only fully verified regular trees.
+  let archivePlans: ArchivePlan[];
 
-  if (attemptedArchives > 0 && extractedArchives === 0) {
+  try {
+    archivePlans = await inspectArchives(
+      input.workDir,
+      input.password,
+      maxExtractedBytes,
+      maxExtractedFiles,
+    );
+  } catch (error) {
     throw new FinalizeDownloadError(
-      `Download contains archives that could not be extracted: ${warnings[warnings.length - 1] ?? "unknown extraction error"}`,
+      `Download contains archives that could not be extracted: ${shortError(error, [input.password])}`,
+    );
+  }
+
+  let extractedArchives: number;
+
+  try {
+    extractedArchives = await extractInspectedArchives(
+      input.workDir,
+      input.password,
+      archivePlans,
+      maxExtractedBytes,
+      maxExtractedFiles,
+    );
+  } catch (error) {
+    throw new FinalizeDownloadError(
+      `Download contains archives that could not be extracted: ${shortError(error, [input.password])}`,
     );
   }
 
   if (extractedArchives > 0) {
-    await stripSymlinks(input.workDir, warnings);
     await removeArtifacts(input.workDir, { archives: true, par2: true });
   }
 

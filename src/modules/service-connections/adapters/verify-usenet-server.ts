@@ -1,4 +1,5 @@
 import { NntpClient } from "@/modules/download-engine/nntp/nntp-client";
+import { assertOutboundHostAllowed } from "@/lib/security/safe-fetch";
 import {
   parseUsenetCredentials,
   parseUsenetServerUrl,
@@ -23,6 +24,7 @@ export async function verifyUsenetServer(
   try {
     const server = parseUsenetServerUrl(input.baseUrl);
     const credentials = parseUsenetCredentials(input.secret);
+    const resolvedAddresses = await assertOutboundHostAllowed(server.host);
 
     client = new NntpClient({
       host: server.host,
@@ -31,6 +33,7 @@ export async function verifyUsenetServer(
       username: credentials.username,
       password: credentials.password,
       timeoutMs: SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
+      resolvedAddresses,
     });
 
     await client.connect();

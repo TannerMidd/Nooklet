@@ -75,8 +75,8 @@ describe("retryDownloadRequestWorkflow", () => {
       id: "request1",
       status: "failed",
       mediaTitleId: "title1",
-      episodeId: "episode1",
-      seasonId: null,
+      episodeId: null,
+      seasonId: "season1",
       targetLibraryPathId: "path1",
     } as never);
     exclusionsMock.mockResolvedValue({
@@ -84,7 +84,7 @@ describe("retryDownloadRequestWorkflow", () => {
       releaseKeys: ["guid:abc"],
     });
     searchMock.mockResolvedValue({
-      queuedDownload: { queued: true, message: null },
+      queuedDownload: { queued: true, reason: "queued", message: null },
     } as never);
 
     const result = await retryDownloadRequestWorkflow("user1", "request1");
@@ -92,11 +92,34 @@ describe("retryDownloadRequestWorkflow", () => {
     expect(incrementRetryMock).toHaveBeenCalledWith({ userId: "user1", requestId: "request1" });
     expect(searchMock).toHaveBeenCalledWith("user1", {
       titleId: "title1",
-      episodeId: "episode1",
+      seasonId: "season1",
       targetLibraryPathId: "path1",
       excludedResultIds: ["result1"],
       excludedReleaseKeys: ["guid:abc"],
     });
-    expect(result).toEqual({ queued: true, message: null });
+    expect(result).toEqual({ queued: true, reason: "queued", message: null });
+  });
+
+  it("preserves episode scope when retrying a single episode", async () => {
+    findRequestMock.mockResolvedValue({
+      id: "request1",
+      status: "failed",
+      mediaTitleId: "title1",
+      episodeId: "episode1",
+      seasonId: "season1",
+      targetLibraryPathId: "path1",
+    } as never);
+    exclusionsMock.mockResolvedValue({ resultIds: [], releaseKeys: [] });
+    searchMock.mockResolvedValue({
+      queuedDownload: { queued: true, reason: "queued", message: null },
+    } as never);
+
+    await retryDownloadRequestWorkflow("user1", "request1");
+
+    expect(searchMock).toHaveBeenCalledWith("user1", expect.objectContaining({
+      titleId: "title1",
+      episodeId: "episode1",
+      seasonId: "season1",
+    }));
   });
 });

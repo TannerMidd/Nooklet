@@ -12,6 +12,14 @@ vi.mock("@/modules/indexers/commands/add-indexer", () => ({
 vi.mock("@/modules/indexers/commands/update-indexer", () => ({
   updateIndexerCommand: vi.fn(),
 }));
+vi.mock("@/modules/indexers/commands/remove-indexer", () => ({
+  RemoveIndexerCommandError: class RemoveIndexerCommandError extends Error {},
+  removeIndexerCommand: vi.fn(),
+}));
+vi.mock("@/modules/indexers/workflows/test-and-save-indexer", () => ({
+  TestAndSaveIndexerError: class TestAndSaveIndexerError extends Error {},
+  testAndSaveIndexer: vi.fn(),
+}));
 vi.mock("@/modules/indexers/workflows/test-indexer", () => ({
   TestIndexerWorkflowError: class TestIndexerWorkflowError extends Error {
     constructor(
@@ -29,18 +37,27 @@ import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
 import { addIndexerCommand } from "@/modules/indexers/commands/add-indexer";
+import { removeIndexerCommand } from "@/modules/indexers/commands/remove-indexer";
 import { updateIndexerCommand } from "@/modules/indexers/commands/update-indexer";
+import { testAndSaveIndexer } from "@/modules/indexers/workflows/test-and-save-indexer";
 import {
   testIndexerWorkflow,
   TestIndexerWorkflowError,
 } from "@/modules/indexers/workflows/test-indexer";
 
-import { addIndexerAction, testIndexerAction, updateIndexerAction } from "./actions";
+import {
+  addIndexerAction,
+  removeIndexerAction,
+  testIndexerAction,
+  updateIndexerAction,
+} from "./actions";
 import { initialIndexerActionState } from "./action-state";
 
 const authMock = vi.mocked(auth);
 const addIndexerMock = vi.mocked(addIndexerCommand);
+const removeIndexerMock = vi.mocked(removeIndexerCommand);
 const updateIndexerMock = vi.mocked(updateIndexerCommand);
+const testAndSaveMock = vi.mocked(testAndSaveIndexer);
 const testIndexerMock = vi.mocked(testIndexerWorkflow);
 const revalidateMock = vi.mocked(revalidatePath);
 
@@ -72,8 +89,20 @@ describe("addIndexerAction", () => {
     expect(addIndexerMock).not.toHaveBeenCalled();
   });
 
+  it("rejects indexer changes from non-admin users", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "user" } } as never);
+
+    const result = await addIndexerAction(initialIndexerActionState, validForm());
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Only an administrator can manage indexers.",
+    });
+    expect(addIndexerMock).not.toHaveBeenCalled();
+  });
+
   it("requires at least one category", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     const form = validForm();
     form.set("movieCategories", "");
     form.set("tvCategories", "");
@@ -85,7 +114,7 @@ describe("addIndexerAction", () => {
   });
 
   it("adds an indexer and revalidates settings", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     addIndexerMock.mockResolvedValue(undefined as never);
 
     const result = await addIndexerAction(initialIndexerActionState, validForm());
@@ -109,7 +138,7 @@ describe("addIndexerAction", () => {
   });
 
   it("passes disabled state when the checkbox is unchecked", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     addIndexerMock.mockResolvedValue(undefined as never);
     const form = validForm();
     form.delete("isEnabled");
@@ -146,8 +175,20 @@ describe("updateIndexerAction", () => {
     expect(updateIndexerMock).not.toHaveBeenCalled();
   });
 
+  it("rejects indexer updates from non-admin users", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "user" } } as never);
+
+    const result = await updateIndexerAction(initialIndexerActionState, validForm());
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Only an administrator can manage indexers.",
+    });
+    expect(updateIndexerMock).not.toHaveBeenCalled();
+  });
+
   it("saves updates and omits blank API keys", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     updateIndexerMock.mockResolvedValue(undefined as never);
     const form = validForm();
     form.set("apiKey", "");
@@ -174,7 +215,7 @@ describe("updateIndexerAction", () => {
   });
 
   it("passes replacement API keys", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     updateIndexerMock.mockResolvedValue(undefined as never);
     const form = validForm();
     form.set("apiKey", "new-secret");
@@ -203,8 +244,20 @@ describe("testIndexerAction", () => {
     expect(testIndexerMock).not.toHaveBeenCalled();
   });
 
+  it("rejects indexer tests from non-admin users", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "user" } } as never);
+
+    const result = await testIndexerAction(initialIndexerActionState, validForm());
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Only an administrator can manage indexers.",
+    });
+    expect(testIndexerMock).not.toHaveBeenCalled();
+  });
+
   it("tests saved indexer settings and revalidates settings", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     testIndexerMock.mockResolvedValue({
       ok: true,
       message: "Indexer test succeeded with 0 results.",
@@ -220,7 +273,7 @@ describe("testIndexerAction", () => {
   });
 
   it("returns failed test messages", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     testIndexerMock.mockResolvedValue({
       ok: false,
       message: "Indexer search failed with HTTP 401.",
@@ -234,7 +287,7 @@ describe("testIndexerAction", () => {
   });
 
   it("returns typed workflow errors without exposing unexpected errors", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     testIndexerMock.mockRejectedValueOnce(
       new TestIndexerWorkflowError("Save an API key before testing this indexer.", "missing_secret"),
     );
@@ -247,5 +300,68 @@ describe("testIndexerAction", () => {
 
     expect(typedResult).toEqual({ status: "error", message: "Save an API key before testing this indexer." });
     expect(unexpectedResult).toEqual({ status: "error", message: "Indexer test failed." });
+  });
+});
+
+describe("draft-friendly indexer actions", () => {
+  it("parses friendly Movie and TV controls and tests before adding", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
+    testAndSaveMock.mockResolvedValue({
+      ok: true,
+      message: "NZBGeek tested and saved.",
+      resultCount: 2,
+    });
+    const form = new FormData();
+    form.set("intent", "test-save");
+    form.set("name", "NZBGeek");
+    form.set("protocol", "newznab");
+    form.set("baseUrl", "https://api.example.test");
+    form.set("apiPath", "/api");
+    form.set("apiKey", "secret");
+    form.set("priority", "0");
+    form.set("movieCategory", "2000");
+    form.set("tvCategory", "5000");
+    form.set("movieCustomCategories", "2040");
+    form.set("isEnabled", "on");
+
+    const result = await addIndexerAction(initialIndexerActionState, form);
+
+    expect(testAndSaveMock).toHaveBeenCalledWith("u1", expect.objectContaining({
+      categories: [
+        { mediaType: "movie", categoryId: "2000", label: "Movies" },
+        { mediaType: "movie", categoryId: "2040", label: "Movies" },
+        { mediaType: "tv", categoryId: "5000", label: "TV" },
+      ],
+    }));
+    expect(addIndexerMock).not.toHaveBeenCalled();
+    expect(result).toEqual({ status: "success", message: "NZBGeek tested and saved." });
+  });
+});
+
+describe("removeIndexerAction", () => {
+  it("removes an administrator-owned indexer", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
+    removeIndexerMock.mockResolvedValue({ ok: true, name: "NZBGeek" });
+    const form = new FormData();
+    form.set("id", "idx1");
+
+    const result = await removeIndexerAction(initialIndexerActionState, form);
+
+    expect(removeIndexerMock).toHaveBeenCalledWith("u1", "idx1");
+    expect(result).toEqual({ status: "success", message: "NZBGeek removed." });
+  });
+
+  it("rejects removal by a regular user", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "user" } } as never);
+    const form = new FormData();
+    form.set("id", "idx1");
+
+    const result = await removeIndexerAction(initialIndexerActionState, form);
+
+    expect(removeIndexerMock).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      status: "error",
+      message: "Only an administrator can manage indexers.",
+    });
   });
 });

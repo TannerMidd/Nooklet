@@ -17,7 +17,7 @@ export function StatusMessage({ status, message, className }: StatusMessageProps
 
   return (
     <p
-      role={status === "error" ? "alert" : undefined}
+      role={status === "error" ? "alert" : "status"}
       className={cn(
         "text-sm leading-6",
         status === "success" ? "text-accent-cool" : "text-accent-wine",

@@ -232,6 +232,27 @@
       "when": 1783817358474,
       "tag": "0032_cheerful_obadiah_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1784082662766,
+      "tag": "0033_repair_media_request_attempts",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1784082663766,
+      "tag": "0034_job_execution_leases",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1784169063766,
+      "tag": "0035_force_temporary_password_change",
+      "breakpoints": true
     }
   ]
 }

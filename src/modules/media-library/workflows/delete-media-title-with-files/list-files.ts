@@ -3,6 +3,7 @@ import { listMediaFilePathsForTitle } from "@/modules/media-library/repositories
 export type MediaFilePathForCleanup = {
   id: string;
   filePath: string;
+  libraryRootPath: string;
 };
 
 /**

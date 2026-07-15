@@ -8,6 +8,7 @@ import {
 const targetUrlSchema = z
   .string()
   .min(1, "Provide a target URL.")
+  .max(2048, "Target URL must be 2048 characters or fewer.")
   .url("Provide a valid URL.")
   .refine((value) => /^https?:\/\//i.test(value), {
     message: "URL must start with http:// or https://.",
@@ -35,7 +36,10 @@ export const updateNotificationChannelInputSchema = z.object({
     .min(1, "Provide a display name.")
     .max(80, "Display name must be 80 characters or fewer.")
     .optional(),
-  targetUrl: targetUrlSchema.optional(),
+  targetUrl: z.preprocess(
+    (value) => typeof value === "string" && value.trim() === "" ? undefined : value,
+    targetUrlSchema.optional(),
+  ),
   isEnabled: z.boolean().optional(),
   events: z
     .array(z.enum(notificationEventTypes))

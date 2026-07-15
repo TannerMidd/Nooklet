@@ -1,14 +1,16 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, count, eq, inArray, isNull, lte, ne, notExists, or } from "drizzle-orm";
+import { and, asc, count, eq, gt, inArray, isNull, lte, ne, notExists, or, sql } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
   activeDownloadRequestStatuses,
   downloadRequests,
   mediaFiles,
   mediaLibraries,
   mediaLibraryPaths,
+  mediaRequestAttempts,
   mediaScanRuns,
   mediaTitleExternalIds,
   mediaTitles,
@@ -89,10 +91,25 @@ export async function findMediaLibraryByName(
 export async function findMediaLibraryByIdForUser(userId: string, libraryId: string) {
   const database = ensureDatabaseReady();
 
-  return database
+  const owned = database
     .select()
     .from(mediaLibraries)
     .where(and(eq(mediaLibraries.userId, userId), eq(mediaLibraries.id, libraryId)))
+    .get() ?? null;
+
+  if (owned) {
+    return owned;
+  }
+
+  const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
+  if (instanceOwnerId === userId) {
+    return null;
+  }
+
+  return database
+    .select()
+    .from(mediaLibraries)
+    .where(and(eq(mediaLibraries.userId, instanceOwnerId), eq(mediaLibraries.id, libraryId)))
     .get() ?? null;
 }
 
@@ -136,10 +153,25 @@ export async function findMediaLibraryPathByUserPath(userId: string, path: strin
 export async function findMediaLibraryPathByIdForUser(userId: string, pathId: string) {
   const database = ensureDatabaseReady();
 
-  return database
+  const owned = database
     .select()
     .from(mediaLibraryPaths)
     .where(and(eq(mediaLibraryPaths.userId, userId), eq(mediaLibraryPaths.id, pathId)))
+    .get() ?? null;
+
+  if (owned) {
+    return owned;
+  }
+
+  const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
+  if (instanceOwnerId === userId) {
+    return null;
+  }
+
+  return database
+    .select()
+    .from(mediaLibraryPaths)
+    .where(and(eq(mediaLibraryPaths.userId, instanceOwnerId), eq(mediaLibraryPaths.id, pathId)))
     .get() ?? null;
 }
 
@@ -188,12 +220,24 @@ export async function deleteMediaLibraryPath(userId: string, pathId: string) {
 export async function listActiveMediaLibraryPaths(userId: string): Promise<ActiveMediaLibraryPathRecord[]> {
   const database = ensureDatabaseReady();
 
-  return database
+  const loadRows = (ownerUserId: string) => database
     .select({ library: mediaLibraries, path: mediaLibraryPaths })
     .from(mediaLibraryPaths)
     .innerJoin(mediaLibraries, eq(mediaLibraries.id, mediaLibraryPaths.libraryId))
-    .where(and(eq(mediaLibraryPaths.userId, userId), eq(mediaLibraryPaths.status, "active")))
+    .where(and(eq(mediaLibraryPaths.userId, ownerUserId), eq(mediaLibraryPaths.status, "active")))
     .all();
+
+  const ownedRows = loadRows(userId);
+  const ownedTypes = new Set(ownedRows.map(({ library }) => library.mediaType));
+  const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
+  if (instanceOwnerId === userId || ownedTypes.size === 2) {
+    return ownedRows;
+  }
+
+  return [
+    ...ownedRows,
+    ...loadRows(instanceOwnerId).filter(({ library }) => !ownedTypes.has(library.mediaType)),
+  ];
 }
 
 export async function markMediaLibraryPathScanned(pathId: string, scannedAt: Date = new Date()) {
@@ -461,12 +505,35 @@ export async function listMediaFileTitleIdsByLibraryPath(userId: string, library
   return Array.from(new Set(rows.map((row) => row.titleId)));
 }
 
+export async function listMediaFilesByLibraryPath(userId: string, libraryPathId: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(mediaFiles)
+    .where(and(eq(mediaFiles.userId, userId), eq(mediaFiles.libraryPathId, libraryPathId)))
+    .all();
+}
+
 export async function listMediaFilePathsForTitle(userId: string, titleId: string) {
   const database = ensureDatabaseReady();
+  const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
   const rows = database
-    .select({ id: mediaFiles.id, filePath: mediaFiles.filePath })
+    .select({
+      id: mediaFiles.id,
+      filePath: mediaFiles.filePath,
+      libraryRootPath: mediaLibraryPaths.path,
+    })
     .from(mediaFiles)
-    .where(and(eq(mediaFiles.userId, userId), eq(mediaFiles.titleId, titleId)))
+    .innerJoin(mediaLibraryPaths, eq(mediaLibraryPaths.id, mediaFiles.libraryPathId))
+    .where(and(
+      eq(mediaFiles.userId, userId),
+      or(
+        eq(mediaLibraryPaths.userId, userId),
+        eq(mediaLibraryPaths.userId, instanceOwnerId),
+      ),
+      eq(mediaFiles.titleId, titleId),
+    ))
     .all();
 
   return rows;
@@ -479,6 +546,71 @@ export async function deleteMediaFilesByLibraryPath(userId: string, libraryPathI
     .delete(mediaFiles)
     .where(and(eq(mediaFiles.userId, userId), eq(mediaFiles.libraryPathId, libraryPathId)))
     .run();
+}
+
+export async function deleteMediaFilesByIds(userId: string, fileIds: string[]) {
+  if (fileIds.length === 0) {
+    return;
+  }
+
+  const database = ensureDatabaseReady();
+
+  // Stay below SQLite's parameter limit even for very large libraries.
+  for (let offset = 0; offset < fileIds.length; offset += 500) {
+    database
+      .delete(mediaFiles)
+      .where(and(eq(mediaFiles.userId, userId), inArray(mediaFiles.id, fileIds.slice(offset, offset + 500))))
+      .run();
+  }
+}
+
+/** Rebuild denormalized availability flags from the authoritative file rows. */
+export async function reconcileMediaTitleFileAvailability(userId: string, titleId: string) {
+  const database = ensureDatabaseReady();
+  const title = await findMediaTitleByIdForUser(userId, titleId);
+
+  if (!title) {
+    return null;
+  }
+
+  const files = database
+    .select({ episodeId: mediaFiles.episodeId })
+    .from(mediaFiles)
+    .where(and(eq(mediaFiles.userId, userId), eq(mediaFiles.titleId, titleId)))
+    .all();
+  const episodeIds = Array.from(new Set(files.flatMap((file) => file.episodeId ? [file.episodeId] : [])));
+  const updatedAt = new Date();
+
+  database.transaction((transaction) => {
+    transaction
+      .update(mediaTitles)
+      .set({ status: files.length > 0 ? "available" : "missing", updatedAt })
+      .where(and(eq(mediaTitles.userId, userId), eq(mediaTitles.id, titleId)))
+      .run();
+
+    if (title.mediaType !== "tv") {
+      return;
+    }
+
+    transaction
+      .update(tvEpisodes)
+      .set({ hasFile: false, updatedAt })
+      .where(eq(tvEpisodes.titleId, titleId))
+      .run();
+
+    for (let offset = 0; offset < episodeIds.length; offset += 500) {
+      transaction
+        .update(tvEpisodes)
+        .set({ hasFile: true, updatedAt })
+        .where(and(
+          eq(tvEpisodes.titleId, titleId),
+          inArray(tvEpisodes.id, episodeIds.slice(offset, offset + 500)),
+        ))
+        .run();
+    }
+  });
+
+  return findMediaTitleByIdForUser(userId, titleId);
 }
 
 export async function updateMediaTitlePreferences(input: {
@@ -900,8 +1032,10 @@ export type MonitoredTvTitleWithTmdbId = {
 export async function listMonitoredTvTitlesWithTmdbId(
   userId: string,
   limit: number,
+  attemptEligibility?: { keyPrefix: string; now?: Date },
 ): Promise<MonitoredTvTitleWithTmdbId[]> {
   const database = ensureDatabaseReady();
+  const eligibilityTime = attemptEligibility?.now ?? new Date();
 
   return database
     .select({ title: mediaTitles, tmdbId: mediaTitleExternalIds.value })
@@ -918,6 +1052,21 @@ export async function listMonitoredTvTitlesWithTmdbId(
         eq(mediaTitles.userId, userId),
         eq(mediaTitles.mediaType, "tv"),
         eq(mediaTitles.monitored, true),
+        attemptEligibility
+          ? notExists(
+              database
+                .select({ id: mediaRequestAttempts.id })
+                .from(mediaRequestAttempts)
+                .where(and(
+                  eq(mediaRequestAttempts.userId, userId),
+                  eq(
+                    mediaRequestAttempts.requestKey,
+                    sql<string>`${attemptEligibility.keyPrefix} || ${mediaTitles.id}`,
+                  ),
+                  gt(mediaRequestAttempts.expiresAt, eligibilityTime),
+                )),
+            )
+          : undefined,
       ),
     )
     .orderBy(asc(mediaTitles.createdAt))
@@ -1092,8 +1241,10 @@ export async function completeMediaScanRun(input: {
 export async function listMonitoredMissingMovieTitles(
   userId: string,
   limit: number,
+  attemptEligibility?: { keyPrefix: string; now?: Date },
 ): Promise<MediaTitleRecord[]> {
   const database = ensureDatabaseReady();
+  const eligibilityTime = attemptEligibility?.now ?? new Date();
 
   return database
     .select()
@@ -1113,6 +1264,21 @@ export async function listMonitoredMissingMovieTitles(
             inArray(downloadRequests.status, activeDownloadRequestStatuses),
           )),
       ),
+      attemptEligibility
+        ? notExists(
+            database
+              .select({ id: mediaRequestAttempts.id })
+              .from(mediaRequestAttempts)
+              .where(and(
+                eq(mediaRequestAttempts.userId, userId),
+                eq(
+                  mediaRequestAttempts.requestKey,
+                  sql<string>`${attemptEligibility.keyPrefix} || ${mediaTitles.id}`,
+                ),
+                gt(mediaRequestAttempts.expiresAt, eligibilityTime),
+              )),
+          )
+        : undefined,
     ))
     .orderBy(asc(mediaTitles.createdAt), asc(mediaTitles.id))
     .limit(limit)
@@ -1123,8 +1289,10 @@ export async function listMonitoredMissingTvEpisodes(
   userId: string,
   limit: number,
   airedOnOrBefore: string = new Date().toISOString().slice(0, 10),
+  attemptEligibility?: { keyPrefix: string; now?: Date },
 ): Promise<TvEpisodeWithTitleRecord[]> {
   const database = ensureDatabaseReady();
+  const eligibilityTime = attemptEligibility?.now ?? new Date();
 
   return database
     .select({ episode: tvEpisodes, title: mediaTitles })
@@ -1153,6 +1321,21 @@ export async function listMonitoredMissingTvEpisodes(
             ),
           )),
       ),
+      attemptEligibility
+        ? notExists(
+            database
+              .select({ id: mediaRequestAttempts.id })
+              .from(mediaRequestAttempts)
+              .where(and(
+                eq(mediaRequestAttempts.userId, userId),
+                eq(
+                  mediaRequestAttempts.requestKey,
+                  sql<string>`${attemptEligibility.keyPrefix} || ${tvEpisodes.id}`,
+                ),
+                gt(mediaRequestAttempts.expiresAt, eligibilityTime),
+              )),
+          )
+        : undefined,
     ))
     .orderBy(
       asc(mediaTitles.sortTitle),

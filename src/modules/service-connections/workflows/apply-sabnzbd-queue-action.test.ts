@@ -17,6 +17,11 @@ vi.mock("@/lib/integrations/sabnzbd", () => ({
 vi.mock("@/modules/service-connections/repositories/service-connection-repository", () => ({
   findServiceConnectionByType: vi.fn(),
 }));
+vi.mock("@/modules/downloads/repositories/download-repository", () => ({
+  listActiveRequestsForExternalQueueId: vi.fn(),
+  updateDownloadQueueItemStatus: vi.fn(),
+  updateDownloadRequestStatus: vi.fn(),
+}));
 
 import {
   listSabnzbdQueue,
@@ -26,6 +31,11 @@ import {
   resumeSabnzbdQueue,
 } from "@/lib/integrations/sabnzbd";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
+import {
+  listActiveRequestsForExternalQueueId,
+  updateDownloadQueueItemStatus,
+  updateDownloadRequestStatus,
+} from "@/modules/downloads/repositories/download-repository";
 
 import { applySabnzbdQueueAction } from "./apply-sabnzbd-queue-action";
 
@@ -35,6 +45,9 @@ const mockedPauseSabnzbdQueue = vi.mocked(pauseSabnzbdQueue);
 const mockedRemoveSabnzbdQueueItem = vi.mocked(removeSabnzbdQueueItem);
 const mockedResumeSabnzbdQueue = vi.mocked(resumeSabnzbdQueue);
 const mockedFindServiceConnectionByType = vi.mocked(findServiceConnectionByType);
+const mockedListActiveRequests = vi.mocked(listActiveRequestsForExternalQueueId);
+const mockedUpdateQueueItem = vi.mocked(updateDownloadQueueItemStatus);
+const mockedUpdateRequest = vi.mocked(updateDownloadRequestStatus);
 
 describe("applySabnzbdQueueAction", () => {
   beforeEach(() => {
@@ -332,6 +345,10 @@ describe("applySabnzbdQueueAction", () => {
   });
 
   it("removes a queue item and returns the refreshed queue state", async () => {
+    mockedListActiveRequests.mockResolvedValue([{
+      request: { id: "request-2" },
+      queueItem: { id: "queue-2" },
+    }] as never);
     mockedListSabnzbdQueue.mockResolvedValue({
       version: "4.5.2",
       queueStatus: "Downloading",
@@ -362,6 +379,17 @@ describe("applySabnzbdQueueAction", () => {
       apiKey: "decrypted:encrypted-sab",
       itemId: "item-2",
     });
+    expect(mockedUpdateQueueItem).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "user-1",
+      queueItemId: "queue-2",
+      status: "failed",
+    }));
+    expect(mockedUpdateRequest).toHaveBeenCalledWith(expect.objectContaining({
+      userId: "user-1",
+      requestId: "request-2",
+      status: "cancelled",
+      externalJobId: "item-2",
+    }));
   });
 
   it("pauses the full queue and returns the refreshed queue state", async () => {

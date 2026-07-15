@@ -89,4 +89,23 @@ describe("parseNzb", () => {
       parseNzb("<nzb><file subject='x'><segments></segments></file></nzb>"),
     ).toThrow(NzbParseError);
   });
+
+  it("rejects segment values that could inject commands or bypass size accounting", () => {
+    expect(() => parseNzb(
+      `<nzb><file subject="x"><segments><segment bytes="10" number="1">safe@test
+DATE</segment></segments></file></nzb>`,
+    )).toThrow(NzbParseError);
+    expect(() => parseNzb(
+      `<nzb><file subject="x"><segments><segment bytes="10oops" number="1">safe@test</segment></segments></file></nzb>`,
+    )).toThrow(NzbParseError);
+    expect(() => parseNzb(
+      `<nzb><file subject="x"><segments><segment bytes="0" number="1">safe@test</segment></segments></file></nzb>`,
+    )).toThrow(NzbParseError);
+  });
+
+  it("rejects XML entity declarations", () => {
+    expect(() => parseNzb(
+      `<!DOCTYPE nzb [<!ENTITY payload "safe@test">]><nzb><file subject="x"><segments><segment bytes="10" number="1">&payload;</segment></segments></file></nzb>`,
+    )).toThrow(NzbParseError);
+  });
 });

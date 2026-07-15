@@ -4,6 +4,10 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
+  decryptSecretWithMetadata,
+  encryptSecret,
+} from "@/lib/security/secret-box";
+import {
   type NotificationChannelType,
   type NotificationDispatchStatus,
   type NotificationEventType,
@@ -19,7 +23,7 @@ export type NotificationChannelView = {
   userId: string;
   channelType: NotificationChannelType;
   displayName: string;
-  targetUrl: string;
+  maskedTargetUrl: string;
   isEnabled: boolean;
   events: NotificationEventType[];
   lastDispatchAt: Date | null;
@@ -35,6 +39,36 @@ type LatestDispatchRow = {
   status: NotificationDispatchStatus;
   message: string | null;
 };
+
+export type NotificationDispatchChannel = NotificationChannelView & {
+  targetUrl: string;
+};
+
+function resolveTargetUrl(channel: StoredNotificationChannel) {
+  const legacyPlaintext = /^https?:\/\//i.test(channel.targetUrl);
+  const decrypted = legacyPlaintext
+    ? { value: channel.targetUrl, needsRotation: true }
+    : decryptSecretWithMetadata(channel.targetUrl);
+
+  if (decrypted.needsRotation) {
+    ensureDatabaseReady()
+      .update(notificationChannels)
+      .set({ targetUrl: encryptSecret(decrypted.value) })
+      .where(eq(notificationChannels.id, channel.id))
+      .run();
+  }
+
+  return decrypted.value;
+}
+
+function maskTargetUrl(targetUrl: string) {
+  try {
+    const url = new URL(targetUrl);
+    return `${url.protocol}//[hidden]`;
+  } catch {
+    return "[hidden]";
+  }
+}
 
 function loadLatestDispatchByChannelIds(channelIds: string[]): Map<string, LatestDispatchRow> {
   const result = new Map<string, LatestDispatchRow>();
@@ -95,12 +129,36 @@ function toView(
   events: NotificationEventType[],
   latestDispatch: LatestDispatchRow | undefined,
 ): NotificationChannelView {
+  const targetUrl = resolveTargetUrl(channel);
   return {
     id: channel.id,
     userId: channel.userId,
     channelType: channel.channelType,
     displayName: channel.displayName,
-    targetUrl: channel.targetUrl,
+    maskedTargetUrl: maskTargetUrl(targetUrl),
+    isEnabled: channel.isEnabled,
+    events,
+    lastDispatchAt: latestDispatch?.dispatchedAt ?? null,
+    lastDispatchStatus: latestDispatch?.status ?? null,
+    lastDispatchMessage: latestDispatch?.message ?? null,
+    createdAt: channel.createdAt,
+    updatedAt: channel.updatedAt,
+  };
+}
+
+function toDispatchChannel(
+  channel: StoredNotificationChannel,
+  events: NotificationEventType[],
+  latestDispatch: LatestDispatchRow | undefined,
+): NotificationDispatchChannel {
+  const targetUrl = resolveTargetUrl(channel);
+  return {
+    id: channel.id,
+    userId: channel.userId,
+    channelType: channel.channelType,
+    displayName: channel.displayName,
+    maskedTargetUrl: maskTargetUrl(targetUrl),
+    targetUrl,
     isEnabled: channel.isEnabled,
     events,
     lastDispatchAt: latestDispatch?.dispatchedAt ?? null,
@@ -149,10 +207,30 @@ export async function findNotificationChannelById(
   return toView(row, events.get(row.id) ?? [], dispatches.get(row.id));
 }
 
+export async function findNotificationChannelForDispatch(
+  userId: string,
+  id: string,
+): Promise<NotificationDispatchChannel | null> {
+  const database = ensureDatabaseReady();
+  const row = database
+    .select()
+    .from(notificationChannels)
+    .where(and(eq(notificationChannels.userId, userId), eq(notificationChannels.id, id)))
+    .get() ?? null;
+
+  if (!row) {
+    return null;
+  }
+
+  const events = loadEventsForChannelIds([row.id]);
+  const dispatches = loadLatestDispatchByChannelIds([row.id]);
+  return toDispatchChannel(row, events.get(row.id) ?? [], dispatches.get(row.id));
+}
+
 export async function listEnabledNotificationChannelsForEvent(
   userId: string,
   eventType: NotificationEventType,
-): Promise<NotificationChannelView[]> {
+): Promise<NotificationDispatchChannel[]> {
   const database = ensureDatabaseReady();
 
   const rows = database
@@ -175,7 +253,9 @@ export async function listEnabledNotificationChannelsForEvent(
   const events = loadEventsForChannelIds(channels.map((channel) => channel.id));
   const dispatches = loadLatestDispatchByChannelIds(channels.map((channel) => channel.id));
 
-  return channels.map((channel) => toView(channel, events.get(channel.id) ?? [], dispatches.get(channel.id)));
+  return channels.map((channel) =>
+    toDispatchChannel(channel, events.get(channel.id) ?? [], dispatches.get(channel.id))
+  );
 }
 
 type CreateNotificationChannelInput = {
@@ -202,7 +282,7 @@ export async function createNotificationChannel(
         userId: input.userId,
         channelType: input.channelType,
         displayName: input.displayName,
-        targetUrl: input.targetUrl,
+        targetUrl: encryptSecret(input.targetUrl),
         isEnabled: input.isEnabled,
         createdAt: now,
         updatedAt: now,
@@ -250,7 +330,7 @@ export async function updateNotificationChannel(
   }
 
   if (input.targetUrl !== undefined) {
-    updates.targetUrl = input.targetUrl;
+    updates.targetUrl = encryptSecret(input.targetUrl);
   }
 
   if (input.isEnabled !== undefined) {

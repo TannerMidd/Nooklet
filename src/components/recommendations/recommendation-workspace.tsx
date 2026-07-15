@@ -16,6 +16,9 @@ import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusDot } from "@/components/ui/status-dot";
 import { type RecommendationMediaType } from "@/lib/database/schema";
+import { listLibraryOverview } from "@/modules/media-library/queries/list-library-overview";
+import { listMediaLibraryPathOptions } from "@/modules/media-library/queries/list-media-library-path-options";
+import { listMediaQualityProfiles } from "@/modules/media-library/queries/list-media-quality-profiles";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import {
   formatLanguagePreference,
@@ -127,13 +130,23 @@ export async function RecommendationWorkspace({
     connectionSummaries,
     recentRuns,
     selectedOverview,
+    libraryOverview,
+    pathOptions,
   ] = await Promise.all([
     listConnectionSummaries(session.user.id),
     listRecentRecommendationRuns(session.user.id, mediaType),
     detailsItemId
       ? getRecommendationTitleOverview(session.user.id, detailsItemId)
       : Promise.resolve(null),
+    listLibraryOverview(session.user.id),
+    listMediaLibraryPathOptions(session.user.id),
   ]);
+  const qualityProfiles = listMediaQualityProfiles();
+  const libraryOptions = libraryOverview.libraries.map((library) => ({
+    id: library.id,
+    name: library.name,
+    mediaType: library.mediaType,
+  }));
 
   const aiProvider = connectionSummaries.find((summary) => summary.serviceType === "ai-provider");
   const tmdb = connectionSummaries.find((summary) => summary.serviceType === "tmdb") ?? null;
@@ -285,11 +298,14 @@ export async function RecommendationWorkspace({
                     : null
                 }
                 titleLabel={`${heroItem.title}${heroItem.year ? ` (${heroItem.year})` : ""}`}
+                libraries={libraryOptions}
+                qualityProfiles={qualityProfiles}
+                pathOptions={pathOptions}
               />
               <Link
                 href={appendDetailsParam(currentWorkspaceHref, heroItem.id)}
                 scroll={false}
-                className="relative inline-flex min-h-[42px] items-center justify-center rounded-lg border border-cream/[0.14] bg-background/40 px-4 text-sm font-medium text-foreground transition hover:bg-cream/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50"
+                className="relative inline-flex min-h-11 items-center justify-center rounded-lg border border-cream/[0.14] bg-background/40 px-4 text-sm font-medium text-foreground transition hover:bg-cream/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
                 <LinkPendingOverlay />
                 Details
@@ -298,7 +314,7 @@ export async function RecommendationWorkspace({
                 itemId={heroItem.id}
                 feedback={heroItem.feedback}
                 returnTo={routePath}
-                buttonClassName="h-[42px] min-h-[42px] w-[42px] rounded-lg border-cream/[0.14] bg-background/40"
+                buttonClassName="h-11 min-h-11 w-11 rounded-lg border-cream/[0.14] bg-background/40"
               />
             </div>
           </div>
@@ -346,6 +362,9 @@ export async function RecommendationWorkspace({
                   routePath={routePath}
                   overviewHref={appendDetailsParam(currentWorkspaceHref, item.id)}
                   animationDelayMs={featuredRunIsFresh ? index * 90 : 0}
+                  libraries={libraryOptions}
+                  qualityProfiles={qualityProfiles}
+                  pathOptions={pathOptions}
                 />
               ))}
             </div>
@@ -460,7 +479,7 @@ export async function RecommendationWorkspace({
                               existingInLibrary={item.existingInLibrary}
                               returnTo={routePath}
                               variant="compact"
-                              buttonClassName="min-h-8 rounded-full border border-accent/45 bg-transparent px-4 text-xs font-semibold text-accent shadow-none hover:bg-accent/[0.14]"
+                              buttonClassName="min-h-11 rounded-full border border-accent/45 bg-transparent px-4 text-xs font-semibold text-accent shadow-none hover:bg-accent/[0.14]"
                               mediaType={item.mediaType}
                               tmdbId={
                                 item.providerMetadata?.tmdbDetails?.mediaType === item.mediaType
@@ -468,6 +487,9 @@ export async function RecommendationWorkspace({
                                   : null
                               }
                               titleLabel={`${item.title}${item.year ? ` (${item.year})` : ""}`}
+                              libraries={libraryOptions}
+                              qualityProfiles={qualityProfiles}
+                              pathOptions={pathOptions}
                             />
                             <RecommendationFeedbackActions
                               itemId={item.id}
@@ -491,6 +513,9 @@ export async function RecommendationWorkspace({
           overview={overviewForModal}
           closeHref={currentWorkspaceHref}
           actionReturnHref={appendDetailsParam(currentWorkspaceHref, overviewForModal.item.itemId)}
+          libraries={libraryOptions}
+          qualityProfiles={qualityProfiles}
+          pathOptions={pathOptions}
         />
       ) : null}
     </div>

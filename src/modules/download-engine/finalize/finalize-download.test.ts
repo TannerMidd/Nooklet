@@ -1,13 +1,21 @@
 import path from "node:path";
 import os from "node:os";
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { access, link, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import { deobfuscateDownloadFiles } from "@/modules/download-engine/finalize/deobfuscate-files";
 import {
+  assertArchiveListingQuota,
+  buildUnrarExtractionArguments,
   FinalizeDownloadError,
   finalizeDownload,
+  mergeStagedArchiveTree,
+  parse7zTechnicalListing,
+  parseUnrarTechnicalListing,
+  redactArchiveToolText,
+  verifyStagedArchiveTree,
+  withArchiveStaging,
 } from "@/modules/download-engine/finalize/finalize-download";
 import { type DownloadedNzbFile } from "@/modules/download-engine/scheduler/download-nzb";
 
@@ -35,6 +43,15 @@ async function makeDirs() {
   return { workDir, outputDir };
 }
 
+async function pathExists(filePath: string) {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const mkvMagic = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x42, 0x86, 0x81, 0x01]);
 const par2Magic = Buffer.from("PAR2\0PKT----------------", "latin1");
 
@@ -51,6 +68,202 @@ function okFile(fileName: string): DownloadedNzbFile {
     ok: true,
   };
 }
+
+describe("archive technical listings", () => {
+  it("parses unrar technical entries and their declared sizes", () => {
+    const listing = `
+Archive: release.rar
+
+Name: Season 01
+Type: Directory
+Size: 0
+Attributes: drwxr-xr-x
+Redir type: None
+
+Name: Season 01/Episode 01.mkv
+Type: File
+Size: 4096
+Attributes: -rw-r--r--
+Redir type: None
+`;
+
+    expect(parseUnrarTechnicalListing(listing)).toEqual([
+      { path: "Season 01", kind: "directory", size: 0 },
+      { path: "Season 01/Episode 01.mkv", kind: "file", size: 4096 },
+    ]);
+  });
+
+  it.each([
+    ["symbolic link", "Type: Unix symbolic link\nTarget: ../../outside"],
+    ["hard link", "Type: File\nRedir type: Unix hard link\nRedir target: other.mkv"],
+    ["junction", "Type: File\nJunction: C:\\outside"],
+    ["reparse point", "Type: File\nReparse: 0xa000000c"],
+  ])("rejects a RAR %s before extraction", (_label, metadata) => {
+    const listing = `Name: unsafe-entry\n${metadata}\nSize: 1`;
+
+    expect(() => parseUnrarTechnicalListing(listing)).toThrow(/link|reparse/i);
+  });
+
+  it("rejects unsafe paths in RAR technical listings", () => {
+    expect(() => parseUnrarTechnicalListing("Name: ../escape.mkv\nType: File\nSize: 1"))
+      .toThrow(/unsafe path/i);
+  });
+
+  it("parses 7zz structured listing entries without treating the archive header as a file", () => {
+    const listing = `
+Path = release.zip
+Type = zip
+Physical Size = 123
+
+----------
+Path = folder
+Size = 0
+Folder = +
+Attributes = D
+
+Path = folder/movie.mkv
+Size = 8192
+Folder = -
+Attributes = A
+`;
+
+    expect(parse7zTechnicalListing(listing)).toEqual([
+      { path: "folder", kind: "directory", size: 0 },
+      { path: "folder/movie.mkv", kind: "file", size: 8192 },
+    ]);
+  });
+
+  it.each([
+    ["Symbolic Link", "../../outside"],
+    ["Hard Link", "movie.mkv"],
+    ["Junction", "C:\\outside"],
+    ["Reparse", "0xa000000c"],
+  ])("rejects 7zz %s metadata before extraction", (field, value) => {
+    const listing = `----------\nPath = unsafe\nSize = 1\nFolder = -\n${field} = ${value}`;
+
+    expect(() => parse7zTechnicalListing(listing)).toThrow(/link|reparse/i);
+  });
+
+  it("rejects Unix symlink mode metadata and unsafe 7zz paths", () => {
+    expect(() => parse7zTechnicalListing(
+      "----------\nPath = link\nSize = 1\nFolder = -\nAttributes = A_ lrwxrwxrwx",
+    )).toThrow(/link/i);
+    expect(() => parse7zTechnicalListing(
+      "----------\nPath = C:\\outside.mkv\nSize = 1\nFolder = -",
+    )).toThrow(/unsafe path/i);
+  });
+
+  it("enforces byte and entry quotas cumulatively", () => {
+    const entries = [
+      { path: "one.mkv", kind: "file" as const, size: 6 },
+      { path: "two.mkv", kind: "file" as const, size: 5 },
+    ];
+
+    expect(assertArchiveListingQuota(entries, 11, 2)).toEqual({ totalBytes: 11, totalEntries: 2 });
+    expect(() => assertArchiveListingQuota(entries, 10, 2)).toThrow(/quota/i);
+    expect(() => assertArchiveListingQuota(entries, 11, 1)).toThrow(/quota/i);
+  });
+});
+
+describe("archive error redaction", () => {
+  it("removes explicit secrets and password switches from tool errors", () => {
+    const secret = "correct horse battery staple";
+    const redacted = redactArchiveToolText(
+      `Command failed: unrar x \"-p${secret}\" release.rar; password=${secret}`,
+      [secret],
+    );
+
+    expect(redacted).not.toContain(secret);
+    expect(redacted).toContain("-p[REDACTED]");
+    expect(redacted).toContain("password=[REDACTED]");
+    expect(redactArchiveToolText("7zz x -pstandalone archive.7z")).not.toContain("standalone");
+  });
+
+  it("forces UnRAR link extraction off and never emits a bare password prompt switch", () => {
+    const args = buildUnrarExtractionArguments("release.rar", "staging", null);
+
+    expect(args).toContain("-ol-");
+    expect(args).toContain("-p-");
+    expect(args).not.toContain("-p");
+  });
+});
+
+describe("archive staging", () => {
+  it("always removes an isolated staging directory after success", async () => {
+    const { workDir } = await makeDirs();
+    let stagingDir = "";
+
+    const result = await withArchiveStaging(path.dirname(workDir), "success", async (dir) => {
+      stagingDir = dir;
+      await writeFile(path.join(dir, "movie.mkv"), "media");
+      return 42;
+    });
+
+    expect(result).toBe(42);
+    expect(await pathExists(stagingDir)).toBe(false);
+  });
+
+  it("always removes an isolated staging directory after failure", async () => {
+    const { workDir } = await makeDirs();
+    let stagingDir = "";
+
+    await expect(withArchiveStaging(path.dirname(workDir), "failure", async (dir) => {
+      stagingDir = dir;
+      await writeFile(path.join(dir, "partial.mkv"), "partial");
+      throw new Error("extractor failed");
+    })).rejects.toThrow("extractor failed");
+
+    expect(await pathExists(stagingDir)).toBe(false);
+  });
+
+  it("verifies quotas and merges only a regular staged tree", async () => {
+    const { workDir } = await makeDirs();
+    await mkdir(workDir, { recursive: true });
+
+    await withArchiveStaging(path.dirname(workDir), "verified", async (stagingDir) => {
+      await mkdir(path.join(stagingDir, "season"));
+      await writeFile(path.join(stagingDir, "season", "episode.mkv"), "media");
+
+      await expect(verifyStagedArchiveTree(stagingDir, 5, 2)).resolves.toEqual({
+        totalBytes: 5,
+        totalEntries: 2,
+      });
+      await expect(verifyStagedArchiveTree(stagingDir, 4, 2)).rejects.toThrow(/quota/i);
+      await expect(verifyStagedArchiveTree(stagingDir, 5, 1)).rejects.toThrow(/quota/i);
+
+      await mergeStagedArchiveTree(stagingDir, workDir);
+    });
+
+    await expect(readFile(path.join(workDir, "season", "episode.mkv"), "utf8"))
+      .resolves.toBe("media");
+  });
+
+  it("rejects hard-linked files in staged output", async () => {
+    const { workDir } = await makeDirs();
+
+    await withArchiveStaging(path.dirname(workDir), "hardlink", async (stagingDir) => {
+      const first = path.join(stagingDir, "first.mkv");
+      await writeFile(first, "media");
+      await link(first, path.join(stagingDir, "second.mkv"));
+
+      await expect(verifyStagedArchiveTree(stagingDir, 100, 10)).rejects.toThrow(/hard link/i);
+    });
+  });
+
+  it("refuses to overwrite an existing download path during the staged merge", async () => {
+    const { workDir } = await makeDirs();
+    await mkdir(workDir, { recursive: true });
+    await writeFile(path.join(workDir, "movie.mkv"), "original");
+
+    await withArchiveStaging(path.dirname(workDir), "collision", async (stagingDir) => {
+      await writeFile(path.join(stagingDir, "movie.mkv"), "replacement");
+
+      await expect(mergeStagedArchiveTree(stagingDir, workDir)).rejects.toThrow(/collides/i);
+    });
+
+    await expect(readFile(path.join(workDir, "movie.mkv"), "utf8")).resolves.toBe("original");
+  });
+});
 
 describe("deobfuscateDownloadFiles", () => {
   it("renames extensionless files according to their magic bytes", async () => {

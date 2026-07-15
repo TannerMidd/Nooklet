@@ -8,6 +8,7 @@ export type SearchResultView = {
   seeders: number | null;
   leechers: number | null;
   grabs: number | null;
+  protocol: "newznab" | "torznab" | "unknown";
 };
 
 export type TitleSearchResultView = {
@@ -36,8 +37,16 @@ export const initialTitleSearchActionState: TitleSearchActionState = {
 };
 
 export type RequestSearchTitleActionState = {
-  status: "idle" | "success" | "error";
+  status: "idle" | "success" | "warning" | "error";
   message: string | null;
+  outcome:
+    | "catalog_added"
+    | "queued"
+    | "partial_queue"
+    | "no_match"
+    | "search_failed"
+    | "queue_failed"
+    | null;
   titleId: string | null;
   seasonId: string | null;
   episodeId: string | null;
@@ -50,6 +59,7 @@ export type RequestSearchTitleActionState = {
 export const initialRequestSearchTitleActionState: RequestSearchTitleActionState = {
   status: "idle",
   message: null,
+  outcome: null,
   titleId: null,
   seasonId: null,
   episodeId: null,

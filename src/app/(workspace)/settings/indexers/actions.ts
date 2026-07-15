@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { addIndexerCommand } from "@/modules/indexers/commands/add-indexer";
+import {
+  removeIndexerCommand,
+  RemoveIndexerCommandError,
+} from "@/modules/indexers/commands/remove-indexer";
 import { updateIndexerCommand } from "@/modules/indexers/commands/update-indexer";
 import {
   addIndexerInputSchema,
@@ -15,6 +19,10 @@ import {
   testIndexerWorkflow,
   TestIndexerWorkflowError,
 } from "@/modules/indexers/workflows/test-indexer";
+import {
+  testAndSaveIndexer,
+  TestAndSaveIndexerError,
+} from "@/modules/indexers/workflows/test-and-save-indexer";
 import { type IndexerActionState } from "./action-state";
 
 const categoryMediaTypes = ["movie", "tv"] as const satisfies readonly RecommendationMediaType[];
@@ -35,13 +43,28 @@ function parseCategoryList(value: FormDataEntryValue | null, mediaType: Recommen
     }));
 }
 
+function readCategories(formData: FormData, mediaType: RecommendationMediaType) {
+  const friendlyCategories = formData
+    .getAll(`${mediaType}Category`)
+    .flatMap((value) => parseCategoryList(value, mediaType));
+  const customCategories = parseCategoryList(formData.get(`${mediaType}CustomCategories`), mediaType);
+  const legacyCategories = parseCategoryList(formData.get(`${mediaType}Categories`), mediaType);
+
+  return Array.from(
+    new Map(
+      [...friendlyCategories, ...customCategories, ...legacyCategories]
+        .map((category) => [category.categoryId, category]),
+    ).values(),
+  );
+}
+
 function parseOptionalApiKey(value: FormDataEntryValue | null) {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
 function readIndexerFormInput(formData: FormData) {
   const categories = categoryMediaTypes.flatMap((mediaType) => (
-    parseCategoryList(formData.get(`${mediaType}Categories`), mediaType)
+    readCategories(formData, mediaType)
   ));
 
   return {
@@ -65,6 +88,10 @@ export async function addIndexerAction(
     return { status: "error", message: "You need to sign in again." };
   }
 
+  if (session.user.role !== "admin") {
+    return { status: "error", message: "Only an administrator can manage indexers." };
+  }
+
   const parsed = addIndexerInputSchema.safeParse({
     ...readIndexerFormInput(formData),
     apiKey: formData.get("apiKey"),
@@ -76,8 +103,17 @@ export async function addIndexerAction(
   }
 
   try {
+    if (formData.get("intent") === "test-save") {
+      const result = await testAndSaveIndexer(session.user.id, parsed.data);
+      revalidatePath("/settings/indexers");
+      return { status: result.ok ? "success" : "error", message: result.message };
+    }
+
     await addIndexerCommand(session.user.id, parsed.data);
-  } catch {
+  } catch (error) {
+    if (error instanceof TestAndSaveIndexerError) {
+      return { status: "error", message: error.message };
+    }
     return { status: "error", message: "Failed to add indexer." };
   }
 
@@ -95,6 +131,10 @@ export async function updateIndexerAction(
     return { status: "error", message: "You need to sign in again." };
   }
 
+  if (session.user.role !== "admin") {
+    return { status: "error", message: "Only an administrator can manage indexers." };
+  }
+
   const parsed = updateIndexerInputSchema.safeParse({
     id: formData.get("id"),
     ...readIndexerFormInput(formData),
@@ -107,8 +147,17 @@ export async function updateIndexerAction(
   }
 
   try {
+    if (formData.get("intent") === "test-save") {
+      const result = await testAndSaveIndexer(session.user.id, parsed.data);
+      revalidatePath("/settings/indexers");
+      return { status: result.ok ? "success" : "error", message: result.message };
+    }
+
     await updateIndexerCommand(session.user.id, parsed.data);
-  } catch {
+  } catch (error) {
+    if (error instanceof TestAndSaveIndexerError) {
+      return { status: "error", message: error.message };
+    }
     return { status: "error", message: "Failed to save indexer." };
   }
 
@@ -124,6 +173,10 @@ export async function testIndexerAction(
 
   if (!session?.user?.id) {
     return { status: "error", message: "You need to sign in again." };
+  }
+
+  if (session.user.role !== "admin") {
+    return { status: "error", message: "Only an administrator can manage indexers." };
   }
 
   const parsed = testIndexerInputSchema.safeParse({ id: formData.get("id") });
@@ -147,6 +200,39 @@ export async function testIndexerAction(
     return {
       status: "error",
       message: "Indexer test failed.",
+    };
+  }
+}
+
+export async function removeIndexerAction(
+  _previous: IndexerActionState,
+  formData: FormData,
+): Promise<IndexerActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { status: "error", message: "You need to sign in again." };
+  }
+
+  if (session.user.role !== "admin") {
+    return { status: "error", message: "Only an administrator can manage indexers." };
+  }
+
+  const parsed = testIndexerInputSchema.safeParse({ id: formData.get("id") });
+  if (!parsed.success) {
+    return { status: "error", message: "Choose an indexer to remove." };
+  }
+
+  try {
+    const result = await removeIndexerCommand(session.user.id, parsed.data.id);
+    revalidatePath("/settings/indexers");
+    return { status: "success", message: `${result.name} removed.` };
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof RemoveIndexerCommandError
+        ? error.message
+        : "Indexer could not be removed.",
     };
   }
 }

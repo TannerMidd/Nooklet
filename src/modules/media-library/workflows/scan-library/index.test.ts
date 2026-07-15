@@ -31,6 +31,7 @@ import { persistLibraryScanMetadata } from "./scan-metadata-persistence";
 import { fetchLibrarySourceFiles } from "./source-fetch";
 import { validateScanSources } from "./source-validation";
 import { scanMediaLibraryWorkflow } from "./index";
+import { ScanMediaLibraryWorkflowError } from "./errors";
 
 const validateRequestMock = vi.mocked(validateScanMediaLibraryRequest);
 const validateSourcesMock = vi.mocked(validateScanSources);
@@ -92,5 +93,35 @@ describe("scanMediaLibraryWorkflow", () => {
     expect(persistMock).toHaveBeenCalledWith("user1", merged);
     expect(auditMock).toHaveBeenCalledWith("user1", persisted);
     expect(result).toBe(persisted);
+  });
+
+  it("rejects overlapping scans for the same user and releases the lock afterward", async () => {
+    const request = {};
+    const validated = { request, sources: [] };
+    const fetched = { sources: [], files: [], failedPaths: [] };
+    const normalized = { sources: [], files: [], failedPaths: [] };
+    const merged = { discoveredFileCount: 0, matchedTitleCount: 0, failedPaths: [], pathStats: [], sources: [] };
+    const persisted = { discoveredFileCount: 0, matchedTitleCount: 0, failedPathCount: 0, scanRunIds: [] };
+    let releaseFetch!: () => void;
+
+    validateRequestMock.mockReturnValue(request);
+    validateSourcesMock.mockResolvedValue(validated as never);
+    fetchSourcesMock.mockImplementation(() => new Promise((resolve) => {
+      releaseFetch = () => resolve(fetched);
+    }));
+    normalizeMock.mockReturnValue(normalized);
+    mergeMock.mockResolvedValue(merged);
+    persistMock.mockResolvedValue(persisted);
+    auditMock.mockResolvedValue();
+
+    const firstScan = scanMediaLibraryWorkflow("user1", request);
+    await vi.waitFor(() => expect(fetchSourcesMock).toHaveBeenCalledTimes(1));
+
+    await expect(scanMediaLibraryWorkflow("user1", request)).rejects.toEqual(
+      expect.objectContaining<Partial<ScanMediaLibraryWorkflowError>>({ code: "scan_in_progress" }),
+    );
+
+    releaseFetch();
+    await expect(firstScan).resolves.toBe(persisted);
   });
 });

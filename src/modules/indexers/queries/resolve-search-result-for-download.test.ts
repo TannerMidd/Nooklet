@@ -2,19 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/modules/indexers/repositories/indexer-repository", () => ({
   findIndexerById: vi.fn(),
-  findSearchResultById: vi.fn(),
+  findUnexpiredSearchResultById: vi.fn(),
   findSearchResultSecret: vi.fn(),
 }));
 
 import {
   findIndexerById,
-  findSearchResultById,
+  findUnexpiredSearchResultById,
   findSearchResultSecret,
 } from "@/modules/indexers/repositories/indexer-repository";
 
 import { resolveSearchResultForDownload } from "./resolve-search-result-for-download";
 
-const findResultMock = vi.mocked(findSearchResultById);
+const findResultMock = vi.mocked(findUnexpiredSearchResultById);
 const findSecretMock = vi.mocked(findSearchResultSecret);
 const findIndexerMock = vi.mocked(findIndexerById);
 
@@ -23,7 +23,7 @@ beforeEach(() => {
 });
 
 describe("resolveSearchResultForDownload", () => {
-  it("returns null when the result does not belong to the user", async () => {
+  it("returns null when the result does not belong to the user or has expired", async () => {
     findResultMock.mockResolvedValue(null);
 
     const result = await resolveSearchResultForDownload("user1", "result1");

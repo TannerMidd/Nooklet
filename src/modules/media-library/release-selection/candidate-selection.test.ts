@@ -95,4 +95,54 @@ describe("selectReleaseCandidates", () => {
 
     expect(candidates.map((candidate) => candidate.id)).toEqual(["different-release"]);
   });
+
+  it("rejects releases for a different title or conflicting movie year", () => {
+    const candidates = selectReleaseCandidates(
+      [
+        result({ id: "correct", title: "Arrival 2016 1080p WEB-DL", seeders: 10 }),
+        result({ id: "wrong-title", title: "The Arrival 2016 1080p WEB-DL", seeders: 100 }),
+        result({ id: "wrong-year", title: "Arrival 1996 1080p WEB-DL", seeders: 100 }),
+        result({ id: "episode", title: "Arrival S01E01 2016 1080p", seeders: 100 }),
+      ],
+      {
+        qualityProfile: "hd-1080p",
+        expectedTitle: "Arrival",
+        expectedYear: 2016,
+        mediaType: "movie",
+      },
+    );
+
+    expect(candidates.map((candidate) => candidate.id)).toEqual(["correct"]);
+  });
+
+  it("uses bounded TV tokens and requires an explicit complete-series release for all-TV requests", () => {
+    const episodeCandidates = selectReleaseCandidates(
+      [
+        result({ id: "exact", title: "Eureka S01E01 1080p" }),
+        result({ id: "prefix", title: "Eureka S01E010 1080p" }),
+      ],
+      {
+        qualityProfile: "hd-1080p",
+        expectedTitle: "Eureka",
+        mediaType: "tv",
+        target: { kind: "episode", season: 1, episode: 1 },
+      },
+    );
+    const seriesCandidates = selectReleaseCandidates(
+      [
+        result({ id: "single", title: "Eureka S01E01 1080p" }),
+        result({ id: "season", title: "Eureka S01 Complete 1080p" }),
+        result({ id: "series", title: "Eureka Complete Series 1080p" }),
+      ],
+      {
+        qualityProfile: "hd-1080p",
+        expectedTitle: "Eureka",
+        mediaType: "tv",
+        target: { kind: "all", mediaType: "tv" },
+      },
+    );
+
+    expect(episodeCandidates.map((candidate) => candidate.id)).toEqual(["exact"]);
+    expect(seriesCandidates.map((candidate) => candidate.id)).toEqual(["series"]);
+  });
 });

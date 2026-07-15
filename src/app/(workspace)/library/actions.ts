@@ -77,6 +77,8 @@ import {
 import { configureLibraryScanSchedule } from "@/modules/media-library/workflows/configure-library-scan-schedule";
 import { configureMetadataRefreshSchedule } from "@/modules/media-library/workflows/configure-metadata-refresh-schedule";
 import { configureMissingSearchSchedule } from "@/modules/media-library/workflows/configure-missing-search-schedule";
+import { searchMissingMonitoredContentWorkflow } from "@/modules/media-library/workflows/search-missing-monitored";
+import { refreshTvMetadataWorkflow } from "@/modules/media-library/workflows/refresh-tv-metadata";
 import {
   initialLibraryItemSearchActionState,
   initialLibraryMonitoringActionState,
@@ -122,6 +124,10 @@ export async function addLibraryPathAction(
 
   if (!session?.user?.id) {
     return { status: "error", message: "You need to sign in again." };
+  }
+
+  if (session.user.role !== "admin") {
+    return { status: "error", message: "Only an administrator can manage library folders." };
   }
 
   const parsed = addLibraryPathInputSchema.safeParse({
@@ -196,6 +202,10 @@ export async function updateLibraryPathAction(
     return { status: "error", message: "You need to sign in again." };
   }
 
+  if (session.user.role !== "admin") {
+    return { status: "error", message: "Only an administrator can manage library folders." };
+  }
+
   const parsed = updateLibraryPathInputSchema.safeParse({
     pathId: formData.get("pathId"),
     mediaType: formData.get("mediaType"),
@@ -232,6 +242,10 @@ export async function removeLibraryPathAction(
 
   if (!session?.user?.id) {
     return { status: "error", message: "You need to sign in again." };
+  }
+
+  if (session.user.role !== "admin") {
+    return { status: "error", message: "Only an administrator can manage library folders." };
   }
 
   const parsed = removeLibraryPathInputSchema.safeParse({
@@ -351,7 +365,7 @@ export async function searchLibraryItemReleasesAction(
     if (result.queuedDownload.reason === "no_matching_release") {
       return {
         ...initialLibraryItemSearchActionState,
-        status: "success",
+        status: "warning",
         message: `Search finished, but no releases matched ${getMediaQualityProfileLabel(title.qualityProfile)}.`,
       };
     }
@@ -395,6 +409,14 @@ export async function removeMediaTitleAction(
 
   const deleteFiles = formData.get("deleteFiles") === "on" || formData.get("deleteFiles") === "true";
 
+  if (deleteFiles && session.user.role !== "admin") {
+    return {
+      ...initialRemoveMediaTitleActionState,
+      status: "error",
+      message: "Only an administrator can delete media files from disk.",
+    };
+  }
+
   try {
     const result = await deleteMediaTitleWithFilesWorkflow(session.user.id, {
       titleId: parsed.data.titleId,
@@ -411,7 +433,7 @@ export async function removeMediaTitleAction(
         : `Library title removed. Deleted ${deletedCount} files.`
       : "Library title removed.";
 
-    return { status: "success", message };
+    return { status: failedCount > 0 ? "warning" : "success", message };
   } catch (error) {
     if (error instanceof DeleteMediaTitleWithFilesError) {
       return { ...initialRemoveMediaTitleActionState, status: "error", message: error.message };
@@ -555,14 +577,17 @@ export async function requestExistingTitleContentAction(
       revalidatePath("/in-progress");
     }
 
+    const status = !downloadNow || queuedCount === totalCount ? "success" : "warning";
     const message = !downloadNow
       ? `Added ${totalCount} selection${totalCount === 1 ? "" : "s"} to monitoring.`
-      : queuedCount > 0
-        ? `Queued ${queuedCount} of ${totalCount} selections.`
+      : queuedCount === totalCount
+        ? `Queued all ${totalCount} selection${totalCount === 1 ? "" : "s"}.`
+        : queuedCount > 0
+          ? `Only ${queuedCount} of ${totalCount} selections queued. Review Activity for the queued downloads and try the remaining selections again.`
         : `No selections were queued (${totalCount} attempted).`;
 
     return {
-      status: "success",
+      status,
       message,
       titleId: result.title.id,
       queuedCount,
@@ -842,4 +867,55 @@ export async function loadTvSeasonEpisodesForLibraryAction(
   const episodes = await getMediaLibraryTvSeasonEpisodes(session.user.id, titleId, seasonNumber);
 
   return { status: "ok", episodes };
+}
+
+export async function runMissingSearchNowAction(
+  _previous: ScanLibraryActionState = initialScanLibraryActionState,
+): Promise<ScanLibraryActionState> {
+  void _previous;
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { status: "error", message: "You need to sign in again." };
+  }
+  if (session.user.role !== "admin") {
+    return { status: "error", message: "Only an administrator can run instance automation." };
+  }
+
+  try {
+    const result = await searchMissingMonitoredContentWorkflow(session.user.id);
+    revalidatePath("/settings/automation");
+    revalidatePath("/in-progress");
+    return {
+      status: "success",
+      message: `Search finished: ${result.searchedCount} checked, ${result.queuedCount} queued, ${result.unmatchedCount} without a match.`,
+    };
+  } catch {
+    return { status: "error", message: "Nooklet could not run the missing-content search." };
+  }
+}
+
+export async function runMetadataRefreshNowAction(
+  _previous: ScanLibraryActionState = initialScanLibraryActionState,
+): Promise<ScanLibraryActionState> {
+  void _previous;
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { status: "error", message: "You need to sign in again." };
+  }
+  if (session.user.role !== "admin") {
+    return { status: "error", message: "Only an administrator can run instance automation." };
+  }
+
+  try {
+    const result = await refreshTvMetadataWorkflow(session.user.id);
+    revalidatePath("/settings/automation");
+    return {
+      status: "success",
+      message: `Refresh finished: ${result.refreshedCount} series, ${result.newEpisodeCount} new episodes, ${result.failedCount} failed.`,
+    };
+  } catch {
+    return { status: "error", message: "Nooklet could not refresh series metadata." };
+  }
 }

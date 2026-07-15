@@ -127,7 +127,9 @@ describe("addRecommendationToLibrary", () => {
 
     expect(result).toEqual({
       ok: true,
-      message: "Titanic was requested in your Nooklet library.",
+      outcome: "queued",
+      catalogAdded: true,
+      message: "Titanic was added to your catalog and queued for download.",
     });
     expect(mockedRequestTitleWorkflow).toHaveBeenCalledWith("user-1", {
       mediaType: "movie",
@@ -153,8 +155,10 @@ describe("addRecommendationToLibrary", () => {
         itemId: ITEM_ID,
         eventType: "library-add",
         status: "succeeded",
-        title: "Added to Nooklet",
+        title: "Added and queued",
         metadata: expect.objectContaining({
+          outcome: "queued",
+          catalogAdded: true,
           queued: true,
           queuedReleaseId: "release-1",
         }),
@@ -220,6 +224,8 @@ describe("addRecommendationToLibrary", () => {
 
     expect(result).toEqual({
       ok: false,
+      outcome: "failed",
+      catalogAdded: false,
       message: "Choose a matching active library folder before adding that title.",
       field: "targetLibraryPathId",
     });
@@ -230,6 +236,107 @@ describe("addRecommendationToLibrary", () => {
         title: "Add to Nooklet failed",
       }),
     );
+  });
+
+  it("reports a catalog-only add without claiming a download was queued", async () => {
+    mockedRequestTitleWorkflow.mockResolvedValue({
+      ...buildWorkflowResult(LIBRARY_ID),
+      queuedDownload: {
+        queued: false,
+        reason: "not_requested",
+        message: null,
+        selectedResultId: null,
+        rejectedResultIds: [],
+        download: null,
+      },
+    } as never);
+
+    const result = await addRecommendationToLibrary("user-1", {
+      itemId: ITEM_ID,
+      libraryId: LIBRARY_ID,
+      targetLibraryPathId: PATH_ID,
+      monitored: true,
+      qualityProfile: "hd-1080p",
+      downloadNow: false,
+      returnTo: "/movies",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      outcome: "catalog_added",
+      catalogAdded: true,
+      message: "Titanic was added to your catalog. No download was requested.",
+    });
+    expect(mockedMarkRecommendationItemExistingInLibrary).toHaveBeenCalledWith(ITEM_ID, true);
+  });
+
+  it("reports no-match as a partial outcome and does not mark the recommendation in-library", async () => {
+    mockedRequestTitleWorkflow.mockResolvedValue({
+      ...buildWorkflowResult(LIBRARY_ID),
+      queuedDownload: {
+        queued: false,
+        reason: "no_matching_release",
+        message: null,
+        selectedResultId: null,
+        rejectedResultIds: [],
+        download: null,
+      },
+    } as never);
+
+    const result = await addRecommendationToLibrary("user-1", {
+      itemId: ITEM_ID,
+      libraryId: LIBRARY_ID,
+      targetLibraryPathId: PATH_ID,
+      monitored: true,
+      qualityProfile: "hd-1080p",
+      downloadNow: true,
+      returnTo: "/movies",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      outcome: "no_match",
+      catalogAdded: true,
+      message: "Titanic was added to your catalog, but no release matched HD 1080p. You can search again from its library page.",
+    });
+    expect(mockedMarkRecommendationItemExistingInLibrary).not.toHaveBeenCalled();
+    expect(mockedCreateRecommendationItemTimelineEvent).toHaveBeenCalledWith(expect.objectContaining({
+      status: "failed",
+      title: "Added to catalog; download needs attention",
+      metadata: expect.objectContaining({ outcome: "no_match", catalogAdded: true }),
+    }));
+  });
+
+  it("reports downloader rejection without claiming full success", async () => {
+    mockedRequestTitleWorkflow.mockResolvedValue({
+      ...buildWorkflowResult(LIBRARY_ID),
+      queuedDownload: {
+        queued: false,
+        reason: "queue_failed",
+        message: "The download workspace does not have enough free space.",
+        selectedResultId: null,
+        rejectedResultIds: ["release-1"],
+        download: null,
+      },
+    } as never);
+
+    const result = await addRecommendationToLibrary("user-1", {
+      itemId: ITEM_ID,
+      libraryId: LIBRARY_ID,
+      targetLibraryPathId: PATH_ID,
+      monitored: true,
+      qualityProfile: "hd-1080p",
+      downloadNow: true,
+      returnTo: "/movies",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      outcome: "queue_failed",
+      catalogAdded: true,
+      message: "Titanic was added to your catalog, but the downloader could not queue a release: The download workspace does not have enough free space.",
+    });
+    expect(mockedMarkRecommendationItemExistingInLibrary).not.toHaveBeenCalled();
   });
 
   it("surfaces in-flight conflicts without marking the recommendation added", async () => {
@@ -278,6 +385,8 @@ describe("addRecommendationToLibrary", () => {
 
     expect(result).toEqual({
       ok: false,
+      outcome: "failed",
+      catalogAdded: false,
       message: "This recommendation is already marked as existing in the library.",
     });
     expect(mockedRequestTitleWorkflow).not.toHaveBeenCalled();

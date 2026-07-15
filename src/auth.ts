@@ -3,10 +3,14 @@ import Credentials from "next-auth/providers/credentials";
 
 import { env } from "@/lib/env";
 import { consumeRateLimit } from "@/lib/security/rate-limit";
+import { trustedClientAddress } from "@/lib/security/rate-limit-key";
+import { buildLoginRateLimits } from "@/lib/security/login-rate-limit";
 import { loginInputSchema } from "@/modules/identity-access/schemas/login";
 import { authenticateWithPassword } from "@/modules/identity-access/workflows/authenticate-with-password";
 import { getBootstrapStatus } from "@/modules/identity-access/workflows/bootstrap-status";
 import { findUserById } from "@/modules/users/repositories/user-repository";
+
+process.env.AUTH_URL ??= env.APP_URL;
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: env.AUTH_SECRET,
@@ -35,7 +39,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           type: "password",
         },
       },
-      authorize: async (credentials) => {
+      authorize: async (credentials, request) => {
         const parsedCredentials = loginInputSchema.safeParse(credentials);
 
         if (!parsedCredentials.success) {
@@ -43,19 +47,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         const normalizedEmail = parsedCredentials.data.email.trim().toLowerCase();
-        const rateLimit = consumeRateLimit({
-          key: `login:${normalizedEmail}`,
-          limit: 10,
-          windowMs: 5 * 60 * 1000,
+        const clientAddress = trustedClientAddress(request);
+        const loginRateLimits = buildLoginRateLimits({
+          clientAddress,
+          normalizedEmail,
+          password: parsedCredentials.data.password,
         });
+        const sourceRateLimit = consumeRateLimit(loginRateLimits.source);
 
-        if (!rateLimit.ok) {
+        if (!sourceRateLimit.ok) {
           return null;
         }
 
         const bootstrapStatus = await getBootstrapStatus();
 
         if (bootstrapStatus.isOpen) {
+          return null;
+        }
+
+        const accountRateLimit = consumeRateLimit(loginRateLimits.accountOrCandidate);
+
+        if (!accountRateLimit.ok) {
           return null;
         }
 
@@ -70,6 +82,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           email: user.email,
           name: user.displayName,
           role: user.role,
+          mustChangePassword: user.mustChangePassword,
           passwordChangedAt: user.passwordChangedAt,
         };
       },
@@ -79,6 +92,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.role = user.role;
+        token.mustChangePassword = user.mustChangePassword;
         token.pwdChangedAt = user.passwordChangedAt;
         return token;
       }
@@ -99,6 +113,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         token.role = currentUser.role;
+        token.mustChangePassword = currentUser.mustChangePassword;
       }
 
       return token;
@@ -107,6 +122,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user) {
         session.user.id = token.sub ?? "";
         session.user.role = token.role === "admin" ? "admin" : "user";
+        session.user.mustChangePassword = token.mustChangePassword === true;
       }
 
       return session;

@@ -5,6 +5,7 @@ import { AuthError } from "next-auth";
 import { type LoginActionState } from "@/app/(auth)/login/action-state";
 import { signIn } from "@/auth";
 import { loginInputSchema } from "@/modules/identity-access/schemas/login";
+import { safeCallbackUrl } from "./safe-callback-url";
 
 export async function submitLoginAction(
   _previousState: LoginActionState,
@@ -14,6 +15,7 @@ export async function submitLoginAction(
     email: formData.get("email"),
     password: formData.get("password"),
   });
+  const callbackUrl = safeCallbackUrl(formData.get("callbackUrl"));
 
   if (!parsedInput.success) {
     const flattenedErrors = parsedInput.error.flatten().fieldErrors;
@@ -32,7 +34,7 @@ export async function submitLoginAction(
     await signIn("credentials", {
       email: parsedInput.data.email,
       password: parsedInput.data.password,
-      redirectTo: "/tv",
+      redirectTo: callbackUrl,
     });
   } catch (error) {
     if (error instanceof AuthError) {

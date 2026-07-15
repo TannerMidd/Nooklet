@@ -84,6 +84,18 @@ function hasTableColumn(databasePath: string, tableName: string, columnName: str
   }
 }
 
+function hasTable(databasePath: string, tableName: string) {
+  const sqlite = new Database(databasePath, { readonly: true });
+
+  try {
+    return Boolean(sqlite
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get(tableName));
+  } finally {
+    sqlite.close();
+  }
+}
+
 describe("ensureDatabaseReady", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -130,5 +142,35 @@ describe("ensureDatabaseReady", () => {
     ensureDatabaseReady();
 
     expect(hasTableColumn(databasePath, "recommendation_runs", "selected_genres_json")).toBe(true);
+  });
+
+  it("repairs media_request_attempts for databases that had already applied migration 0029", async () => {
+    const databaseDirectory = createTempDirectory("nooklet-request-attempt-upgrade-");
+    const databasePath = join(databaseDirectory, "upgrade.db");
+
+    seedDatabaseThroughMigration(29, databasePath);
+    expect(hasTable(databasePath, "media_request_attempts")).toBe(false);
+
+    process.env.DATABASE_URL = `file:${databasePath}`;
+    const { ensureDatabaseReady } = await import("./client");
+    ensureDatabaseReady();
+
+    expect(hasTable(databasePath, "media_request_attempts")).toBe(true);
+  });
+
+  it("adds expiring job leases when upgrading a database through migration 0033", async () => {
+    const databaseDirectory = createTempDirectory("nooklet-job-lease-upgrade-");
+    const databasePath = join(databaseDirectory, "upgrade.db");
+
+    seedDatabaseThroughMigration(33, databasePath);
+    expect(hasTableColumn(databasePath, "jobs", "run_token")).toBe(false);
+
+    process.env.DATABASE_URL = `file:${databasePath}`;
+    const { ensureDatabaseReady } = await import("./client");
+    ensureDatabaseReady();
+
+    expect(hasTableColumn(databasePath, "jobs", "run_token")).toBe(true);
+    expect(hasTableColumn(databasePath, "jobs", "locked_until")).toBe(true);
+    expect(hasTableColumn(databasePath, "jobs", "last_heartbeat_at")).toBe(true);
   });
 });

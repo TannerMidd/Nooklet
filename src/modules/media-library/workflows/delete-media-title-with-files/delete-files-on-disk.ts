@@ -1,5 +1,6 @@
 import { unlink } from "node:fs/promises";
 
+import { resolveApprovedMediaFile } from "@/lib/security/filesystem-policy";
 import { type MediaFilePathForCleanup } from "./list-files";
 
 export type FileDeletionOutcome = {
@@ -20,7 +21,8 @@ export async function deleteFilesOnDisk(
 
   for (const file of files) {
     try {
-      await unlink(file.filePath);
+      const approvedFilePath = resolveApprovedMediaFile(file.filePath, file.libraryRootPath);
+      await unlink(approvedFilePath);
       outcomes.push({ filePath: file.filePath, status: "deleted" });
     } catch (error) {
       if (isNotFoundError(error)) {

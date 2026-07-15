@@ -8,6 +8,7 @@ import {
 import {
   deleteEngineDownload,
   findEngineDownloadById,
+  isEngineDownloadPostProcessing,
   listActiveEngineDownloads,
   setEngineDownloadPriority,
   transitionEngineDownloadState,
@@ -65,11 +66,28 @@ async function removeItem(userId: string, itemId: string) {
     return;
   }
 
+  if (isEngineDownloadPostProcessing(record.state)) {
+    throw new EngineQueueActionError(
+      "This download is in post-processing. Wait for assembly, repair, or extraction to finish before removing it.",
+    );
+  }
+
   if (record.state === "fetching") {
     signalEngineDownload(itemId, "cancel");
   }
 
-  await deleteEngineDownload(userId, itemId);
+  const removed = await deleteEngineDownload(userId, itemId);
+
+  if (!removed) {
+    if (record.state === "fetching") {
+      clearEngineDownloadSignal(itemId);
+    }
+
+    throw new EngineQueueActionError(
+      "This download entered post-processing before it could be removed. Wait for it to finish and try again.",
+    );
+  }
+
   await rm(engineIncompleteDir(itemId), { recursive: true, force: true }).catch(() => undefined);
   await rm(engineCompleteDir(itemId), { recursive: true, force: true }).catch(() => undefined);
 

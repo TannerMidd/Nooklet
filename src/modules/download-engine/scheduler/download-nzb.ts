@@ -68,6 +68,7 @@ export type DownloadNzbInput = {
 type SegmentTask = {
   fileIndex: number;
   segmentNumber: number;
+  declaredBytes: number;
   messageId: string;
 };
 
@@ -78,6 +79,9 @@ type FileAssemblyState = {
   filePath: string | null;
   handle: FileHandle | null;
   opening: Promise<void> | null;
+  decodedName: string | null;
+  expectedFileSize: number | null;
+  ranges: Array<{ begin: number; end: number }>;
   totalSegments: number;
   completedSegments: number;
   failedSegments: number;
@@ -108,6 +112,9 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     filePath: null,
     handle: null,
     opening: null,
+    decodedName: null,
+    expectedFileSize: null,
+    ranges: [],
     totalSegments: file.segments.length,
     completedSegments: 0,
     failedSegments: 0,
@@ -118,6 +125,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     file.segments.map((segment) => ({
       fileIndex,
       segmentNumber: segment.number,
+      declaredBytes: segment.bytes,
       messageId: segment.messageId,
     })),
   );
@@ -129,6 +137,8 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
   };
   let nextTaskIndex = 0;
   let aborted = false;
+  let fatalError: Error | null = null;
+  const reservedOutputNames = new Set<string>();
 
   const reportProgress = () => {
     input.onProgress?.({
@@ -139,6 +149,25 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     });
   };
 
+  function reserveOutputName(decodedName: string, state: FileAssemblyState) {
+    const sanitized = sanitizeDownloadFileName(
+      decodedName,
+      fallbackFileName(state.subject, state.fileIndex),
+    );
+    const extension = path.extname(sanitized);
+    const baseName = extension ? sanitized.slice(0, -extension.length) : sanitized;
+    let candidate = sanitized;
+    let suffix = 1;
+
+    while (reservedOutputNames.has(candidate.toLocaleLowerCase())) {
+      candidate = `${baseName}.${state.fileIndex + 1}-${suffix}${extension}`;
+      suffix += 1;
+    }
+
+    reservedOutputNames.add(candidate.toLocaleLowerCase());
+    return candidate;
+  }
+
   /** Opens (once) the target file for a state, pre-sized to the yEnc file size. */
   async function ensureFileOpen(state: FileAssemblyState, decodedName: string, fileSize: number) {
     if (state.handle) {
@@ -147,10 +176,12 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
     if (!state.opening) {
       state.opening = (async () => {
-        const name = sanitizeDownloadFileName(decodedName, fallbackFileName(state.subject, state.fileIndex));
+        const name = reserveOutputName(decodedName, state);
         const filePath = path.join(input.workDir, name);
-        const handle = await open(filePath, "w");
+        const handle = await open(filePath, "wx");
         await handle.truncate(fileSize);
+        state.decodedName = decodedName;
+        state.expectedFileSize = fileSize;
         state.fileName = name;
         state.filePath = filePath;
         state.handle = handle;
@@ -162,22 +193,112 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
   async function fetchSegment(client: NntpClientLike, task: SegmentTask) {
     const body = await client.body(task.messageId);
-    const decoded = decodeYencArticle(body);
+    const declaredFileBytes = input.nzb.files[task.fileIndex].declaredBytes;
+    const decoded = decodeYencArticle(body, { maxFileBytes: declaredFileBytes });
     const state = fileStates[task.fileIndex];
+
+    if (decoded.data.length > task.declaredBytes) {
+      throw new NntpError(
+        "protocol-error",
+        `Segment <${task.messageId}> exceeds its NZB-declared byte size.`,
+        true,
+      );
+    }
+
+    if (state.decodedName !== null && state.decodedName !== decoded.name) {
+      throw new NntpError(
+        "protocol-error",
+        `Segment <${task.messageId}> changed the yEnc file name.`,
+        true,
+      );
+    }
+
+    if (state.expectedFileSize !== null && state.expectedFileSize !== decoded.fileSize) {
+      throw new NntpError(
+        "protocol-error",
+        `Segment <${task.messageId}> changed the yEnc file size.`,
+        true,
+      );
+    }
+
+    if (state.totalSegments > 1 && !decoded.part) {
+      throw new NntpError(
+        "protocol-error",
+        `Segment <${task.messageId}> omitted its multipart byte range.`,
+        true,
+      );
+    }
+
+    if (decoded.part && decoded.part.number !== null && decoded.part.number !== task.segmentNumber) {
+      throw new NntpError(
+        "protocol-error",
+        `Segment <${task.messageId}> declared the wrong part number.`,
+        true,
+      );
+    }
+
+    if (decoded.part && decoded.part.total !== null && decoded.part.total !== state.totalSegments) {
+      throw new NntpError(
+        "protocol-error",
+        `Segment <${task.messageId}> declared an inconsistent part count.`,
+        true,
+      );
+    }
 
     await ensureFileOpen(state, decoded.name, decoded.fileSize);
 
-    const offset = decoded.part ? decoded.part.begin - 1 : 0;
-    await state.handle!.write(decoded.data, 0, decoded.data.length, offset);
+    // Another connection may have opened this file while this segment was
+    // decoding; re-check the canonical metadata after the shared open.
+    if (state.decodedName !== decoded.name || state.expectedFileSize !== decoded.fileSize) {
+      throw new NntpError(
+        "protocol-error",
+        `Segment <${task.messageId}> conflicts with another segment's yEnc metadata.`,
+        true,
+      );
+    }
 
-    state.bytesWritten += decoded.data.length;
-    totals.downloadedBytes += decoded.data.length;
+    const range = decoded.part
+      ? { begin: decoded.part.begin, end: decoded.part.end }
+      : { begin: 1, end: decoded.fileSize };
 
-    // A CRC/size mismatch still writes the bytes (PAR2 can often repair a
-    // near-miss) but counts the segment as damaged so finalization knows.
+    if (state.ranges.some((existing) => range.begin <= existing.end && range.end >= existing.begin)) {
+      throw new NntpError(
+        "protocol-error",
+        `Segment <${task.messageId}> overlaps another yEnc byte range.`,
+        true,
+      );
+    }
+
     if (decoded.crcOk === false || !decoded.sizeOk) {
       throw new NntpError("protocol-error", `Segment <${task.messageId}> failed integrity checks.`, true);
     }
+
+    state.ranges.push(range);
+    const offset = range.begin - 1;
+    let bytesWritten = 0;
+
+    try {
+      while (bytesWritten < decoded.data.length) {
+        const write = await state.handle!.write(
+          decoded.data,
+          bytesWritten,
+          decoded.data.length - bytesWritten,
+          offset + bytesWritten,
+        );
+
+        if (write.bytesWritten <= 0) {
+          throw new Error("The assembled file stopped accepting bytes.");
+        }
+
+        bytesWritten += write.bytesWritten;
+      }
+    } catch (error) {
+      state.ranges = state.ranges.filter((candidate) => candidate !== range);
+      throw error;
+    }
+
+    state.bytesWritten += decoded.data.length;
+    totals.downloadedBytes += decoded.data.length;
   }
 
   async function runWorker() {
@@ -232,6 +353,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
           if (permanent && error instanceof NntpError && error.kind === "auth-failed") {
             // Credentials are wrong for every segment — stop the whole run.
             aborted = true;
+            fatalError = error;
             break;
           }
 
@@ -267,6 +389,28 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     }
   }
 
+  if (fatalError) {
+    throw fatalError;
+  }
+
+  function hasCompleteCoverage(state: FileAssemblyState) {
+    if (state.expectedFileSize === null || state.ranges.length === 0) {
+      return false;
+    }
+
+    const sorted = [...state.ranges].sort((left, right) => left.begin - right.begin);
+    let expectedBegin = 1;
+
+    for (const range of sorted) {
+      if (range.begin !== expectedBegin) {
+        return false;
+      }
+      expectedBegin = range.end + 1;
+    }
+
+    return expectedBegin === state.expectedFileSize + 1;
+  }
+
   const files: DownloadedNzbFile[] = fileStates.map((state) => ({
     fileIndex: state.fileIndex,
     subject: state.subject,
@@ -276,7 +420,9 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     completedSegments: state.completedSegments,
     failedSegments: state.failedSegments,
     bytesWritten: state.bytesWritten,
-    ok: state.failedSegments === 0 && state.completedSegments === state.totalSegments,
+    ok: state.failedSegments === 0
+      && state.completedSegments === state.totalSegments
+      && hasCompleteCoverage(state),
   }));
 
   return {

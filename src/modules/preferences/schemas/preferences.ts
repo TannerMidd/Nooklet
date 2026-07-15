@@ -35,13 +35,19 @@ export const updatePreferencesInputSchema = z.object({
     .max(2, "Temperature must stay at 2 or below."),
   languagePreference: languagePreferenceSchema,
   watchHistoryOnly: z.boolean(),
-  watchHistorySourceTypes: z
-    .array(watchHistorySourceTypeSchema)
-    .min(1, "Select at least one watch-history source."),
+  watchHistorySourceTypes: z.array(watchHistorySourceTypeSchema),
   historyHideExisting: z.boolean(),
   historyHideLiked: z.boolean(),
   historyHideDisliked: z.boolean(),
   historyHideHidden: z.boolean(),
+}).superRefine((preferences, context) => {
+  if (preferences.watchHistoryOnly && preferences.watchHistorySourceTypes.length === 0) {
+    context.addIssue({
+      code: "custom",
+      path: ["watchHistorySourceTypes"],
+      message: "Select at least one watch-history source when watch-history-only mode is enabled.",
+    });
+  }
 });
 
 export type UpdatePreferencesInput = z.infer<typeof updatePreferencesInputSchema>;

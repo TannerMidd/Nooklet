@@ -121,4 +121,48 @@ describe("removeDuplicateSabnzbdQueueItems", () => {
     expect(removeQueueItemMock).not.toHaveBeenCalled();
     expect(result).toEqual({ duplicateGroupCount: 0, keptCount: 0, removedCount: 0, failedCount: 0 });
   });
+
+  it("does not conflate packs for different seasons", async () => {
+    listActiveMock.mockResolvedValue([
+      {
+        request: {
+          id: "request1",
+          status: "queued",
+          mediaTitleId: "title1",
+          episodeId: null,
+          seasonId: "season1",
+        },
+        queueItem: { id: "queue1", status: "queued", externalQueueId: "nzo-1", createdAt: new Date() },
+      },
+      {
+        request: {
+          id: "request2",
+          status: "queued",
+          mediaTitleId: "title1",
+          episodeId: null,
+          seasonId: "season2",
+        },
+        queueItem: { id: "queue2", status: "queued", externalQueueId: "nzo-2", createdAt: new Date() },
+      },
+    ] as never);
+
+    const result = await removeDuplicateSabnzbdQueueItems(
+      "user1",
+      { client: { id: "client1" }, baseUrl: "http://sab", apiKey: "secret" } as never,
+      {
+        version: null,
+        queueStatus: "Downloading",
+        paused: false,
+        speed: null,
+        kbPerSec: null,
+        timeLeft: null,
+        activeQueueCount: 2,
+        totalQueueCount: 2,
+        items: [{ id: "nzo-1" } as never, { id: "nzo-2" } as never],
+      },
+    );
+
+    expect(removeQueueItemMock).not.toHaveBeenCalled();
+    expect(result.duplicateGroupCount).toBe(0);
+  });
 });

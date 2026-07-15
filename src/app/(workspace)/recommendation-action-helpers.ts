@@ -22,13 +22,26 @@ export const recommendationDefaultsActionSchema = z.object({
     .optional(),
 });
 
-export function safeReturnTo(value: string) {
-  return value.startsWith("/") ? value : "/history";
+export function safeReturnTo(value: string | undefined) {
+  if (!value || !value.startsWith("/") || value.includes("\\")) {
+    return "/history";
+  }
+
+  try {
+    const localOrigin = "http://nooklet.local";
+    const url = new URL(value, localOrigin);
+
+    return url.origin === localOrigin
+      ? `${url.pathname}${url.search}${url.hash}`
+      : "/history";
+  } catch {
+    return "/history";
+  }
 }
 
 export function safeRevalidatePath(value: string) {
   const normalizedPath = safeReturnTo(value);
-  const queryIndex = normalizedPath.indexOf("?");
+  const queryIndex = normalizedPath.search(/[?#]/);
 
   return queryIndex === -1 ? normalizedPath : normalizedPath.slice(0, queryIndex);
 }

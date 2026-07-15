@@ -9,6 +9,11 @@ import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { type RecommendationMediaType, type RecommendationFeedbackValue } from "@/lib/database/schema";
 import { type RecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
 import { cn } from "@/lib/utils";
+import {
+  type LibraryOption,
+  type QualityProfileOption,
+} from "@/components/media-library/title-request-controls";
+import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
 
 const rationaleClampStyle: CSSProperties = {
   display: "-webkit-box",
@@ -30,6 +35,9 @@ type RecommendationFeaturedCardProps = {
   routePath: "/tv" | "/movies";
   overviewHref?: string;
   animationDelayMs?: number;
+  libraries: LibraryOption[];
+  qualityProfiles: readonly QualityProfileOption[];
+  pathOptions: MediaLibraryPathOption[];
 };
 
 function isHighConfidence(value: string | null | undefined) {
@@ -56,6 +64,9 @@ export function RecommendationFeaturedCard({
   routePath,
   overviewHref,
   animationDelayMs = 0,
+  libraries,
+  qualityProfiles,
+  pathOptions,
 }: RecommendationFeaturedCardProps) {
   const resolvedOverviewHref = overviewHref ?? `/recommendations/${itemId}?returnTo=${encodeURIComponent(routePath)}`;
   const confidence = formatConfidenceLabel(confidenceLabel);
@@ -121,7 +132,7 @@ export function RecommendationFeaturedCard({
             existingInLibrary={existingInLibrary}
             returnTo={routePath}
             variant="compact"
-            buttonClassName="min-h-8 rounded-full border border-accent/45 bg-transparent px-4 text-xs font-semibold text-accent shadow-none hover:bg-accent/[0.14]"
+            buttonClassName="min-h-11 rounded-full border border-accent/45 bg-transparent px-4 text-xs font-semibold text-accent shadow-none hover:bg-accent/[0.14]"
             mediaType={mediaType}
             tmdbId={
               providerMetadata?.tmdbDetails?.mediaType === mediaType
@@ -129,6 +140,9 @@ export function RecommendationFeaturedCard({
                 : null
             }
             titleLabel={`${title}${year ? ` (${year})` : ""}`}
+            libraries={libraries}
+            qualityProfiles={qualityProfiles}
+            pathOptions={pathOptions}
           />
           <RecommendationFeedbackActions
             itemId={itemId}

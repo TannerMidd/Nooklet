@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, lt } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import { rateLimits } from "@/lib/database/schema";
@@ -13,15 +13,27 @@ export type ConsumeRateLimitResult =
   | { ok: true; remaining: number; resetAt: Date }
   | { ok: false; retryAfterMs: number; resetAt: Date };
 
+const MINIMUM_RETENTION_MS = 2 * 60 * 60 * 1000;
+
 /**
  * Fixed-window counter backed by SQLite. Returns `ok: false` once the limit is exceeded
  * within the current window, and resets when the window elapses.
  */
 export function consumeRateLimit(input: ConsumeRateLimitInput): ConsumeRateLimitResult {
+  if (!input.key || input.key.length > 256 || !Number.isInteger(input.limit) || input.limit < 1 ||
+      !Number.isInteger(input.windowMs) || input.windowMs < 1) {
+    throw new Error("Invalid rate-limit configuration.");
+  }
+
   const database = ensureDatabaseReady();
   const now = Date.now();
 
   return database.transaction((tx) => {
+    const retentionMs = Math.max(MINIMUM_RETENTION_MS, input.windowMs * 2);
+    tx.delete(rateLimits)
+      .where(lt(rateLimits.windowStartedAt, now - retentionMs))
+      .run();
+
     const existing = tx
       .select()
       .from(rateLimits)

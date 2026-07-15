@@ -7,10 +7,12 @@ import {
   Compass,
   Download,
   Film,
+  Home,
   History,
   Library,
   Plug,
   Search,
+  Settings,
   Shield,
   SlidersHorizontal,
   Tv,
@@ -46,6 +48,7 @@ type AppNavLinkProps = {
 
 const navigationIcons: Record<string, LucideIcon> = {
   "/tv": Tv,
+  "/home": Home,
   "/movies": Film,
   "/discover": Compass,
   "/search": Search,
@@ -61,9 +64,10 @@ const navigationIcons: Record<string, LucideIcon> = {
   "/settings/notifications": Bell,
   "/health": Activity,
   "/admin": Shield,
+  "/settings": Settings,
 };
 
-function isActivePath(pathname: string, href: string) {
+function matchesPath(pathname: string, href: string) {
   if (href === "/") {
     return pathname === href;
   }
@@ -71,9 +75,15 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function isActivePath(pathname: string, item: NavigationItem) {
+  return matchesPath(pathname, item.href)
+    || item.activePrefixes?.some((prefix) => matchesPath(pathname, prefix))
+    || false;
+}
+
 export function AppNavLink({ item, badge }: AppNavLinkProps) {
   const pathname = usePathname();
-  const active = isActivePath(pathname, item.href);
+  const active = isActivePath(pathname, item);
   const Icon = navigationIcons[item.href] ?? Compass;
 
   return (
@@ -82,7 +92,7 @@ export function AppNavLink({ item, badge }: AppNavLinkProps) {
       aria-current={active ? "page" : undefined}
       title={item.description}
       className={cn(
-        "group relative flex h-[38px] items-center gap-[11px] rounded-md px-3 transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50",
+        "group relative flex min-h-11 items-center gap-[11px] rounded-lg px-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
         active
           ? "bg-cream/[0.06] text-foreground"
           : "text-muted hover:bg-cream/[0.05] hover:text-foreground",

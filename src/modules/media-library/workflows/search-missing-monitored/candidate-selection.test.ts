@@ -45,8 +45,15 @@ describe("selectMissingContentCandidates", () => {
       { kind: "movie", titleId: "movie2", episodeId: null, label: "Dune" },
       { kind: "episode", titleId: "show1", episodeId: "episode2", label: "Severance S01E03" },
     ]);
-    expect(moviesMock).toHaveBeenCalledWith("user1", 4);
-    expect(episodesMock).toHaveBeenCalledWith("user1", 4);
+    expect(moviesMock).toHaveBeenCalledWith("user1", 4, expect.objectContaining({
+      keyPrefix: "auto-search:title:",
+    }));
+    expect(episodesMock).toHaveBeenCalledWith(
+      "user1",
+      4,
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      expect.objectContaining({ keyPrefix: "auto-search:episode:" }),
+    );
   });
 
   it("returns an empty list when nothing is missing", async () => {

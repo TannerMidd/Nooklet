@@ -7,6 +7,7 @@ import { ensureDatabaseReady } from "@/lib/database/client";
 import {
   downloadRequests,
   mediaFiles,
+  mediaRequestAttempts,
   mediaTitleExternalIds,
   tvEpisodes,
   users,
@@ -264,6 +265,17 @@ describe("media-library-repository", () => {
     const candidates = await listMonitoredMissingMovieTitles(userId, 10);
 
     expect(candidates.map((title) => title.id)).toEqual([missing.id]);
+
+    ensureDatabaseReady().insert(mediaRequestAttempts).values({
+      id: randomUUID(),
+      userId,
+      requestKey: `auto-search:title:${missing.id}`,
+      expiresAt: new Date(Date.now() + 60_000),
+    }).run();
+    const eligible = await listMonitoredMissingMovieTitles(userId, 10, {
+      keyPrefix: "auto-search:title:",
+    });
+    expect(eligible).toEqual([]);
   });
 
   it("lists monitored missing aired TV episodes without active downloads", async () => {

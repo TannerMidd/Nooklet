@@ -1,5 +1,6 @@
 import Image from "next/image";
 
+import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
 import { RecommendationHistoryItemActions } from "@/components/recommendations/recommendation-history-item-actions";
 import { RecommendationOverviewModalShell } from "@/components/recommendations/recommendation-overview-modal-shell";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
@@ -16,6 +17,11 @@ import {
   formatRuntime,
 } from "@/components/recommendations/title-overview-helpers";
 import { type getRecommendationTitleOverview } from "@/modules/recommendations/queries/get-recommendation-title-overview";
+import {
+  type LibraryOption,
+  type QualityProfileOption,
+} from "@/components/media-library/title-request-controls";
+import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
 
 type RecommendationOverview = NonNullable<Awaited<ReturnType<typeof getRecommendationTitleOverview>>>;
 
@@ -23,6 +29,9 @@ type RecommendationTitleOverviewDialogProps = {
   overview: RecommendationOverview;
   closeHref: string;
   actionReturnHref: string;
+  libraries: LibraryOption[];
+  qualityProfiles: readonly QualityProfileOption[];
+  pathOptions: MediaLibraryPathOption[];
 };
 
 function formatDate(value: Date) {
@@ -36,6 +45,9 @@ export function RecommendationTitleOverviewDialog({
   overview,
   closeHref,
   actionReturnHref,
+  libraries,
+  qualityProfiles,
+  pathOptions,
 }: RecommendationTitleOverviewDialogProps) {
   const { item, providerMetadata, timeline, tmdbLookupMessage } = overview;
   const details = providerMetadata?.tmdbDetails ?? null;
@@ -107,6 +119,20 @@ export function RecommendationTitleOverviewDialog({
           </section>
 
           <section className="space-y-4 text-sm leading-6 text-foreground">
+            <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">Request title</p>
+              <RecommendationAddForm
+                itemId={item.itemId}
+                existingInLibrary={item.existingInLibrary}
+                returnTo={actionReturnHref}
+                mediaType={item.mediaType}
+                tmdbId={details?.tmdbId ?? null}
+                titleLabel={`${details?.title ?? item.title}${titleYear ? ` (${titleYear})` : ""}`}
+                libraries={libraries}
+                qualityProfiles={qualityProfiles}
+                pathOptions={pathOptions}
+              />
+            </div>
             <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
               <span className="font-medium">Generated:</span> {formatDate(item.runCreatedAt)}
               <p className="mt-1 text-muted">Prompt: {item.requestPrompt || "Taste-based automatic request"}</p>

@@ -13,6 +13,8 @@ import {
   requestTitleWithReleaseSearchWorkflow,
   RequestTitleAlreadyInFlightError,
 } from "@/modules/media-library/workflows/request-title-with-release-search";
+import { summarizeRequestSubmission } from "@/modules/media-library/workflows/request-title-with-release-search/outcome-summary";
+import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
 
 import { type DiscoverTitleRequestActionState } from "./action-state";
 
@@ -73,51 +75,51 @@ export async function submitDiscoverTitleRequestAction(
     revalidatePath("/library");
     revalidatePath(requestInput.mediaType === "tv" ? "/library/tv" : "/library/movies");
     revalidatePath(safeRevalidatePath(returnTo));
+    const summary = summarizeRequestSubmission({
+      title: requestInput.title,
+      downloadNow,
+      qualityProfile: requestInput.qualityProfile,
+      result: requested,
+    });
 
-    if (!downloadNow) {
-      return {
-        status: "success",
-        message: `${requestInput.title} was added to your Nooklet library.`,
-      };
-    }
-
-    const queuedCount = requested.selections.filter((selection) => selection.queuedDownload.queued).length;
-
-    if (queuedCount > 0) {
+    if (summary.queuedCount > 0) {
       revalidatePath("/in-progress");
-
-      return {
-        status: "success",
-        message: requested.selections.length > 1
-          ? `${requestInput.title} was added and ${queuedCount} of ${requested.selections.length} selections were queued for download.`
-          : `${requestInput.title} was added and a matching release was queued for download.`,
-      };
     }
-
-    const failureMessage = requested.queuedDownload.reason === "queue_failed"
-      ? requested.queuedDownload.message
-      : null;
 
     return {
-      status: "success",
-      message: failureMessage
-        ? `${requestInput.title} was added, but ${failureMessage}`
-        : `${requestInput.title} was added, but no matching release was queued yet.`,
+      status: summary.status,
+      outcome: summary.outcome,
+      message: summary.message,
     };
   } catch (error) {
+    const message =
+      error instanceof RequestTitleAlreadyInFlightError
+      || error instanceof RequestMediaTitleCommandError
+        ? error.message
+        : "Nooklet could not request that title.";
+
+    await safeDispatchNotificationWorkflow({
+      userId: session.user.id,
+      payload: {
+        eventType: "library_add_failed",
+        title: requestInput.title,
+        message,
+      },
+    });
+
     if (
       error instanceof RequestTitleAlreadyInFlightError
       || error instanceof RequestMediaTitleCommandError
     ) {
       return {
         status: "error",
-        message: error.message,
+        message,
       };
     }
 
     return {
       status: "error",
-      message: "Nooklet could not request that title.",
+      message,
     };
   }
 }

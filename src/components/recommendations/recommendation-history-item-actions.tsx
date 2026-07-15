@@ -1,8 +1,8 @@
 import {
   submitRecommendationHiddenStateAction,
 } from "@/app/(workspace)/recommendation-item-actions";
+import Link from "next/link";
 
-import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
 import { RecommendationFeedbackActions } from "@/components/recommendations/recommendation-feedback-actions";
 import { RecommendationHiddenToggleButton } from "@/components/recommendations/recommendation-hidden-toggle-button";
 import { RecommendationSabnzbdStatus } from "@/components/recommendations/recommendation-sabnzbd-status";
@@ -22,6 +22,7 @@ type RecommendationHistoryItemActionsProps = {
   isHidden?: boolean | null;
   returnTo: string;
   providerMetadata?: RecommendationProviderMetadata | null;
+  detailsHref?: string;
 };
 
 export function RecommendationHistoryItemActions({
@@ -34,6 +35,7 @@ export function RecommendationHistoryItemActions({
   isHidden,
   returnTo,
   providerMetadata,
+  detailsHref,
 }: RecommendationHistoryItemActionsProps) {
   const hiddenActionLabel = isHidden ? `Unhide ${title}` : `Hide ${title}`;
 
@@ -44,11 +46,11 @@ export function RecommendationHistoryItemActions({
         year={year}
         mediaType={mediaType}
         providerMetadata={providerMetadata}
-        variant="panel"
-        className="mb-4"
+        variant="compact"
+        className="mb-3"
       />
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         <RecommendationFeedbackActions itemId={itemId} feedback={feedback} returnTo={returnTo} />
 
         <form action={submitRecommendationHiddenStateAction}>
@@ -60,20 +62,16 @@ export function RecommendationHistoryItemActions({
             label={hiddenActionLabel}
           />
         </form>
+        {detailsHref ? (
+          <Link
+            href={detailsHref}
+            scroll={false}
+            className="inline-flex min-h-11 items-center rounded-full border border-control bg-cream/[0.03] px-4 text-xs font-semibold text-foreground hover:bg-cream/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            {existingInLibrary ? "View title" : "Review request"}
+          </Link>
+        ) : null}
       </div>
-
-      <RecommendationAddForm
-        itemId={itemId}
-        existingInLibrary={existingInLibrary}
-        returnTo={returnTo}
-        mediaType={mediaType}
-        tmdbId={
-          providerMetadata?.tmdbDetails?.mediaType === mediaType
-            ? providerMetadata.tmdbDetails.tmdbId ?? null
-            : null
-        }
-        titleLabel={`${title}${year ? ` (${year})` : ""}`}
-      />
     </div>
   );
 }

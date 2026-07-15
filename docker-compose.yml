@@ -8,8 +8,12 @@ services:
     image: nooklet:local
     container_name: nooklet
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     ports:
-      - "${APP_PORT:-42021}:42021"
+      - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-42021}:42021"
     env_file:
       - .env
     environment:
@@ -23,9 +27,10 @@ services:
       # The path on the right is what you enter in /library settings.
       # - /host/path/to/tv:/media/tv
       # - /host/path/to/movies:/media/movies
-      # Bind-mount SAB's completed-downloads folder so the auto-import
-      # workflow can read finished downloads. Easiest setup: mount it at
-      # the same path SAB itself uses, then leave SABNZBD_PATH_MAPPINGS empty.
+      # Bind-mount a downloads folder for the built-in engine and/or SAB's
+      # completed downloads. The built-in engine uses it when
+      # DOWNLOAD_ENGINE_DIR points beneath /downloads (for example, set
+      # DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine in .env).
       # - /host/path/to/sab/downloads:/downloads
 
 volumes:

@@ -6,6 +6,7 @@ export type QueueIndexerResultErrorCode =
   | "sabnzbd_enqueue_failed"
   | "active_download_exists"
   | "target_path_not_found"
+  | "invalid_media_association"
   | "download_request_failed";
 
 export class QueueIndexerResultWorkflowError extends Error {

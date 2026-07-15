@@ -10,6 +10,7 @@ import {
   setEngineDownloadState,
   updateEngineDownloadProgress,
   requeueStrandedEngineDownloads,
+  resolveEngineDownloadPayload,
   type EngineDownloadRecord,
 } from "@/modules/download-engine/queue/engine-repository";
 import { downloadNzb } from "@/modules/download-engine/scheduler/download-nzb";
@@ -92,6 +93,7 @@ async function processEngineDownload(download: EngineDownloadRecord) {
   const workDir = engineIncompleteDir(download.id);
 
   try {
+    const payload = resolveEngineDownloadPayload(download);
     const resolvedServer = await resolveUsenetServer(download.userId);
 
     if (!resolvedServer) {
@@ -102,13 +104,15 @@ async function processEngineDownload(download: EngineDownloadRecord) {
       return;
     }
 
-    const nzb = parseNzb(download.nzbXml);
+    const nzb = parseNzb(payload.nzbXml);
 
     // Fresh-start semantics: a claimed download always begins from a clean
     // working directory (per-segment resume is future work per ADR-0002).
     await rm(workDir, { recursive: true, force: true });
 
     let lastPersistAt = 0;
+    let progressPersistence = Promise.resolve();
+    let progressPersistenceError: unknown = null;
     const result = await downloadNzb({
       nzb,
       server: resolvedServer.server,
@@ -119,15 +123,33 @@ async function processEngineDownload(download: EngineDownloadRecord) {
 
         if (now - lastPersistAt >= 1_000) {
           lastPersistAt = now;
-          void updateEngineDownloadProgress(download.id, {
-            downloadedBytes: progress.downloadedBytes,
-            completedSegments: progress.completedSegments,
-            failedSegments: progress.failedSegments,
+          // Serialize writes so a slower earlier update cannot overwrite a
+          // newer progress snapshot. Capture failures for the main control
+          // flow instead of creating an unhandled promise rejection.
+          progressPersistence = progressPersistence.then(async () => {
+            if (progressPersistenceError) {
+              return;
+            }
+
+            try {
+              await updateEngineDownloadProgress(download.id, {
+                downloadedBytes: progress.downloadedBytes,
+                completedSegments: progress.completedSegments,
+                failedSegments: progress.failedSegments,
+              });
+            } catch (error) {
+              progressPersistenceError = error;
+            }
           });
         }
       },
       shouldAbort: () => runtime.controls!.has(download.id),
     });
+
+    await progressPersistence;
+    if (progressPersistenceError) {
+      throw progressPersistenceError;
+    }
 
     await updateEngineDownloadProgress(download.id, {
       downloadedBytes: result.downloadedBytes,
@@ -169,7 +191,7 @@ async function processEngineDownload(download: EngineDownloadRecord) {
       outputDir: engineCompleteDir(download.id),
       downloadName: download.name,
       files: result.files,
-      password: download.password,
+      password: payload.password,
     });
 
     await setEngineDownloadState(download.id, "completed", {
@@ -226,5 +248,9 @@ export async function ensureEngineRunnerStarted() {
   }
 
   runtime.running = true;
-  void runEngineLoop();
+  void runEngineLoop().catch((error) => {
+    // A database/claim failure is retried by the next maintenance tick, but
+    // the promise must always be observed to avoid destabilizing the process.
+    console.error("[download-engine] runner stopped unexpectedly:", error);
+  });
 }

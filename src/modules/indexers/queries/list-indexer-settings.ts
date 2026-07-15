@@ -1,6 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
   indexerMediaCategories,
   indexers,
@@ -32,18 +33,27 @@ export type IndexerSettingsView = {
 
 export async function listIndexerSettings(userId: string): Promise<IndexerSettingsView[]> {
   const database = ensureDatabaseReady();
-  const rows = database
+  const loadRows = (ownerUserId: string) => database
     .select({ indexer: indexers, secret: indexerSecrets })
     .from(indexers)
     .leftJoin(indexerSecrets, eq(indexerSecrets.indexerId, indexers.id))
-    .where(eq(indexers.userId, userId))
+    .where(eq(indexers.userId, ownerUserId))
     .orderBy(asc(indexers.priority), asc(indexers.name))
     .all();
+  let ownerUserId = userId;
+  let rows = loadRows(ownerUserId);
+  if (rows.length === 0) {
+    ownerUserId = await resolveInstanceConfigurationOwnerId(userId);
+    if (ownerUserId !== userId) {
+      rows = loadRows(ownerUserId);
+    }
+  }
+
   const categoryRows = database
     .select({ category: indexerMediaCategories, indexerId: indexers.id })
     .from(indexerMediaCategories)
     .innerJoin(indexers, eq(indexerMediaCategories.indexerId, indexers.id))
-    .where(eq(indexers.userId, userId))
+    .where(eq(indexers.userId, ownerUserId))
     .all();
   const categoriesByIndexer = new Map<string, IndexerCategoryView[]>();
 

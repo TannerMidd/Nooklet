@@ -3,15 +3,15 @@ import {
   dispatchNotificationToChannel,
   type NotificationMessage,
 } from "@/modules/notifications/adapters/notification-channel-adapter";
-import { type NotificationChannelView } from "@/modules/notifications/repositories/notification-channels-repository";
+import { type NotificationDispatchChannel } from "@/modules/notifications/repositories/notification-channels-repository";
 
 export type ChannelDispatchOutcome = {
-  channel: NotificationChannelView;
+  channel: NotificationDispatchChannel;
   result: DispatchNotificationResult;
 };
 
 export async function sendFanOut(input: {
-  channels: NotificationChannelView[];
+  channels: NotificationDispatchChannel[];
   message: NotificationMessage;
 }): Promise<ChannelDispatchOutcome[]> {
   return Promise.all(

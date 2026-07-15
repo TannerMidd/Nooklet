@@ -30,7 +30,11 @@ export type NormalizedLibraryScan = {
 };
 
 function titleKey(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return value
+    .normalize("NFKC")
+    .toLocaleLowerCase("und")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
 }
 
 function removeYear(value: string) {

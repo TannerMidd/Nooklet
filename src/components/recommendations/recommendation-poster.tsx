@@ -6,6 +6,8 @@ type RecommendationPosterProps = {
   title: string;
   posterUrl?: string | null;
   className?: string;
+  /** Posters are decorative by default because visible adjacent text names the title. */
+  informative?: boolean;
 };
 
 const posterHues = [
@@ -28,7 +30,7 @@ function buildPosterFallbackLabel(title: string) {
   return title.trim()[0]?.toUpperCase() ?? "?";
 }
 
-export function RecommendationPoster({ title, posterUrl, className }: RecommendationPosterProps) {
+export function RecommendationPoster({ title, posterUrl, className, informative = false }: RecommendationPosterProps) {
   return (
     <div
       className={cn(
@@ -39,7 +41,7 @@ export function RecommendationPoster({ title, posterUrl, className }: Recommenda
       {posterUrl ? (
         <Image
           src={posterUrl}
-          alt={`${title} poster`}
+          alt={informative ? `${title} poster` : ""}
           fill
           unoptimized
           sizes="(min-width: 640px) 7rem, 6rem"
@@ -47,6 +49,7 @@ export function RecommendationPoster({ title, posterUrl, className }: Recommenda
         />
       ) : (
         <div
+          aria-hidden="true"
           className={cn(
             "flex h-full w-full items-end p-3",
             posterHueForTitle(title),

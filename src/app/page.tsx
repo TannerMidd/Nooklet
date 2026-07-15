@@ -12,7 +12,7 @@ export default async function HomePage() {
   ]);
 
   if (session?.user) {
-    redirect("/tv");
+    redirect("/home");
   }
 
   if (bootstrapStatus.isOpen) {

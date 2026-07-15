@@ -32,6 +32,7 @@ export function RecommendationTrailerSection({ videos, title }: RecommendationTr
   }
 
   const featuredVideo = videos[0]!;
+  const activeVideo = videos.find((video) => video.key === activeKey) ?? featuredVideo;
   const otherVideos = videos.slice(1);
 
   return (
@@ -43,7 +44,7 @@ export function RecommendationTrailerSection({ videos, title }: RecommendationTr
           <div className="relative aspect-video w-full bg-black">
             <iframe
               src={buildEmbedSrc(activeKey)}
-              title={`${featuredVideo.name || title} player`}
+              title={`${activeVideo.name || title} player`}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
               referrerPolicy="strict-origin-when-cross-origin"
@@ -98,7 +99,7 @@ export function RecommendationTrailerSection({ videos, title }: RecommendationTr
       <p className="text-xs leading-5 text-muted">
         Videos hosted on YouTube. Press play to load the embed, or{" "}
         <a
-          href={buildWatchUrl(featuredVideo.key)}
+          href={buildWatchUrl(activeVideo.key)}
           target="_blank"
           rel="noreferrer noopener"
           className="text-accent hover:underline"

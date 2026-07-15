@@ -48,7 +48,9 @@ const databaseCompatibilityRules: DatabaseCompatibilityRule[] = [
 function resolveDatabasePath(databaseUrl: string) {
   const normalized = databaseUrl.startsWith("file:") ? databaseUrl.slice(5) : databaseUrl;
 
-  return path.isAbsolute(normalized) ? normalized : path.join(process.cwd(), normalized);
+  return path.isAbsolute(normalized)
+    ? normalized
+    : path.join(/* turbopackIgnore: true */ process.cwd(), normalized);
 }
 
 function createSqliteConnection() {
@@ -58,7 +60,12 @@ function createSqliteConnection() {
 
   const sqlite = new Database(databasePath);
 
+  // Wait briefly for a concurrent request/worker transaction instead of
+  // surfacing SQLITE_BUSY to the user. WAL keeps readers non-blocking while
+  // NORMAL provides durable commits without a full fsync on every write.
+  sqlite.pragma("busy_timeout = 5000");
   sqlite.pragma("journal_mode = WAL");
+  sqlite.pragma("synchronous = NORMAL");
   sqlite.pragma("foreign_keys = ON");
 
   return sqlite;

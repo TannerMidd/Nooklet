@@ -27,7 +27,7 @@ export async function changePassword(
     };
   }
 
-  if (!verifyPassword(input.currentPassword, user.passwordHash)) {
+  if (!(await verifyPassword(input.currentPassword, user.passwordHash))) {
     return {
       ok: false,
       message: "Current password is incorrect.",
@@ -35,9 +35,9 @@ export async function changePassword(
     };
   }
 
-  const nextPasswordHash = hashPassword(input.newPassword);
+  const nextPasswordHash = await hashPassword(input.newPassword);
 
-  await updateUserPassword(userId, nextPasswordHash);
+  await updateUserPassword(userId, nextPasswordHash, { mustChangePassword: false });
   await createAuditEvent({
     actorUserId: userId,
     eventType: "users.password.changed",

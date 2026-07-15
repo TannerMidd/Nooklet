@@ -1,7 +1,9 @@
-import { addSabnzbdUrlToQueue } from "@/lib/integrations/sabnzbd";
+import { addSabnzbdUrlToQueue, removeSabnzbdQueueItem } from "@/lib/integrations/sabnzbd";
 import { safeFetch } from "@/lib/security/safe-fetch";
 import { decryptSecret } from "@/lib/security/secret-box";
 import { enqueueNzbDownloadWorkflow } from "@/modules/download-engine/workflows/enqueue-nzb-download";
+import { applyEngineQueueAction } from "@/modules/download-engine/workflows/apply-engine-queue-action";
+import { findIndexerById } from "@/modules/indexers/repositories/indexer-repository";
 
 import { QueueIndexerResultWorkflowError } from "./errors";
 import { type ResolvedDownloadClient } from "./client-resolution";
@@ -39,7 +41,30 @@ async function submitToEngine(
   const category = getDownloadCategory(resolvedResult);
 
   try {
-    const nzbXml = await fetchNzbDocument(decryptSecret(resolvedResult.secret.encryptedDownloadUrl));
+    const downloadUrl = decryptSecret(resolvedResult.secret.encryptedDownloadUrl);
+    const indexer = resolvedResult.result.indexerId
+      ? await findIndexerById(resolvedResult.result.userId, resolvedResult.result.indexerId)
+      : null;
+
+    if (!indexer) {
+      throw new Error("The indexer that supplied this release is no longer available.");
+    }
+
+    let downloadOrigin: string;
+    let indexerOrigin: string;
+
+    try {
+      downloadOrigin = new URL(downloadUrl).origin;
+      indexerOrigin = new URL(indexer.baseUrl).origin;
+    } catch {
+      throw new Error("The indexer returned an invalid NZB download URL.");
+    }
+
+    if (downloadOrigin !== indexerOrigin) {
+      throw new Error("The indexer returned an NZB URL from an unapproved host.");
+    }
+
+    const nzbXml = await fetchNzbDocument(downloadUrl);
     const enqueued = await enqueueNzbDownloadWorkflow(resolvedResult.result.userId, {
       name: resolvedResult.result.title,
       category,
@@ -72,12 +97,45 @@ async function submitToSabnzbd(
       category,
     });
 
+    if (submission.queueIds.length === 0) {
+      throw new Error("SABnzbd accepted the request but returned no queue id.");
+    }
+
     return { ...submission, category };
   } catch {
     throw new QueueIndexerResultWorkflowError(
       "sabnzbd_enqueue_failed",
       "SABnzbd could not queue the selected release.",
     );
+  }
+}
+
+/** Best-effort rollback when the remote enqueue succeeded but local persistence failed. */
+export async function compensateIndexerResultSubmission(
+  userId: string,
+  downloadClient: ResolvedDownloadClient,
+  submission: QueueIndexerResultSubmission,
+) {
+  const failures: unknown[] = [];
+
+  for (const queueId of submission.queueIds) {
+    try {
+      if (downloadClient.kind === "nooklet") {
+        await applyEngineQueueAction(userId, { type: "remove", itemId: queueId });
+      } else {
+        await removeSabnzbdQueueItem({
+          baseUrl: downloadClient.baseUrl,
+          apiKey: downloadClient.apiKey,
+          itemId: queueId,
+        });
+      }
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+
+  if (failures.length > 0) {
+    throw new AggregateError(failures, "The submitted download could not be rolled back.");
   }
 }
 

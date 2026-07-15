@@ -33,7 +33,7 @@ export function TvSeasonMonitoringForm({ seasonId, monitored }: TvSeasonMonitori
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="seasonId" value={seasonId} />
-      <label className="inline-flex min-h-9 items-center gap-2 rounded-md border border-cream/[0.08] bg-cream/[0.03] px-2.5 py-1.5 text-xs text-muted">
+      <label className="inline-flex min-h-11 items-center gap-2 rounded-md border border-cream/[0.08] bg-cream/[0.03] px-2.5 py-1.5 text-xs text-muted">
         <input type="checkbox" name="monitored" defaultChecked={monitored} className="h-4 w-4 accent-accent" />
         Monitor season
       </label>

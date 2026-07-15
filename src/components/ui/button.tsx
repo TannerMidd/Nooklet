@@ -19,9 +19,9 @@ const buttonVariants = {
 
 /* Small buttons render as pills (row actions); md keeps the 12px control radius. */
 const buttonSizes = {
-  icon: "h-8 min-h-8 w-8 rounded-full px-0 py-0 text-xs",
-  sm: "min-h-8 rounded-full px-3.5 py-1 text-xs",
-  md: "min-h-[42px] rounded-lg px-5 py-1.5 text-sm",
+  icon: "h-11 min-h-11 w-11 rounded-full px-0 py-0 text-xs",
+  sm: "min-h-11 rounded-full px-4 py-2 text-xs",
+  md: "min-h-11 rounded-lg px-5 py-2 text-sm",
 } satisfies Record<NonNullable<ButtonProps["size"]>, string>;
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -33,7 +33,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       type={type}
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50 disabled:cursor-not-allowed disabled:opacity-55 [&>svg]:shrink-0",
+        "inline-flex items-center justify-center gap-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-55 [&>svg]:shrink-0",
         buttonSizes[size],
         buttonVariants[variant],
         className,

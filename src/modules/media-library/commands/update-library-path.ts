@@ -1,5 +1,4 @@
-import fs from "node:fs";
-
+import { FilesystemPolicyError, resolveApprovedMediaDirectory } from "@/lib/security/filesystem-policy";
 import {
   createMediaLibrary,
   findMediaLibraryByName,
@@ -17,18 +16,10 @@ import { recordAuditEvent } from "@/modules/users/commands/record-audit-event";
 export class UpdateLibraryPathCommandError extends Error {
   constructor(
     message: string,
-    public readonly code: "folder_not_found" | "path_already_exists" | "path_not_found",
+    public readonly code: "folder_not_found" | "path_already_exists" | "path_not_found" | "path_not_allowed",
   ) {
     super(message);
     this.name = "UpdateLibraryPathCommandError";
-  }
-}
-
-function isReadableDirectory(folderPath: string) {
-  try {
-    return fs.existsSync(folderPath) && fs.statSync(folderPath).isDirectory();
-  } catch {
-    return false;
   }
 }
 
@@ -43,14 +34,17 @@ export async function updateLibraryPathCommand(
     throw new UpdateLibraryPathCommandError("Library folder was not found.", "path_not_found");
   }
 
-  if (!isReadableDirectory(parsed.path)) {
-    throw new UpdateLibraryPathCommandError(
-      "Library folder does not exist or is not readable by Nooklet.",
-      "folder_not_found",
-    );
+  let canonicalPath: string;
+  try {
+    canonicalPath = resolveApprovedMediaDirectory(parsed.path);
+  } catch (error) {
+    if (error instanceof FilesystemPolicyError) {
+      throw new UpdateLibraryPathCommandError(error.message, "path_not_allowed");
+    }
+    throw error;
   }
 
-  const duplicatePath = await findMediaLibraryPathByUserPath(userId, parsed.path);
+  const duplicatePath = await findMediaLibraryPathByUserPath(userId, canonicalPath);
 
   if (duplicatePath && duplicatePath.id !== parsed.pathId) {
     throw new UpdateLibraryPathCommandError(
@@ -70,7 +64,7 @@ export async function updateLibraryPathCommand(
     id: parsed.pathId,
     userId,
     libraryId: library.id,
-    path: parsed.path,
+    path: canonicalPath,
     label: parsed.label || parsed.libraryName,
     status: parsed.status,
   });
@@ -88,7 +82,7 @@ export async function updateLibraryPathCommand(
       mediaType: parsed.mediaType,
       libraryId: library.id,
       previousLibraryId: existingPath.libraryId,
-      path: parsed.path,
+      path: canonicalPath,
       previousPath: existingPath.path,
       status: parsed.status,
     },

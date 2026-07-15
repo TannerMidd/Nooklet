@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import type { Metadata } from "next";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -7,6 +8,8 @@ import { getRecommendationAnalyticsOverview } from "@/modules/recommendations/qu
 import { getRecommendationTasteProfile } from "@/modules/recommendations/queries/get-recommendation-taste-profile";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = { title: "Your taste" };
 
 function formatDuration(milliseconds: number) {
   if (milliseconds <= 0) {
@@ -95,9 +98,17 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="nk-enter space-y-9">
-      <PageHeader eyebrow="Recommendation intelligence" title="Analytics" />
+      <PageHeader
+        eyebrow="Personalization"
+        title="Your taste"
+        description="See the signals that shape your recommendations. Operational AI details stay available below when you need them."
+      />
 
-      <div className="grid gap-3.5 md:grid-cols-2 xl:grid-cols-4">
+      <details className="rounded-2xl border border-cream/10 bg-cream/[0.02]">
+        <summary className="flex min-h-11 cursor-pointer items-center px-5 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
+          AI run diagnostics
+        </summary>
+      <div className="grid gap-3.5 border-t border-cream/10 p-5 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Tracked runs" value={analytics.runCount} />
         <StatCard label="Succeeded" value={analytics.succeededRunCount} />
         <StatCard label="Avg duration" value={formatDuration(analytics.averageDurationMs)} />
@@ -107,10 +118,11 @@ export default async function AnalyticsPage() {
         <StatCard label="Language filtered" value={analytics.totalExcludedLanguage} />
         <StatCard label="Avg attempts" value={analytics.averageAttempts || "—"} />
       </div>
+      </details>
 
       <div className="grid gap-6 xl:grid-cols-[0.9fr,1.1fr]">
         <section className="space-y-4">
-          <h3 className="font-heading text-2xl text-foreground">Taste signals</h3>
+          <h2 className="font-heading text-2xl text-foreground">Taste signals</h2>
           <div className="space-y-4.5 rounded-2xl border border-cream/[0.08] bg-cream/[0.03] p-5">
             <div className="space-y-2.5">
               <TasteBar label="Likes" value={allTaste.likeCount} max={tasteMax} barClass="bg-accent-cool" />
@@ -125,7 +137,7 @@ export default async function AnalyticsPage() {
                   allTaste.preferredGenres.map((genre) => (
                     <span
                       key={genre}
-                      className="inline-flex h-[26px] items-center rounded-full bg-accent/[0.14] px-3 text-xs font-semibold text-accent"
+                      className="inline-flex min-h-9 items-center rounded-full bg-accent/[0.14] px-3 text-xs font-semibold text-accent"
                     >
                       {genre}
                     </span>
@@ -140,7 +152,7 @@ export default async function AnalyticsPage() {
                   allTaste.avoidedGenres.map((genre) => (
                     <span
                       key={genre}
-                      className="inline-flex h-[26px] items-center rounded-full bg-accent-wine/[0.12] px-3 text-xs font-semibold text-accent-wine"
+                      className="inline-flex min-h-9 items-center rounded-full bg-accent-wine/[0.12] px-3 text-xs font-semibold text-accent-wine"
                     >
                       {genre}
                     </span>
@@ -153,8 +165,11 @@ export default async function AnalyticsPage() {
           </div>
         </section>
 
-        <section className="space-y-4">
-          <h3 className="font-heading text-2xl text-foreground">Recent runs</h3>
+        <details className="rounded-2xl border border-cream/10 bg-cream/[0.02]">
+          <summary className="flex min-h-11 cursor-pointer items-center px-5 font-heading text-xl text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
+            Recent recommendation runs
+          </summary>
+          <section className="space-y-4 border-t border-cream/10 p-5">
           {analytics.recentRuns.length === 0 ? (
             <EmptyState message="No completed recommendation run metrics yet." />
           ) : (
@@ -186,16 +201,17 @@ export default async function AnalyticsPage() {
               ))}
             </div>
           )}
-        </section>
+          </section>
+        </details>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <section className="space-y-4">
-          <h3 className="font-heading text-2xl text-foreground">TV feedback titles</h3>
+          <h2 className="font-heading text-2xl text-foreground">TV feedback titles</h2>
           <TasteList items={tvTaste.likedItems.length > 0 ? tvTaste.likedItems : tvTaste.addedItems} />
         </section>
         <section className="space-y-4">
-          <h3 className="font-heading text-2xl text-foreground">Movie feedback titles</h3>
+          <h2 className="font-heading text-2xl text-foreground">Movie feedback titles</h2>
           <TasteList items={movieTaste.likedItems.length > 0 ? movieTaste.likedItems : movieTaste.addedItems} />
         </section>
       </div>

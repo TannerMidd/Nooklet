@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { type ConnectionActionState } from "@/app/(workspace)/settings/connections/action-state";
+import { prepareConnectionFormValues } from "@/app/(workspace)/settings/connections/connection-form-values";
 import { auth } from "@/auth";
 import { consumeRateLimit, formatRetryAfter } from "@/lib/security/rate-limit";
 import {
@@ -13,6 +14,7 @@ import {
 } from "@/modules/service-connections/schemas/service-connection";
 import { disconnectServiceConnection } from "@/modules/service-connections/workflows/disconnect-service-connection";
 import { saveConfiguredServiceConnection } from "@/modules/service-connections/workflows/save-service-connection";
+import { testAndSaveServiceConnection } from "@/modules/service-connections/workflows/test-and-save-service-connection";
 import { verifyConfiguredServiceConnection } from "@/modules/service-connections/workflows/verify-configured-service-connection";
 
 export async function submitConnectionAction(
@@ -28,8 +30,16 @@ export async function submitConnectionAction(
     };
   }
 
-  const intent = serviceConnectionIntentSchema.parse(formData.get("intent"));
   const serviceType = serviceConnectionTypeSchema.parse(formData.get("serviceType"));
+
+  if (session.user.role !== "admin" && serviceType !== "trakt") {
+    return {
+      status: "error",
+      message: "Only an administrator can change or verify shared server connections.",
+    };
+  }
+
+  const intent = serviceConnectionIntentSchema.parse(formData.get("intent"));
 
   if (intent === "disconnect") {
     const result = await disconnectServiceConnection(session.user.id, serviceType);
@@ -64,11 +74,20 @@ export async function submitConnectionAction(
     };
   }
 
+  const preparedValues = prepareConnectionFormValues(serviceType, formData);
+  if (!preparedValues.success) {
+    return {
+      status: "error",
+      message: "Review the highlighted fields and try again.",
+      fieldErrors: preparedValues.fieldErrors,
+    };
+  }
+
   if (serviceType === "ai-provider") {
     const parsedInput = aiProviderConnectionSchema.safeParse({
       serviceType,
-      baseUrl: formData.get("baseUrl"),
-      apiKey: formData.get("apiKey")?.toString(),
+      baseUrl: preparedValues.baseUrl,
+      apiKey: preparedValues.apiKey,
       model: formData.get("model"),
     });
 
@@ -86,7 +105,24 @@ export async function submitConnectionAction(
       };
     }
 
-    const result = await saveConfiguredServiceConnection(session.user.id, parsedInput.data);
+    if (intent === "test-save") {
+      const rateLimit = consumeRateLimit({
+        key: `verify-connection:${session.user.id}:${serviceType}`,
+        limit: 10,
+        windowMs: 5 * 60 * 1000,
+      });
+
+      if (!rateLimit.ok) {
+        return {
+          status: "error",
+          message: `Too many connection tests. Try again in ${formatRetryAfter(rateLimit.retryAfterMs)}.`,
+        };
+      }
+    }
+
+    const result = intent === "test-save"
+      ? await testAndSaveServiceConnection(session.user.id, parsedInput.data)
+      : await saveConfiguredServiceConnection(session.user.id, parsedInput.data);
     revalidatePath("/settings/connections");
 
     return {
@@ -103,8 +139,8 @@ export async function submitConnectionAction(
 
   const parsedInput = apiKeyServiceConnectionSchema.safeParse({
     serviceType,
-    baseUrl: formData.get("baseUrl"),
-    apiKey: formData.get("apiKey")?.toString(),
+    baseUrl: preparedValues.baseUrl,
+    apiKey: preparedValues.apiKey,
   });
 
   if (!parsedInput.success) {
@@ -120,17 +156,38 @@ export async function submitConnectionAction(
     };
   }
 
-  const result = await saveConfiguredServiceConnection(session.user.id, parsedInput.data);
+  if (intent === "test-save") {
+    const rateLimit = consumeRateLimit({
+      key: `verify-connection:${session.user.id}:${serviceType}`,
+      limit: 10,
+      windowMs: 5 * 60 * 1000,
+    });
+
+    if (!rateLimit.ok) {
+      return {
+        status: "error",
+        message: `Too many connection tests. Try again in ${formatRetryAfter(rateLimit.retryAfterMs)}.`,
+      };
+    }
+  }
+
+  const result = intent === "test-save"
+    ? await testAndSaveServiceConnection(session.user.id, parsedInput.data)
+    : await saveConfiguredServiceConnection(session.user.id, parsedInput.data);
   revalidatePath("/settings/connections");
+
+  const credentialField = serviceType === "usenet-server"
+    ? "usenetPassword"
+    : serviceType === "trakt"
+      ? "traktAccessToken"
+      : "apiKey";
 
   return {
     status: result.ok ? "success" : "error",
     message: result.message,
     fieldErrors:
       !result.ok && result.field
-        ? {
-            [result.field]: result.message,
-          }
-        : undefined,
+          ? { [credentialField]: result.message }
+          : undefined,
   };
 }

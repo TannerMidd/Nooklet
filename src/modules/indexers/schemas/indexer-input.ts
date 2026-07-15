@@ -9,6 +9,7 @@ const indexerUrlSchema = z
   .string()
   .trim()
   .min(1, "Provide an indexer URL.")
+  .max(2048, "Indexer URL must be 2048 characters or fewer.")
   .url("Provide a valid indexer URL.")
   .refine((value) => /^https?:\/\//i.test(value), {
     message: "Indexer URL must start with http:// or https://.",

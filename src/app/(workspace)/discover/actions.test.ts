@@ -6,6 +6,9 @@ vi.mock("next/cache", () => ({
 vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
+vi.mock("@/modules/notifications/workflows/dispatch-notification", () => ({
+  safeDispatchNotificationWorkflow: vi.fn().mockResolvedValue(null),
+}));
 vi.mock("@/modules/media-library/workflows/request-title-with-release-search", async (importOriginal) => {
   const actual = await importOriginal<
     typeof import("@/modules/media-library/workflows/request-title-with-release-search")
@@ -22,12 +25,14 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { RequestMediaTitleCommandError } from "@/modules/media-library/commands/request-media-title";
 import { requestTitleWithReleaseSearchWorkflow } from "@/modules/media-library/workflows/request-title-with-release-search";
+import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
 
 import { submitDiscoverTitleRequestAction } from "./actions";
 
 const authMock = vi.mocked(auth);
 const revalidateMock = vi.mocked(revalidatePath);
 const requestWorkflowMock = vi.mocked(requestTitleWithReleaseSearchWorkflow);
+const notificationMock = vi.mocked(safeDispatchNotificationWorkflow);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -88,7 +93,8 @@ describe("submitDiscoverTitleRequestAction", () => {
 
     expect(result).toEqual({
       status: "success",
-      message: "Titanic was added to your Nooklet library.",
+      outcome: "catalog_added",
+      message: "Titanic was added to your catalog. No download was requested.",
     });
     expect(requestWorkflowMock).toHaveBeenCalledWith("u1", expect.objectContaining({
       mediaType: "movie",
@@ -132,7 +138,8 @@ describe("submitDiscoverTitleRequestAction", () => {
     expect(requestWorkflowMock).toHaveBeenCalledWith("u1", expect.objectContaining({ downloadNow: true }));
     expect(result).toEqual({
       status: "success",
-      message: "Titanic was added and a matching release was queued for download.",
+      outcome: "queued",
+      message: "Titanic was added to your catalog and queued for download.",
     });
     expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
   });
@@ -148,6 +155,14 @@ describe("submitDiscoverTitleRequestAction", () => {
     expect(result).toEqual({
       status: "error",
       message: "Choose a matching library before adding that title.",
+    });
+    expect(notificationMock).toHaveBeenCalledWith({
+      userId: "u1",
+      payload: {
+        eventType: "library_add_failed",
+        title: "Titanic",
+        message: "Choose a matching library before adding that title.",
+      },
     });
   });
 });

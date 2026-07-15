@@ -1,41 +1,43 @@
 "use client";
 
 import { useActionState } from "react";
-import { useFormStatus } from "react-dom";
 
 import { initialBootstrapActionState } from "@/app/(auth)/bootstrap/action-state";
-import { Button } from "@/components/ui/button";
+import { AsyncButton } from "@/components/ui/async-button";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 
 import {
   submitBootstrapAction,
 } from "./actions";
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button type="submit" className="mt-2 w-full">
-      {pending ? "Creating administrator..." : "Create administrator"}
-    </Button>
-  );
-}
-
 type FieldProps = {
   label: string;
-  name: "displayName" | "email" | "password" | "confirmPassword";
+  name: "bootstrapToken" | "displayName" | "email" | "password" | "confirmPassword";
   type?: string;
   autoComplete?: string;
   error?: string;
 };
 
 function Field({ label, name, type = "text", autoComplete, error }: FieldProps) {
+  const isPassword = name === "password" || name === "confirmPassword";
   return (
-    <label className="block space-y-2">
-      <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">{label}</span>
-      <Input name={name} type={type} autoComplete={autoComplete} aria-invalid={Boolean(error)} />
-      {error ? <p className="text-sm text-accent-wine">{error}</p> : null}
-    </label>
+    <FormField
+      label={label}
+      required
+      error={error}
+      description={name === "password" ? "At least 12 characters with uppercase, lowercase, and a number." : undefined}
+    >
+      {(controlProps) => (
+        <Input
+          {...controlProps}
+          name={name}
+          type={type}
+          autoComplete={autoComplete}
+          minLength={isPassword ? 12 : undefined}
+        />
+      )}
+    </FormField>
   );
 }
 
@@ -47,6 +49,13 @@ export function BootstrapForm() {
 
   return (
     <form action={formAction} className="space-y-4">
+      <Field
+        label="Setup token"
+        name="bootstrapToken"
+        type="password"
+        autoComplete="off"
+        error={state.fieldErrors?.bootstrapToken}
+      />
       <Field label="Display name" name="displayName" autoComplete="name" error={state.fieldErrors?.displayName} />
       <Field label="Email" name="email" type="email" autoComplete="email" error={state.fieldErrors?.email} />
       <Field
@@ -65,12 +74,14 @@ export function BootstrapForm() {
       />
 
       {state.status === "error" && state.message ? (
-        <p className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2 text-sm text-foreground">
+        <p role="alert" className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2 text-sm text-foreground">
           {state.message}
         </p>
       ) : null}
 
-      <SubmitButton />
+      <AsyncButton type="submit" pendingLabel="Creating administrator…" className="mt-2 w-full">
+        Create administrator
+      </AsyncButton>
     </form>
   );
 }

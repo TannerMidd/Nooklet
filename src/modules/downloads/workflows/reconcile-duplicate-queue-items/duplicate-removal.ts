@@ -23,7 +23,7 @@ function itemKey(entry: ActiveDownloadRequest) {
     return null;
   }
 
-  return `${entry.request.mediaTitleId}:${entry.request.episodeId ?? "movie"}`;
+  return `${entry.request.mediaTitleId}:${entry.request.episodeId ?? entry.request.seasonId ?? "title"}`;
 }
 
 function isTrackedActiveDownload(entry: ActiveDownloadRequest) {

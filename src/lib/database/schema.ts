@@ -12,6 +12,7 @@ export const users = sqliteTable(
     passwordHash: text("password_hash").notNull(),
     role: text("role", { enum: userRoles }).notNull().default("user"),
     isDisabled: integer("is_disabled", { mode: "boolean" }).notNull().default(false),
+    mustChangePassword: integer("must_change_password", { mode: "boolean" }).notNull().default(false),
     failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
     lockedUntil: integer("locked_until", { mode: "timestamp_ms" }),
     passwordChangedAt: integer("password_changed_at", { mode: "timestamp_ms" })
@@ -935,6 +936,9 @@ export const jobs = sqliteTable(
     lastCompletedAt: integer("last_completed_at", { mode: "timestamp_ms" }),
     lastStatus: text("last_status", { enum: jobStatuses }).notNull().default("idle"),
     lastError: text("last_error"),
+    runToken: text("run_token"),
+    lockedUntil: integer("locked_until", { mode: "timestamp_ms" }),
+    lastHeartbeatAt: integer("last_heartbeat_at", { mode: "timestamp_ms" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
@@ -949,6 +953,7 @@ export const jobs = sqliteTable(
       table.targetType,
       table.targetKey,
     ),
+    index("jobs_due_lease_idx").on(table.jobType, table.isEnabled, table.nextRunAt, table.lockedUntil),
   ],
 );
 export const recommendationRunStatuses = ["pending", "succeeded", "failed"] as const;
@@ -1128,6 +1133,9 @@ export const notificationEventTypes = [
   "recommendation_run_failed",
   "library_add_failed",
   "watch_history_sync_failed",
+  "download_import_succeeded",
+  "download_failed",
+  "download_import_failed",
 ] as const;
 
 export const notificationDispatchStatuses = ["success", "error"] as const;
@@ -1218,4 +1226,3 @@ export type RecommendationTimelineEventType = (typeof recommendationTimelineEven
 export type RecommendationTimelineStatus = (typeof recommendationTimelineStatuses)[number];
 export type NotificationChannelType = (typeof notificationChannelTypes)[number];
 export type NotificationEventType = (typeof notificationEventTypes)[number];
-

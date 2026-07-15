@@ -2,16 +2,22 @@ import path from "node:path";
 import { readdir, stat } from "node:fs/promises";
 
 import { type ResolvedCompletedDownload, type ImportableCompletedDownload } from "./destination-resolution";
-
-const mediaExtensions = new Set([".avi", ".m4v", ".mkv", ".mov", ".mp4", ".mpeg", ".mpg", ".ts", ".wmv"]);
+import {
+  importFileKind,
+  noPrimaryMediaFilesFoundMessage,
+  primaryVideoFiles,
+  type ImportFileKind,
+} from "./import-file-policy";
 
 export const noMediaFilesFoundMessage = "No media files were found in the completed download.";
+export { noPrimaryMediaFilesFoundMessage } from "./import-file-policy";
 
 export type InspectedDownloadFile = {
   sourcePath: string;
   relativePath: string;
   sizeBytes: number;
   modifiedAt: Date;
+  kind: ImportFileKind;
 };
 
 export type FailedInspectedDownload = {
@@ -28,7 +34,7 @@ export type ReadyInspectedDownload = {
 
 export type InspectedCompletedDownload = FailedInspectedDownload | ReadyInspectedDownload;
 
-async function walkMediaFiles(rootPath: string, currentPath: string): Promise<InspectedDownloadFile[]> {
+async function walkImportFiles(rootPath: string, currentPath: string): Promise<InspectedDownloadFile[]> {
   const entries = await readdir(currentPath, { withFileTypes: true });
   const files: InspectedDownloadFile[] = [];
 
@@ -36,11 +42,12 @@ async function walkMediaFiles(rootPath: string, currentPath: string): Promise<In
     const entryPath = path.join(currentPath, entry.name);
 
     if (entry.isDirectory()) {
-      files.push(...await walkMediaFiles(rootPath, entryPath));
+      files.push(...await walkImportFiles(rootPath, entryPath));
       continue;
     }
 
-    if (!entry.isFile() || !mediaExtensions.has(path.extname(entry.name).toLowerCase())) {
+    const kind = importFileKind(entry.name);
+    if (!entry.isFile() || !kind) {
       continue;
     }
 
@@ -51,6 +58,7 @@ async function walkMediaFiles(rootPath: string, currentPath: string): Promise<In
       relativePath: path.relative(rootPath, entryPath).replaceAll(path.sep, "/"),
       sizeBytes: fileStat.size,
       modifiedAt: fileStat.mtime,
+      kind,
     });
   }
 
@@ -60,22 +68,32 @@ async function walkMediaFiles(rootPath: string, currentPath: string): Promise<In
 async function inspectImportableDownload(source: ImportableCompletedDownload): Promise<InspectedCompletedDownload> {
   try {
     const sourceStat = await stat(source.sourceRootPath);
+    const sourceKind = sourceStat.isFile() ? importFileKind(source.sourceRootPath) : null;
     const files = sourceStat.isFile()
-      ? mediaExtensions.has(path.extname(source.sourceRootPath).toLowerCase())
+      ? sourceKind
         ? [{
             sourcePath: source.sourceRootPath,
             relativePath: path.basename(source.sourceRootPath),
             sizeBytes: sourceStat.size,
             modifiedAt: sourceStat.mtime,
+            kind: sourceKind,
           }]
         : []
-      : await walkMediaFiles(source.sourceRootPath, source.sourceRootPath);
+      : await walkImportFiles(source.sourceRootPath, source.sourceRootPath);
 
     if (files.length === 0) {
       return { kind: "failed", source, message: noMediaFilesFoundMessage };
     }
 
-    return { kind: "ready", source, files };
+    if (primaryVideoFiles(files).length === 0) {
+      return { kind: "failed", source, message: noPrimaryMediaFilesFoundMessage };
+    }
+
+    return {
+      kind: "ready",
+      source,
+      files: files.sort((left, right) => left.relativePath.localeCompare(right.relativePath)),
+    };
   } catch (error) {
     return {
       kind: "failed",

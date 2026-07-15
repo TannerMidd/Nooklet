@@ -4,12 +4,14 @@ import { auth } from "@/auth";
 import { getBootstrapStatus } from "@/modules/identity-access/workflows/bootstrap-status";
 
 import { LoginForm } from "./login-form";
+import { safeCallbackUrl } from "./safe-callback-url";
 
 export const dynamic = "force-dynamic";
 
 type LoginPageProps = {
   searchParams?: Promise<{
     bootstrapped?: string;
+    callbackUrl?: string;
   }>;
 };
 
@@ -20,8 +22,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     searchParams,
   ]);
 
+  const callbackUrl = safeCallbackUrl(resolvedSearchParams?.callbackUrl);
+
   if (session?.user) {
-    redirect("/tv");
+    redirect(callbackUrl);
   }
 
   if (bootstrapStatus.isOpen) {
@@ -38,7 +42,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       <p className="mb-8 mt-2 text-[15px] leading-6 text-muted">
         Your picks, library, and queue are right where you left them.
       </p>
-      <LoginForm showBootstrapSuccess={resolvedSearchParams?.bootstrapped === "1"} />
+      <LoginForm
+        callbackUrl={callbackUrl}
+        showBootstrapSuccess={resolvedSearchParams?.bootstrapped === "1"}
+      />
     </div>
   );
 }

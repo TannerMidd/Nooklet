@@ -39,16 +39,15 @@ describe("resolveQueueIndexerResultTarget", () => {
     expect(resolveTargetMock).not.toHaveBeenCalled();
   });
 
-  it("returns null when no path was selected and no default target exists", async () => {
+  it("throws when no path was selected and no default target exists", async () => {
     resolveDefaultTargetMock.mockResolvedValue(null);
 
-    const target = await resolveQueueIndexerResultTarget(
+    await expect(resolveQueueIndexerResultTarget(
       "u1",
       { resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9" },
       { result: { mediaType: "movie" } } as never,
-    );
+    )).rejects.toMatchObject({ code: "target_path_not_found" });
 
-    expect(target).toBeNull();
     expect(resolveTargetMock).not.toHaveBeenCalled();
   });
 

@@ -20,7 +20,10 @@ const bodyFont = Instrument_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Nooklet",
+  title: {
+    default: "Nooklet",
+    template: "%s · Nooklet",
+  },
   description: "A cozy corner for what's next.",
 };
 
@@ -32,7 +35,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en">
       <body className={`${headingFont.variable} ${bodyFont.variable}`}>
-        <AppProviders>{children}</AppProviders>
+        <div id="app-root">
+          <AppProviders>{children}</AppProviders>
+        </div>
       </body>
     </html>
   );

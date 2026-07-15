@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, notInArray } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
+import { decryptSecret, encryptSecret } from "@/lib/security/secret-box";
 import {
   engineDownloads,
   type EngineDownloadCategory,
@@ -10,6 +11,18 @@ import {
 } from "@/lib/database/schema";
 
 export type EngineDownloadRecord = typeof engineDownloads.$inferSelect;
+
+function decryptStoredValue(value: string) {
+  return /^v\d+:/.test(value) ? decryptSecret(value) : value;
+}
+
+/** Decrypts sensitive queue payloads while accepting pre-encryption rows. */
+export function resolveEngineDownloadPayload(record: EngineDownloadRecord) {
+  return {
+    nzbXml: decryptStoredValue(record.nzbXml),
+    password: record.password ? decryptStoredValue(record.password) : null,
+  };
+}
 
 export const activeEngineDownloadStates = [
   "queued",
@@ -19,6 +32,16 @@ export const activeEngineDownloadStates = [
   "extracting",
   "paused",
 ] as const satisfies readonly EngineDownloadState[];
+
+export const enginePostProcessingStates = [
+  "assembling",
+  "repairing",
+  "extracting",
+] as const satisfies readonly EngineDownloadState[];
+
+export function isEngineDownloadPostProcessing(state: EngineDownloadState) {
+  return (enginePostProcessingStates as readonly EngineDownloadState[]).includes(state);
+}
 
 export async function createEngineDownload(input: {
   userId: string;
@@ -40,8 +63,8 @@ export async function createEngineDownload(input: {
       userId: input.userId,
       name: input.name,
       category: input.category,
-      nzbXml: input.nzbXml,
-      password: input.password ?? null,
+      nzbXml: encryptSecret(input.nzbXml),
+      password: input.password ? encryptSecret(input.password) : null,
       totalBytes: input.totalBytes,
       totalSegments: input.totalSegments,
       priority: input.priority ?? 0,
@@ -116,7 +139,14 @@ export async function setEngineDownloadState(id: string, state: EngineDownloadSt
 
   database
     .update(engineDownloads)
-    .set({ state, updatedAt: new Date(), ...extras })
+    .set({
+      state,
+      updatedAt: new Date(),
+      ...extras,
+      ...(state === "completed" || state === "failed"
+        ? { nzbXml: encryptSecret(""), password: null }
+        : {}),
+    })
     .where(eq(engineDownloads.id, id))
     .run();
 }
@@ -133,6 +163,24 @@ export async function listActiveEngineDownloads(userId: string) {
     ))
     .orderBy(asc(engineDownloads.priority), asc(engineDownloads.createdAt))
     .all();
+}
+
+/** Estimated bytes still reserved by all active downloads, across users. */
+export async function getActiveEngineDownloadRemainingBytes() {
+  const database = ensureDatabaseReady();
+  const rows = database
+    .select({
+      totalBytes: engineDownloads.totalBytes,
+      downloadedBytes: engineDownloads.downloadedBytes,
+    })
+    .from(engineDownloads)
+    .where(inArray(engineDownloads.state, [...activeEngineDownloadStates]))
+    .all();
+
+  return rows.reduce(
+    (total, row) => total + Math.max(0, row.totalBytes - row.downloadedBytes),
+    0,
+  );
 }
 
 /** Completed or failed downloads the import pass has not consumed yet. */
@@ -156,7 +204,12 @@ export async function markEngineDownloadImported(id: string) {
 
   database
     .update(engineDownloads)
-    .set({ importedAt: new Date(), updatedAt: new Date() })
+    .set({
+      importedAt: new Date(),
+      updatedAt: new Date(),
+      nzbXml: encryptSecret(""),
+      password: null,
+    })
     .where(eq(engineDownloads.id, id))
     .run();
 }
@@ -166,7 +219,11 @@ export async function deleteEngineDownload(userId: string, id: string) {
 
   const result = database
     .delete(engineDownloads)
-    .where(and(eq(engineDownloads.userId, userId), eq(engineDownloads.id, id)))
+    .where(and(
+      eq(engineDownloads.userId, userId),
+      eq(engineDownloads.id, id),
+      notInArray(engineDownloads.state, [...enginePostProcessingStates]),
+    ))
     .run();
 
   return result.changes > 0;

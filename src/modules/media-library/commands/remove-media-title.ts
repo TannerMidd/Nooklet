@@ -7,12 +7,13 @@ import {
   removeMediaTitleInputSchema,
   type RemoveMediaTitleInput,
 } from "@/modules/media-library/schemas/remove-media-title";
+import { hasActiveDownloadAssociationForTitle } from "@/modules/downloads/queries/has-active-download-association";
 import { recordAuditEvent } from "@/modules/users/commands/record-audit-event";
 
 export class RemoveMediaTitleCommandError extends Error {
   constructor(
     message: string,
-    public readonly code: "title_not_found",
+    public readonly code: "title_not_found" | "active_download",
   ) {
     super(message);
     this.name = "RemoveMediaTitleCommandError";
@@ -28,6 +29,13 @@ export async function removeMediaTitleCommand(
 
   if (!existingTitle) {
     throw new RemoveMediaTitleCommandError("Library title was not found.", "title_not_found");
+  }
+
+  if (await hasActiveDownloadAssociationForTitle(userId, parsed.titleId)) {
+    throw new RemoveMediaTitleCommandError(
+      "This title has an active download or import. Let it finish or cancel it in Activity before removing the title.",
+      "active_download",
+    );
   }
 
   const removedTitle = await deleteMediaTitleByIdForUser(userId, parsed.titleId);

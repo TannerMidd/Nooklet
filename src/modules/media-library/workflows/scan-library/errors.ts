@@ -1,4 +1,4 @@
-export type ScanMediaLibraryErrorCode = "no_paths";
+export type ScanMediaLibraryErrorCode = "no_paths" | "scan_in_progress";
 
 export class ScanMediaLibraryWorkflowError extends Error {
   constructor(

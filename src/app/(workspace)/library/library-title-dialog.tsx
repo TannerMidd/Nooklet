@@ -96,13 +96,13 @@ function DialogControls({
   );
 }
 
-function RemoveTitleSection({ titleId }: { titleId: string }) {
+function RemoveTitleSection({ titleId, title }: { titleId: string; title: string }) {
   return (
     <section className="space-y-3 rounded-lg border border-accent-wine/35 bg-accent-wine/5 p-4">
       <div>
         <h3 className="font-heading text-lg text-foreground">Library record</h3>
       </div>
-      <RemoveMediaTitleForm titleId={titleId} />
+      <RemoveMediaTitleForm titleId={titleId} title={title} />
     </section>
   );
 }
@@ -142,7 +142,7 @@ function MovieDialog({
         targetPathOptions={targetPathOptions}
         currentLibraryPathId={currentLibraryPathId}
       />
-      <RemoveTitleSection titleId={title.id} />
+      <RemoveTitleSection titleId={title.id} title={title.title} />
     </div>
   );
 }
@@ -202,7 +202,7 @@ function TvDialog({
         />
       </section>
 
-      <RemoveTitleSection titleId={title.id} />
+      <RemoveTitleSection titleId={title.id} title={title.title} />
     </div>
   );
 }

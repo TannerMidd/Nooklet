@@ -28,6 +28,7 @@ request, download, and organize them into your Plex library.
 - [Configuration](#configuration)
 - [Integrations](#integrations)
 - [Development](#development)
+- [Operations](#operations)
 - [Project layout](#project-layout)
 - [Security](#security)
 - [Documentation](#documentation)
@@ -101,8 +102,9 @@ and [`docs/adr/ADR-0001-architecture-principles.md`](docs/adr/ADR-0001-architect
 
 **Requirements**
 
-- Node.js **20** or newer
-- An OpenAI-compatible chat-completions endpoint and API key
+- Node.js **24.11 (LTS)** or newer
+- An OpenAI-compatible chat-completions endpoint and API key (optional; needed
+  only for AI recommendations)
 - Optional: Plex, Tautulli, Trakt reachable from the host (SABnzbd is a legacy fallback; the built-in downloader only needs your usenet provider)
 
 **Run locally**
@@ -110,9 +112,9 @@ and [`docs/adr/ADR-0001-architecture-principles.md`](docs/adr/ADR-0001-architect
 ```bash
 git clone https://github.com/<your-fork>/nooklet.git
 cd nooklet
-npm install
+npm ci
 cp .env.example .env
-# edit .env — AUTH_SECRET must be at least 32 characters
+# edit .env — set independent random AUTH_SECRET and BOOTSTRAP_TOKEN values
 npm run dev
 ```
 
@@ -133,22 +135,28 @@ The fastest path from a clean checkout to a running instance:
    ```powershell
    Copy-Item .env.example .env  # Windows / PowerShell
    ```
-2. **Set the three required values** in `.env`:
-   - `APP_URL` — the URL users will open, e.g. `http://localhost:42021`.
-   - `APP_PORT` — host port to publish (default `42021`). Must match `APP_URL`.
+2. **Set the deployment values** in `.env`:
+   - `APP_URL` — the canonical URL users will open, e.g.
+     `http://localhost:42021` or `https://nooklet.example.com`.
+   - `APP_PORT` — optional host port to publish (default `42021`).
    - `AUTH_SECRET` — at least 32 characters. Generate one with
      `openssl rand -base64 48` (any OS with OpenSSL) or
      `[Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))`
      in PowerShell.
-3. **(Optional) Add bind mounts** for your media library and SAB completed
+   - `BOOTSTRAP_TOKEN` — a separate random value of at least 32 characters.
+     You must enter it when creating the first administrator; remove it from
+     `.env` and recreate the container after bootstrap succeeds.
+   - `SECRET_BOX_KEY` — strongly recommended as a third independent random
+     value so stored integration secrets do not share the session-signing key.
+3. **(Optional) Add bind mounts** for your media library and download working
    folder — see [Mounting media and downloads](#mounting-media-and-downloads)
    below. Skip this step if you only want to poke around the UI.
 4. **Build and start.**
    ```bash
    docker compose up -d --build
    ```
-5. **Open `APP_URL`** and create the first admin account. The bootstrap flow
-   self-disables after the first user signs up.
+5. **Open `APP_URL`** and create the first admin account using the bootstrap
+   token. The bootstrap flow self-disables after the first user is created.
 
 To pick up changes later (env edits, new mounts, new image), re-run
 `docker compose up -d --build`. To stop without losing data, `docker compose
@@ -181,16 +189,22 @@ services:
       # Media library roots. Format is "<host path>:<container path>".
       - "D:\\Media\\TV:/media/tv"
       - "D:\\Media\\Movies:/media/movies"
-      # SABnzbd's completed-downloads folder.
+      # Built-in downloader workspace and/or SABnzbd completed downloads.
       - "F:\\Usenet\\Downloads:/downloads"
 ```
 
 Two rules to remember:
 
-- **Always enter the container-side path in Settings → Library** (`/media/tv`,
+- **Always enter the container-side path in Settings → Storage** (`/media/tv`,
   `/media/movies` in the example above). Nooklet stores library paths in the
   database verbatim and resolves them from inside the container; the host
   path on the left side of the bind mount is invisible to the app.
+- **Set `DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine`** to make the built-in
+  downloader use the mounted download drive. Without that setting, Docker uses
+  `/app/data/downloads` on the `nooklet-data` volume. The safety check runs
+  against this working directory—not the final media folder—and allows room
+  for both the downloaded archive and its unpacked contents plus a 512 MiB
+  reserve.
 - **Quote any Windows path that contains a space, a colon, or backslashes**
   in YAML, and double the backslashes (`"D:\\Plex Media:/media/plex"`). A
   bare drive root like `G:\` becomes `"G:\\:/media/g"`.
@@ -254,12 +268,20 @@ The canonical environment list lives in [`.env.example`](.env.example).
 
 | Variable | Required | Notes |
 | --- | --- | --- |
-| `APP_URL` | ✅ | Public app origin, e.g. `https://nooklet.example.com`. |
-| `DATABASE_URL` | ✅ | SQLite URL. Local default: `file:./data/nooklet.db`. |
+| `APP_URL` | production | Canonical app origin, e.g. `https://nooklet.example.com`; local default is `http://localhost:42021`. |
+| `DATABASE_URL` | optional | SQLite URL. Local default: `file:./data/nooklet.db`; Compose forces the persistent-volume path. |
 | `AUTH_SECRET` | ✅ | Auth.js signing secret. Must be at least 32 characters. |
+| `BOOTSTRAP_TOKEN` | first setup | Separate 32+ character token required to create the first admin. Remove after bootstrap. |
 | `APP_PORT` | ⛔ | Docker host port to publish. Defaults to `42021`. |
+| `APP_BIND_ADDRESS` | ⛔ | Docker bind address. Defaults to loopback; set `0.0.0.0` only for intentional remote access. |
 | `SECRET_BOX_KEY` | ⛔ | Separate encryption key for stored service secrets. Falls back to `AUTH_SECRET`. |
-| `ALLOW_PRIVATE_SERVICE_HOSTS` | ⛔ | Defaults to `true`. Set `false` for cloud deployments that must block private-network service URLs. |
+| `SECRET_BOX_PREVIOUS_KEYS` | ⛔ | Semicolon/newline-separated old encryption keys used during lazy key rotation. |
+| `APPROVED_MEDIA_ROOTS` | file operations | Roots the scanner/import/delete workflows may access. Empty fails closed. |
+| `APPROVED_DOWNLOAD_ROOTS` | SAB import | SAB completed roots Nooklet may read. Empty fails closed. |
+| `DOWNLOAD_ENGINE_DIR` | built-in downloads | Incomplete/completed working directory. Local default: `./data/downloads`; Docker image default: `/app/data/downloads`. Point it beneath a download-drive bind mount (for example `/downloads/nooklet-engine`) to use that drive. |
+| `PRIVATE_SERVICE_HOST_ALLOWLIST` | optional | Exact semicolon-separated hostnames/IPs permitted to resolve to private LAN addresses. Prefer this over the broad override. |
+| `TRUST_PROXY_HEADERS` | ⛔ | Defaults to `false`. Enable only behind a proxy that overwrites forwarded client-IP headers. |
+| `ALLOW_PRIVATE_SERVICE_HOSTS` | ⛔ | Defaults to `false`. Enable only when trusted users must configure LAN-hosted services. Link-local/metadata ranges remain blocked. |
 | `SABNZBD_PATH_MAPPINGS` | ⛔ | Translate SAB-reported paths when they don't resolve inside Nooklet's container. Format `<sab-path>=<nooklet-path>`, multiple entries separated by `;`. Leave empty if your SAB completed folder is bind-mounted at the same path SAB itself reports. See the [Docker](#docker) section for examples. |
 
 ---
@@ -293,6 +315,43 @@ npm test             # Vitest
 npm run build        # production build
 npm run db:generate  # generate Drizzle migrations after schema changes
 ```
+
+## Operations
+
+Create regular, off-host database backups. The backup command uses SQLite's
+online backup API, verifies both the live database and the resulting copy, and
+never overwrites an existing file:
+
+```bash
+npm run db:backup
+# Or choose an explicit destination:
+node --env-file=.env scripts/backup-database.mjs /secure/backups/nooklet.db
+```
+
+For Docker, write a verified snapshot inside the persistent volume and then
+copy it off the host before treating it as a backup:
+
+```bash
+docker compose exec app node scripts/backup-database.mjs /app/data/backups/nooklet.db
+docker compose cp app:/app/data/backups/nooklet.db ./backups/nooklet.db
+```
+
+If every administrator is locked out, run the local recovery command. It
+generates a strong temporary password, prints it once, invalidates existing
+sessions, and requires the account owner to replace it immediately after
+sign-in. Omit `--email` only when the instance has exactly one active admin:
+
+```bash
+npm run account:recover -- --email admin@example.com
+# Docker installation:
+docker compose exec app node scripts/recover-account.mjs --email admin@example.com
+```
+
+Test restores periodically. Stop the app before replacing `nooklet.db`, retain
+the current database as a rollback copy, remove obsolete `-wal` and `-shm`
+sidecars, then start the app and confirm `/api/health` reports healthy. Backups
+contain sensitive account and integration data even though reversible secrets
+are encrypted, so protect them like credentials.
 
 Tests live beside the code they cover as `*.test.ts` and use an isolated
 SQLite database configured by [`vitest.setup.ts`](vitest.setup.ts).

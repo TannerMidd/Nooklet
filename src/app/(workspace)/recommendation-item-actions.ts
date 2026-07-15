@@ -21,6 +21,7 @@ import {
 import { addRecommendationToLibrary } from "@/modules/recommendations/workflows/add-recommendation-to-library";
 import { updateRecommendationFeedback } from "@/modules/recommendations/workflows/update-recommendation-feedback";
 import { updateRecommendationHiddenState } from "@/modules/recommendations/workflows/update-recommendation-hidden-state";
+import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
 
 export async function submitRecommendationFeedbackAction(
   previousState: RecommendationFeedbackActionState,
@@ -111,15 +112,48 @@ export async function submitRecommendationLibraryAction(
     };
   }
 
-  const result = await addRecommendationToLibrary(session.user.id, parsedInput.data);
+  const notificationTitleValue = formData.get("notificationTitle");
+  const notificationTitle = typeof notificationTitleValue === "string" && notificationTitleValue.trim()
+    ? notificationTitleValue.trim().slice(0, 200)
+    : "Recommendation";
+
+  let result: Awaited<ReturnType<typeof addRecommendationToLibrary>>;
+
+  try {
+    result = await addRecommendationToLibrary(session.user.id, parsedInput.data);
+  } catch {
+    const message = "Nooklet could not add that title.";
+    await safeDispatchNotificationWorkflow({
+      userId: session.user.id,
+      payload: {
+        eventType: "library_add_failed",
+        title: notificationTitle,
+        message,
+      },
+    });
+
+    return { status: "error", message };
+  }
+
+  if (!result.ok) {
+    await safeDispatchNotificationWorkflow({
+      userId: session.user.id,
+      payload: {
+        eventType: "library_add_failed",
+        title: notificationTitle,
+        message: result.message,
+      },
+    });
+  }
 
   revalidatePath("/library");
   revalidatePath("/history");
   revalidatePath(safeRevalidatePath(parsedInput.data.returnTo));
 
   return {
-    status: result.ok ? "success" : "error",
+    status: result.ok ? "success" : result.catalogAdded ? "warning" : "error",
     message: result.message,
+    outcome: result.outcome,
     fieldErrors:
       !result.ok && result.field
         ? {

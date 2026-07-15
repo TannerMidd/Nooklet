@@ -6,12 +6,13 @@ import {
   type RemoveLibraryPathInput,
   removeLibraryPathInputSchema,
 } from "@/modules/media-library/schemas/library-path";
+import { hasActiveDownloadAssociationForLibraryPath } from "@/modules/downloads/queries/has-active-download-association";
 import { recordAuditEvent } from "@/modules/users/commands/record-audit-event";
 
 export class RemoveLibraryPathCommandError extends Error {
   constructor(
     message: string,
-    public readonly code: "path_not_found",
+    public readonly code: "path_not_found" | "active_download",
   ) {
     super(message);
     this.name = "RemoveLibraryPathCommandError";
@@ -23,6 +24,14 @@ export async function removeLibraryPathCommand(
   input: RemoveLibraryPathInput,
 ): Promise<MediaLibraryPathRecord> {
   const parsed = removeLibraryPathInputSchema.parse(input);
+
+  if (await hasActiveDownloadAssociationForLibraryPath(userId, parsed.pathId)) {
+    throw new RemoveLibraryPathCommandError(
+      "This library folder is being used by an active download or import. Let it finish or cancel it in Activity before removing the folder.",
+      "active_download",
+    );
+  }
+
   const removedPath = await deleteMediaLibraryPath(userId, parsed.pathId);
 
   if (!removedPath) {

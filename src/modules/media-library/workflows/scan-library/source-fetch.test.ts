@@ -12,6 +12,9 @@ vi.mock("node:fs/promises", () => ({
   readdir: vi.fn(),
   stat: vi.fn(),
 }));
+vi.mock("@/lib/security/filesystem-policy", () => ({
+  resolveApprovedMediaDirectory: vi.fn((candidate: string) => candidate),
+}));
 
 const readdirMock = vi.mocked(readdir);
 const statMock = vi.mocked(stat);
@@ -106,10 +109,9 @@ describe("fetchLibrarySourceFiles", () => {
     expect(result.files[0]?.relativePath).toBe("George Lopez/Season 03/George.Lopez.S03E11.1080p.WEB.h264-SKYFiRE.mkv");
   });
 
-  it("skips unreadable media files without failing the whole library path", async () => {
+  it("fails the library path when a media file cannot be read", async () => {
     const rootPath = path.join("E:\\", "Plex Media", "TV Shows");
     const showPath = path.join(rootPath, "George Lopez");
-    const goodEpisode = path.join(showPath, "George.Lopez.S03E11.1080p.WEB.h264-SKYFiRE.mkv");
     const badEpisode = path.join(showPath, "George.Lopez.S03E10.1080p.WEB.h264-SKYFiRE.mkv");
 
     statMock.mockImplementation(async (target) => {
@@ -140,7 +142,33 @@ describe("fetchLibrarySourceFiles", () => {
 
     const result = await fetchLibrarySourceFiles({ request: {}, sources: [source(rootPath)] });
 
-    expect(result.failedPaths).toEqual([]);
-    expect(result.files.map((file) => file.filePath)).toEqual([goodEpisode]);
+    expect(result.files).toEqual([]);
+    expect(result.failedPaths).toHaveLength(1);
+    expect(result.failedPaths[0]?.source.path.path).toBe(rootPath);
+    expect(result.failedPaths[0]?.errorMessage).toBe("UNKNOWN: unknown error");
+  });
+
+  it("fails the whole source when a nested directory is unreadable", async () => {
+    const rootPath = path.join("E:\\", "Plex Media", "TV Shows");
+    const showPath = path.join(rootPath, "George Lopez");
+
+    statMock.mockResolvedValueOnce(directoryStats());
+    readdirWithFileTypesMock.mockImplementation(async (target) => {
+      if (target === rootPath) {
+        return [dirent("George Lopez", "directory")];
+      }
+
+      if (target === showPath) {
+        throw new Error("EACCES: permission denied");
+      }
+
+      return [];
+    });
+
+    const result = await fetchLibrarySourceFiles({ request: {}, sources: [source(rootPath)] });
+
+    expect(result.files).toEqual([]);
+    expect(result.failedPaths).toHaveLength(1);
+    expect(result.failedPaths[0]?.errorMessage).toBe("EACCES: permission denied");
   });
 });

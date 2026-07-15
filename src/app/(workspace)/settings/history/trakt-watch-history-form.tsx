@@ -37,7 +37,7 @@ export function TraktWatchHistoryForm({ defaultImportLimit }: TraktWatchHistoryF
           <select
             name="mediaType"
             defaultValue="tv"
-            className="min-h-9 w-full rounded-lg border border-cream/[0.08] bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+            className="min-h-11 w-full rounded-lg border border-cream/[0.08] bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
             aria-invalid={Boolean(state.fieldErrors?.mediaType)}
           >
             <option value="tv">TV</option>

@@ -29,8 +29,8 @@ export async function reserveDownloadRequest(input: {
       releaseTitle: input.resolvedResult.result.title,
       searchResultId: input.resolvedResult.result.id,
       clientId: input.downloadClient.client.id,
-      targetLibraryId: input.target?.library.id ?? input.request.targetLibraryId ?? null,
-      targetLibraryPathId: input.target?.path.id ?? null,
+      targetLibraryId: input.target.library.id,
+      targetLibraryPathId: input.target.path.id,
       status: "pending",
     });
   } catch (error) {

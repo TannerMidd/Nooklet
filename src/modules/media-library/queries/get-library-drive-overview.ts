@@ -1,4 +1,6 @@
-import { statfs } from "node:fs/promises";
+import { constants } from "node:fs";
+import { access, statfs } from "node:fs/promises";
+import pathModule from "node:path";
 
 import {
   listActiveMediaLibraryPaths,
@@ -10,6 +12,7 @@ export type LibraryDriveEntry = {
   pathId: string;
   label: string;
   path: string;
+  effectivePath: string;
   libraryName: string;
   mediaType: RecommendationMediaType;
   isDownloadDefault: boolean;
@@ -17,6 +20,9 @@ export type LibraryDriveEntry = {
   totalSpaceBytes: number | null;
   /** False when the folder could not be reached for a live space reading. */
   live: boolean;
+  readable: boolean;
+  writable: boolean;
+  statusMessage: string;
 };
 
 /**
@@ -33,12 +39,26 @@ export async function getLibraryDriveOverview(userId: string): Promise<LibraryDr
     let freeSpaceBytes = path.freeSpaceBytes;
     let totalSpaceBytes = path.totalSpaceBytes;
     let live = false;
+    let readable = false;
+    let writable = false;
+    let statusMessage = "The folder is not reachable from Nooklet.";
 
     try {
-      const stats = await statfs(path.path);
+      const [stats, readResult, writeResult] = await Promise.all([
+        statfs(path.path),
+        access(path.path, constants.R_OK).then(() => true, () => false),
+        access(path.path, constants.W_OK).then(() => true, () => false),
+      ]);
       freeSpaceBytes = stats.bsize * stats.bavail;
       totalSpaceBytes = stats.bsize * stats.blocks;
       live = true;
+      readable = readResult;
+      writable = writeResult;
+      statusMessage = !readable
+        ? "Nooklet cannot read this folder."
+        : !writable
+          ? "Nooklet can read this folder but cannot import files into it."
+          : "Folder is reachable and writable.";
 
       if (freeSpaceBytes !== path.freeSpaceBytes || totalSpaceBytes !== path.totalSpaceBytes) {
         await updateMediaLibraryPathSpace({ pathId: path.id, freeSpaceBytes, totalSpaceBytes });
@@ -51,12 +71,16 @@ export async function getLibraryDriveOverview(userId: string): Promise<LibraryDr
       pathId: path.id,
       label: path.label,
       path: path.path,
+      effectivePath: pathModule.resolve(path.path),
       libraryName: library.name,
       mediaType: library.mediaType,
       isDownloadDefault: path.isDownloadDefault,
       freeSpaceBytes,
       totalSpaceBytes,
       live,
+      readable,
+      writable,
+      statusMessage,
     });
   }
 

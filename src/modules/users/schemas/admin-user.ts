@@ -14,7 +14,7 @@ export const createManagedUserInputSchema = z
     email: z.string().trim().email("Enter a valid email address.").max(320),
     role: z.enum(["admin", "user"]),
     password: passwordSchema,
-    confirmPassword: z.string().min(1, "Confirm the password."),
+    confirmPassword: z.string().min(1, "Confirm the password.").max(128),
   })
   .refine((value) => value.password === value.confirmPassword, {
     path: ["confirmPassword"],
@@ -39,7 +39,7 @@ export const resetManagedUserPasswordInputSchema = z
   .object({
     userId: z.string().uuid(),
     newPassword: passwordSchema,
-    confirmPassword: z.string().min(1, "Confirm the password."),
+    confirmPassword: z.string().min(1, "Confirm the password.").max(128),
   })
   .refine((value) => value.newPassword === value.confirmPassword, {
     path: ["confirmPassword"],

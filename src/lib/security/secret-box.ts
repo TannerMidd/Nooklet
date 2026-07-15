@@ -12,6 +12,15 @@ function getKeyMaterial() {
   return env.SECRET_BOX_KEY ?? env.AUTH_SECRET;
 }
 
+function getPreviousKeyMaterials() {
+  return Array.from(new Set(
+    (env.SECRET_BOX_PREVIOUS_KEYS ?? "")
+      .split(/[;\r\n]+/)
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0 && value !== getKeyMaterial()),
+  ));
+}
+
 function deriveKey(material: string): Buffer {
   const derived = hkdfSync("sha256", material, HKDF_SALT, HKDF_INFO, 32);
   return Buffer.from(derived);
@@ -55,7 +64,33 @@ function decryptWithKey(
   ]).toString("utf8");
 }
 
-export function decryptSecret(encryptedValue: string) {
+export type DecryptedSecret = {
+  value: string;
+  needsRotation: boolean;
+};
+
+function decryptUsingCandidates(
+  ivBase64: string,
+  authTagBase64: string,
+  payloadBase64: string,
+  candidates: string[],
+  keyDeriver: (material: string) => Buffer,
+) {
+  for (const [index, material] of candidates.entries()) {
+    try {
+      return {
+        value: decryptWithKey(ivBase64, authTagBase64, payloadBase64, keyDeriver(material)),
+        keyIndex: index,
+      };
+    } catch {
+      // AES-GCM authentication failures are intentionally indistinguishable.
+    }
+  }
+
+  throw new Error("Unable to decrypt secret with the configured encryption keys.");
+}
+
+export function decryptSecretWithMetadata(encryptedValue: string): DecryptedSecret {
   const segments = encryptedValue.split(":");
 
   // Versioned envelope: vN:iv:tag:ct
@@ -66,26 +101,36 @@ export function decryptSecret(encryptedValue: string) {
       throw new Error(`Unsupported secret envelope version: ${version}`);
     }
 
-    return decryptWithKey(
+    const decrypted = decryptUsingCandidates(
       ivBase64!,
       authTagBase64!,
       payloadBase64!,
-      deriveKey(getKeyMaterial()),
+      [getKeyMaterial(), ...getPreviousKeyMaterials()],
+      deriveKey,
     );
+
+    return { value: decrypted.value, needsRotation: decrypted.keyIndex > 0 };
   }
 
   // Legacy envelope (pre-versioned): iv:tag:ct, derived from AUTH_SECRET via raw SHA-256.
   if (segments.length === 3) {
     const [ivBase64, authTagBase64, payloadBase64] = segments;
-    return decryptWithKey(
+    const decrypted = decryptUsingCandidates(
       ivBase64!,
       authTagBase64!,
       payloadBase64!,
-      legacyDeriveKey(env.AUTH_SECRET),
+      [env.AUTH_SECRET, ...getPreviousKeyMaterials()],
+      legacyDeriveKey,
     );
+
+    return { value: decrypted.value, needsRotation: true };
   }
 
   throw new Error("Invalid encrypted secret payload.");
+}
+
+export function decryptSecret(encryptedValue: string) {
+  return decryptSecretWithMetadata(encryptedValue).value;
 }
 
 export function maskSecret(value: string) {

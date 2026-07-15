@@ -58,6 +58,7 @@ describe("dispatchNotificationWorkflow", () => {
       userId: "user-1",
       channelType: "discord" as const,
       displayName: "Test",
+      maskedTargetUrl: "https://[hidden]",
       targetUrl: "https://example.test/hook",
       isEnabled: true,
       events: ["recommendation_run_succeeded" as const],

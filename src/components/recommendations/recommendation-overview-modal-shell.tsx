@@ -1,10 +1,12 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useState, useTransition } from "react";
+import { type ReactNode, useCallback, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { useModalDialog } from "@/components/ui/use-modal-dialog";
+import { usePortalTarget } from "@/components/ui/use-portal-target";
 
 type RecommendationOverviewModalShellProps = {
   titleId: string;
@@ -23,37 +25,24 @@ export function RecommendationOverviewModalShell({
   // server component re-renders, which is the source of the noticeable
   // close lag on `force-dynamic` pages like /history and /discover.
   const [isClosing, setIsClosing] = useState(false);
+  const portalTarget = usePortalTarget();
   const [, startTransition] = useTransition();
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const closeModal = useCallback(() => {
     setIsClosing(true);
     startTransition(() => {
-      router.push(closeHref, { scroll: false });
+      router.replace(closeHref, { scroll: false });
     });
   }, [closeHref, router]);
 
-  useEffect(() => {
-    if (isClosing) {
-      return;
-    }
+  const dialogRef = useModalDialog({
+    onClose: closeModal,
+    initialFocusRef: closeButtonRef,
+    enabled: portalTarget !== null && !isClosing,
+  });
 
-    const previousOverflow = document.body.style.overflow;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        closeModal();
-      }
-    };
-
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [closeModal, isClosing]);
-
-  if (isClosing || typeof document === "undefined") {
+  if (isClosing || !portalTarget) {
     return null;
   }
 
@@ -64,14 +53,16 @@ export function RecommendationOverviewModalShell({
     >
       <div className="flex min-h-full items-center justify-center">
         <div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
+          tabIndex={-1}
           className="flex max-h-[min(90vh,62rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-cream/[0.08] bg-panel"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex justify-end border-b border-cream/[0.08] px-5 py-4 md:px-8">
-            <Button type="button" variant="secondary" onClick={closeModal}>
+            <Button ref={closeButtonRef} type="button" variant="secondary" onClick={closeModal}>
               Close
             </Button>
           </div>
@@ -79,6 +70,6 @@ export function RecommendationOverviewModalShell({
         </div>
       </div>
     </div>,
-    document.body,
+    portalTarget,
   );
 }

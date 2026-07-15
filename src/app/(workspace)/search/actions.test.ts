@@ -6,6 +6,9 @@ vi.mock("@/auth", () => ({
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
+vi.mock("@/modules/notifications/workflows/dispatch-notification", () => ({
+  safeDispatchNotificationWorkflow: vi.fn().mockResolvedValue(null),
+}));
 vi.mock("@/modules/indexers/workflows/search-indexers", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/indexers/workflows/search-indexers")>();
   return {
@@ -52,6 +55,7 @@ import { searchDiscoverTitles } from "@/modules/discover/queries/search-discover
 import { searchIndexersWorkflow } from "@/modules/indexers/workflows/search-indexers";
 import { RequestMediaTitleCommandError } from "@/modules/media-library/commands/request-media-title";
 import { requestTitleWithReleaseSearchWorkflow } from "@/modules/media-library/workflows/request-title-with-release-search";
+import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
 
 import {
   queueIndexerResultAction,
@@ -70,6 +74,7 @@ const requestTitleWorkflowMock = vi.mocked(requestTitleWithReleaseSearchWorkflow
 const searchMock = vi.mocked(searchIndexersWorkflow);
 const queueMock = vi.mocked(queueIndexerResultWorkflow);
 const revalidateMock = vi.mocked(revalidatePath);
+const notificationMock = vi.mocked(safeDispatchNotificationWorkflow);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -185,7 +190,8 @@ describe("requestSearchTitleAction", () => {
     expect(revalidateMock).toHaveBeenCalledWith("/library/movies");
     expect(result).toEqual({
       status: "success",
-      message: "Added to your library.",
+      outcome: "catalog_added",
+      message: "Arrival was added to your catalog. No download was requested.",
       titleId: "title1",
       seasonId: null,
       episodeId: null,
@@ -241,6 +247,7 @@ describe("requestSearchTitleAction", () => {
     expect(searchMock).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       status: "success",
+      outcome: "queued",
       titleId: "title1",
       searchRunId: "run1",
       downloadRequestId: "download1",
@@ -284,8 +291,9 @@ describe("requestSearchTitleAction", () => {
     const result = await requestSearchTitleAction(initialRequestSearchTitleActionState, validForm(true));
 
     expect(result).toMatchObject({
-      status: "success",
-      message: "Added to your library, but no releases matched HD 1080p.",
+      status: "warning",
+      outcome: "no_match",
+      message: "Arrival was added to your catalog, but no release matched HD 1080p. You can search again from its library page.",
       titleId: "title1",
       searchRunId: "run1",
       downloadRequestId: null,
@@ -331,8 +339,9 @@ describe("requestSearchTitleAction", () => {
 
     const result = await requestSearchTitleAction(initialRequestSearchTitleActionState, tvForm);
 
-    expect(result.status).toBe("success");
-    expect(result.message).toContain("queued 1 of 2 selections");
+    expect(result.status).toBe("warning");
+    expect(result.outcome).toBe("partial_queue");
+    expect(result.message).toContain("only 1 of 2 selections queued");
     expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
   });
 
@@ -347,6 +356,7 @@ describe("requestSearchTitleAction", () => {
     expect(result).toEqual({
       status: "error",
       message: "Choose a matching library before adding that title.",
+      outcome: null,
       titleId: null,
       seasonId: null,
       episodeId: null,
@@ -354,6 +364,14 @@ describe("requestSearchTitleAction", () => {
       downloadRequestId: null,
       targetLibraryPathId: null,
       results: [],
+    });
+    expect(notificationMock).toHaveBeenCalledWith({
+      userId: "u1",
+      payload: {
+        eventType: "library_add_failed",
+        title: "Arrival",
+        message: "Choose a matching library before adding that title.",
+      },
     });
   });
 });

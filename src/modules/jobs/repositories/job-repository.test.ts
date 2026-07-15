@@ -9,6 +9,7 @@ import { jobs, users } from "@/lib/database/schema";
 import {
   claimDueJobs,
   completeJobRun,
+  createImmediateJob,
   failJobRun,
   findJobByTarget,
   listJobsForUser,
@@ -111,6 +112,133 @@ describe("saveRecurringJob", () => {
     expect(result?.nextRunAt).toBeNull();
     expect(result?.lastStatus).toBe("idle");
   });
+
+  it("disables a schedule without invalidating its active lease", async () => {
+    const userId = await seedUser();
+    const job = await saveRecurringJob({
+      userId,
+      jobType: "watch-history-sync",
+      targetType: "watch-history-source",
+      targetKey: `active-${randomUUID()}`,
+      scheduleMinutes: 60,
+      isEnabled: true,
+    });
+    if (!job) throw new Error("job missing");
+
+    const claimAt = new Date();
+    ensureDatabaseReady()
+      .update(jobs)
+      .set({ nextRunAt: new Date(claimAt.getTime() - 1_000) })
+      .where(eq(jobs.id, job.id))
+      .run();
+    const claimed = (await claimDueJobs("watch-history-sync", claimAt))
+      .find((candidate) => candidate.id === job.id);
+    if (!claimed) throw new Error("job was not claimed");
+
+    const disabled = await saveRecurringJob({
+      userId,
+      jobType: "watch-history-sync",
+      targetType: "watch-history-source",
+      targetKey: job.targetKey,
+      scheduleMinutes: 60,
+      isEnabled: false,
+    });
+
+    expect(disabled?.lastStatus).toBe("running");
+    expect(disabled?.runToken).toBe(claimed.runToken);
+    expect(disabled?.lockedUntil).toEqual(claimed.lockedUntil);
+    expect(disabled?.isEnabled).toBe(false);
+    expect(disabled?.nextRunAt).toBeNull();
+    expect((await claimDueJobs("watch-history-sync", claimAt)).map((row) => row.id))
+      .not.toContain(job.id);
+
+    expect(await completeJobRun(job.id, claimed.runToken, new Date(claimAt.getTime() + 1_000)))
+      .toBe(true);
+    const completed = await findJobByTarget(
+      userId,
+      "watch-history-sync",
+      "watch-history-source",
+      job.targetKey,
+    );
+    expect(completed?.isEnabled).toBe(false);
+    expect(completed?.nextRunAt).toBeNull();
+    expect(completed?.runToken).toBeNull();
+  });
+});
+
+describe("createImmediateJob", () => {
+  it("coalesces a request during an active lease into one rerun after completion", async () => {
+    const userId = await seedUser();
+    const targetKey = `run-${randomUUID()}`;
+    const job = await createImmediateJob({
+      userId,
+      jobType: "recommendation-run",
+      targetType: "recommendation-run",
+      targetKey,
+    });
+    const claimAt = new Date(Date.now() + 100);
+    const firstClaim = (await claimDueJobs("recommendation-run", claimAt, 10))
+      .find((candidate) => candidate.id === job.id);
+    if (!firstClaim) throw new Error("job was not claimed");
+
+    const rescheduled = await createImmediateJob({
+      userId,
+      jobType: "recommendation-run",
+      targetType: "recommendation-run",
+      targetKey,
+    });
+
+    expect(rescheduled.lastStatus).toBe("running");
+    expect(rescheduled.runToken).toBe(firstClaim.runToken);
+    expect(rescheduled.lockedUntil).toEqual(firstClaim.lockedUntil);
+    expect(rescheduled.nextRunAt!.getTime()).toBeGreaterThan(firstClaim.lastStartedAt!.getTime());
+    expect((await claimDueJobs("recommendation-run", new Date(claimAt.getTime() + 1_000), 10))
+      .map((candidate) => candidate.id)).not.toContain(job.id);
+
+    const completedAt = new Date(claimAt.getTime() + 2_000);
+    expect(await completeJobRun(job.id, firstClaim.runToken, completedAt)).toBe(true);
+
+    const rerun = (await claimDueJobs("recommendation-run", completedAt, 10))
+      .find((candidate) => candidate.id === job.id);
+    expect(rerun?.runToken).toBeTruthy();
+    expect(rerun?.runToken).not.toBe(firstClaim.runToken);
+  });
+
+  it("clears an expired lease and makes a stale job immediately claimable", async () => {
+    const userId = await seedUser();
+    const targetKey = `stale-${randomUUID()}`;
+    const now = new Date();
+    const id = randomUUID();
+    ensureDatabaseReady().insert(jobs).values({
+      id,
+      userId,
+      jobType: "recommendation-run",
+      targetType: "recommendation-run",
+      targetKey,
+      scheduleMinutes: 0,
+      isEnabled: true,
+      nextRunAt: new Date(now.getTime() - 60_000),
+      lastStatus: "running",
+      runToken: "expired-token",
+      lockedUntil: new Date(now.getTime() - 1_000),
+      lastHeartbeatAt: new Date(now.getTime() - 60_000),
+    }).run();
+
+    const rescheduled = await createImmediateJob({
+      userId,
+      jobType: "recommendation-run",
+      targetType: "recommendation-run",
+      targetKey,
+    });
+
+    expect(rescheduled.lastStatus).toBe("idle");
+    expect(rescheduled.runToken).toBeNull();
+    expect(rescheduled.lockedUntil).toBeNull();
+    const claimed = (await claimDueJobs("recommendation-run", new Date(), 10))
+      .find((candidate) => candidate.id === id);
+    expect(claimed?.runToken).toBeTruthy();
+    expect(claimed?.runToken).not.toBe("expired-token");
+  });
 });
 
 describe("claimDueJobs", () => {
@@ -170,6 +298,8 @@ describe("claimDueJobs", () => {
           isEnabled: true,
           nextRunAt: past,
           lastStatus: "running",
+          runToken: randomUUID(),
+          lockedUntil: future,
         },
       ])
       .run();
@@ -186,6 +316,34 @@ describe("claimDueJobs", () => {
     expect(after?.lastStatus).toBe("running");
     expect(after?.lastStartedAt).toEqual(now);
     expect(after?.lastError).toBeNull();
+    expect(after?.runToken).toBeTruthy();
+    expect(after?.lockedUntil?.getTime()).toBeGreaterThan(now.getTime());
+  });
+
+  it("reclaims a running job after its lease expires", async () => {
+    const userId = await seedUser();
+    const database = ensureDatabaseReady();
+    const now = new Date();
+    const id = randomUUID();
+
+    database.insert(jobs).values({
+      id,
+      userId,
+      jobType: "watch-history-sync",
+      targetType: "plex",
+      targetKey: "stale-plex",
+      scheduleMinutes: 60,
+      isEnabled: true,
+      nextRunAt: new Date(now.getTime() - 120_000),
+      lastStatus: "running",
+      runToken: randomUUID(),
+      lockedUntil: new Date(now.getTime() - 60_000),
+    }).run();
+
+    const claimed = await claimDueJobs("watch-history-sync", now);
+
+    expect(claimed.map((job) => job.id)).toContain(id);
+    expect(claimed.find((job) => job.id === id)?.runToken).toBeTruthy();
   });
 
   it("respects the limit argument", async () => {
@@ -229,8 +387,13 @@ describe("completeJobRun and failJobRun", () => {
     expect(job).not.toBeNull();
     if (!job) throw new Error("job missing");
 
+    ensureDatabaseReady().update(jobs).set({ nextRunAt: new Date(0) }).where(eq(jobs.id, job.id)).run();
+    const claimed = (await claimDueJobs("watch-history-sync", new Date()))
+      .find((candidate) => candidate.id === job.id);
+    if (!claimed) throw new Error("job was not claimed");
+
     const completedAt = new Date(Date.now() + 1000);
-    await completeJobRun(job.id, 30, completedAt);
+    await completeJobRun(job.id, claimed.runToken, completedAt);
 
     const after = ensureDatabaseReady().select().from(jobs).where(eq(jobs.id, job.id)).get();
     expect(after?.lastStatus).toBe("succeeded");
@@ -253,13 +416,51 @@ describe("completeJobRun and failJobRun", () => {
     });
     if (!job) throw new Error("job missing");
 
+    ensureDatabaseReady().update(jobs).set({ nextRunAt: new Date(0) }).where(eq(jobs.id, job.id)).run();
+    const claimed = (await claimDueJobs("watch-history-sync", new Date()))
+      .find((candidate) => candidate.id === job.id);
+    if (!claimed) throw new Error("job was not claimed");
+
     const completedAt = new Date(Date.now() + 1000);
-    await failJobRun(job.id, 30, "boom", completedAt);
+    await failJobRun(job.id, claimed.runToken, "boom", completedAt);
 
     const after = ensureDatabaseReady().select().from(jobs).where(eq(jobs.id, job.id)).get();
     expect(after?.lastStatus).toBe("failed");
     expect(after?.lastError).toBe("boom");
     expect(after?.lastCompletedAt).toEqual(completedAt);
+  });
+
+  it("ignores stale completions and does not re-enable a schedule disabled during execution", async () => {
+    const userId = await seedUser();
+    const job = await saveRecurringJob({
+      userId,
+      jobType: "watch-history-sync",
+      targetType: "plex",
+      targetKey: "lease-test",
+      scheduleMinutes: 30,
+      isEnabled: true,
+    });
+    if (!job) throw new Error("job missing");
+
+    ensureDatabaseReady().update(jobs).set({ nextRunAt: new Date(0) }).where(eq(jobs.id, job.id)).run();
+    const claimed = (await claimDueJobs("watch-history-sync", new Date()))
+      .find((candidate) => candidate.id === job.id);
+    if (!claimed) throw new Error("job was not claimed");
+
+    expect(await completeJobRun(job.id, "stale-token")).toBe(false);
+    await saveRecurringJob({
+      userId,
+      jobType: "watch-history-sync",
+      targetType: "plex",
+      targetKey: "lease-test",
+      scheduleMinutes: 30,
+      isEnabled: false,
+    });
+    expect(await completeJobRun(job.id, claimed.runToken)).toBe(true);
+
+    const after = ensureDatabaseReady().select().from(jobs).where(eq(jobs.id, job.id)).get();
+    expect(after?.isEnabled).toBe(false);
+    expect(after?.nextRunAt).toBeNull();
   });
 });
 

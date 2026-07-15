@@ -5,11 +5,7 @@ import { Sparkles } from "lucide-react";
 
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import {
-  type FocusEvent,
-  type MouseEvent as ReactMouseEvent,
-  startTransition,
   useActionState,
-  useEffect,
   useRef,
   useState,
 } from "react";
@@ -41,101 +37,37 @@ type RecommendationRequestFormProps = {
   submitBlockedMessage?: string | null;
 };
 
-const requestProgressStages = [
-  {
-    label: "Starting request",
-    minElapsedMs: 0,
-  },
-  {
-    label: "Checking settings",
-    minElapsedMs: 1500,
-  },
-  {
-    label: "Reading your taste profile",
-    minElapsedMs: 4000,
-  },
-  {
-    label: "Finding recommendations",
-    minElapsedMs: 9000,
-  },
-  {
-    label: "Filtering matches",
-    minElapsedMs: 20000,
-  },
-  {
-    label: "Saving results",
-    minElapsedMs: 35000,
-  },
-] as const;
-
-function resolveActiveProgressStage(elapsedMs: number) {
-  let activeStageIndex = 0;
-
-  for (let index = 0; index < requestProgressStages.length; index += 1) {
-    if (elapsedMs >= requestProgressStages[index].minElapsedMs) {
-      activeStageIndex = index;
-    }
-  }
-
-  return activeStageIndex;
-}
-
 function SubmitButton({ canSubmit }: { canSubmit: boolean }) {
   const { pending } = useFormStatus();
 
   return (
     <Button type="submit" className="shrink-0 whitespace-nowrap" disabled={!canSubmit || pending}>
-      {pending ? "Queuing..." : "Get picks"}
+      {pending ? "Starting…" : "Find picks"}
     </Button>
   );
 }
 
 function RequestProgressPanel() {
   const { pending } = useFormStatus();
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const startedAtRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (!pending) {
-      startedAtRef.current = null;
-      return;
-    }
-
-    startedAtRef.current = Date.now();
-    const intervalId = window.setInterval(() => {
-      if (startedAtRef.current !== null) {
-        setElapsedMs(Date.now() - startedAtRef.current);
-      }
-    }, 700);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [pending]);
 
   if (!pending) {
     return null;
   }
-
-  const activeStageIndex = resolveActiveProgressStage(elapsedMs);
-  const activeStage = requestProgressStages[activeStageIndex];
 
   return (
     <div className="rounded-lg border border-accent/25 bg-accent/10 px-4 py-3" role="status">
       <div className="flex items-center gap-3">
         <div className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent" />
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground">Working on your recommendations</p>
-          <p className="text-sm leading-6 text-muted">{activeStage.label}</p>
+          <p className="text-sm font-semibold text-foreground">Finding recommendations</p>
+          <p className="text-sm leading-6 text-muted">
+            Nooklet is working through your taste and filters. This can take a minute.
+          </p>
         </div>
       </div>
     </div>
   );
 }
-
-type DefaultsFieldExitEvent =
-  | FocusEvent<HTMLInputElement>
-  | ReactMouseEvent<HTMLInputElement>;
 
 function buildRequestDefaultsKey(
   requestedCount: number,
@@ -174,6 +106,7 @@ export function RecommendationRequestForm({
   const formRef = useRef<HTMLFormElement>(null);
   const [selectedModel, setSelectedModel] = useState(defaultModel);
   const [selectedGenres, setSelectedGenres] = useState<RecommendationGenre[]>([]);
+  const [defaultsStatus, setDefaultsStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const lastSubmittedDefaultsRef = useRef(
     buildRequestDefaultsKey(defaultResultCount, defaultTemperature, defaultModel),
   );
@@ -187,7 +120,7 @@ export function RecommendationRequestForm({
     );
   }
 
-  function persistDefaults(
+  async function persistDefaults(
     requestedCount: number,
     temperature: number,
     aiModel: string,
@@ -195,18 +128,22 @@ export function RecommendationRequestForm({
     const nextDefaultsKey = buildRequestDefaultsKey(requestedCount, temperature, aiModel);
 
     if (nextDefaultsKey === lastSubmittedDefaultsRef.current) {
+      setDefaultsStatus("saved");
       return;
     }
 
-    lastSubmittedDefaultsRef.current = nextDefaultsKey;
-
-    startTransition(() => {
-      void submitRecommendationDefaultsAction({
+    setDefaultsStatus("saving");
+    try {
+      await submitRecommendationDefaultsAction({
         requestedCount,
         temperature,
         aiModel: aiModel.trim().length > 0 ? aiModel.trim() : undefined,
       });
-    });
+      lastSubmittedDefaultsRef.current = nextDefaultsKey;
+      setDefaultsStatus("saved");
+    } catch {
+      setDefaultsStatus("error");
+    }
   }
 
   function readDefaultsFromForm(form: HTMLFormElement) {
@@ -237,41 +174,22 @@ export function RecommendationRequestForm({
     return { requestedCount, temperature, aiModel };
   }
 
-  function saveDefaultsOnFieldExit(event: DefaultsFieldExitEvent) {
-    const form = event.currentTarget.form ?? formRef.current;
-
-    if (!form) {
-      return;
-    }
-
-    const defaults = readDefaultsFromForm(form);
-
-    if (!defaults) {
-      return;
-    }
-
-    persistDefaults(defaults.requestedCount, defaults.temperature, defaults.aiModel);
-  }
-
   function handleModelChange(nextModel: string) {
     setSelectedModel(nextModel);
+    setDefaultsStatus("idle");
+  }
 
+  function saveDefaults() {
     const form = formRef.current;
-
     if (!form) {
       return;
     }
-
     const defaults = readDefaultsFromForm(form);
-
-    // The hidden aiModel input updates synchronously via SearchableSelect, but
-    // when called from the change callback we want to persist using the value
-    // we just received either way to avoid relying on render order.
-    const requestedCount =
-      defaults?.requestedCount ?? defaultResultCount;
-    const temperature = defaults?.temperature ?? defaultTemperature;
-
-    persistDefaults(requestedCount, temperature, nextModel);
+    if (!defaults) {
+      setDefaultsStatus("error");
+      return;
+    }
+    void persistDefaults(defaults.requestedCount, defaults.temperature, defaults.aiModel);
   }
 
   return (
@@ -286,6 +204,7 @@ export function RecommendationRequestForm({
         <Sparkles aria-hidden="true" className="h-5 w-5 shrink-0 text-accent" />
         <input
           name="requestPrompt"
+          aria-label={mediaType === "tv" ? "TV recommendation prompt" : "Movie recommendation prompt"}
           placeholder={
             mediaType === "tv"
               ? "Ask for picks — e.g. slow-burn sci-fi with emotional stakes…"
@@ -293,11 +212,12 @@ export function RecommendationRequestForm({
           }
           className="h-11 min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted/70"
           aria-invalid={Boolean(state.fieldErrors?.requestPrompt)}
+          aria-describedby={state.fieldErrors?.requestPrompt ? "recommendation-prompt-error" : undefined}
         />
         <SubmitButton canSubmit={canSubmit} />
       </div>
       {state.fieldErrors?.requestPrompt ? (
-        <p className="pl-8 text-sm text-accent-wine">{state.fieldErrors.requestPrompt}</p>
+        <p id="recommendation-prompt-error" role="alert" className="pl-8 text-sm text-accent-wine">{state.fieldErrors.requestPrompt}</p>
       ) : null}
 
       <div
@@ -314,7 +234,7 @@ export function RecommendationRequestForm({
               type="button"
               aria-pressed={isSelected}
               onClick={() => toggleSelectedGenre(option.value)}
-              className={`inline-flex h-7 items-center rounded-full border px-3 text-[12.5px] font-medium transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50 ${
+              className={`inline-flex min-h-11 items-center rounded-full border px-4 text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
                 isSelected
                   ? "border-accent/45 bg-accent/[0.14] text-accent"
                   : "border-cream/10 bg-transparent text-muted hover:border-accent/45 hover:text-foreground"
@@ -334,11 +254,16 @@ export function RecommendationRequestForm({
         <p className="pl-8 text-sm text-accent-wine">{state.fieldErrors.selectedGenres}</p>
       ) : null}
 
-      <div className="flex flex-wrap items-end gap-3 border-t border-cream/[0.06] pt-3.5 pl-8">
-        <label className="w-full max-w-[260px] space-y-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Model</span>
+      <details className="ml-8 rounded-xl border border-cream/10 bg-cream/[0.02]">
+        <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
+          Advanced recommendation settings
+        </summary>
+        <div className="flex flex-wrap items-end gap-4 border-t border-cream/10 p-4">
+        <label className="w-full max-w-[280px] space-y-1.5">
+          <span className="text-xs font-semibold text-foreground">AI model</span>
           <SearchableSelect
             name="aiModel"
+            ariaLabel="AI model"
             value={selectedModel}
             onChange={handleModelChange}
             options={availableModels}
@@ -346,12 +271,12 @@ export function RecommendationRequestForm({
             searchPlaceholder="Search models…"
             emptyLabel="Available model IDs will appear after the next successful provider check."
             ariaInvalid={Boolean(state.fieldErrors?.aiModel)}
-            triggerClassName="min-h-9 rounded-md px-3"
+            triggerClassName="min-h-11 rounded-lg px-3"
           />
         </label>
 
-        <label className="w-24 space-y-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Temp</span>
+        <label className="w-36 space-y-1.5">
+          <span className="text-xs font-semibold text-foreground">Creativity</span>
           <Input
             name="temperature"
             type="number"
@@ -359,28 +284,37 @@ export function RecommendationRequestForm({
             max={2}
             step={0.1}
             defaultValue={defaultTemperature.toFixed(1)}
-            onBlur={saveDefaultsOnFieldExit}
-            onMouseLeave={saveDefaultsOnFieldExit}
+            onChange={() => setDefaultsStatus("idle")}
             aria-invalid={Boolean(state.fieldErrors?.temperature)}
-            className="min-h-9 rounded-md px-3"
+            aria-describedby="recommendation-creativity-help"
           />
+          <span id="recommendation-creativity-help" className="block text-xs leading-4 text-muted">Higher values vary the results more.</span>
         </label>
 
-        <label className="w-24 space-y-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Results</span>
+        <label className="w-32 space-y-1.5">
+          <span className="text-xs font-semibold text-foreground">Number of picks</span>
           <Input
             name="requestedCount"
             type="number"
             min={1}
             max={20}
             defaultValue={defaultResultCount}
-            onBlur={saveDefaultsOnFieldExit}
-            onMouseLeave={saveDefaultsOnFieldExit}
+            onChange={() => setDefaultsStatus("idle")}
             aria-invalid={Boolean(state.fieldErrors?.requestedCount)}
-            className="min-h-9 rounded-md px-3"
           />
         </label>
-      </div>
+        <Button type="button" variant="secondary" size="sm" onClick={saveDefaults} disabled={defaultsStatus === "saving"}>
+          {defaultsStatus === "saving" ? "Saving…" : "Save as defaults"}
+        </Button>
+        <p role="status" className="w-full text-sm text-muted">
+          {defaultsStatus === "saved"
+            ? "Defaults saved."
+            : defaultsStatus === "error"
+              ? "Check the advanced values and try again."
+              : "These values apply to this request; save only when you want them reused."}
+        </p>
+        </div>
+      </details>
       {state.fieldErrors?.aiModel ? (
         <p className="pl-8 text-sm text-accent-wine">{state.fieldErrors.aiModel}</p>
       ) : null}
@@ -392,7 +326,7 @@ export function RecommendationRequestForm({
       ) : null}
 
       {state.message ? (
-        <p className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2 text-sm leading-6 text-foreground">
+        <p role="alert" className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2 text-sm leading-6 text-foreground">
           {state.message}
         </p>
       ) : null}

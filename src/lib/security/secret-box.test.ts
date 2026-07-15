@@ -132,4 +132,37 @@ describe("secret-box key isolation", () => {
       vi.resetModules();
     }
   });
+
+  it("decrypts with an explicitly configured previous key and marks it for rotation", async () => {
+    const { vi } = await import("vitest");
+    const previousKey = env.SECRET_BOX_KEY ?? env.AUTH_SECRET;
+    const ciphertextWithPreviousKey = encryptSecret("rotation-target");
+
+    vi.resetModules();
+    vi.doMock("@/lib/env", () => ({
+      env: {
+        ...env,
+        AUTH_SECRET: "new-test-auth-secret-must-be-at-least-32-chars-long",
+        SECRET_BOX_KEY: "new-test-secret-box-key-must-be-at-least-32-characters",
+        SECRET_BOX_PREVIOUS_KEYS: previousKey,
+      },
+    }));
+
+    try {
+      const rotated = await import("@/lib/security/secret-box");
+      expect(rotated.decryptSecretWithMetadata(ciphertextWithPreviousKey)).toEqual({
+        value: "rotation-target",
+        needsRotation: true,
+      });
+
+      const reencrypted = rotated.encryptSecret("rotation-target");
+      expect(rotated.decryptSecretWithMetadata(reencrypted)).toEqual({
+        value: "rotation-target",
+        needsRotation: false,
+      });
+    } finally {
+      vi.doUnmock("@/lib/env");
+      vi.resetModules();
+    }
+  });
 });

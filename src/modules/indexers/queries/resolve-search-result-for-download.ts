@@ -1,6 +1,6 @@
 import {
   findIndexerById,
-  findSearchResultById,
+  findUnexpiredSearchResultById,
   findSearchResultSecret,
   type IndexerSearchResultRecord,
   type IndexerSearchResultSecretRecord,
@@ -18,7 +18,7 @@ export async function resolveSearchResultForDownload(
   userId: string,
   resultId: string,
 ): Promise<DownloadableIndexerSearchResult | null> {
-  const result = await findSearchResultById(userId, resultId);
+  const result = await findUnexpiredSearchResultById(userId, resultId);
 
   if (!result) {
     return null;

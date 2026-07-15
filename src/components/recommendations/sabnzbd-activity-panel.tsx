@@ -1,11 +1,15 @@
 "use client";
 
-import { GripVertical } from "lucide-react";
 import Link from "next/link";
+import { useCallback, useState } from "react";
 
+import {
+  type ActiveDownloadQueueState,
+  type DownloadQueueActionRequest,
+  type DownloadQueueSourceState,
+} from "@/app/api/service-connections/sabnzbd/queue/contract";
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
-import { useCallback, useEffect, useState } from "react";
-
+import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/ui/stat-card";
 import { cn } from "@/lib/utils";
@@ -13,10 +17,11 @@ import {
   getSabnzbdQueueActionKey,
   type SabnzbdQueueActionInput,
 } from "@/modules/service-connections/sabnzbd-queue-actions";
-import { type ActiveSabnzbdQueueState } from "@/modules/service-connections/workflows/get-active-sabnzbd-queue";
+
+import { useSabnzbdQueue } from "./sabnzbd-queue-provider";
 
 type SabnzbdActivityPanelProps = {
-  initialState: ActiveSabnzbdQueueState;
+  initialState: ActiveDownloadQueueState;
   className?: string;
 };
 
@@ -24,18 +29,27 @@ function formatProgressPercent(value: number) {
   return `${value.toFixed(value % 1 === 0 ? 0 : 1)}%`;
 }
 
-function ProgressBar({ progressPercent }: { progressPercent: number }) {
+function ProgressBar({ progressPercent, title }: { progressPercent: number; title: string }) {
+  const value = Math.max(0, Math.min(100, progressPercent));
+
   return (
-    <div className="h-2.5 overflow-hidden rounded-full bg-cream/[0.04]">
+    <div
+      className="h-2.5 overflow-hidden rounded-full bg-cream/[0.04]"
+      role="progressbar"
+      aria-label={`${title} download progress`}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(value)}
+    >
       <div
         className="h-full rounded-full bg-accent transition-[width] duration-500"
-        style={{ width: `${Math.max(0, Math.min(100, progressPercent))}%` }}
+        style={{ width: `${value}%` }}
       />
     </div>
   );
 }
 
-function getSabnzbdActionErrorMessage(value: unknown) {
+function getActionErrorMessage(value: unknown) {
   if (typeof value !== "object" || value === null) {
     return null;
   }
@@ -45,158 +59,261 @@ function getSabnzbdActionErrorMessage(value: unknown) {
     : null;
 }
 
+function canPauseEngineItem(status: string) {
+  return ["queued", "downloading", "paused"].includes(status.trim().toLowerCase());
+}
+
+type SourceQueueProps = {
+  sourceState: DownloadQueueSourceState;
+  isBusy: boolean;
+  pendingActionKey: string | null;
+  submitAction: (
+    source: DownloadQueueSourceState["source"],
+    action: SabnzbdQueueActionInput,
+    itemTitle?: string,
+  ) => Promise<void>;
+};
+
+function SourceQueue({ sourceState, isBusy, pendingActionKey, submitAction }: SourceQueueProps) {
+  const snapshot = sourceState.snapshot;
+
+  return (
+    <section className="space-y-4 rounded-2xl border border-cream/[0.08] bg-cream/[0.02] p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-heading text-xl text-foreground">{sourceState.label}</h3>
+            <span className="rounded-full border border-cream/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+              {sourceState.source === "engine" ? "Primary" : "Legacy"}
+            </span>
+          </div>
+          <p className="mt-1 text-xs leading-5 text-muted" role="status">
+            {sourceState.statusMessage}
+          </p>
+        </div>
+        {snapshot ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={isBusy || snapshot.totalQueueCount === 0}
+            onClick={() => void submitAction(sourceState.source, {
+              type: snapshot.paused ? "resumeQueue" : "pauseQueue",
+            })}
+          >
+            {pendingActionKey === `${sourceState.source}:pauseQueue`
+              ? "Pausing..."
+              : pendingActionKey === `${sourceState.source}:resumeQueue`
+                ? "Resuming..."
+                : snapshot.paused
+                  ? "Resume queue"
+                  : "Pause queue"}
+          </Button>
+        ) : null}
+      </div>
+
+      {sourceState.connectionStatus !== "verified" ? (
+        <div className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2.5 text-sm text-foreground" role="alert">
+          This downloader is not currently available. Verify it under Settings → Connections.
+        </div>
+      ) : snapshot && snapshot.items.length > 0 ? (
+        <div className="max-h-[52vh] space-y-2.5 overflow-y-auto pr-1">
+          {snapshot.items.map((item, index) => {
+            const isPaused = item.status.trim().toLowerCase() === "paused";
+            const pauseSupported = sourceState.source === "sabnzbd" || canPauseEngineItem(item.status);
+            const actionType = isPaused ? "resume" : "pause";
+            const actionKey = `${sourceState.source}:${actionType}:${item.id}`;
+
+            return (
+              <article
+                key={item.id}
+                className="flex flex-col gap-3 rounded-xl border border-cream/[0.08] bg-cream/[0.03] px-4 py-3"
+              >
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground" title={item.title}>{item.title}</p>
+                    <p className="mt-0.5 text-xs text-muted">
+                      {[
+                        item.category,
+                        item.priority ? `${item.priority} priority` : null,
+                        item.sizeLabel,
+                        ...item.labels,
+                      ].filter(Boolean).join(" · ") || item.status}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <span className="mr-1 text-[13px] font-semibold text-accent">
+                      {isPaused ? "Paused" : formatProgressPercent(item.progressPercent)}
+                    </span>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={isBusy || index === 0}
+                      onClick={() => void submitAction(sourceState.source, {
+                        type: "move",
+                        itemId: item.id,
+                        direction: "up",
+                      })}
+                      aria-label={`Move ${item.title} up in ${sourceState.label}`}
+                    >
+                      Up
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={isBusy || (
+                        index >= snapshot.items.length - 1
+                        && snapshot.totalQueueCount <= snapshot.items.length
+                      )}
+                      onClick={() => void submitAction(sourceState.source, {
+                        type: "move",
+                        itemId: item.id,
+                        direction: "down",
+                      })}
+                      aria-label={`Move ${item.title} down in ${sourceState.label}`}
+                    >
+                      Down
+                    </Button>
+                    {pauseSupported ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={isBusy}
+                        onClick={() => void submitAction(sourceState.source, {
+                          type: actionType,
+                          itemId: item.id,
+                        })}
+                      >
+                        {pendingActionKey === actionKey
+                          ? isPaused ? "Resuming..." : "Pausing..."
+                          : isPaused ? "Resume" : "Pause"}
+                      </Button>
+                    ) : (
+                      <span className="px-2 text-xs text-muted" title="Pause is unavailable during post-processing.">
+                        {item.status}
+                      </span>
+                    )}
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      disabled={isBusy}
+                      onClick={() => void submitAction(sourceState.source, {
+                        type: "remove",
+                        itemId: item.id,
+                      }, item.title)}
+                    >
+                      {pendingActionKey === `${sourceState.source}:remove:${item.id}` ? "Removing..." : "Remove"}
+                    </Button>
+                  </div>
+                </div>
+                <ProgressBar progressPercent={item.progressPercent} title={item.title} />
+              </article>
+            );
+          })}
+          {snapshot.totalQueueCount > snapshot.items.length ? (
+            <p className="px-1 text-xs text-muted">
+              Showing {snapshot.items.length} of {snapshot.totalQueueCount} items in this queue.
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="rounded-xl border border-dashed border-cream/[0.12] bg-cream/[0.02] px-5 py-4 text-sm text-muted">
+          No active downloads in this queue.
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivityPanelProps) {
-  const [queueState, setQueueState] = useState(initialState);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const queueContext = useSabnzbdQueue();
+  const queueState = queueContext.queueState ?? initialState;
   const [isMutating, setIsMutating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingActionKey, setPendingActionKey] = useState<string | null>(null);
-  const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
-  const [dragTargetItemId, setDragTargetItemId] = useState<string | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<{
+    source: DownloadQueueSourceState["source"];
+    action: Extract<SabnzbdQueueActionInput, { type: "remove" }>;
+    title: string;
+  } | null>(null);
   const snapshot = queueState.snapshot;
 
-  const refreshQueue = useCallback(async () => {
-    setIsRefreshing(true);
-
-    try {
-      const response = await fetch("/api/service-connections/sabnzbd/queue", {
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        return;
-      }
-
-      const nextState = (await response.json()) as ActiveSabnzbdQueueState;
-      setQueueState(nextState);
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, []);
-
-  const submitQueueAction = useCallback(async (action: SabnzbdQueueActionInput) => {
-    if (
-      action.type === "remove" &&
-      !window.confirm("Remove this download from the queue? Already downloaded files will be kept.")
-    ) {
-      return;
-    }
-
+  const executeQueueAction = useCallback(async (
+    source: DownloadQueueSourceState["source"],
+    action: SabnzbdQueueActionInput,
+  ) => {
     setActionError(null);
     setIsMutating(true);
-    setPendingActionKey(getSabnzbdQueueActionKey(action));
+    setPendingActionKey(`${source}:${getSabnzbdQueueActionKey(action)}`);
 
     try {
+      const requestBody: DownloadQueueActionRequest = { source, ...action };
       const response = await fetch("/api/service-connections/sabnzbd/queue", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(action),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
       });
-      const payload = (await response.json()) as ActiveSabnzbdQueueState | { message?: unknown };
+      const payload = await response.json() as ActiveDownloadQueueState | { message?: unknown };
 
       if (!response.ok) {
-        setActionError(getSabnzbdActionErrorMessage(payload) ?? "Unable to update the download queue right now.");
-
+        setActionError(getActionErrorMessage(payload) ?? "Unable to update that download queue right now.");
         return;
       }
 
-      setQueueState(payload as ActiveSabnzbdQueueState);
+      queueContext.setQueueState(payload as ActiveDownloadQueueState);
+    } catch {
+      setActionError("Unable to reach Nooklet to update that download queue.");
     } finally {
       setIsMutating(false);
       setPendingActionKey(null);
-      setDraggedItemId(null);
-      setDragTargetItemId(null);
     }
-  }, []);
+  }, [queueContext]);
 
-  const handleDragStart = useCallback((event: React.DragEvent<HTMLElement>, itemId: string) => {
-    setDraggedItemId(itemId);
-    setDragTargetItemId(null);
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", itemId);
-  }, []);
-
-  const handleDragOver = useCallback((event: React.DragEvent<HTMLElement>, itemId: string) => {
-    if (!draggedItemId || draggedItemId === itemId) {
+  const submitQueueAction = useCallback(async (
+    source: DownloadQueueSourceState["source"],
+    action: SabnzbdQueueActionInput,
+    itemTitle?: string,
+  ) => {
+    if (action.type === "remove") {
+      setPendingRemoval({ source, action, title: itemTitle ?? "this download" });
       return;
     }
 
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    setDragTargetItemId(itemId);
-  }, [draggedItemId]);
-
-  const handleDrop = useCallback((event: React.DragEvent<HTMLElement>, itemId: string) => {
-    event.preventDefault();
-
-    if (!snapshot || !draggedItemId || draggedItemId === itemId) {
-      setDragTargetItemId(null);
-      return;
-    }
-
-    const targetIndex = snapshot.items.findIndex((queueItem) => queueItem.id === itemId);
-
-    if (targetIndex === -1) {
-      setDragTargetItemId(null);
-      return;
-    }
-
-    void submitQueueAction({
-      type: "moveToIndex",
-      itemId: draggedItemId,
-      targetIndex,
-    });
-  }, [draggedItemId, snapshot, submitQueueAction]);
-
-  const handleDragEnd = useCallback(() => {
-    setDraggedItemId(null);
-    setDragTargetItemId(null);
-  }, []);
-
-  useEffect(() => {
-    if (queueState.connectionStatus !== "verified") {
-      return;
-    }
-
-    const intervalId = window.setInterval(() => {
-      void refreshQueue();
-    }, 15_000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [queueState.connectionStatus, refreshQueue]);
+    await executeQueueAction(source, action);
+  }, [executeQueueAction]);
 
   const summaryItems = snapshot
     ? [
-        {
-          label: "Queue status",
-          value: snapshot.queueStatus ?? (snapshot.paused ? "Paused" : "Unknown"),
-        },
-        {
-          label: "Active items",
-          value: String(snapshot.activeQueueCount),
-        },
-        {
-          label: "Speed",
-          value: snapshot.speed ? `${snapshot.speed}/s` : "—",
-        },
-        {
-          label: "Time left",
-          value: snapshot.timeLeft ?? "—",
-        },
+        { label: "Queue status", value: snapshot.queueStatus ?? (snapshot.paused ? "Paused" : "Unknown") },
+        { label: "Active items", value: String(snapshot.activeQueueCount) },
+        { label: "Speed", value: snapshot.speed ? `${snapshot.speed}/s` : "—" },
+        { label: "Time left", value: snapshot.timeLeft ?? "—" },
       ]
     : [];
 
   return (
     <div className={cn("space-y-7", className)}>
       {actionError ? (
-        <div className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2 text-sm text-foreground">
+        <div className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2 text-sm text-foreground" role="alert">
           {actionError}
         </div>
       ) : null}
+
+      <AlertDialog
+        open={pendingRemoval !== null}
+        title="Remove download?"
+        description={pendingRemoval?.source === "engine"
+          ? <>Removing <strong className="text-foreground">{pendingRemoval.title}</strong> cancels the download and permanently deletes its working and completed files. This cannot be undone.</>
+          : <>Removing <strong className="text-foreground">{pendingRemoval?.title}</strong> cancels the SABnzbd queue item. Files SABnzbd already completed are kept.</>}
+        confirmLabel="Remove download"
+        pending={isMutating}
+        onClose={() => setPendingRemoval(null)}
+        onConfirm={() => {
+          if (!pendingRemoval) return;
+          const removal = pendingRemoval;
+          setPendingRemoval(null);
+          void executeQueueAction(removal.source, removal.action);
+        }}
+      />
 
       {summaryItems.length > 0 ? (
         <div className="grid gap-3.5 md:grid-cols-2 xl:grid-cols-4">
@@ -206,184 +323,47 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
         </div>
       ) : null}
 
-      {queueState.connectionStatus !== "verified" ? (
-        <div className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2.5 text-sm text-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-heading text-2xl text-foreground">Download queues</h2>
+          <p className="mt-1 text-xs text-muted" role="status" aria-live="polite">
+            {queueContext.isRefreshing
+              ? "Refreshing download queues…"
+              : isMutating
+                ? "Updating download queue…"
+                : queueState.statusMessage}
+          </p>
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={queueContext.isRefreshing || isMutating}
+          onClick={() => void queueContext.refreshQueue()}
+        >
+          {queueContext.isRefreshing ? "Refreshing..." : "Refresh"}
+        </Button>
+      </div>
+
+      {queueState.sources.length === 0 ? (
+        <div className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2.5 text-sm text-foreground" role="alert">
           <p>{queueState.statusMessage}</p>
-          <Link
-            href="/settings/connections"
-            className="relative mt-1.5 inline-flex font-semibold text-accent transition hover:brightness-110"
-          >
+          <Link href="/settings/connections" className="relative mt-1.5 inline-flex font-semibold text-accent transition hover:brightness-110">
             <LinkPendingOverlay />
             Open connections
           </Link>
         </div>
       ) : (
-        <section className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="font-heading text-2xl text-foreground">Queue</h3>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="text-xs text-muted">
-                {isRefreshing ? "Refreshing…" : isMutating ? "Updating queue…" : queueState.statusMessage}
-              </span>
-              {snapshot ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={isRefreshing || isMutating}
-                  onClick={() => {
-                    void submitQueueAction({
-                      type: snapshot.paused ? "resumeQueue" : "pauseQueue",
-                    });
-                  }}
-                >
-                  {pendingActionKey === "pauseQueue"
-                    ? "Pausing queue..."
-                    : pendingActionKey === "resumeQueue"
-                      ? "Resuming queue..."
-                      : snapshot.paused
-                        ? "Resume queue"
-                        : "Pause queue"}
-                </Button>
-              ) : null}
-            </div>
-          </div>
-
-          {snapshot && snapshot.items.length > 0 ? (
-            <div className="max-h-[68vh] space-y-2.5 overflow-y-auto pr-1">
-              {snapshot.items.map((item, index) => {
-                const isPaused = item.status.toLowerCase() === "paused";
-                const currentActionKey = `${isPaused ? "resume" : "pause"}:${item.id}`;
-
-                return (
-                  <article
-                    key={item.id}
-                    draggable={!isRefreshing && !isMutating}
-                    aria-grabbed={draggedItemId === item.id}
-                    onDragStart={(event) => {
-                      handleDragStart(event, item.id);
-                    }}
-                    onDragOver={(event) => {
-                      handleDragOver(event, item.id);
-                    }}
-                    onDrop={(event) => {
-                      handleDrop(event, item.id);
-                    }}
-                    onDragEnd={handleDragEnd}
-                    className={`flex flex-col gap-3 rounded-2xl border px-5 py-4 transition ${
-                      draggedItemId === item.id
-                        ? "border-accent/50 bg-cream/[0.04] opacity-70"
-                        : dragTargetItemId === item.id
-                          ? "border-accent bg-cream/[0.04]"
-                          : "border-cream/[0.08] bg-cream/[0.03] hover:border-cream/[0.14]"
-                    }`}
-                  >
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <GripVertical
-                          aria-hidden="true"
-                          className="h-4 w-4 shrink-0 cursor-grab text-muted"
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-foreground">{item.title}</p>
-                          <p className="mt-0.5 text-xs text-muted">
-                            {[
-                              item.category,
-                              item.priority ? `${item.priority} priority` : null,
-                              item.sizeLabel,
-                              ...item.labels,
-                            ]
-                              .filter(Boolean)
-                              .join(" · ") || item.status}
-                            {dragTargetItemId === item.id ? " · Drop here" : ""}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 flex-wrap items-center gap-3 lg:gap-4">
-                        <span className="text-[13px] font-semibold text-accent">
-                          {isPaused ? "Paused" : formatProgressPercent(item.progressPercent)}
-                        </span>
-                        {item.timeLeft ? (
-                          <span className="text-[12.5px] text-muted">{item.timeLeft} left</span>
-                        ) : null}
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={isRefreshing || isMutating || index === 0}
-                          onClick={() => {
-                            void submitQueueAction({
-                              type: "move",
-                              itemId: item.id,
-                              direction: "up",
-                            });
-                          }}
-                        >
-                          Up
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={isRefreshing || isMutating || index >= snapshot.totalQueueCount - 1}
-                          onClick={() => {
-                            void submitQueueAction({
-                              type: "move",
-                              itemId: item.id,
-                              direction: "down",
-                            });
-                          }}
-                        >
-                          Down
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={isRefreshing || isMutating}
-                          onClick={() => {
-                            void submitQueueAction({
-                              type: isPaused ? "resume" : "pause",
-                              itemId: item.id,
-                            });
-                          }}
-                        >
-                          {pendingActionKey === currentActionKey
-                            ? isPaused
-                              ? "Resuming..."
-                              : "Pausing..."
-                            : isPaused
-                              ? "Resume"
-                              : "Pause"}
-                        </Button>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          disabled={isRefreshing || isMutating}
-                          onClick={() => {
-                            void submitQueueAction({
-                              type: "remove",
-                              itemId: item.id,
-                            });
-                          }}
-                        >
-                          {pendingActionKey === `remove:${item.id}` ? "Removing..." : "Remove"}
-                        </Button>
-                      </div>
-                    </div>
-                    <ProgressBar progressPercent={item.progressPercent} />
-                  </article>
-                );
-              })}
-              {snapshot.totalQueueCount > snapshot.items.length ? (
-                <p className="px-1 text-xs text-muted">
-                  Showing {snapshot.items.length} of {snapshot.totalQueueCount} queue items.
-                </p>
-              ) : null}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-cream/[0.12] bg-cream/[0.02] px-5 py-4 text-sm text-muted">
-              No active downloads right now. This panel refreshes automatically while the queue is
-              busy.
-            </div>
-          )}
-        </section>
+        <div className="space-y-4">
+          {queueState.sources.map((sourceState) => (
+            <SourceQueue
+              key={sourceState.source}
+              sourceState={sourceState}
+              isBusy={queueContext.isRefreshing || isMutating}
+              pendingActionKey={pendingActionKey}
+              submitAction={submitQueueAction}
+            />
+          ))}
+        </div>
       )}
     </div>
   );

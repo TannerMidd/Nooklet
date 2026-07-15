@@ -7,6 +7,7 @@ import { useFormStatus } from "react-dom";
 import { searchLibraryItemReleasesAction } from "@/app/(workspace)/library/actions";
 import { initialLibraryItemSearchActionState } from "@/app/(workspace)/library/action-state";
 import { Button } from "@/components/ui/button";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
 
 type LibraryItemSearchFormProps = {
@@ -62,7 +63,7 @@ export function LibraryItemSearchForm({
             name="targetLibraryPathId"
             defaultValue={defaultPathId}
             disabled={targetPathOptions.length === 0}
-            className="min-h-9 w-full rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-xs text-foreground outline-none transition focus:border-accent/55 focus:bg-cream/[0.04] focus:ring-1 focus:ring-accent/25 disabled:opacity-60"
+            className="min-h-11 w-full rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-xs text-foreground outline-none transition focus:border-accent/55 focus:bg-cream/[0.04] focus:ring-1 focus:ring-accent/25 disabled:opacity-60"
           >
             {targetPathOptions.length === 0 ? (
               <option value="">No active folders</option>
@@ -76,9 +77,12 @@ export function LibraryItemSearchForm({
         <SearchButton label={label} />
       </div>
       {state.message ? (
-        <span className={state.status === "error" ? "text-xs text-accent-wine" : "text-xs text-muted"}>
+        <InlineAlert
+          variant={state.status === "error" ? "error" : state.status === "warning" ? "warning" : "success"}
+          className="py-1.5 text-xs"
+        >
           {state.message}
-        </span>
+        </InlineAlert>
       ) : null}
     </form>
   );

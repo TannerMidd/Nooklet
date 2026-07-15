@@ -39,7 +39,7 @@ export const initialMediaTitlePreferenceActionState: MediaTitlePreferenceActionS
 };
 
 export type LibraryItemSearchActionState = {
-  status: "idle" | "success" | "error";
+  status: "idle" | "success" | "warning" | "error";
   message: string | null;
   downloadRequestId: string | null;
 };
@@ -51,7 +51,7 @@ export const initialLibraryItemSearchActionState: LibraryItemSearchActionState =
 };
 
 export type RemoveMediaTitleActionState = {
-  status: "idle" | "success" | "error";
+  status: "idle" | "success" | "warning" | "error";
   message: string | null;
 };
 
@@ -81,7 +81,7 @@ export const initialTvSeasonMonitoringActionState: TvSeasonMonitoringActionState
 };
 
 export type RequestExistingTitleContentActionState = {
-  status: "idle" | "success" | "error";
+  status: "idle" | "success" | "warning" | "error";
   message: string | null;
   titleId: string | null;
   queuedCount: number;

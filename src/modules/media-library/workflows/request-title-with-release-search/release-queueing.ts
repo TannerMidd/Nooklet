@@ -36,6 +36,9 @@ export function selectRequestedTitleReleaseCandidates(
 ) {
   return selectReleaseCandidates(results, {
     qualityProfile: request.qualityProfile,
+    expectedTitle: request.title,
+    expectedYear: request.year,
+    mediaType: request.mediaType,
     target,
   });
 }

@@ -18,6 +18,7 @@ import {
   addNotificationChannelInputSchema,
   deleteNotificationChannelInputSchema,
   testNotificationChannelInputSchema,
+  updateNotificationChannelInputSchema,
 } from "@/modules/notifications/schemas/notification-channel-input";
 import { type NotificationChannelActionState } from "./action-state";
 
@@ -70,7 +71,7 @@ export async function addNotificationChannelAction(
     channelType,
     displayName: formData.get("displayName"),
     targetUrl: formData.get("targetUrl"),
-    isEnabled: formData.get("isEnabled") !== "off",
+    isEnabled: formData.get("isEnabled") === "on",
     events: readEventTypes(formData.getAll("events")),
   });
 
@@ -111,6 +112,46 @@ export async function toggleNotificationChannelAction(formData: FormData): Promi
 
   await updateNotificationChannelCommand(session.user.id, { id: parsed.data.id, isEnabled: enable });
   revalidatePath("/settings/notifications");
+}
+
+export async function updateNotificationChannelAction(
+  _previous: NotificationChannelActionState,
+  formData: FormData,
+): Promise<NotificationChannelActionState> {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { status: "error", message: "You need to sign in again." };
+  }
+
+  const parsed = updateNotificationChannelInputSchema.safeParse({
+    id: formData.get("id"),
+    displayName: formData.get("displayName"),
+    targetUrl: formData.get("targetUrl"),
+    events: readEventTypes(formData.getAll("events")),
+  });
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.error.issues[0]?.message ?? "Review the channel and try again.",
+    };
+  }
+
+  try {
+    const updated = await updateNotificationChannelCommand(session.user.id, parsed.data);
+    if (!updated) {
+      return { status: "error", message: "Notification channel not found." };
+    }
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Failed to update notification channel.",
+    };
+  }
+
+  revalidatePath("/settings/notifications");
+  return { status: "success", message: "Notification channel updated." };
 }
 
 export async function removeNotificationChannelAction(formData: FormData): Promise<void> {

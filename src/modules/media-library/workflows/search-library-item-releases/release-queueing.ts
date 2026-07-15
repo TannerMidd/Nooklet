@@ -46,7 +46,7 @@ function itemSelectionTarget(item: ResolvedLibrarySearchItem): ReleaseSelectionT
     return { kind: "season", season: item.season.seasonNumber };
   }
 
-  return null;
+  return item.title.mediaType === "tv" ? { kind: "all", mediaType: "tv" } : null;
 }
 
 export function selectLibraryItemReleaseCandidates(
@@ -56,6 +56,9 @@ export function selectLibraryItemReleaseCandidates(
 ) {
   return selectReleaseCandidates(results, {
     qualityProfile: item.title.qualityProfile,
+    expectedTitle: item.title.title,
+    expectedYear: item.title.year,
+    mediaType: item.title.mediaType,
     target: itemSelectionTarget(item),
     excludedResultIds: options.excludedResultIds,
     excludedReleaseKeys: options.excludedReleaseKeys,

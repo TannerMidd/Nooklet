@@ -12,6 +12,9 @@ vi.mock("@/modules/downloads/repositories/download-repository", () => ({
 vi.mock("@/modules/media-library/workflows/search-library-item-releases", () => ({
   searchLibraryItemReleasesWorkflow: vi.fn(),
 }));
+vi.mock("@/modules/notifications/workflows/dispatch-notification", () => ({
+  safeDispatchNotificationWorkflow: vi.fn(),
+}));
 
 import {
   incrementDownloadRequestMissingTickCount,
@@ -23,8 +26,10 @@ import {
   updateDownloadRequestStatus,
 } from "@/modules/downloads/repositories/download-repository";
 import { searchLibraryItemReleasesWorkflow } from "@/modules/media-library/workflows/search-library-item-releases";
+import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
 
 import {
+  MAX_MISSING_RETRY_COUNT,
   MIN_SAB_VISIBILITY_WINDOW_MS,
   MISSING_TICKS_THRESHOLD,
   retryMissingSabnzbdQueueItems,
@@ -38,9 +43,11 @@ const incrementMissingMock = vi.mocked(incrementDownloadRequestMissingTickCount)
 const resetMissingMock = vi.mocked(resetDownloadRequestMissingTickCount);
 const incrementRetryMock = vi.mocked(incrementDownloadRequestRetryCount);
 const searchMock = vi.mocked(searchLibraryItemReleasesWorkflow);
+const dispatchMock = vi.mocked(safeDispatchNotificationWorkflow);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  dispatchMock.mockResolvedValue(null);
 });
 
 const SUBMITTED_LONG_AGO = new Date(Date.now() - MIN_SAB_VISIBILITY_WINDOW_MS - 60_000);
@@ -119,6 +126,54 @@ describe("retryMissingSabnzbdQueueItems", () => {
       failedCount: 0,
       graceCount: 0,
       awaitingImportCount: 0,
+    });
+    expect(dispatchMock).not.toHaveBeenCalled();
+  });
+
+  it("notifies once when a missing queue item exhausts automatic retries", async () => {
+    listActiveMock.mockResolvedValue([{
+      request: {
+        id: "request-terminal",
+        status: "requeuing",
+        mediaTitleId: "title-terminal",
+        episodeId: null,
+        seasonId: null,
+        requestedTitle: "Arrival",
+        mediaType: "movie",
+        submittedAt: SUBMITTED_LONG_AGO,
+        createdAt: SUBMITTED_LONG_AGO,
+        missingTickCount: MISSING_TICKS_THRESHOLD - 1,
+        retryCount: MAX_MISSING_RETRY_COUNT,
+      },
+      queueItem: { id: "queue-terminal", status: "queued", externalQueueId: "missing-terminal" },
+    }] as never);
+
+    await retryMissingSabnzbdQueueItems(
+      "user1",
+      { client: { id: "client1" }, baseUrl: "http://sab", apiKey: "secret" } as never,
+      {
+        version: null,
+        queueStatus: "Idle",
+        paused: false,
+        speed: null,
+        kbPerSec: null,
+        timeLeft: null,
+        activeQueueCount: 0,
+        totalQueueCount: 0,
+        items: [],
+      },
+      EMPTY_HISTORY,
+    );
+
+    expect(searchMock).not.toHaveBeenCalled();
+    expect(dispatchMock).toHaveBeenCalledTimes(1);
+    expect(dispatchMock).toHaveBeenCalledWith({
+      userId: "user1",
+      payload: expect.objectContaining({
+        eventType: "download_failed",
+        title: "Arrival",
+        mediaType: "movie",
+      }),
     });
   });
 

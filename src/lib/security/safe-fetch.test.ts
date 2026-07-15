@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { env } from "@/lib/env";
 import { SafeFetchAbortError, SsrfBlockedError, safeFetch } from "@/lib/security/safe-fetch";
 
 describe("safeFetch host classification", () => {
@@ -31,10 +32,50 @@ describe("safeFetch host classification", () => {
     });
   });
 
+  it.each([
+    "192.0.0.1",
+    "192.0.2.1",
+    "192.88.99.1",
+    "198.18.0.1",
+    "198.51.100.1",
+    "203.0.113.1",
+  ])("rejects reserved IPv4 range %s", async (address) => {
+    await expect(
+      safeFetch(`http://${address}/`, { allowPrivateHosts: true }),
+    ).rejects.toBeInstanceOf(SsrfBlockedError);
+  });
+
   it("rejects IPv6 multicast", async () => {
     await expect(safeFetch("http://[ff02::1]/")).rejects.toMatchObject({
       name: "SsrfBlockedError",
     });
+  });
+
+  it.each([
+    "2001:db8::1",
+    "2001:0db8::1",
+    "2001:2::1",
+    "2002:a9fe:a9fe::1",
+    "64:ff9b::a9fe:a9fe",
+  ])("rejects reserved or transition IPv6 range %s", async (address) => {
+    await expect(
+      safeFetch(`http://[${address}]/`, { allowPrivateHosts: true }),
+    ).rejects.toBeInstanceOf(SsrfBlockedError);
+  });
+
+  it("rejects credentials embedded in a URL", async () => {
+    await expect(
+      safeFetch("http://user:password@127.0.0.1/", { allowPrivateHosts: true }),
+    ).rejects.toBeInstanceOf(SsrfBlockedError);
+  });
+
+  it("validates resource limits before resolving the target", async () => {
+    await expect(
+      safeFetch("http://nonexistent.invalid/", { timeoutMs: 0 }),
+    ).rejects.toBeInstanceOf(TypeError);
+    await expect(
+      safeFetch("http://nonexistent.invalid/", { maxBytes: 512 * 1024 * 1024 + 1 }),
+    ).rejects.toBeInstanceOf(TypeError);
   });
 
   it("rejects private addresses when allowPrivateHosts is false", async () => {
@@ -191,7 +232,7 @@ describe("safeFetch redirect refusal", () => {
     }
   });
 
-  it("passes the manual redirect mode to the underlying fetch call", async () => {
+  it("passes manual redirects and a DNS-pinning dispatcher to the underlying fetch call", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response("ok", { status: 200 }));
@@ -199,8 +240,11 @@ describe("safeFetch redirect refusal", () => {
     try {
       await safeFetch("http://127.0.0.1/", { allowPrivateHosts: true });
       expect(fetchSpy).toHaveBeenCalledTimes(1);
-      const init = fetchSpy.mock.calls[0]?.[1] as RequestInit | undefined;
+      const init = fetchSpy.mock.calls[0]?.[1] as
+        | (RequestInit & { dispatcher?: unknown })
+        | undefined;
       expect(init?.redirect).toBe("manual");
+      expect(init?.dispatcher).toBeDefined();
     } finally {
       fetchSpy.mockRestore();
     }
@@ -272,6 +316,26 @@ describe("safeFetch body size limit", () => {
 });
 
 describe("safeFetch private host override", () => {
+  it("allows only the exact private host configured in the environment allowlist", async () => {
+    const previousAllowlist = env.PRIVATE_SERVICE_HOST_ALLOWLIST;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("ok", { status: 200 }));
+    env.PRIVATE_SERVICE_HOST_ALLOWLIST = "192.168.1.10";
+
+    try {
+      await expect(safeFetch("http://192.168.1.10/")).resolves.toMatchObject({ status: 200 });
+      await expect(safeFetch("http://192.168.1.11/")).rejects.toBeInstanceOf(SsrfBlockedError);
+      await expect(
+        safeFetch("http://192.168.1.10/", { allowPrivateHosts: false }),
+      ).rejects.toBeInstanceOf(SsrfBlockedError);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      env.PRIVATE_SERVICE_HOST_ALLOWLIST = previousAllowlist;
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("allows private targets when allowPrivateHosts is true", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")

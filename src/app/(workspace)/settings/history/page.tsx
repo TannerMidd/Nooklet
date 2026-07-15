@@ -4,7 +4,6 @@ import { auth } from "@/auth";
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
-import { listHistoryJobs } from "@/modules/jobs/queries/list-history-jobs";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import { getWatchHistoryOverview } from "@/modules/watch-history/queries/get-watch-history-overview";
 
@@ -12,7 +11,6 @@ import { ManualWatchHistoryForm } from "./manual-watch-history-form";
 import { PlexWatchHistoryForm } from "./plex-watch-history-form";
 import { TautulliWatchHistoryForm } from "./tautulli-watch-history-form";
 import { TraktWatchHistoryForm } from "./trakt-watch-history-form";
-import { WatchHistoryScheduleForm } from "./watch-history-schedule-form";
 
 export const dynamic = "force-dynamic";
 
@@ -70,26 +68,17 @@ export default async function WatchHistorySettingsPage() {
     return null;
   }
 
-  const [overview, connectionSummaries, scheduledJobs] = await Promise.all([
+  const [overview, connectionSummaries] = await Promise.all([
     getWatchHistoryOverview(session.user.id),
     listConnectionSummaries(session.user.id),
-    listHistoryJobs(session.user.id, "watch-history-sync"),
   ]);
-  const scheduledJobBySourceType = new Map(
-    scheduledJobs
-      .filter((job) => job.targetType === "watch-history-source")
-      .map((job) => [job.targetKey, job]),
-  );
   const plexSource = overview.sources.find((source) => source.sourceType === "plex") ?? null;
   const plexSummary = connectionSummaries.find((summary) => summary.serviceType === "plex") ?? null;
-  const plexSchedule = scheduledJobBySourceType.get("plex") ?? null;
   const tautulliSource = overview.sources.find((source) => source.sourceType === "tautulli") ?? null;
   const tautulliSummary =
     connectionSummaries.find((summary) => summary.serviceType === "tautulli") ?? null;
-  const tautulliSchedule = scheduledJobBySourceType.get("tautulli") ?? null;
   const traktSource = overview.sources.find((source) => source.sourceType === "trakt") ?? null;
   const traktSummary = connectionSummaries.find((summary) => summary.serviceType === "trakt") ?? null;
-  const traktSchedule = scheduledJobBySourceType.get("trakt") ?? null;
   const hasRecentItems =
     overview.recentTvItems.length > 0 || overview.recentMovieItems.length > 0;
   const lastSyncedAt = overview.sources.reduce<Date | null>((latest, source) => {
@@ -106,7 +95,16 @@ export default async function WatchHistorySettingsPage() {
 
   return (
     <div className="nk-enter space-y-7">
-      <PageHeader eyebrow="Watch history" title="History sources" />
+      <PageHeader
+        eyebrow="Watch history"
+        title="History sources"
+        description="Connect and run each source here. Recurring schedules are managed together under Automation."
+        actions={(
+          <Link href="/settings/automation" className="inline-flex min-h-11 items-center rounded-lg border border-control px-4 text-sm font-semibold text-foreground">
+            Automation schedules
+          </Link>
+        )}
+      />
 
       <div className="grid gap-6 xl:grid-cols-[1.12fr,0.88fr]">
         <div className="space-y-5">
@@ -133,18 +131,6 @@ export default async function WatchHistorySettingsPage() {
                       availableUsers={plexSummary.availableUsers}
                       defaultUserId={plexSource?.selectedUserId ?? ""}
                       defaultImportLimit={plexSource?.importLimit ?? 100}
-                    />
-                    <WatchHistoryScheduleForm
-                      sourceType="plex"
-                      defaultEnabled={plexSchedule?.isEnabled ?? false}
-                      defaultIntervalHours={Math.max(
-                        Math.round((plexSchedule?.scheduleMinutes ?? 720) / 60),
-                        1,
-                      )}
-                      lastRunAt={plexSchedule?.lastCompletedAt ?? null}
-                      lastStatus={plexSchedule?.lastStatus ?? null}
-                      lastError={plexSchedule?.lastError ?? null}
-                      helperText="Auto-sync refreshes both TV and movie Plex history using the last saved Plex user and import limit. Run one manual sync first so the schedule has a saved source to reuse."
                     />
                   </div>
                 ) : (
@@ -196,18 +182,6 @@ export default async function WatchHistorySettingsPage() {
                       defaultUserId={tautulliSource?.selectedUserId ?? ""}
                       defaultImportLimit={tautulliSource?.importLimit ?? 100}
                     />
-                    <WatchHistoryScheduleForm
-                      sourceType="tautulli"
-                      defaultEnabled={tautulliSchedule?.isEnabled ?? false}
-                      defaultIntervalHours={Math.max(
-                        Math.round((tautulliSchedule?.scheduleMinutes ?? 720) / 60),
-                        1,
-                      )}
-                      lastRunAt={tautulliSchedule?.lastCompletedAt ?? null}
-                      lastStatus={tautulliSchedule?.lastStatus ?? null}
-                      lastError={tautulliSchedule?.lastError ?? null}
-                      helperText="Auto-sync refreshes both TV and movie Tautulli history using the last saved user and import limit. Run one manual sync first so the schedule has a saved source to reuse."
-                    />
                   </div>
                 ) : (
                   <p className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5 text-sm leading-6 text-muted">
@@ -257,18 +231,6 @@ export default async function WatchHistorySettingsPage() {
                   </div>
                 </div>
                 <TraktWatchHistoryForm defaultImportLimit={traktSource?.importLimit ?? 100} />
-                <WatchHistoryScheduleForm
-                  sourceType="trakt"
-                  defaultEnabled={traktSchedule?.isEnabled ?? false}
-                  defaultIntervalHours={Math.max(
-                    Math.round((traktSchedule?.scheduleMinutes ?? 720) / 60),
-                    1,
-                  )}
-                  lastRunAt={traktSchedule?.lastCompletedAt ?? null}
-                  lastStatus={traktSchedule?.lastStatus ?? null}
-                  lastError={traktSchedule?.lastError ?? null}
-                  helperText="Auto-sync refreshes both TV and movie Trakt history using the last saved import limit. Run one manual sync first so the schedule has a saved source to reuse."
-                />
               </div>
             ) : (
               <div className="space-y-4">

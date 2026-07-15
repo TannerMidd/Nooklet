@@ -1,4 +1,5 @@
 import { type MediaTitleRecord } from "@/modules/media-library/repositories/media-library-repository";
+import { hasActiveDownloadAssociationForTitle } from "@/modules/downloads/queries/has-active-download-association";
 
 import { auditTitleRemoval } from "./audit";
 import {
@@ -19,7 +20,7 @@ export type { DeleteMediaTitleWithFilesInput };
 export class DeleteMediaTitleWithFilesError extends Error {
   constructor(
     message: string,
-    public readonly code: "title_not_found",
+    public readonly code: "title_not_found" | "active_download",
   ) {
     super(message);
     this.name = "DeleteMediaTitleWithFilesError";
@@ -37,6 +38,14 @@ export async function deleteMediaTitleWithFilesWorkflow(
   input: DeleteMediaTitleWithFilesInput,
 ): Promise<DeleteMediaTitleWithFilesResult> {
   const request = validateDeleteMediaTitleWithFilesRequest(input);
+
+  if (await hasActiveDownloadAssociationForTitle(userId, request.titleId)) {
+    throw new DeleteMediaTitleWithFilesError(
+      "This title has an active download or import. Let it finish or cancel it in Activity before removing the title.",
+      "active_download",
+    );
+  }
+
   const files = await listFilesForTitleCleanup(userId, request.titleId);
   const fileOutcomes = request.deleteFiles ? await deleteFilesOnDisk(files) : [];
   const removedTitle = await deleteTitleRecord(userId, request.titleId);

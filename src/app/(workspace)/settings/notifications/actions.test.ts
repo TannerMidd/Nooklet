@@ -96,6 +96,17 @@ describe("addNotificationChannelAction", () => {
     expect(revalidateMock).toHaveBeenCalledWith("/settings/notifications");
     expect(result).toEqual({ status: "success", message: "Notification channel added." });
   });
+
+  it("treats an absent checkbox field as disabled", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    addMock.mockResolvedValue(undefined as never);
+    const form = validForm();
+    form.delete("isEnabled");
+
+    await addNotificationChannelAction({ status: "idle", message: null }, form);
+
+    expect(addMock).toHaveBeenCalledWith("u1", expect.objectContaining({ isEnabled: false }));
+  });
 });
 
 describe("toggleNotificationChannelAction", () => {

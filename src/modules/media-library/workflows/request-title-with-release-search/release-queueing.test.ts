@@ -92,7 +92,7 @@ describe("selectRequestedTitleReleaseCandidates", () => {
   });
 
   it("filters out single-episode releases when the target is a season", () => {
-    const tvRequest = { ...request, mediaType: "tv" } as const;
+    const tvRequest = { ...request, mediaType: "tv", title: "Eureka", year: undefined } as const;
     const candidates = selectRequestedTitleReleaseCandidates(
       tvRequest,
       [
@@ -108,7 +108,7 @@ describe("selectRequestedTitleReleaseCandidates", () => {
   });
 
   it("requires the matching SxxExx token when the target is a single episode", () => {
-    const tvRequest = { ...request, mediaType: "tv" } as const;
+    const tvRequest = { ...request, mediaType: "tv", title: "Eureka", year: undefined } as const;
     const candidates = selectRequestedTitleReleaseCandidates(
       tvRequest,
       [

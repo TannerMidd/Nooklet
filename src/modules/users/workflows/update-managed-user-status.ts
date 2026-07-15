@@ -1,4 +1,4 @@
-import { createAuditEvent, countActiveAdminUsers, findUserById, updateUserDisabledState } from "@/modules/users/repositories/user-repository";
+import { createAuditEvent, updateUserDisabledStateGuarded } from "@/modules/users/repositories/user-repository";
 import { type UpdateManagedUserStatusInput } from "@/modules/users/schemas/admin-user";
 
 type UpdateManagedUserStatusResult =
@@ -9,48 +9,48 @@ export async function updateManagedUserStatus(
   actorUserId: string,
   input: UpdateManagedUserStatusInput,
 ): Promise<UpdateManagedUserStatusResult> {
-  const targetUser = await findUserById(input.userId);
+  const update = await updateUserDisabledStateGuarded(actorUserId, input.userId, input.isDisabled);
 
-  if (!targetUser) {
+  if (update.status === "not_found") {
     return {
       ok: false,
       message: "User not found.",
     };
   }
 
-  if (targetUser.id === actorUserId) {
+  if (update.status === "self_update") {
     return {
       ok: false,
       message: "Use another admin account to change your own status.",
     };
   }
 
-  if (targetUser.isDisabled === input.isDisabled) {
+  if (update.status === "actor_not_authorized") {
+    return {
+      ok: false,
+      message: "Your administrator session is no longer active.",
+    };
+  }
+
+  if (update.status === "unchanged") {
     return {
       ok: true,
       message: input.isDisabled ? "User is already disabled." : "User is already active.",
     };
   }
 
-  if (input.isDisabled && targetUser.role === "admin") {
-    const activeAdminCount = await countActiveAdminUsers();
-
-    if (!targetUser.isDisabled && activeAdminCount <= 1) {
-      return {
-        ok: false,
-        message: "Keep at least one active admin account.",
-      };
-    }
-  }
-
-  const updatedUser = await updateUserDisabledState(targetUser.id, input.isDisabled);
-
-  if (!updatedUser) {
+  if (update.status === "last_active_admin") {
     return {
       ok: false,
-      message: "Unable to update the account status.",
+      message: "Keep at least one active admin account.",
     };
   }
+
+  if (update.status !== "updated") {
+    return { ok: false, message: "The user status could not be updated." };
+  }
+
+  const updatedUser = update.user;
 
   await createAuditEvent({
     actorUserId,

@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { RecommendationHistoryItemActions } from "@/components/recommendations/recommendation-history-item-actions";
+import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationTimeline } from "@/components/recommendations/recommendation-timeline";
 import {
@@ -21,6 +22,10 @@ import {
   type LanguagePreferenceCode,
 } from "@/modules/preferences/language-preferences";
 import { getRecommendationTitleOverview } from "@/modules/recommendations/queries/get-recommendation-title-overview";
+import { safeReturnTo } from "@/app/(workspace)/recommendation-action-helpers";
+import { listLibraryOverview } from "@/modules/media-library/queries/list-library-overview";
+import { listMediaLibraryPathOptions } from "@/modules/media-library/queries/list-media-library-path-options";
+import { listMediaQualityProfiles } from "@/modules/media-library/queries/list-media-quality-profiles";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +33,6 @@ type RecommendationOverviewPageProps = {
   params: Promise<{ itemId: string }>;
   searchParams?: Promise<{ returnTo?: string }>;
 };
-
-function safeReturnTo(value: string | undefined) {
-  return value?.startsWith("/") ? value : "/history";
-}
 
 function formatDate(value: Date) {
   return new Intl.DateTimeFormat("en", {
@@ -84,7 +85,11 @@ export default async function RecommendationOverviewPage({
 
   const [{ itemId }, resolvedSearchParams] = await Promise.all([params, searchParams]);
   const returnTo = safeReturnTo(resolvedSearchParams?.returnTo);
-  const overview = await getRecommendationTitleOverview(session.user.id, itemId);
+  const [overview, libraryOverview, pathOptions] = await Promise.all([
+    getRecommendationTitleOverview(session.user.id, itemId),
+    listLibraryOverview(session.user.id),
+    listMediaLibraryPathOptions(session.user.id),
+  ]);
 
   if (!overview) {
     redirect(returnTo);
@@ -100,6 +105,12 @@ export default async function RecommendationOverviewPage({
   const voteLabel = details?.voteAverage
     ? `${details.voteAverage.toFixed(1)} from ${details.voteCount ?? 0} votes`
     : null;
+  const qualityProfiles = listMediaQualityProfiles();
+  const libraryOptions = libraryOverview.libraries.map((library) => ({
+    id: library.id,
+    name: library.name,
+    mediaType: library.mediaType,
+  }));
   return (
     <div className="space-y-5">
       <header className="relative overflow-hidden rounded-xl border border-cream/[0.08] bg-panel">
@@ -167,6 +178,17 @@ export default async function RecommendationOverviewPage({
               <span className="font-medium">Generated:</span> {formatDate(item.runCreatedAt)}
               <p className="mt-1 text-muted">Prompt: {item.requestPrompt || "Taste-based automatic request"}</p>
             </div>
+            <RecommendationAddForm
+              itemId={item.itemId}
+              existingInLibrary={item.existingInLibrary}
+              returnTo={`/recommendations/${item.itemId}?returnTo=${encodeURIComponent(returnTo)}`}
+              mediaType={item.mediaType}
+              tmdbId={details?.tmdbId ?? null}
+              titleLabel={`${details?.title ?? item.title}${titleYear ? ` (${titleYear})` : ""}`}
+              libraries={libraryOptions}
+              qualityProfiles={qualityProfiles}
+              pathOptions={pathOptions}
+            />
             <RecommendationHistoryItemActions
               itemId={item.itemId}
               mediaType={item.mediaType}

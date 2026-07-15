@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const changePasswordInputSchema = z
   .object({
-    currentPassword: z.string().min(1, "Enter your current password."),
+    currentPassword: z.string().min(1, "Enter your current password.").max(128),
     newPassword: z
       .string()
       .min(12, "Use at least 12 characters.")
@@ -10,7 +10,7 @@ export const changePasswordInputSchema = z
       .regex(/[a-z]/, "Include a lowercase letter.")
       .regex(/[A-Z]/, "Include an uppercase letter.")
       .regex(/[0-9]/, "Include a number."),
-    confirmPassword: z.string().min(1, "Confirm the new password."),
+    confirmPassword: z.string().min(1, "Confirm the new password.").max(128),
   })
   .refine((value) => value.newPassword === value.confirmPassword, {
     path: ["confirmPassword"],

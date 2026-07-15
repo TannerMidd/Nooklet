@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   loadTmdbTvSeasonEpisodesAction,
   loadTmdbTvSeasonsAction,
 } from "@/app/(workspace)/search/actions";
 import { Button } from "@/components/ui/button";
+import { useModalDialog } from "@/components/ui/use-modal-dialog";
+import { usePortalTarget } from "@/components/ui/use-portal-target";
 import {
   type TmdbTvEpisodeSummary,
   type TmdbTvSeasonSummary,
@@ -69,17 +72,26 @@ export function TvRequestPicker({
     setSeasonsLoading(true);
     setSeasonsError(null);
 
-    loadTmdbTvSeasonsAction(tmdbId).then((result) => {
-      if (!active) return;
+    void loadTmdbTvSeasonsAction(tmdbId)
+      .then((result) => {
+        if (!active) return;
 
-      if (result.ok) {
-        setSeasons(result.seasons.filter((season) => season.seasonNumber !== null));
-      } else {
-        setSeasonsError(result.message);
-      }
-
-      setSeasonsLoading(false);
-    });
+        if (result.ok) {
+          setSeasons(result.seasons.filter((season) => season.seasonNumber !== null));
+        } else {
+          setSeasonsError(result.message);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setSeasonsError("Nooklet could not load seasons right now.");
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setSeasonsLoading(false);
+        }
+      });
 
     return () => {
       active = false;
@@ -96,17 +108,26 @@ export function TvRequestPicker({
     setEpisodesLoading(true);
     setEpisodesError(null);
 
-    loadTmdbTvSeasonEpisodesAction(tmdbId, selectedSeason).then((result) => {
-      if (!active) return;
+    void loadTmdbTvSeasonEpisodesAction(tmdbId, selectedSeason)
+      .then((result) => {
+        if (!active) return;
 
-      if (result.ok) {
-        setEpisodes(result.episodes);
-      } else {
-        setEpisodesError(result.message);
-      }
-
-      setEpisodesLoading(false);
-    });
+        if (result.ok) {
+          setEpisodes(result.episodes);
+        } else {
+          setEpisodesError(result.message);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setEpisodesError("Nooklet could not load episodes right now.");
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setEpisodesLoading(false);
+        }
+      });
 
     return () => {
       active = false;
@@ -152,6 +173,20 @@ export function TvRequestPicker({
     });
   }
 
+  function selectAllSeasons() {
+    const next = seasons
+      .map((season) => season.seasonNumber)
+      .filter((seasonNumber): seasonNumber is number => seasonNumber !== null && !monitoredSet.has(seasonNumber));
+
+    setSelectedSeasons(next);
+    emit(next.length > 0 ? { mode: "seasons", seasons: next } : null);
+  }
+
+  function clearSeasons() {
+    setSelectedSeasons([]);
+    emit(null);
+  }
+
   function pickEpisodeSeason(value: number | null) {
     setSelectedSeason(value);
     setSelectedEpisodes([]);
@@ -181,18 +216,37 @@ export function TvRequestPicker({
     });
   }
 
+  function selectAllEpisodes() {
+    if (selectedSeason === null) {
+      return;
+    }
+
+    const next = episodes
+      .map((episode) => episode.episodeNumber)
+      .filter((episodeNumber) => !monitoredEpisodeSet.has(`${selectedSeason}:${episodeNumber}`));
+
+    setSelectedEpisodes(next);
+    emit(next.length > 0 ? { mode: "episodes", season: selectedSeason, episodes: next } : null);
+  }
+
+  function clearEpisodes() {
+    setSelectedEpisodes([]);
+    emit(null);
+  }
+
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2 text-sm">
+      <div className="flex flex-wrap gap-2 text-sm" role="group" aria-label="TV download selection mode">
         {(["all", "seasons", "episodes"] as const).map((value) => (
           <button
             key={value}
             type="button"
+            aria-pressed={mode === value}
             onClick={() => changeMode(value)}
             className={
               mode === value
-                ? "rounded-lg border border-accent/60 bg-accent/15 px-3 py-1.5 text-foreground"
-                : "rounded-lg border border-cream/[0.08] bg-cream/[0.03] px-3 py-1.5 text-muted"
+                ? "min-h-11 rounded-lg border border-accent/60 bg-accent/15 px-3 py-2 text-foreground"
+                : "min-h-11 rounded-lg border border-cream/[0.08] bg-cream/[0.03] px-3 py-2 text-muted"
             }
           >
             {value === "all" ? "Entire series" : value === "seasons" ? "Specific seasons" : "Specific episodes"}
@@ -201,9 +255,9 @@ export function TvRequestPicker({
       </div>
 
       {seasonsLoading ? (
-        <p className="text-sm text-muted">Loading seasons…</p>
+        <p className="text-sm text-muted" role="status">Loading seasons…</p>
       ) : seasonsError ? (
-        <p className="rounded-lg border border-accent-wine/40 bg-accent-wine/10 px-3 py-2 text-sm text-foreground">
+          <p className="rounded-lg border border-accent-wine/40 bg-accent-wine/10 px-3 py-2 text-sm text-foreground" role="alert">
           {seasonsError}
         </p>
       ) : null}
@@ -213,8 +267,22 @@ export function TvRequestPicker({
       ) : null}
 
       {!seasonsLoading && !seasonsError && mode === "seasons" ? (
-        <ul className="space-y-1.5">
-          {seasons.map((season) => {
+        <div className="space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-muted" aria-live="polite">
+              {selectedSeasons.length} season{selectedSeasons.length === 1 ? "" : "s"} selected
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" size="sm" onClick={selectAllSeasons}>
+                Select all available
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={clearSeasons} disabled={selectedSeasons.length === 0}>
+                Clear
+              </Button>
+            </div>
+          </div>
+          <ul className="space-y-1.5">
+            {seasons.map((season) => {
             const seasonNumber = season.seasonNumber!;
             const alreadyMonitored = monitoredSet.has(seasonNumber);
 
@@ -223,13 +291,13 @@ export function TvRequestPicker({
                 <label
                   className={
                     alreadyMonitored
-                      ? "flex items-center gap-2 rounded-lg border border-cream/[0.08] bg-background/10 px-3 py-2 text-sm opacity-60"
-                      : "flex items-center gap-2 rounded-lg border border-cream/[0.08] bg-cream/[0.03] px-3 py-2 text-sm"
+                      ? "flex min-h-11 items-center gap-2 rounded-lg border border-cream/[0.08] bg-background/10 px-3 py-2 text-sm opacity-60"
+                      : "flex min-h-11 items-center gap-2 rounded-lg border border-cream/[0.08] bg-cream/[0.03] px-3 py-2 text-sm"
                   }
                 >
                   <input
                     type="checkbox"
-                    className="h-4 w-4 accent-accent"
+                    className="h-5 w-5 shrink-0 accent-accent"
                     checked={alreadyMonitored || selectedSeasons.includes(seasonNumber)}
                     disabled={alreadyMonitored}
                     onChange={() => toggleSeason(seasonNumber)}
@@ -246,8 +314,9 @@ export function TvRequestPicker({
                 </label>
               </li>
             );
-          })}
-        </ul>
+            })}
+          </ul>
+        </div>
       ) : null}
 
       {!seasonsLoading && !seasonsError && mode === "episodes" ? (
@@ -260,7 +329,7 @@ export function TvRequestPicker({
                 const value = event.target.value === "" ? null : Number.parseInt(event.target.value, 10);
                 pickEpisodeSeason(value);
               }}
-              className="min-h-9 w-full rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2 text-sm text-foreground"
+              className="min-h-11 w-full rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2 text-sm text-foreground"
             >
               <option value="">Pick a season…</option>
               {seasons.map((season) => (
@@ -273,14 +342,28 @@ export function TvRequestPicker({
 
           {selectedSeason !== null ? (
             episodesLoading ? (
-              <p className="text-sm text-muted">Loading episodes…</p>
+              <p className="text-sm text-muted" role="status">Loading episodes…</p>
             ) : episodesError ? (
-              <p className="rounded-lg border border-accent-wine/40 bg-accent-wine/10 px-3 py-2 text-sm text-foreground">
+              <p role="alert" className="rounded-lg border border-accent-wine/40 bg-accent-wine/10 px-3 py-2 text-sm text-foreground">
                 {episodesError}
               </p>
             ) : (
-              <ul className="space-y-1.5">
-                {episodes.map((episode) => {
+              <div className="space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-muted" aria-live="polite">
+                    {selectedEpisodes.length} episode{selectedEpisodes.length === 1 ? "" : "s"} selected
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="secondary" size="sm" onClick={selectAllEpisodes}>
+                      Select all available
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={clearEpisodes} disabled={selectedEpisodes.length === 0}>
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+                <ul className="space-y-1.5">
+                  {episodes.map((episode) => {
                   const alreadyMonitored =
                     selectedSeason !== null &&
                     monitoredEpisodeSet.has(`${selectedSeason}:${episode.episodeNumber}`);
@@ -290,13 +373,13 @@ export function TvRequestPicker({
                       <label
                         className={
                           alreadyMonitored
-                            ? "flex items-center gap-2 rounded-lg border border-cream/[0.08] bg-background/10 px-3 py-2 text-sm opacity-60"
-                            : "flex items-center gap-2 rounded-lg border border-cream/[0.08] bg-cream/[0.03] px-3 py-2 text-sm"
+                            ? "flex min-h-11 items-center gap-2 rounded-lg border border-cream/[0.08] bg-background/10 px-3 py-2 text-sm opacity-60"
+                            : "flex min-h-11 items-center gap-2 rounded-lg border border-cream/[0.08] bg-cream/[0.03] px-3 py-2 text-sm"
                         }
                       >
                         <input
                           type="checkbox"
-                          className="h-4 w-4 accent-accent"
+                          className="h-5 w-5 shrink-0 accent-accent"
                           checked={alreadyMonitored || selectedEpisodes.includes(episode.episodeNumber)}
                           disabled={alreadyMonitored}
                           onChange={() => toggleEpisode(episode.episodeNumber)}
@@ -312,8 +395,9 @@ export function TvRequestPicker({
                       </label>
                     </li>
                   );
-                })}
-              </ul>
+                  })}
+                </ul>
+              </div>
             )
           ) : null}
         </div>
@@ -338,6 +422,14 @@ export function TvRequestDialog({
   onClose,
 }: TvRequestDialogProps) {
   const [selection, setSelection] = useState<TvSelectionState | null>(initialSelection);
+  const portalTarget = usePortalTarget();
+  const titleId = useId();
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const dialogRef = useModalDialog({
+    onClose,
+    initialFocusRef: closeButtonRef,
+    enabled: portalTarget !== null,
+  });
 
   function handleConfirm() {
     if (!selection) {
@@ -346,27 +438,50 @@ export function TvRequestDialog({
     onConfirm(selection);
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog">
-      <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-cream/[0.08] bg-cream/[0.04] p-5 shadow-2xl">
-        <div className="mb-4 flex items-start justify-between gap-4">
+  if (!portalTarget) {
+    return null;
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/60 p-4" onMouseDown={onClose}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-cream/[0.08] bg-panel shadow-2xl sm:max-h-[85vh]"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-cream/[0.08] p-4 sm:p-5">
           <div>
-            <p className="font-heading text-lg text-foreground">Choose what to download</p>
+            <p id={titleId} className="font-heading text-lg text-foreground">Choose what to download</p>
             <p className="text-sm text-muted">{titleLabel}</p>
           </div>
-          <Button variant="ghost" onClick={onClose} type="button">Close</Button>
+          <Button ref={closeButtonRef} variant="ghost" onClick={onClose} type="button">Close</Button>
         </div>
 
-        <TvRequestPicker tmdbId={tmdbId} selection={selection} onSelectionChange={setSelection} />
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+          <TvRequestPicker tmdbId={tmdbId} selection={selection} onSelectionChange={setSelection} />
+        </div>
 
-        <div className="mt-4 flex justify-end gap-2">
-          <Button variant="ghost" type="button" onClick={onClose}>Cancel</Button>
-          <Button type="button" onClick={handleConfirm} disabled={!selection}>
-            Use this selection
-          </Button>
+        <div className="flex flex-col gap-3 border-t border-cream/[0.08] bg-panel p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div aria-live="polite">
+            <p className="text-xs font-medium text-muted">Selected request</p>
+            <p className="mt-0.5 text-sm font-semibold text-foreground">
+              {selection ? describeTvSelection(selection) : "Choose at least one season or episode"}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button className="flex-1 sm:flex-none" variant="ghost" type="button" onClick={onClose}>Cancel</Button>
+            <Button className="flex-1 sm:flex-none" type="button" onClick={handleConfirm} disabled={!selection}>
+              Use this selection
+            </Button>
+          </div>
         </div>
       </div>
-    </div>
+    </div>,
+    portalTarget,
   );
 }
 

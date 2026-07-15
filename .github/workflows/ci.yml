@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_URL: http://localhost:42021
+      AUTH_SECRET: ci-auth-secret-that-is-at-least-thirty-two-characters
+      SECRET_BOX_KEY: ci-secret-box-key-that-is-at-least-thirty-two-characters
+      APPROVED_MEDIA_ROOTS: /tmp/nooklet-media
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare runtime directories
+        run: mkdir -p data /tmp/nooklet-media
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build standalone production bundle
+        run: npm run build
+        env:
+          DATABASE_URL: file:./data/ci-build.db
+
+  docker-smoke:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build production image
+        run: docker build --tag nooklet-ci:${{ github.sha }} .
+
+      - name: Smoke-test hardened container
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          container="nooklet-ci-smoke"
+          cleanup() {
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              echo "Container logs:"
+              docker logs "$container" 2>&1 || true
+            fi
+            docker rm --force "$container" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          auth_secret="$(openssl rand -hex 48)"
+          bootstrap_token="$(openssl rand -hex 48)"
+          secret_box_key="$(openssl rand -hex 48)"
+
+          docker run --detach \
+            --name "$container" \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --publish 127.0.0.1::42021 \
+            --env APP_URL=http://127.0.0.1:42021 \
+            --env AUTH_SECRET="$auth_secret" \
+            --env BOOTSTRAP_TOKEN="$bootstrap_token" \
+            --env SECRET_BOX_KEY="$secret_box_key" \
+            --env APPROVED_MEDIA_ROOTS=/app/data/media \
+            nooklet-ci:${{ github.sha }}
+
+          host_port="$(docker port "$container" 42021/tcp | awk -F: '{print $NF}')"
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error \
+              "http://127.0.0.1:${host_port}/api/health" \
+              --output health.json; then
+              cat health.json
+              exit 0
+            fi
+
+            if [ "$(docker inspect --format '{{.State.Running}}' "$container")" != "true" ]; then
+              echo "Container exited before becoming healthy."
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          echo "Container did not become healthy within 120 seconds."
+          exit 1

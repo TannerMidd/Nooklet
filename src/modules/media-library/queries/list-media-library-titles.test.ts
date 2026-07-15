@@ -78,10 +78,17 @@ describe("listMediaLibraryTitles", () => {
 
     const result = await listMediaLibraryTitles(userId, "movie", { query: "arri" });
 
-    expect(result.totals).toEqual({ titles: 1, files: 1, monitored: 1, missing: 0 });
+    expect(result.totals).toEqual({
+      titles: 1,
+      files: 1,
+      monitored: 1,
+      available: 1,
+      requested: 0,
+      missing: 0,
+    });
     expect(result.pagination).toEqual({
       page: 1,
-      pageSize: 100,
+      pageSize: 50,
       pageCount: 1,
       hasNextPage: false,
       hasPreviousPage: false,
@@ -124,6 +131,17 @@ describe("listMediaLibraryTitles", () => {
       status: "missing",
       monitored: false,
     });
+    await upsertMediaTitle({
+      userId,
+      libraryId: movieLibrary.id,
+      mediaType: "movie",
+      title: "Delta",
+      sortTitle: "delta",
+      year: 2026,
+      normalizedKey: "delta::2026",
+      status: "requested",
+      monitored: true,
+    });
     const gamma = await upsertMediaTitle({
       userId,
       libraryId: movieLibrary.id,
@@ -163,13 +181,19 @@ describe("listMediaLibraryTitles", () => {
 
     const result = await listMediaLibraryTitles(userId, "movie", { page: 2, pageSize: 2 });
 
-    expect(result.titles).toHaveLength(1);
-    expect(result.titles[0]).toEqual(expect.objectContaining({
-      title: "Gamma",
-      fileCount: 1,
-      qualityLabels: ["2160P"],
-    }));
-    expect(result.totals).toEqual({ titles: 3, files: 2, monitored: 2, missing: 1 });
+    expect(result.titles).toHaveLength(2);
+    expect(result.titles).toEqual(expect.arrayContaining([
+      expect.objectContaining({ title: "Delta", status: "requested", fileCount: 0 }),
+      expect.objectContaining({ title: "Gamma", status: "available", fileCount: 1, qualityLabels: ["2160P"] }),
+    ]));
+    expect(result.totals).toEqual({
+      titles: 4,
+      files: 2,
+      monitored: 3,
+      available: 2,
+      requested: 1,
+      missing: 1,
+    });
     expect(result.pagination).toEqual({
       page: 2,
       pageSize: 2,
@@ -177,7 +201,52 @@ describe("listMediaLibraryTitles", () => {
       hasNextPage: false,
       hasPreviousPage: true,
       firstItem: 3,
-      lastItem: 3,
+      lastItem: 4,
+    });
+
+    const requested = await listMediaLibraryTitles(userId, "movie", {
+      status: "requested",
+      monitored: true,
+      libraryId: movieLibrary.id,
+      sort: "status",
+    });
+    expect(requested.titles.map((title) => title.title)).toEqual(["Delta"]);
+    expect(requested.totals).toEqual(expect.objectContaining({
+      titles: 1,
+      requested: 1,
+      available: 0,
+      missing: 0,
+    }));
+
+    const available = await listMediaLibraryTitles(userId, "movie", { status: "available" });
+    expect(available.titles.map((title) => title.title)).toEqual(["Alpha", "Gamma"]);
+  });
+
+  it("does not report a title as available when no media file exists", async () => {
+    const userId = await seedUser();
+    const movieLibrary = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies", isDefault: true });
+    await upsertMediaTitle({
+      userId,
+      libraryId: movieLibrary.id,
+      mediaType: "movie",
+      title: "Stale status",
+      sortTitle: "stale status",
+      year: 2026,
+      normalizedKey: "stale-status::2026",
+      status: "available",
+      monitored: true,
+    });
+
+    const result = await listMediaLibraryTitles(userId, "movie");
+
+    expect(result.titles[0]?.status).toBe("missing");
+    expect(result.totals).toEqual({
+      titles: 1,
+      files: 0,
+      monitored: 1,
+      available: 0,
+      requested: 0,
+      missing: 1,
     });
   });
 

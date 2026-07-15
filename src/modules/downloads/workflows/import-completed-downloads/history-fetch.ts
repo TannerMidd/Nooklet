@@ -19,7 +19,13 @@ function statusKind(status: string): FinishedSabnzbdHistoryItem["statusKind"] | 
     return "completed";
   }
 
-  if (normalized === "failed" || normalized === "failure") {
+  if (
+    normalized === "failed"
+    || normalized === "failure"
+    || normalized === "aborted"
+    || normalized === "deleted"
+    || normalized === "removed"
+  ) {
     return "failed";
   }
 

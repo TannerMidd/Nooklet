@@ -1,10 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
-import { useFormStatus } from "react-dom";
 
 import { initialUpdatePreferencesActionState } from "@/app/(workspace)/settings/preferences/action-state";
-import { Button } from "@/components/ui/button";
+import { AsyncButton } from "@/components/ui/async-button";
 import { Input } from "@/components/ui/input";
 import { languagePreferenceOptions } from "@/modules/preferences/language-preferences";
 import { type PreferenceRecord } from "@/modules/preferences/queries/get-user-preferences";
@@ -27,16 +26,6 @@ type PreferencesFormProps = {
   }>;
 };
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button type="submit" className="w-full sm:w-auto" disabled={pending}>
-      {pending ? "Saving preferences..." : "Save preferences"}
-    </Button>
-  );
-}
-
 type CheckboxFieldProps = {
   name:
     | "watchHistoryOnly"
@@ -51,12 +40,12 @@ type CheckboxFieldProps = {
 
 function CheckboxField({ name, label, description, defaultChecked }: CheckboxFieldProps) {
   return (
-    <label className="flex items-start gap-2.5 rounded-md bg-cream/[0.04] px-3 py-2 transition hover:bg-cream/[0.06]">
+    <label className="flex min-h-11 items-start gap-3 rounded-lg bg-cream/[0.04] px-3.5 py-3 transition hover:bg-cream/[0.06]">
       <input
         name={name}
         type="checkbox"
         defaultChecked={defaultChecked}
-        className="mt-0.5 h-4 w-4 rounded border-cream/[0.08] text-accent focus:ring-accent/30"
+        className="mt-0.5 h-5 w-5 rounded border-control text-accent focus:ring-2 focus:ring-focus"
       />
       <span className="space-y-0.5">
         <span className="block text-sm font-medium text-foreground">{label}</span>
@@ -91,13 +80,13 @@ export function PreferencesForm({
 
   return (
     <form key={formResetKey} action={formAction} className="space-y-5">
-      <div className="grid gap-3.5 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <label className="space-y-1.5">
           <span className="text-sm font-medium text-foreground">Default media mode</span>
           <select
             name="defaultMediaMode"
             defaultValue={preferences.defaultMediaMode}
-            className="min-h-9 w-full rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+            className="min-h-11 w-full rounded-lg border border-control bg-cream/[0.04] px-3 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
             aria-invalid={Boolean(state.fieldErrors?.defaultMediaMode)}
           >
             <option value="tv">TV</option>
@@ -163,7 +152,7 @@ export function PreferencesForm({
           <select
             name="languagePreference"
             defaultValue={preferences.languagePreference}
-            className="min-h-9 w-full rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30"
+            className="min-h-11 w-full rounded-lg border border-control bg-cream/[0.04] px-3 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
             aria-invalid={Boolean(state.fieldErrors?.languagePreference)}
           >
             {languagePreferenceOptions.map((option) => (
@@ -203,7 +192,7 @@ export function PreferencesForm({
                   type="checkbox"
                   value={source.sourceType}
                   defaultChecked={preferences.watchHistorySourceTypes.includes(source.sourceType)}
-                  className="mt-0.5 h-4 w-4 rounded border-cream/[0.08] text-accent focus:ring-accent/30"
+                  className="mt-0.5 h-5 w-5 rounded border-control text-accent focus:ring-2 focus:ring-focus"
                 />
                 <span className="space-y-0.5">
                   <span className="block text-sm font-medium text-foreground">{source.label}</span>
@@ -244,13 +233,15 @@ export function PreferencesForm({
       </div>
 
       {state.status === "error" && state.message ? (
-        <p className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3 py-2 text-sm text-accent-wine">
+        <p role="alert" className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3 py-2 text-sm text-accent-wine">
           {state.message}
         </p>
       ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <SubmitButton />
+        <AsyncButton type="submit" pendingLabel="Saving preferences…" className="w-full sm:w-auto">
+          Save preferences
+        </AsyncButton>
         <p className="text-xs leading-5 text-muted">
           Saved per user — separate from account, admin, and connection settings.
         </p>

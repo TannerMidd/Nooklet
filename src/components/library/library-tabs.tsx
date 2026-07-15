@@ -43,7 +43,7 @@ export function LibraryTabs({ tabs, defaultTabId }: LibraryTabsProps) {
               id={`library-tab-${tab.id}`}
               onClick={() => setActiveTabId(tab.id)}
               className={cn(
-                "h-9 rounded-md px-4 text-[13px] font-semibold transition focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/50",
+                "min-h-11 rounded-md px-4 text-[13px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
                 active
                   ? "bg-accent text-accent-foreground"
                   : "text-muted hover:text-foreground",

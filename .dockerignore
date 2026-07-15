@@ -2,6 +2,12 @@
 .git
 .gitignore
 .gitattributes
+.agents
+.claude
+.codex
+.codex-tmp
+.github
+.openai
 
 node_modules
 npm-debug.log*
@@ -20,6 +26,11 @@ data
 .env
 .env.*
 !.env.example
+.npmrc
+secrets
+*.key
+*.pem
+*.p12
 
 .vscode
 .idea

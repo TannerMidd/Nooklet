@@ -19,6 +19,7 @@ import {
   findIndexerSecret,
   findSearchResultById,
   findSearchResultSecret,
+  findUnexpiredSearchResultById,
   listEnabledIndexersForMedia,
   listIndexerMediaCategories,
   listSearchResultsForRun,
@@ -163,5 +164,43 @@ describe("indexer-repository", () => {
     expect(safeResults.map((entry) => entry.indexerGuid)).toEqual(["guid-arrival-2160p"]);
     expect(storedSecret?.encryptedDownloadUrl).toBe("encrypted-download-url");
     expect(storedSecret?.maskedDownloadUrl).toBe("https://indexer.example/...");
+  });
+
+  it("rejects expired download results and removes their cascaded secrets on the next search", async () => {
+    const userId = await seedUser();
+    const expiredRun = await createIndexerSearchRun({
+      userId,
+      mediaType: "movie",
+      query: "Expired",
+      expiresAt: new Date("2026-01-01T00:00:00Z"),
+    });
+    const expiredResult = await recordIndexerSearchResult({
+      searchRunId: expiredRun.id,
+      userId,
+      mediaType: "movie",
+      title: "Expired 2025 1080p",
+      normalizedTitle: "expired 2025 1080p",
+      indexerGuid: "expired-guid",
+      encryptedDownloadUrl: "expired-secret",
+      maskedDownloadUrl: "https://indexer.example/...",
+    });
+
+    expect(
+      await findUnexpiredSearchResultById(
+        userId,
+        expiredResult.id,
+        new Date("2026-01-02T00:00:00Z"),
+      ),
+    ).toBeNull();
+
+    await createIndexerSearchRun({
+      userId,
+      mediaType: "movie",
+      query: "Current",
+      expiresAt: new Date("2099-01-01T00:00:00Z"),
+    });
+
+    expect(await findSearchResultById(userId, expiredResult.id)).toBeNull();
+    expect(await findSearchResultSecret(expiredResult.id)).toBeNull();
   });
 });

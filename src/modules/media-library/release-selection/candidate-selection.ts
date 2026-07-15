@@ -18,6 +18,9 @@ export type ReleaseCandidate = {
 export type ReleaseSelectionOptions = {
   qualityProfile: MediaQualityProfile;
   target?: ReleaseSelectionTarget | null;
+  expectedTitle?: string;
+  expectedYear?: number | null;
+  mediaType?: "movie" | "tv";
   excludedResultIds?: string[];
   excludedReleaseKeys?: string[];
 };
@@ -32,6 +35,46 @@ function resultTime(value: Date | null) {
   return value?.getTime() ?? 0;
 }
 
+function normalizeIdentityText(value: string) {
+  return value
+    .normalize("NFKC")
+    .toLocaleLowerCase("und")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+function releaseMatchesExpectedIdentity(
+  result: ReleaseCandidate,
+  options: Pick<ReleaseSelectionOptions, "expectedTitle" | "expectedYear" | "mediaType">,
+) {
+  if (!options.expectedTitle) {
+    return true;
+  }
+
+  const expectedTitle = normalizeIdentityText(options.expectedTitle);
+  const releaseTitle = normalizeIdentityText(result.title);
+  if (
+    !expectedTitle
+    || (releaseTitle !== expectedTitle && !releaseTitle.startsWith(`${expectedTitle} `))
+  ) {
+    return false;
+  }
+
+  if (options.expectedYear) {
+    const declaredYears = Array.from(result.title.matchAll(/(?:^|\D)((?:19|20)\d{2})(?!\d)/g))
+      .map((match) => Number(match[1]));
+    if (declaredYears.length > 0 && !declaredYears.includes(options.expectedYear)) {
+      return false;
+    }
+  }
+
+  if (options.mediaType === "movie" && /\bs\d{1,3}e\d{1,4}\b|\b\d{1,3}x\d{1,4}\b/i.test(result.title)) {
+    return false;
+  }
+
+  return true;
+}
+
 export function selectReleaseCandidates<T extends ReleaseCandidate>(
   results: T[],
   options: ReleaseSelectionOptions,
@@ -42,6 +85,7 @@ export function selectReleaseCandidates<T extends ReleaseCandidate>(
 
   return results
     .filter((result) => releaseMatchesQualityProfile(options.qualityProfile, result)
+      && releaseMatchesExpectedIdentity(result, options)
       && releaseMatchesSelectionTarget(result, target)
       && !excludedResultIds.has(result.id)
       && releaseExclusionKeys(result).every((key) => !excludedReleaseKeys.has(key)))

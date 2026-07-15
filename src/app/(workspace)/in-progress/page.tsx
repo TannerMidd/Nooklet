@@ -1,40 +1,129 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+
 import { auth } from "@/auth";
+import { getActiveDownloadQueueView } from "@/app/api/service-connections/sabnzbd/queue/queue-view";
 import {
+  ActivityAutoRefresh,
   DownloadActivityPanel,
   ImportNowButton,
 } from "@/app/(workspace)/in-progress/download-activity-panel";
 import { SabnzbdActivityPanel } from "@/components/recommendations/sabnzbd-activity-panel";
 import { PageHeader } from "@/components/ui/page-header";
-import { listDownloadActivity } from "@/modules/downloads/queries/list-download-activity";
-import { getActiveDownloadQueue } from "@/modules/service-connections/workflows/get-active-download-queue";
+import {
+  getDownloadActivityPage,
+  type DownloadActivityView,
+} from "@/modules/downloads/queries/list-download-activity";
 
 export const dynamic = "force-dynamic";
 
-export default async function InProgressPage() {
+export const metadata: Metadata = { title: "Activity" };
+
+type ActivityPageProps = {
+  searchParams?: Promise<{ view?: string; q?: string; page?: string }>;
+};
+
+function activityHref(view: DownloadActivityView, query: string, page = 1) {
+  const params = new URLSearchParams({ view });
+  if (query) params.set("q", query);
+  if (page > 1) params.set("page", String(page));
+  return `/in-progress?${params.toString()}`;
+}
+
+export default async function ActivityPage({ searchParams }: ActivityPageProps) {
   const session = await auth();
 
   if (!session?.user?.id) {
     return null;
   }
 
-  const [activeSabnzbdQueue, downloadActivity] = await Promise.all([
-    getActiveDownloadQueue(session.user.id),
-    listDownloadActivity(session.user.id),
+  const resolvedSearchParams = await searchParams;
+  const requestedView = resolvedSearchParams?.view;
+  const currentView: DownloadActivityView = requestedView === "active" || requestedView === "attention" || requestedView === "completed"
+    ? requestedView
+    : "active";
+  const requestedPage = Number.parseInt(resolvedSearchParams?.page ?? "1", 10);
+  const [activeQueue, activity] = await Promise.all([
+    getActiveDownloadQueueView(session.user.id),
+    getDownloadActivityPage({
+      userId: session.user.id,
+      view: currentView,
+      query: resolvedSearchParams?.q,
+      page: Number.isFinite(requestedPage) ? requestedPage : 1,
+    }),
   ]);
+  if (!requestedView && activity.counts.active === 0) {
+    if (activity.counts.attention > 0) redirect(activityHref("attention", activity.query));
+    if (activity.counts.completed > 0) redirect(activityHref("completed", activity.query));
+  }
+  const views = [
+    { value: "active", label: "Active", count: activity.counts.active },
+    { value: "attention", label: "Needs attention", count: activity.counts.attention },
+    { value: "completed", label: "Completed", count: activity.counts.completed },
+  ] as const;
 
   return (
     <div className="nk-enter space-y-8">
+      {currentView === "active" ? <ActivityAutoRefresh /> : null}
       <PageHeader
-        eyebrow="Live · refreshes automatically"
-        title="In progress"
+        eyebrow={currentView === "active" ? "Live · refreshes every 15 seconds" : "Request history"}
+        title="Activity"
+        description="Track active work, resolve problems with the right recovery action, and review completed imports."
         actions={<ImportNowButton />}
       />
 
-      <SabnzbdActivityPanel initialState={activeSabnzbdQueue} />
+      <nav aria-label="Activity views" className="flex flex-wrap gap-2">
+        {views.map((view) => (
+          <Link
+            key={view.value}
+            href={activityHref(view.value, activity.query)}
+            aria-current={currentView === view.value ? "page" : undefined}
+            className={currentView === view.value
+              ? "inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-accent-foreground"
+              : "inline-flex min-h-11 items-center gap-2 rounded-full border border-control bg-cream/[0.03] px-5 text-sm font-semibold text-muted hover:text-foreground"}
+          >
+            {view.label}
+            <span className={currentView === view.value ? "text-accent-foreground/75" : "text-muted"}>{view.count}</span>
+          </Link>
+        ))}
+      </nav>
+
+      <form action="/in-progress" className="flex max-w-xl flex-col gap-2 sm:flex-row">
+        <input type="hidden" name="view" value={currentView} />
+        <label className="sr-only" htmlFor="activity-search">Search request history</label>
+        <input
+          id="activity-search"
+          name="q"
+          defaultValue={activity.query}
+          placeholder="Search requested or release title"
+          className="min-h-11 min-w-0 flex-1 rounded-lg border border-control bg-cream/[0.03] px-4 text-sm text-foreground outline-none placeholder:text-muted focus:border-focus focus:ring-2 focus:ring-focus/30"
+        />
+        <button type="submit" className="min-h-11 rounded-lg border border-control px-5 text-sm font-semibold text-foreground hover:bg-cream/[0.06]">Search history</button>
+      </form>
+
+      {currentView === "active" ? <SabnzbdActivityPanel initialState={activeQueue} /> : null}
 
       <section className="space-y-4">
-        <h3 className="font-heading text-2xl text-foreground">Recent activity</h3>
-        <DownloadActivityPanel entries={downloadActivity} />
+        <h2 className="font-heading text-2xl text-foreground">
+          {currentView === "active"
+            ? "Active requests"
+            : currentView === "attention"
+              ? "Requests needing attention"
+              : "Recently completed"}
+        </h2>
+        <DownloadActivityPanel entries={activity.entries} />
+        {activity.pagination.pageCount > 1 ? (
+          <nav aria-label="Activity history pages" className="flex items-center justify-between gap-3 pt-2 text-sm">
+            {activity.pagination.hasPreviousPage ? (
+              <Link href={activityHref(currentView, activity.query, activity.pagination.page - 1)} className="inline-flex min-h-11 items-center rounded-lg border border-control px-4 font-semibold text-foreground">Previous</Link>
+            ) : <span />}
+            <span className="text-muted">Page {activity.pagination.page} of {activity.pagination.pageCount} · {activity.pagination.total} requests</span>
+            {activity.pagination.hasNextPage ? (
+              <Link href={activityHref(currentView, activity.query, activity.pagination.page + 1)} className="inline-flex min-h-11 items-center rounded-lg border border-control px-4 font-semibold text-foreground">Next</Link>
+            ) : <span />}
+          </nav>
+        ) : null}
       </section>
     </div>
   );

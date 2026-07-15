@@ -1,4 +1,4 @@
-import { createAuditEvent, countActiveAdminUsers, findUserById, updateUserRole } from "@/modules/users/repositories/user-repository";
+import { createAuditEvent, updateUserRoleGuarded } from "@/modules/users/repositories/user-repository";
 import { type UpdateManagedUserRoleInput } from "@/modules/users/schemas/admin-user";
 
 type UpdateManagedUserRoleResult =
@@ -9,48 +9,48 @@ export async function updateManagedUserRole(
   actorUserId: string,
   input: UpdateManagedUserRoleInput,
 ): Promise<UpdateManagedUserRoleResult> {
-  const targetUser = await findUserById(input.userId);
+  const update = await updateUserRoleGuarded(actorUserId, input.userId, input.role);
 
-  if (!targetUser) {
+  if (update.status === "not_found") {
     return {
       ok: false,
       message: "User not found.",
     };
   }
 
-  if (targetUser.id === actorUserId) {
+  if (update.status === "self_update") {
     return {
       ok: false,
       message: "Use a different admin account to change your own role.",
     };
   }
 
-  if (targetUser.role === input.role) {
+  if (update.status === "actor_not_authorized") {
+    return {
+      ok: false,
+      message: "Your administrator session is no longer active.",
+    };
+  }
+
+  if (update.status === "unchanged") {
     return {
       ok: true,
       message: "Role already matches the requested value.",
     };
   }
 
-  if (targetUser.role === "admin" && input.role !== "admin" && !targetUser.isDisabled) {
-    const activeAdminCount = await countActiveAdminUsers();
-
-    if (activeAdminCount <= 1) {
-      return {
-        ok: false,
-        message: "Keep at least one active admin account.",
-      };
-    }
-  }
-
-  const updatedUser = await updateUserRole(targetUser.id, input.role);
-
-  if (!updatedUser) {
+  if (update.status === "last_active_admin") {
     return {
       ok: false,
-      message: "Unable to update the user role.",
+      message: "Keep at least one active admin account.",
     };
   }
+
+  if (update.status !== "updated") {
+    return { ok: false, message: "The user role could not be updated." };
+  }
+
+  const updatedUser = update.user;
 
   await createAuditEvent({
     actorUserId,
@@ -58,7 +58,7 @@ export async function updateManagedUserRole(
     subjectType: "user",
     subjectId: updatedUser.id,
     payloadJson: JSON.stringify({
-      previousRole: targetUser.role,
+      previousRole: update.previousUser.role,
       nextRole: updatedUser.role,
     }),
   });

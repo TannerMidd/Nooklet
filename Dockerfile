@@ -3,7 +3,7 @@
 # ---------- deps ----------
 # Install dependencies with build tools available so better-sqlite3 can compile
 # native bindings if no prebuilt binary matches the runtime platform.
-FROM node:20-bookworm-slim AS deps
+FROM node:24-bookworm-slim AS deps
 WORKDIR /app
 
 RUN apt-get update \
@@ -14,7 +14,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci --include=dev
 
 # ---------- builder ----------
-FROM node:20-bookworm-slim AS builder
+FROM node:24-bookworm-slim AS builder
 WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -32,7 +32,7 @@ COPY . .
 RUN npm run build
 
 # ---------- runner ----------
-FROM node:20-bookworm-slim AS runner
+FROM node:24-bookworm-slim AS runner
 WORKDIR /app
 
 # The built-in download engine shells out to par2 (repair + obfuscated-name
@@ -41,7 +41,7 @@ WORKDIR /app
 # download tooling is required. unrar comes from the non-free component.
 RUN sed -i 's/Components: main/Components: main contrib non-free non-free-firmware/' /etc/apt/sources.list.d/debian.sources \
   && apt-get update \
-  && apt-get install -y --no-install-recommends par2 7zip unrar ca-certificates \
+  && apt-get install -y --no-install-recommends par2 7zip unrar ca-certificates tini \
   && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production \
@@ -58,6 +58,10 @@ ENV NODE_ENV=production \
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/drizzle ./drizzle
+# Keep the documented runtime backup command without reintroducing build-only
+# tooling (such as the standalone sanitizer) into the final image.
+COPY --from=builder /app/scripts/backup-database.mjs ./scripts/backup-database.mjs
+COPY --from=builder /app/scripts/recover-account.mjs ./scripts/recover-account.mjs
 
 # Persist data outside the image. The volume is mounted here in compose.
 RUN mkdir -p /app/data && chown -R node:node /app
@@ -69,4 +73,5 @@ EXPOSE 42021
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:42021/api/health').then(r=>{if(r.status!==200)process.exit(1)}).catch(()=>process.exit(1))"
 
+ENTRYPOINT ["tini", "-g", "--"]
 CMD ["node", "server.js"]

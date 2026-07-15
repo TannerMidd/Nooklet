@@ -26,7 +26,11 @@ export async function resetManagedUserPassword(
     };
   }
 
-  const updatedUser = await updateUserPassword(targetUser.id, hashPassword(input.newPassword));
+  const updatedUser = await updateUserPassword(
+    targetUser.id,
+    await hashPassword(input.newPassword),
+    { mustChangePassword: true },
+  );
 
   if (!updatedUser) {
     return {
@@ -44,6 +48,6 @@ export async function resetManagedUserPassword(
 
   return {
     ok: true,
-    message: `Password reset for ${updatedUser.displayName}.`,
+    message: `Password reset for ${updatedUser.displayName}. They will be asked to choose a new password at sign-in.`,
   };
 }

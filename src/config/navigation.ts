@@ -2,6 +2,8 @@ export type NavigationItem = {
   href: string;
   label: string;
   description: string;
+  /** Routes represented by this destination even when their legacy URLs remain. */
+  activePrefixes?: readonly string[];
 };
 
 export type NavigationGroup = {
@@ -24,97 +26,34 @@ export const publicEntryPoints = [
 
 export const navigationGroups = [
   {
-    title: "Recommendations",
+    title: "Workspace",
     items: [
       {
-        href: "/tv",
-        label: "TV picks",
-        description: "Get TV picks based on your taste and manage them in one place.",
-      },
-      {
-        href: "/movies",
-        label: "Movie picks",
-        description: "Get movie picks based on your taste and manage them in one place.",
+        href: "/home",
+        label: "Home",
+        description: "See readiness, active work, and the best next action.",
       },
       {
         href: "/discover",
         label: "Discover",
-        description: "Browse trending, popular, and upcoming titles powered by TMDB.",
-      },
-      {
-        href: "/search",
-        label: "Search",
-        description: "Search configured indexers for movie and TV releases.",
+        description: "Find, search, and get personalized movie and TV ideas.",
+        activePrefixes: ["/tv", "/movies", "/search", "/history", "/analytics"],
       },
       {
         href: "/library",
         label: "Library",
-        description: "Manage built-in movie and TV libraries.",
-      },
-      {
-        href: "/history",
-        label: "History",
-        description: "Review past recommendations, feedback, and library actions.",
+        description: "Browse and manage movies and series already in Nooklet.",
       },
       {
         href: "/in-progress",
-        label: "In progress",
-        description: "Track active downloads.",
+        label: "Activity",
+        description: "Track downloads, resolve problems, and review completed work.",
       },
       {
-        href: "/analytics",
-        label: "Analytics",
-        description: "Review recommendation quality, AI usage, and feedback taste signals.",
-      },
-    ],
-  },
-  {
-    title: "Settings",
-    items: [
-      {
-        href: "/settings/account",
-        label: "Account",
-        description: "Update your password and personal account settings.",
-      },
-      {
-        href: "/settings/connections",
-        label: "Connections",
-        description: "Connect the services Nooklet uses.",
-      },
-      {
-        href: "/settings/indexers",
-        label: "Indexers",
-        description: "Configure direct Newznab and Torznab indexers.",
-      },
-      {
-        href: "/settings/preferences",
-        label: "Preferences",
-        description: "Choose your defaults, filters, and watch-history options.",
-      },
-      {
-        href: "/settings/history",
-        label: "History sources",
-        description: "Import watched titles from Plex, Tautulli, or manual entries.",
-      },
-      {
-        href: "/settings/notifications",
-        label: "Notifications",
-        description: "Send recommendation and sync events to Discord, Apprise, or webhooks.",
-      },
-      {
-        href: "/health",
-        label: "Health",
-        description: "View service status, sync jobs, and queued work.",
-      },
-    ],
-  },
-  {
-    title: "Administration",
-    items: [
-      {
-        href: "/admin",
-        label: "Admin",
-        description: "Manage users, roles, and admin-only tools.",
+        href: "/settings",
+        label: "Settings",
+        description: "Manage your account and role-appropriate Nooklet configuration.",
+        activePrefixes: ["/health", "/admin"],
       },
     ],
   },

@@ -1,11 +1,9 @@
 import { auth } from "@/auth";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
-import { formatLanguagePreference } from "@/modules/preferences/language-preferences";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 import {
-  getWatchHistorySourceDefinition,
   watchHistorySourceDefinitions,
 } from "@/modules/watch-history/source-definitions";
 import { getWatchHistoryOverview } from "@/modules/watch-history/queries/get-watch-history-overview";
@@ -19,13 +17,6 @@ type PreferencesSettingsPageProps = {
     updated?: string;
   }>;
 };
-
-function formatDate(value: Date) {
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(value);
-}
 
 export default async function PreferencesSettingsPage({
   searchParams,
@@ -42,10 +33,6 @@ export default async function PreferencesSettingsPage({
     listConnectionSummaries(session.user.id),
   ]);
   const wasUpdated = resolvedSearchParams?.updated === "1";
-  const hasPersistedUpdate = preferences.updatedAt.getTime() > 0;
-  const selectedSourceNames = preferences.watchHistorySourceTypes
-    .map((sourceType) => getWatchHistorySourceDefinition(sourceType).displayName)
-    .join(", ");
   const historySourceByType = new Map(
     watchHistoryOverview.sources.map((source) => [source.sourceType, source]),
   );
@@ -81,50 +68,16 @@ export default async function PreferencesSettingsPage({
         </p>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[1.12fr,0.88fr]">
-        <Panel
-          eyebrow="Saved defaults"
-          title="Preference controls"
-          description="These settings control the defaults used for new recommendation requests and history browsing."
-        >
-          <PreferencesForm
-            preferences={preferences}
-            availableWatchHistorySources={availableWatchHistorySources}
-          />
-        </Panel>
-
-        <div className="space-y-5">
-          <Panel
-            eyebrow="Current settings"
-            title="Saved values"
-          >
-            <div className="space-y-3 text-sm leading-6 text-foreground">
-              <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                <span className="font-medium">Default media mode:</span> {preferences.defaultMediaMode}
-              </div>
-              <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                <span className="font-medium">Default result count:</span> {preferences.defaultResultCount}
-              </div>
-              <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                <span className="font-medium">Library sample size:</span> {preferences.libraryTasteSampleSize}
-              </div>
-              <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                <span className="font-medium">Language preference:</span> {formatLanguagePreference(preferences.languagePreference)}
-              </div>
-              <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                <span className="font-medium">Watch-history only:</span> {preferences.watchHistoryOnly ? "Enabled" : "Disabled"}
-              </div>
-              <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                <span className="font-medium">Selected history sources:</span> {selectedSourceNames}
-              </div>
-              <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                <span className="font-medium">Last updated:</span>{" "}
-                {hasPersistedUpdate ? formatDate(preferences.updatedAt) : "Never"}
-              </div>
-            </div>
-          </Panel>
-        </div>
-      </div>
+      <Panel
+        eyebrow="Personal defaults"
+        title="Recommendation and history preferences"
+        description="Start with the common choices. Technical AI tuning remains optional and should only be changed deliberately."
+      >
+        <PreferencesForm
+          preferences={preferences}
+          availableWatchHistorySources={availableWatchHistorySources}
+        />
+      </Panel>
     </div>
   );
 }

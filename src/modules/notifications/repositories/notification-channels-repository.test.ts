@@ -3,12 +3,15 @@ import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
-import { users } from "@/lib/database/schema";
+import { notificationChannels, users } from "@/lib/database/schema";
+import { decryptSecret } from "@/lib/security/secret-box";
+import { eq } from "drizzle-orm";
 
 import {
   createNotificationChannel,
   deleteNotificationChannel,
   findNotificationChannelById,
+  findNotificationChannelForDispatch,
   listEnabledNotificationChannelsForEvent,
   listNotificationChannelsForUser,
   recordNotificationDispatchResult,
@@ -58,9 +61,47 @@ describe("notification-channels-repository", () => {
 
     const list = await listNotificationChannelsForUser(userId);
     expect(list).toHaveLength(1);
+    expect(list[0]?.maskedTargetUrl).toBe("https://[hidden]");
+    expect(list[0]).not.toHaveProperty("targetUrl");
     expect(new Set(list[0]?.events)).toEqual(
       new Set(["recommendation_run_succeeded", "recommendation_run_failed"]),
     );
+
+    const stored = ensureDatabaseReady()
+      .select({ targetUrl: notificationChannels.targetUrl })
+      .from(notificationChannels)
+      .where(eq(notificationChannels.id, created.id))
+      .get();
+    expect(stored?.targetUrl).not.toBe("https://example.com/hook");
+    expect(decryptSecret(stored!.targetUrl)).toBe("https://example.com/hook");
+  });
+
+  it("lazily encrypts a legacy plaintext target URL", async () => {
+    const userId = await seedUser();
+    const id = randomUUID();
+    const database = ensureDatabaseReady();
+    database.insert(notificationChannels).values({
+      id,
+      userId,
+      channelType: "webhook",
+      displayName: "Legacy",
+      targetUrl: "https://example.com/legacy-token",
+    }).run();
+
+    const channel = await findNotificationChannelById(userId, id);
+    expect(channel?.maskedTargetUrl).toBe("https://[hidden]");
+    expect(channel).not.toHaveProperty("targetUrl");
+
+    const stored = database
+      .select({ targetUrl: notificationChannels.targetUrl })
+      .from(notificationChannels)
+      .where(eq(notificationChannels.id, id))
+      .get();
+    expect(stored?.targetUrl).toMatch(/^v1:/);
+    expect(decryptSecret(stored!.targetUrl)).toBe("https://example.com/legacy-token");
+
+    const dispatchChannel = await findNotificationChannelForDispatch(userId, id);
+    expect(dispatchChannel?.targetUrl).toBe("https://example.com/legacy-token");
   });
 
   it("filters enabled channels by event subscription via the events join", async () => {

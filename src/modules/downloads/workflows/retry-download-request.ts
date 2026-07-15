@@ -19,6 +19,7 @@ export class RetryDownloadRequestWorkflowError extends Error {
 
 export type RetryDownloadRequestResult = {
   queued: boolean;
+  reason: "queued" | "search_failed" | "no_matching_release" | "queue_failed";
   message: string | null;
 };
 
@@ -55,6 +56,7 @@ export async function retryDownloadRequestWorkflow(
   const retry = await searchLibraryItemReleasesWorkflow(userId, {
     titleId: request.mediaTitleId,
     episodeId: request.episodeId ?? undefined,
+    seasonId: request.seasonId ?? undefined,
     targetLibraryPathId: request.targetLibraryPathId ?? undefined,
     excludedResultIds: exclusions.resultIds,
     excludedReleaseKeys: exclusions.releaseKeys,
@@ -62,6 +64,7 @@ export async function retryDownloadRequestWorkflow(
 
   return {
     queued: retry.queuedDownload.queued,
+    reason: retry.queuedDownload.reason,
     message: retry.queuedDownload.queued ? null : retry.queuedDownload.message,
   };
 }

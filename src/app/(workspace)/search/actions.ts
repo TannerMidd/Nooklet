@@ -11,14 +11,14 @@ import {
 import { searchDiscoverTitlesInputSchema } from "@/modules/discover/schemas/title-search";
 import { searchDiscoverTitles } from "@/modules/discover/queries/search-discover-titles";
 import { RequestMediaTitleCommandError } from "@/modules/media-library/commands/request-media-title";
-import { getMediaQualityProfileLabel } from "@/modules/media-library/queries/list-media-quality-profiles";
+import { listIndexerSettings } from "@/modules/indexers/queries/list-indexer-settings";
+import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
 import {
   requestTitleWithReleaseSearchInputSchema,
   requestTitleWithReleaseSearchWorkflow,
   RequestTitleAlreadyInFlightError,
-  type RequestTitleSelectionResult,
 } from "@/modules/media-library/workflows/request-title-with-release-search";
-import { describeReleaseSelectionTarget } from "@/modules/media-library/workflows/request-title-with-release-search/selection-targets";
+import { summarizeRequestSubmission } from "@/modules/media-library/workflows/request-title-with-release-search/outcome-summary";
 import { parseTvSelectionsFromFormData } from "@/modules/media-library/schemas/tv-selections-form";
 import {
   getTmdbTvSeasonEpisodesForUser,
@@ -36,8 +36,9 @@ import {
   type TitleSearchActionState,
 } from "./action-state";
 
-function mapSearchResults(results: Array<{
+async function mapSearchResults(userId: string, results: Array<{
   id: string;
+  indexerId: string | null;
   title: string;
   mediaType: "movie" | "tv";
   qualityLabel: string | null;
@@ -46,7 +47,10 @@ function mapSearchResults(results: Array<{
   seeders: number | null;
   leechers: number | null;
   grabs: number | null;
-}>): SearchResultView[] {
+}>): Promise<SearchResultView[]> {
+  const indexers = await listIndexerSettings(userId);
+  const protocols = new Map(indexers.map((indexer) => [indexer.id, indexer.protocol]));
+
   return results.map((result) => ({
     id: result.id,
     title: result.title,
@@ -57,32 +61,8 @@ function mapSearchResults(results: Array<{
     seeders: result.seeders,
     leechers: result.leechers,
     grabs: result.grabs,
+    protocol: result.indexerId ? protocols.get(result.indexerId) ?? "unknown" : "unknown",
   }));
-}
-
-function describeSelectionIssue(
-  selection: RequestTitleSelectionResult,
-  qualityProfile: Parameters<typeof getMediaQualityProfileLabel>[0],
-): string {
-  const targetLabel = describeReleaseSelectionTarget(selection.target);
-
-  if (!selection.releaseSearch.searched) {
-    return `${targetLabel}: not searched.`;
-  }
-
-  if (selection.releaseSearch.searchRun.status === "failed") {
-    return `${targetLabel}: ${selection.releaseSearch.searchRun.errorMessage ?? "release search failed"}.`;
-  }
-
-  if (selection.queuedDownload.reason === "no_matching_release") {
-    return `${targetLabel}: no releases matched ${getMediaQualityProfileLabel(qualityProfile)}.`;
-  }
-
-  if (selection.queuedDownload.reason === "queue_failed") {
-    return `${targetLabel}: ${selection.queuedDownload.message ?? "could not queue a release"}.`;
-  }
-
-  return `${targetLabel}: skipped.`;
 }
 
 export async function loadTmdbTvSeasonsAction(tmdbId: number): Promise<GetTmdbTvSeasonsResult> {
@@ -181,137 +161,81 @@ export async function requestSearchTitleAction(
     const primarySelection = requested.selections.length === 1 ? requested.selections[0] ?? null : null;
     const selectionSeasonId = primarySelection?.seasonId ?? null;
     const selectionEpisodeId = primarySelection?.episodeId ?? null;
+    const summary = summarizeRequestSubmission({
+      title: parsed.data.title,
+      downloadNow,
+      qualityProfile: parsed.data.qualityProfile,
+      result: requested,
+    });
 
     revalidatePath("/library");
     revalidatePath(parsed.data.mediaType === "tv" ? "/library/tv" : "/library/movies");
 
-    if (requested.selections.length > 1) {
-      const queuedCount = requested.selections.filter((selection) => selection.queuedDownload.queued).length;
-      const totalCount = requested.selections.length;
-      const issues = requested.selections
-        .filter((selection) => !selection.queuedDownload.queued && requested.queuedDownload.reason !== "not_requested")
-        .map((selection) => describeSelectionIssue(selection, parsed.data.qualityProfile));
-      const summary = queuedCount > 0
-        ? `Added to your library and queued ${queuedCount} of ${totalCount} selections.`
-        : `Added to your library, but no selections were queued (${totalCount} attempted).`;
-      const message = issues.length > 0 ? `${summary} ${issues.join(" ")}` : summary;
-
-      if (queuedCount > 0) {
-        revalidatePath("/in-progress");
-      }
-
-      const primarySearched = requested.selections.find((selection) => selection.releaseSearch.searched);
-
-      return {
-        status: "success",
-        message,
-        titleId: requested.title.id,
-        seasonId: selectionSeasonId,
-        episodeId: selectionEpisodeId,
-        searchRunId: primarySearched?.releaseSearch.searched ? primarySearched.releaseSearch.searchRun.id : null,
-        downloadRequestId: requested.queuedDownload.queued
-          ? requested.queuedDownload.download.downloadRequest.id
-          : null,
-        targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
-        results: [],
-      };
-    }
-
-    if (requested.queuedDownload.queued) {
+    if (summary.queuedCount > 0) {
       revalidatePath("/in-progress");
-
-      return {
-        status: "success",
-        message: "Added to your library and queued a matching release for download.",
-        titleId: requested.title.id,
-        seasonId: selectionSeasonId,
-        episodeId: selectionEpisodeId,
-        searchRunId: requested.releaseSearch.searched ? requested.releaseSearch.searchRun.id : null,
-        downloadRequestId: requested.queuedDownload.download.downloadRequest.id,
-        targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
-        results: [],
-      };
     }
 
-    if (!requested.releaseSearch.searched) {
-      return {
-        status: "success",
-        message: "Added to your library.",
-        titleId: requested.title.id,
-        seasonId: selectionSeasonId,
-        episodeId: selectionEpisodeId,
-        searchRunId: null,
-        downloadRequestId: null,
-        targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
-        results: [],
-      };
-    }
-
-    if (requested.releaseSearch.searchRun.status === "failed") {
-      return {
-        status: "success",
-        message: requested.releaseSearch.searchRun.errorMessage ?? "Added to your library, but release search failed.",
-        titleId: requested.title.id,
-        seasonId: selectionSeasonId,
-        episodeId: selectionEpisodeId,
-        searchRunId: requested.releaseSearch.searchRun.id,
-        downloadRequestId: null,
-        targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
-        results: [],
-      };
-    }
-
-    if (requested.queuedDownload.reason === "no_matching_release") {
-      return {
-        status: "success",
-        message: `Added to your library, but no releases matched ${getMediaQualityProfileLabel(parsed.data.qualityProfile)}.`,
-        titleId: requested.title.id,
-        seasonId: selectionSeasonId,
-        episodeId: selectionEpisodeId,
-        searchRunId: requested.releaseSearch.searchRun.id,
-        downloadRequestId: null,
-        targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
-        results: mapSearchResults(requested.releaseSearch.results),
-      };
-    }
-
-    if (requested.queuedDownload.reason === "queue_failed") {
-      return {
-        status: "success",
-        message: `Added to your library, but ${requested.queuedDownload.message ?? "Nooklet could not queue a matching release."}`,
-        titleId: requested.title.id,
-        seasonId: selectionSeasonId,
-        episodeId: selectionEpisodeId,
-        searchRunId: requested.releaseSearch.searchRun.id,
-        downloadRequestId: null,
-        targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
-        results: mapSearchResults(requested.releaseSearch.results),
-      };
-    }
+    const searchedSelection = requested.selections.find((selection) => selection.releaseSearch.searched);
+    const queuedSelection = requested.selections.find((selection) => selection.queuedDownload.queued);
+    // The workflow keeps a top-level aggregate search result for single-title
+    // requests. Prefer it when available so the manual fallback can show the
+    // candidates that were considered, even if a selection summary omits them.
+    const releaseSearch = requested.releaseSearch.searched
+      ? requested.releaseSearch
+      : primarySelection?.releaseSearch ?? requested.releaseSearch;
+    const showManualCandidates = requested.selections.length <= 1
+      && releaseSearch.searched
+      && (summary.outcome === "no_match" || summary.outcome === "queue_failed");
 
     return {
-      status: "success",
-      message: `Added to your library, but no release was queued for ${parsed.data.title}.`,
+      status: summary.status,
+      outcome: summary.outcome,
+      message: summary.message,
       titleId: requested.title.id,
       seasonId: selectionSeasonId,
       episodeId: selectionEpisodeId,
-      searchRunId: requested.releaseSearch.searchRun.id,
-      downloadRequestId: null,
+      searchRunId: searchedSelection?.releaseSearch.searched
+        ? searchedSelection.releaseSearch.searchRun.id
+        : requested.releaseSearch.searched
+          ? requested.releaseSearch.searchRun.id
+          : null,
+      downloadRequestId: queuedSelection?.queuedDownload.queued
+        ? queuedSelection.queuedDownload.download.downloadRequest.id
+        : requested.queuedDownload.queued
+          ? requested.queuedDownload.download.downloadRequest.id
+          : null,
       targetLibraryPathId: parsed.data.targetLibraryPathId ?? null,
-      results: mapSearchResults(requested.releaseSearch.results),
+      results: showManualCandidates && releaseSearch.searched
+        ? await mapSearchResults(session.user.id, releaseSearch.results)
+        : [],
     };
   } catch (error) {
+    const message =
+      error instanceof RequestTitleAlreadyInFlightError
+      || error instanceof RequestMediaTitleCommandError
+        ? error.message
+        : "Nooklet could not add that title.";
+
+    await safeDispatchNotificationWorkflow({
+      userId: session.user.id,
+      payload: {
+        eventType: "library_add_failed",
+        title: parsed.data.title,
+        message,
+      },
+    });
+
     if (error instanceof RequestTitleAlreadyInFlightError) {
-      return { ...initialRequestSearchTitleActionState, status: "error", message: error.message };
+      return { ...initialRequestSearchTitleActionState, status: "error", message };
     }
     if (error instanceof RequestMediaTitleCommandError) {
-      return { ...initialRequestSearchTitleActionState, status: "error", message: error.message };
+      return { ...initialRequestSearchTitleActionState, status: "error", message };
     }
 
     return {
       ...initialRequestSearchTitleActionState,
       status: "error",
-      message: "Nooklet could not add that title.",
+      message,
     };
   }
 }

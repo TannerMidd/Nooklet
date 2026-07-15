@@ -6,6 +6,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { ensureDatabaseReady } from "@/lib/database/client";
 import { auditEvents, mediaTitles, tvEpisodes, users } from "@/lib/database/schema";
 import {
+  createDownloadRequest,
+  recordDownloadQueueItem,
+} from "@/modules/downloads/repositories/download-repository";
+import {
   createMediaLibrary,
   createTvEpisode,
   createTvSeason,
@@ -124,5 +128,44 @@ describe("removeMediaTitleCommand", () => {
 
     await expect(removeMediaTitleCommand(userId, { titleId: title.id }))
       .rejects.toThrow(RemoveMediaTitleCommandError);
+  });
+
+  it("preserves a title associated with a still-active downloader job", async () => {
+    const userId = await seedUser();
+    const library = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies", isDefault: true });
+    const title = await upsertMediaTitle({
+      userId,
+      libraryId: library.id,
+      mediaType: "movie",
+      title: "Arrival",
+      sortTitle: "arrival",
+      normalizedKey: "arrival::active-job",
+      year: 2016,
+    });
+
+    if (!title) throw new Error("title missing");
+
+    const request = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Arrival",
+      mediaTitleId: title.id,
+      status: "succeeded",
+    });
+    await recordDownloadQueueItem({
+      requestId: request.id,
+      userId,
+      externalQueueId: randomUUID(),
+      status: "downloading",
+    });
+
+    await expect(removeMediaTitleCommand(userId, { titleId: title.id }))
+      .rejects.toMatchObject({ code: "active_download" });
+
+    expect(ensureDatabaseReady()
+      .select()
+      .from(mediaTitles)
+      .where(eq(mediaTitles.id, title.id))
+      .get()?.id).toBe(title.id);
   });
 });

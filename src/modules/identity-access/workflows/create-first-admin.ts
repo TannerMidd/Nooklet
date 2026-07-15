@@ -12,8 +12,9 @@ export type CreateFirstAdminResult =
   | { ok: false; message: string; field?: "email" };
 
 export async function createFirstAdmin(
-  input: BootstrapInput,
+  input: Omit<BootstrapInput, "bootstrapToken">,
 ): Promise<CreateFirstAdminResult> {
+  const passwordHash = await hashPassword(input.password);
   const database = ensureDatabaseReady();
 
   const result = database.transaction((tx) => {
@@ -52,7 +53,7 @@ export async function createFirstAdmin(
         id: userId,
         email: input.email,
         displayName: input.displayName,
-        passwordHash: hashPassword(input.password),
+        passwordHash,
         role: "admin",
       })
       .run();

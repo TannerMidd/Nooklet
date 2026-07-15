@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import { StatCard } from "@/components/ui/stat-card";
 import { getAccountUser } from "@/modules/users/queries/get-account-user";
 
@@ -20,6 +21,13 @@ export default async function AccountSettingsPage() {
   return (
     <div className="nk-enter space-y-7">
       <PageHeader eyebrow="User settings" title="Account" />
+
+      {user?.mustChangePassword ? (
+        <InlineAlert variant="warning">
+          <strong>Choose your own password to continue.</strong>{" "}
+          An administrator issued the password you used to sign in. Replace it now; after it is saved, the rest of Nooklet will unlock automatically.
+        </InlineAlert>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[1.05fr,0.95fr]">
         <Panel

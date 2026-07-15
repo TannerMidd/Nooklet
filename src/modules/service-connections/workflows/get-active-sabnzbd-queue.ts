@@ -9,7 +9,10 @@ export type ActiveSabnzbdQueueState = {
   snapshot: SabnzbdQueueSnapshot | null;
 };
 
-export async function getActiveSabnzbdQueue(userId: string): Promise<ActiveSabnzbdQueueState> {
+export async function getActiveSabnzbdQueue(
+  userId: string,
+  options: { timeoutMs?: number } = {},
+): Promise<ActiveSabnzbdQueueState> {
   const connection = await findServiceConnectionByType(userId, "sabnzbd");
 
   if (!connection?.secret || !connection.connection.baseUrl) {
@@ -34,6 +37,7 @@ export async function getActiveSabnzbdQueue(userId: string): Promise<ActiveSabnz
       baseUrl: connection.connection.baseUrl,
       apiKey: decryptSecret(connection.secret.encryptedValue),
       limit: sabnzbdQueuePageLimit,
+      timeoutMs: options.timeoutMs,
     });
 
     return {

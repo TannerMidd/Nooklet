@@ -1,9 +1,13 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
 import { type BootstrapActionState } from "@/app/(auth)/bootstrap/action-state";
-import { consumeRateLimit, formatRetryAfter } from "@/lib/security/rate-limit";
+import { signIn } from "@/auth";
+import { consumeBootstrapRateLimit } from "@/lib/security/bootstrap-rate-limit";
+import { verifyBootstrapToken } from "@/lib/security/bootstrap-token";
+import { formatRetryAfter } from "@/lib/security/rate-limit";
+import { trustedClientAddressFromHeaders } from "@/lib/security/rate-limit-key";
 import { bootstrapInputSchema } from "@/modules/identity-access/schemas/bootstrap";
 import { createFirstAdmin } from "@/modules/identity-access/workflows/create-first-admin";
 
@@ -11,20 +15,8 @@ export async function submitBootstrapAction(
   _previousState: BootstrapActionState,
   formData: FormData,
 ): Promise<BootstrapActionState> {
-  const rateLimit = consumeRateLimit({
-    key: "bootstrap:global",
-    limit: 5,
-    windowMs: 15 * 60 * 1000,
-  });
-
-  if (!rateLimit.ok) {
-    return {
-      status: "error",
-      message: `Too many bootstrap attempts. Try again in ${formatRetryAfter(rateLimit.retryAfterMs)}.`,
-    };
-  }
-
   const parsedInput = bootstrapInputSchema.safeParse({
+    bootstrapToken: formData.get("bootstrapToken"),
     displayName: formData.get("displayName"),
     email: formData.get("email"),
     password: formData.get("password"),
@@ -38,6 +30,7 @@ export async function submitBootstrapAction(
       status: "error",
       message: "Review the highlighted fields and try again.",
       fieldErrors: {
+        bootstrapToken: flattenedErrors.bootstrapToken?.[0],
         displayName: flattenedErrors.displayName?.[0],
         email: flattenedErrors.email?.[0],
         password: flattenedErrors.password?.[0],
@@ -46,7 +39,30 @@ export async function submitBootstrapAction(
     };
   }
 
-  const result = await createFirstAdmin(parsedInput.data);
+  const requestHeaders = await headers();
+  const rateLimit = consumeBootstrapRateLimit(
+    parsedInput.data.bootstrapToken,
+    trustedClientAddressFromHeaders(requestHeaders),
+  );
+
+  if (!rateLimit.ok) {
+    return {
+      status: "error",
+      message: `Too many bootstrap attempts. Try again in ${formatRetryAfter(rateLimit.retryAfterMs)}.`,
+    };
+  }
+
+  if (!verifyBootstrapToken(parsedInput.data.bootstrapToken)) {
+    return {
+      status: "error",
+      message: "The setup token is invalid or web bootstrap is not enabled.",
+      fieldErrors: { bootstrapToken: "Enter the setup token configured by the operator." },
+    };
+  }
+
+  const { bootstrapToken: _bootstrapToken, ...adminInput } = parsedInput.data;
+  void _bootstrapToken;
+  const result = await createFirstAdmin(adminInput);
 
   if (!result.ok) {
     return {
@@ -60,5 +76,14 @@ export async function submitBootstrapAction(
     };
   }
 
-  redirect("/login?bootstrapped=1");
+  await signIn("credentials", {
+    email: parsedInput.data.email,
+    password: parsedInput.data.password,
+    redirectTo: "/setup",
+  });
+
+  return {
+    status: "error",
+    message: "The administrator was created, but automatic sign-in did not complete.",
+  };
 }

@@ -127,16 +127,16 @@ describe("requestTitleWithReleaseSearchWorkflow", () => {
     expect(calls).toEqual(["validate", "request-title", "persist-selections", "apply-monitoring", "search-releases", "queue-release"]);
     expect(validateMock).toHaveBeenCalledWith(request);
     expect(titleRequestMock).toHaveBeenCalledWith("u1", request);
-    expect(persistSelectionsMock).toHaveBeenCalledWith("u1", request, title.id, [{ kind: "all" }]);
-    expect(applyMonitoringMock).toHaveBeenCalledWith("u1", [{ kind: "all" }], expect.objectContaining({
+    expect(persistSelectionsMock).toHaveBeenCalledWith("u1", request, title.id, [{ kind: "all", mediaType: "movie" }]);
+    expect(applyMonitoringMock).toHaveBeenCalledWith("u1", [{ kind: "all", mediaType: "movie" }], expect.objectContaining({
       seasonIdByNumber: expect.any(Map),
       episodeIdByNumber: expect.any(Map),
     }));
-    expect(releaseSearchMock).toHaveBeenCalledWith("u1", request, { kind: "all" });
+    expect(releaseSearchMock).toHaveBeenCalledWith("u1", request, { kind: "all", mediaType: "movie" });
     expect(releaseQueueMock).toHaveBeenCalledWith("u1", request, title, releaseSearch, {
       seasonId: null,
       episodeId: null,
-      target: { kind: "all" },
+      target: { kind: "all", mediaType: "movie" },
     });
     expect(result).toMatchObject({
       title,

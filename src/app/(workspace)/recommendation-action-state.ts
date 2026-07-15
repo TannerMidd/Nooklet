@@ -34,8 +34,16 @@ export const initialRecommendationFeedbackActionState: RecommendationFeedbackAct
 };
 
 export type RecommendationLibraryActionState = {
-  status: "idle" | "error" | "success";
+  status: "idle" | "error" | "warning" | "success";
   message?: string;
+  outcome?:
+    | "catalog_added"
+    | "queued"
+    | "partial_queue"
+    | "no_match"
+    | "search_failed"
+    | "queue_failed"
+    | "failed";
   fieldErrors?: Partial<
     Record<
       | "rootFolderPath"

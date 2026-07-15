@@ -41,6 +41,7 @@ import {
   markDownloadRequestSubmitted,
   recordDownloadImportedFile,
   recordDownloadQueueItem,
+  recordSubmittedDownload,
   resetDownloadRequestMissingTickCount,
   updateDownloadQueueItemStatus,
   updateDownloadRequestStatus,
@@ -235,6 +236,50 @@ beforeEach(() => {
 });
 
 describe("download-repository", () => {
+  it("publishes a pending request and all downloader queue ids atomically", async () => {
+    const userId = await seedUser();
+    const serviceConnectionId = seedSabnzbdConnection(userId);
+    const client = await createDownloadClient({
+      userId,
+      serviceConnectionId,
+      clientType: "sabnzbd",
+      displayName: "SABnzbd",
+    });
+    const request = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Arrival",
+      clientId: client?.id,
+      status: "pending",
+    });
+
+    const submitted = await recordSubmittedDownload({
+      userId,
+      requestId: request.id,
+      clientId: client?.id,
+      externalQueueIds: ["nzo-1", "nzo-2"],
+      sizeBytes: 1234,
+      category: "movies",
+      statusMessage: "Queued in SABnzbd.",
+    });
+
+    expect(submitted.request.status).toBe("queued");
+    expect(submitted.request.externalJobId).toBe("nzo-1");
+    expect(submitted.queueItems.map((item) => item.externalQueueId).sort()).toEqual(["nzo-1", "nzo-2"]);
+    await expect(recordSubmittedDownload({
+      userId,
+      requestId: request.id,
+      clientId: client?.id,
+      externalQueueIds: ["nzo-3"],
+      statusMessage: "Queued again.",
+    })).rejects.toThrow(/no longer pending/);
+    expect(ensureDatabaseReady()
+      .select()
+      .from(downloadQueueItems)
+      .where(eq(downloadQueueItems.requestId, request.id))
+      .all()).toHaveLength(2);
+  });
+
   it("persists a download client, request, and queue item", async () => {
     const userId = await seedUser();
     const serviceConnectionId = seedSabnzbdConnection(userId);
@@ -396,6 +441,20 @@ describe("download-repository", () => {
       externalQueueId: "SABnzbd_nzo_4",
       status: "completed",
     });
+    const requeuingRequest = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Still reconciling",
+      clientId: client.id,
+      status: "requeuing",
+    });
+    await recordDownloadQueueItem({
+      requestId: requeuingRequest.id,
+      userId,
+      clientId: client.id,
+      externalQueueId: "SABnzbd_nzo_5",
+      status: "queued",
+    });
     await createDownloadRequest({
       userId: otherUserId,
       mediaType: "movie",
@@ -406,11 +465,12 @@ describe("download-repository", () => {
     const activeRequests = await listActiveDownloadRequestsForImport(userId, client.id);
     const activeUserIds = await listUsersWithActiveDownloadRequests();
 
-    expect(activeRequests).toHaveLength(2);
+    expect(activeRequests).toHaveLength(3);
     expect(activeRequests.map((entry) => entry.request.id)).toContain(request.id);
     expect(activeRequests.map((entry) => entry.queueItem.id)).toContain(queueItem.id);
     expect(activeRequests.map((entry) => entry.request.id)).toContain(failedImportRequest.id);
     expect(activeRequests.map((entry) => entry.queueItem.id)).toContain(failedImportQueueItem.id);
+    expect(activeRequests.map((entry) => entry.request.id)).toContain(requeuingRequest.id);
     expect(activeRequests.map((entry) => entry.request.id)).not.toContain(recentFailedImportRequest.id);
     expect(activeUserIds).toEqual(expect.arrayContaining([userId, otherUserId]));
   });

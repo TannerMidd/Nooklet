@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { useFormStatus } from "react-dom";
+import Link from "next/link";
+import { useActionState, useRef, useState } from "react";
 
 import {
   initialManagedUserMutationActionState,
@@ -12,9 +12,18 @@ import {
   submitUpdateManagedUserRoleAction,
   submitUpdateManagedUserStatusAction,
 } from "@/app/(workspace)/admin/actions";
+import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Drawer } from "@/components/ui/drawer";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { type UserRole } from "@/lib/database/schema";
+
+import {
+  passwordResetConfirmation,
+  roleChangeConfirmation,
+  statusChangeConfirmation,
+} from "./user-management-copy";
 
 type UserManagementRowProps = {
   currentAdminUserId: string;
@@ -26,132 +35,177 @@ type UserManagementRowProps = {
   };
 };
 
-function InlineSubmitButton({
-  label,
-  pendingLabel,
-  variant = "primary",
-  disabled = false,
-}: {
-  label: string;
-  pendingLabel: string;
-  variant?: "primary" | "secondary";
-  disabled?: boolean;
-}) {
-  const { pending } = useFormStatus();
+type ConfirmationKind = "role" | "status" | "password" | null;
 
+function ActionMessage({ state }: { state: { status: "idle" | "error" | "success"; message?: string } }) {
+  if (!state.message) return null;
   return (
-    <Button type="submit" variant={variant} disabled={disabled || pending}>
-      {pending ? pendingLabel : label}
-    </Button>
+    <p
+      role={state.status === "error" ? "alert" : "status"}
+      className={state.status === "error"
+        ? "rounded-lg border border-accent-wine/25 bg-accent-wine/10 px-3 py-2 text-sm text-accent-wine"
+        : "rounded-lg border border-accent-cool/20 bg-accent-cool/10 px-3 py-2 text-sm text-foreground"}
+    >
+      {state.message}
+    </p>
   );
 }
 
 export function UserManagementRow({ currentAdminUserId, user }: UserManagementRowProps) {
   const isCurrentAdmin = currentAdminUserId === user.id;
-  const [roleState, roleAction] = useActionState(
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [confirmationKind, setConfirmationKind] = useState<ConfirmationKind>(null);
+  const [selectedRole, setSelectedRole] = useState<UserRole>(user.role);
+  const roleFormRef = useRef<HTMLFormElement | null>(null);
+  const statusFormRef = useRef<HTMLFormElement | null>(null);
+  const passwordFormRef = useRef<HTMLFormElement | null>(null);
+  const [roleState, roleAction, rolePending] = useActionState(
     submitUpdateManagedUserRoleAction,
     initialManagedUserMutationActionState,
   );
-  const [statusState, statusAction] = useActionState(
+  const [statusState, statusAction, statusPending] = useActionState(
     submitUpdateManagedUserStatusAction,
     initialManagedUserMutationActionState,
   );
-  const [passwordState, passwordAction] = useActionState(
+  const [passwordState, passwordAction, passwordPending] = useActionState(
     submitResetManagedUserPasswordAction,
     initialResetManagedUserPasswordActionState,
   );
+  const pending = rolePending || statusPending || passwordPending;
+
+  if (isCurrentAdmin) {
+    return (
+      <Link
+        href="/settings/account"
+        className="inline-flex min-h-11 items-center rounded-lg border border-cream/10 bg-cream/[0.04] px-4 py-2 text-sm font-semibold text-foreground hover:border-accent/35 hover:bg-cream/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      >
+        Manage my account
+      </Link>
+    );
+  }
+
+  const roleConfirmation = roleChangeConfirmation(user.displayName, user.role, selectedRole);
+  const confirmation = confirmationKind === "role"
+    ? roleConfirmation
+    : confirmationKind === "status"
+      ? statusChangeConfirmation(user.displayName, !user.isDisabled)
+      : confirmationKind === "password"
+        ? passwordResetConfirmation(user.displayName)
+        : null;
+
+  function confirmAction() {
+    if (confirmationKind === "role") roleFormRef.current?.requestSubmit();
+    if (confirmationKind === "status") statusFormRef.current?.requestSubmit();
+    if (confirmationKind === "password") passwordFormRef.current?.requestSubmit();
+    setConfirmationKind(null);
+  }
 
   return (
-    <div className="min-w-[320px] space-y-4">
-      <form action={roleAction} className="space-y-2 rounded-lg border border-cream/[0.08] bg-panel px-3 py-3">
-        <input type="hidden" name="userId" value={user.id} />
-        <label className="space-y-1.5">
-          <span className="text-xs font-medium text-muted">
-            Role
-          </span>
-          <select
-            name="role"
-            defaultValue={user.role}
-            disabled={isCurrentAdmin}
-            className="min-h-9 w-full rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2 text-sm text-foreground outline-none transition focus:border-accent/50 focus:ring-1 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
-          </select>
-        </label>
-        <InlineSubmitButton
-          label="Save role"
-          pendingLabel="Saving role..."
-          disabled={isCurrentAdmin}
-        />
-        {roleState.message ? (
-          <p className={roleState.status === "success" ? "text-sm text-muted" : "text-sm text-accent-wine"}>
-            {roleState.message}
-          </p>
-        ) : null}
-      </form>
+    <>
+      <Button type="button" variant="secondary" onClick={() => setDrawerOpen(true)} aria-haspopup="dialog">
+        Manage user
+      </Button>
 
-      <form action={statusAction} className="space-y-2 rounded-lg border border-cream/[0.08] bg-panel px-3 py-3">
-        <input type="hidden" name="userId" value={user.id} />
-        <input type="hidden" name="isDisabled" value={user.isDisabled ? "false" : "true"} />
-        <div className="text-xs font-medium text-muted">
-          Account status
-        </div>
-        <InlineSubmitButton
-          label={user.isDisabled ? "Re-enable account" : "Disable account"}
-          pendingLabel={user.isDisabled ? "Re-enabling..." : "Disabling..."}
-          variant="secondary"
-          disabled={isCurrentAdmin}
-        />
-        {statusState.message ? (
-          <p className={statusState.status === "success" ? "text-sm text-muted" : "text-sm text-accent-wine"}>
-            {statusState.message}
-          </p>
-        ) : null}
-      </form>
+      <Drawer
+        open={drawerOpen}
+        onClose={() => { if (!pending) setDrawerOpen(false); }}
+        title={`Manage ${user.displayName}`}
+        className="w-[min(94vw,32rem)]"
+      >
+        <div className="space-y-6 p-5">
+          <div className="rounded-xl border border-cream/10 bg-cream/[0.03] p-4 text-sm leading-6">
+            <p className="font-semibold text-foreground">Current access</p>
+            <p className="mt-1 text-muted">
+              {user.role === "admin"
+                ? "Administrator · can manage shared instance configuration and users."
+                : "User · can browse, request, and manage personal preferences."}
+            </p>
+            <p className="mt-1 text-muted">Account is {user.isDisabled ? "disabled" : "active"}.</p>
+          </div>
 
-      <form action={passwordAction} className="space-y-2 rounded-lg border border-cream/[0.08] bg-panel px-3 py-3">
-        <input type="hidden" name="userId" value={user.id} />
-        <div className="text-xs font-medium text-muted">
-          Reset password
+          <form ref={roleFormRef} action={roleAction} className="space-y-3 rounded-xl border border-cream/10 p-4">
+            <input type="hidden" name="userId" value={user.id} />
+            <FormField label="Role" description="Administrators can change all shared server configuration.">
+              {(controlProps) => (
+                <select
+                  {...controlProps}
+                  name="role"
+                  value={selectedRole}
+                  onChange={(event) => setSelectedRole(event.target.value as UserRole)}
+                  disabled={rolePending}
+                  className="min-h-11 w-full rounded-lg border border-control bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
+                >
+                  <option value="user">User</option>
+                  <option value="admin">Administrator</option>
+                </select>
+              )}
+            </FormField>
+            <Button
+              type="button"
+              disabled={rolePending || !roleConfirmation}
+              onClick={() => setConfirmationKind("role")}
+            >
+              {rolePending ? "Changing role…" : "Review role change"}
+            </Button>
+            <ActionMessage state={roleState} />
+          </form>
+
+          <form ref={statusFormRef} action={statusAction} className="space-y-3 rounded-xl border border-cream/10 p-4">
+            <input type="hidden" name="userId" value={user.id} />
+            <input type="hidden" name="isDisabled" value={user.isDisabled ? "false" : "true"} />
+            <div>
+              <p className="font-semibold text-foreground">Account access</p>
+              <p className="mt-1 text-sm leading-6 text-muted">
+                {user.isDisabled
+                  ? "Re-enabling allows this account to sign in again."
+                  : "Disabling blocks sign-in without deleting the account or its data."}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant={user.isDisabled ? "secondary" : "danger"}
+              disabled={statusPending}
+              onClick={() => setConfirmationKind("status")}
+            >
+              {statusPending
+                ? user.isDisabled ? "Re-enabling…" : "Disabling…"
+                : user.isDisabled ? "Re-enable account" : "Disable account"}
+            </Button>
+            <ActionMessage state={statusState} />
+          </form>
+
+          <form ref={passwordFormRef} action={passwordAction} className="space-y-3 rounded-xl border border-cream/10 p-4">
+            <input type="hidden" name="userId" value={user.id} />
+            <div>
+              <p className="font-semibold text-foreground">Temporary password</p>
+              <p className="mt-1 text-sm leading-6 text-muted">Resetting takes effect immediately and signs older sessions out.</p>
+            </div>
+            <FormField label="New password" required error={passwordState.fieldErrors?.newPassword} description="At least 12 characters with uppercase, lowercase, and a number.">
+              {(controlProps) => <Input {...controlProps} name="newPassword" type="password" autoComplete="new-password" minLength={12} disabled={passwordPending} />}
+            </FormField>
+            <FormField label="Confirm password" required error={passwordState.fieldErrors?.confirmPassword}>
+              {(controlProps) => <Input {...controlProps} name="confirmPassword" type="password" autoComplete="new-password" minLength={12} disabled={passwordPending} />}
+            </FormField>
+            <Button type="button" variant="secondary" disabled={passwordPending} onClick={() => setConfirmationKind("password")}>
+              {passwordPending ? "Resetting password…" : "Review password reset"}
+            </Button>
+            <ActionMessage state={passwordState} />
+          </form>
         </div>
-        <Input
-          name="newPassword"
-          type="password"
-          placeholder="New temporary password"
-          disabled={isCurrentAdmin}
-          aria-invalid={Boolean(passwordState.fieldErrors?.newPassword)}
+      </Drawer>
+
+      {confirmation ? (
+        <AlertDialog
+          open
+          title={confirmation.title}
+          description={confirmation.description}
+          confirmLabel={confirmation.confirmLabel}
+          tone={confirmation.tone}
+          pending={pending}
+          onClose={() => setConfirmationKind(null)}
+          onConfirm={confirmAction}
         />
-        {passwordState.fieldErrors?.newPassword ? (
-          <p className="text-sm text-accent-wine">{passwordState.fieldErrors.newPassword}</p>
-        ) : null}
-        <Input
-          name="confirmPassword"
-          type="password"
-          placeholder="Confirm password"
-          disabled={isCurrentAdmin}
-          aria-invalid={Boolean(passwordState.fieldErrors?.confirmPassword)}
-        />
-        {passwordState.fieldErrors?.confirmPassword ? (
-          <p className="text-sm text-accent-wine">{passwordState.fieldErrors.confirmPassword}</p>
-        ) : null}
-        <InlineSubmitButton
-          label="Reset password"
-          pendingLabel="Resetting..."
-          variant="secondary"
-          disabled={isCurrentAdmin}
-        />
-        {passwordState.message ? (
-          <p className={passwordState.status === "success" ? "text-sm text-muted" : "text-sm text-accent-wine"}>
-            {passwordState.message}
-          </p>
-        ) : null}
-        {isCurrentAdmin ? (
-          <p className="text-sm text-muted">
-            Manage your own password from the account settings route.
-          </p>
-        ) : null}
-      </form>
-    </div>
+      ) : null}
+    </>
   );
 }

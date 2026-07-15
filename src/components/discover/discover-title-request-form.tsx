@@ -1,10 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Check, Plus } from "lucide-react";
 
-import { initialDiscoverTitleRequestActionState } from "@/app/(workspace)/discover/action-state";
+import {
+  initialDiscoverTitleRequestActionState,
+  type DiscoverTitleRequestActionState,
+} from "@/app/(workspace)/discover/action-state";
 import { submitDiscoverTitleRequestAction } from "@/app/(workspace)/discover/actions";
 import {
   TitleRequestControls,
@@ -16,15 +19,31 @@ import { Spinner } from "@/components/ui/spinner";
 import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
 import { type TmdbTitleDetails } from "@/modules/service-connections/types/tmdb-title";
 
-function AddToNookletButton({ isSuccess }: { isSuccess: boolean }) {
+function AddToNookletButton({
+  state,
+  downloadNow,
+}: {
+  state: DiscoverTitleRequestActionState;
+  downloadNow: boolean;
+}) {
   const { pending } = useFormStatus();
-  const Icon = isSuccess ? Check : Plus;
+  const isComplete = state.status === "success" || state.status === "warning";
+  const Icon = isComplete ? Check : Plus;
+  const label = state.outcome === "queued"
+    ? "Download queued"
+    : state.outcome === "catalog_added"
+      ? "Added to catalog"
+      : isComplete
+        ? "Added; download needs attention"
+        : downloadNow
+          ? "Request & download"
+          : "Add to library only";
 
   return (
     <div className="space-y-2">
-      <Button type="submit" className="w-full sm:w-auto" disabled={isSuccess || pending}>
+      <Button type="submit" className="w-full sm:w-auto" disabled={isComplete || pending}>
         {pending ? <Spinner /> : <Icon aria-hidden="true" className="h-4 w-4" />}
-        <span>{pending ? "Adding..." : isSuccess ? "Added to Nooklet" : "Add to Nooklet"}</span>
+        <span>{pending ? "Requesting..." : label}</span>
       </Button>
       {pending ? (
         <p className="text-xs text-muted" role="status">
@@ -54,7 +73,7 @@ export function DiscoverTitleRequestForm({
     submitDiscoverTitleRequestAction,
     initialDiscoverTitleRequestActionState,
   );
-  const isSuccess = state.status === "success";
+  const [downloadNow, setDownloadNow] = useState(true);
 
   return (
     <div className="space-y-3">
@@ -76,17 +95,19 @@ export function DiscoverTitleRequestForm({
           libraries={libraries}
           qualityProfiles={qualityProfiles}
           pathOptions={pathOptions}
+          onDownloadNowChange={setDownloadNow}
         />
-        <AddToNookletButton isSuccess={isSuccess} />
+        <AddToNookletButton state={state} downloadNow={downloadNow} />
       </form>
 
       {state.message ? (
         <p
-          className={
-            state.status === "success"
-              ? "rounded-lg border border-accent/20 bg-accent/10 px-3 py-2 text-sm text-foreground"
-              : "rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3 py-2 text-sm text-accent-wine"
-          }
+          role={state.status === "error" ? "alert" : "status"}
+          className={state.status === "success"
+            ? "rounded-lg border border-accent-cool/30 bg-accent-cool/10 px-3 py-2 text-sm text-foreground"
+            : state.status === "warning"
+              ? "rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground"
+              : "rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3 py-2 text-sm text-accent-wine"}
         >
           {state.message}
         </p>

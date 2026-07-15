@@ -39,8 +39,8 @@ export const serviceConnectionDefinitions = [
     serviceType: "usenet-server",
     displayName: "Usenet server",
     description:
-      "Your news server (NNTP) — the built-in downloader fetches releases directly from it. Use nntps://host:port (TLS) or nntp://host:port; add ?connections=N to size the pool.",
-    secretLabel: "Username::Password",
+      "The built-in downloader fetches releases directly from your news provider.",
+    secretLabel: "Server credentials",
     defaultBaseUrl: "nntps://news.example.com:563",
   },
   {
@@ -72,7 +72,7 @@ export const serviceConnectionDefinitions = [
     displayName: "Trakt",
     description:
       "Import watched TV and movies from Trakt using a client id plus OAuth access token.",
-    secretLabel: "Client ID::OAuth token",
+    secretLabel: "OAuth credentials",
     defaultBaseUrl: "https://api.trakt.tv",
   },
 ] as const satisfies readonly ServiceConnectionDefinition[];

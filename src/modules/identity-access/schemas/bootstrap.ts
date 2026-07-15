@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const bootstrapInputSchema = z
   .object({
+    bootstrapToken: z.string().min(1, "Enter the one-time setup token.").max(512),
     displayName: z.string().trim().min(2, "Enter a display name.").max(80),
     email: z.string().trim().email("Enter a valid email address.").max(320),
     password: z
@@ -11,7 +12,7 @@ export const bootstrapInputSchema = z
       .regex(/[a-z]/, "Include a lowercase letter.")
       .regex(/[A-Z]/, "Include an uppercase letter.")
       .regex(/[0-9]/, "Include a number."),
-    confirmPassword: z.string().min(1, "Confirm the password."),
+    confirmPassword: z.string().min(1, "Confirm the password.").max(128),
   })
   .refine((value) => value.password === value.confirmPassword, {
     path: ["confirmPassword"],

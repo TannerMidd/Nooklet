@@ -100,4 +100,18 @@ describe("normalizeLibraryFiles", () => {
       qualityLabel: "1080P",
     }));
   });
+
+  it("preserves Unicode letters in stable title identities", () => {
+    const movieSource = source("movie", path.join("F:\\", "Movies"));
+    const result = normalizeLibraryFiles(fetched(
+      movieSource,
+      "千と千尋の神隠し (2001)/千と千尋の神隠し.2001.1080p.mkv",
+    ));
+
+    expect(result.files[0]).toEqual(expect.objectContaining({
+      title: "千と千尋の神隠し",
+      sortTitle: "千と千尋の神隠し",
+      normalizedKey: "千と千尋の神隠し::2001",
+    }));
+  });
 });

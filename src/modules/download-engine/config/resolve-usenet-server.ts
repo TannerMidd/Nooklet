@@ -1,4 +1,5 @@
 import { decryptSecret } from "@/lib/security/secret-box";
+import { assertOutboundHostAllowed } from "@/lib/security/safe-fetch";
 import { type EngineServerConfig } from "@/modules/download-engine/scheduler/download-nzb";
 import { findServiceConnectionByType } from "@/modules/service-connections/queries/find-service-connection-by-type";
 
@@ -46,6 +47,12 @@ export function parseUsenetServerUrl(rawUrl: string): {
     throw new UsenetServerConfigError("The news server URL is missing a host name.");
   }
 
+  if (url.username || url.password || url.hash) {
+    throw new UsenetServerConfigError(
+      "Put credentials in the credential field and remove URL credentials or fragments.",
+    );
+  }
+
   const tls = url.protocol === "nntps:";
   const port = url.port ? Number.parseInt(url.port, 10) : tls ? 563 : 119;
 
@@ -67,6 +74,10 @@ export function parseUsenetCredentials(secret: string): {
   password: string | null;
 } {
   const trimmed = secret.trim();
+
+  if (/[\r\n]/.test(secret)) {
+    throw new UsenetServerConfigError("Usenet credentials must be a single line.");
+  }
 
   if (!trimmed) {
     return { username: null, password: null };
@@ -108,6 +119,7 @@ export async function resolveUsenetServer(userId: string): Promise<ResolvedUsene
   }
 
   const parsedUrl = parseUsenetServerUrl(connection.connection.baseUrl);
+  const resolvedAddresses = await assertOutboundHostAllowed(parsedUrl.host);
   const credentials = connection.secret
     ? parseUsenetCredentials(decryptSecret(connection.secret.encryptedValue))
     : { username: null, password: null };
@@ -120,6 +132,7 @@ export async function resolveUsenetServer(userId: string): Promise<ResolvedUsene
       username: credentials.username,
       password: credentials.password,
       timeoutMs: 45_000,
+      resolvedAddresses,
     },
   };
 }

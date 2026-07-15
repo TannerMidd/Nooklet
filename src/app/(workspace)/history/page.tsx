@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 
 import { auth } from "@/auth";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +11,13 @@ import { PageHeader } from "@/components/ui/page-header";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import { listRecommendationHistory } from "@/modules/recommendations/queries/list-recommendation-history";
 import { getRecommendationTitleOverview } from "@/modules/recommendations/queries/get-recommendation-title-overview";
+import { listLibraryOverview } from "@/modules/media-library/queries/list-library-overview";
+import { listMediaLibraryPathOptions } from "@/modules/media-library/queries/list-media-library-path-options";
+import { listMediaQualityProfiles } from "@/modules/media-library/queries/list-media-quality-profiles";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = { title: "Past picks" };
 
 type HistoryPageProps = {
   searchParams?: Promise<{
@@ -61,7 +67,17 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
     return null;
   }
 
-  const preferences = await getUserPreferences(session.user.id);
+  const [preferences, libraryOverview, pathOptions] = await Promise.all([
+    getUserPreferences(session.user.id),
+    listLibraryOverview(session.user.id),
+    listMediaLibraryPathOptions(session.user.id),
+  ]);
+  const qualityProfiles = listMediaQualityProfiles();
+  const libraryOptions = libraryOverview.libraries.map((library) => ({
+    id: library.id,
+    name: library.name,
+    mediaType: library.mediaType,
+  }));
   const resolvedSearchParams = await searchParams;
   const currentView =
     resolvedSearchParams?.view === "tv" || resolvedSearchParams?.view === "movie"
@@ -96,13 +112,17 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
   ];
 
   const pageLinkClass =
-    "relative inline-flex h-8 items-center justify-center rounded-full border border-cream/[0.14] px-3.5 text-xs font-semibold text-foreground transition hover:bg-cream/[0.06]";
+    "relative inline-flex min-h-11 items-center justify-center rounded-full border border-control px-4 text-xs font-semibold text-foreground transition hover:bg-cream/[0.06]";
   const pageDisabledClass =
-    "inline-flex h-8 items-center justify-center rounded-full border border-cream/10 px-3.5 text-xs font-semibold text-muted opacity-50";
+    "inline-flex min-h-10 items-center justify-center rounded-full border border-cream/10 px-4 text-xs font-semibold text-muted opacity-50";
 
   return (
     <div className="nk-enter space-y-7">
-      <PageHeader eyebrow="Every past pick" title="History" />
+      <PageHeader
+        eyebrow="Recommendation history"
+        title="Past picks"
+        description="Review what Nooklet suggested, adjust feedback, or open a title to request it."
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="mr-2 flex rounded-lg bg-cream/[0.05] p-[3px]">
@@ -112,8 +132,8 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
               href={item.href}
               className={
                 item.active
-                  ? "relative inline-flex h-[34px] items-center rounded-md bg-accent px-4 text-[13px] font-semibold text-accent-foreground"
-                  : "relative inline-flex h-[34px] items-center rounded-md px-4 text-[13px] font-semibold text-muted transition hover:text-foreground"
+                  ? "relative inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-[13px] font-semibold text-accent-foreground"
+                  : "relative inline-flex min-h-11 items-center rounded-md px-4 text-[13px] font-semibold text-muted transition hover:text-foreground"
               }
             >
               <LinkPendingOverlay />
@@ -124,14 +144,14 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
         {activeFilters.map((filter) => (
           <span
             key={filter}
-            className="inline-flex h-7 items-center rounded-full border border-cream/10 px-3 text-xs font-medium text-muted"
+            className="inline-flex min-h-9 items-center rounded-full border border-cream/10 px-3 text-xs font-medium text-muted"
           >
             {filter}
           </span>
         ))}
         <Link
           href="/settings/preferences"
-          className="relative inline-flex h-7 items-center rounded-full px-2 text-xs font-semibold text-accent transition hover:brightness-110"
+          className="relative inline-flex min-h-11 items-center rounded-full px-3 text-xs font-semibold text-accent transition hover:brightness-110"
         >
           <LinkPendingOverlay />
           Edit filters
@@ -206,6 +226,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                   isHidden={item.isHidden}
                   returnTo={returnTo}
                   providerMetadata={item.providerMetadata}
+                  detailsHref={appendDetailsParam(returnTo, item.itemId)}
                 />
               </li>
             ))}
@@ -250,6 +271,9 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
           overview={selectedOverview}
           closeHref={returnTo}
           actionReturnHref={appendDetailsParam(returnTo, selectedOverview.item.itemId)}
+          libraries={libraryOptions}
+          qualityProfiles={qualityProfiles}
+          pathOptions={pathOptions}
         />
       ) : null}
     </div>

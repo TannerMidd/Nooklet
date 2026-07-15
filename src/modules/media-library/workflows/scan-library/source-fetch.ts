@@ -1,6 +1,7 @@
 import path from "node:path";
 import { readdir, stat } from "node:fs/promises";
 
+import { resolveApprovedMediaDirectory } from "@/lib/security/filesystem-policy";
 import { type ActiveMediaLibraryPathRecord } from "@/modules/media-library/repositories/media-library-repository";
 
 import { type ValidatedScanSources } from "./source-validation";
@@ -29,16 +30,10 @@ export type FetchedLibrarySources = {
 };
 
 async function walkMediaFiles(rootPath: string, currentPath: string): Promise<FetchedFileWithoutSource[]> {
-  let entries;
-  try {
-    entries = await readdir(currentPath, { withFileTypes: true });
-  } catch (error) {
-    if (currentPath === rootPath) {
-      throw error;
-    }
-
-    return [];
-  }
+  // A scan is authoritative only when every subtree was read successfully. If
+  // an unreadable directory were treated as empty, the merge phase could
+  // incorrectly delete every previously recorded file below that directory.
+  const entries = await readdir(currentPath, { withFileTypes: true });
   const files: FetchedFileWithoutSource[] = [];
 
   for (const entry of entries) {
@@ -53,12 +48,10 @@ async function walkMediaFiles(rootPath: string, currentPath: string): Promise<Fe
       continue;
     }
 
-    let fileStat;
-    try {
-      fileStat = await stat(entryPath);
-    } catch {
-      continue;
-    }
+    // Likewise, a media file whose metadata cannot be read is an uncertain
+    // observation rather than proof that the file disappeared. Fail the source
+    // so its prior inventory remains untouched.
+    const fileStat = await stat(entryPath);
 
     files.push({
       filePath: entryPath,
@@ -77,14 +70,15 @@ export async function fetchLibrarySourceFiles(validated: ValidatedScanSources): 
 
   for (const source of validated.sources) {
     try {
-      const rootStat = await stat(source.path.path);
+      const approvedRootPath = resolveApprovedMediaDirectory(source.path.path);
+      const rootStat = await stat(approvedRootPath);
 
       if (!rootStat.isDirectory()) {
         failedPaths.push({ source, errorMessage: "Library path is not a folder." });
         continue;
       }
 
-      const sourceFiles = await walkMediaFiles(source.path.path, source.path.path);
+      const sourceFiles = await walkMediaFiles(approvedRootPath, approvedRootPath);
       files.push(...sourceFiles.map((file) => ({ ...file, source })));
     } catch (error) {
       failedPaths.push({

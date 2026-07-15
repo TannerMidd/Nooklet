@@ -2,18 +2,22 @@ import {
   claimDueJobs,
   completeJobRun,
   failJobRun,
+  heartbeatJobRun,
   type StoredJob,
 } from "@/modules/jobs/repositories/job-repository";
+import { type JobType } from "@/lib/database/schema";
 import { listUsersWithActiveDownloadRequestsForImport } from "@/modules/downloads/queries/list-users-with-active-download-requests";
 import { listUsersWithUnimportedFinishedEngineDownloads } from "@/modules/download-engine/queue/engine-repository";
 import { ensureEngineRunnerStarted } from "@/modules/download-engine/runtime/engine-runner";
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
+import { ImportCompletedDownloadsWorkflowError } from "@/modules/downloads/workflows/import-completed-downloads/errors";
 import { importCompletedEngineDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-engine-downloads";
 import { reconcileDuplicateSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-duplicate-queue-items";
 import { reconcileMissingSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-missing-queue-items";
 import { refreshTvMetadataWorkflow } from "@/modules/media-library/workflows/refresh-tv-metadata";
 import { scanMediaLibraryWorkflow } from "@/modules/media-library/workflows/scan-library";
 import { searchMissingMonitoredContentWorkflow } from "@/modules/media-library/workflows/search-missing-monitored";
+import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
 import { parsePlexWatchHistorySourceMetadata } from "@/modules/watch-history/plex-watch-history-source-metadata";
 import { executeQueuedRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
 import { parseWatchHistorySourceMetadataJson } from "@/modules/watch-history/source-metadata";
@@ -26,8 +30,12 @@ import { syncTraktWatchHistory } from "@/modules/watch-history/workflows/sync-tr
 
 type WorkerState = {
   started?: boolean;
-  running?: boolean;
+  runningMaintenance?: boolean;
+  activeJobTypes?: Set<JobType>;
   timer?: NodeJS.Timeout;
+  lastTickAt?: Date;
+  lastSuccessAt?: Date;
+  lastError?: string | null;
 };
 
 const workerGlobals = globalThis as typeof globalThis & {
@@ -36,8 +44,38 @@ const workerGlobals = globalThis as typeof globalThis & {
 
 const sharedWorkerState = workerGlobals.__nookletWorker ?? {};
 workerGlobals.__nookletWorker = sharedWorkerState;
+sharedWorkerState.activeJobTypes ??= new Set<JobType>();
 
 const workerIntervalMs = 15_000;
+const jobHeartbeatIntervalMs = 60_000;
+
+export type BackgroundWorkerHealth = {
+  started: boolean;
+  runningMaintenance: boolean;
+  lastTickAt: Date | null;
+  lastSuccessAt: Date | null;
+  lastError: string | null;
+};
+
+export function getBackgroundWorkerHealth(): BackgroundWorkerHealth {
+  return {
+    started: sharedWorkerState.started === true,
+    runningMaintenance: sharedWorkerState.runningMaintenance === true,
+    lastTickAt: sharedWorkerState.lastTickAt ?? null,
+    lastSuccessAt: sharedWorkerState.lastSuccessAt ?? null,
+    lastError: sharedWorkerState.lastError ?? null,
+  };
+}
+
+function workerErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Background worker failed unexpectedly.";
+}
+
+function recordWorkerFailure(error: unknown, context: string) {
+  const message = workerErrorMessage(error);
+  sharedWorkerState.lastError = `${context}: ${message}`;
+  console.error(`[background-worker] ${context}:`, error);
+}
 
 async function runPlexJob(job: StoredJob) {
   const source = await findWatchHistorySourceByType(job.userId, "plex");
@@ -203,14 +241,19 @@ async function runCompletedDownloadImportPass() {
   const activeUserIds = await listUsersWithActiveDownloadRequestsForImport();
   const engineUserIds = await listUsersWithUnimportedFinishedEngineDownloads();
   const userIds = Array.from(new Set([...activeUserIds, ...engineUserIds]));
+  const failures: string[] = [];
 
   for (const userId of userIds) {
     // The built-in engine import never depends on SABnzbd being reachable,
     // so it runs first in its own failure domain.
     try {
       await importCompletedEngineDownloadsWorkflow(userId);
-    } catch {
-      // Engine imports retry on the next worker tick.
+    } catch (error) {
+      // Engine imports retry on the next worker tick, but the failure remains
+      // visible to operators instead of disappearing silently.
+      const message = workerErrorMessage(error);
+      failures.push(`engine import for ${userId}: ${message}`);
+      console.error(`[background-worker] engine import failed for user ${userId}:`, error);
     }
 
     try {
@@ -228,44 +271,129 @@ async function runCompletedDownloadImportPass() {
       await importCompletedDownloadsWorkflow(userId);
       await reconcileDuplicateSabnzbdQueueItemsWorkflow(userId);
       await reconcileMissingSabnzbdQueueItemsWorkflow(userId);
-    } catch {
+    } catch (error) {
+      // SABnzbd is an optional legacy integration. Built-in-engine requests
+      // also appear in the active-request set, so an absent SAB connection is
+      // a normal no-op rather than a failed maintenance pass.
+      if (
+        error instanceof ImportCompletedDownloadsWorkflowError
+        && error.code === "sabnzbd_not_connected"
+      ) {
+        continue;
+      }
+
       // Download imports retry on the next worker tick while the request remains active.
+      const message = workerErrorMessage(error);
+      failures.push(`SAB import/reconciliation for ${userId}: ${message}`);
+      console.error(`[background-worker] SAB import/reconciliation failed for user ${userId}:`, error);
     }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(failures.join("; "));
   }
 }
 
-export async function runDueJobs() {
-  if (sharedWorkerState.running) {
+async function runMaintenancePass() {
+  if (sharedWorkerState.runningMaintenance) {
     return;
   }
 
-  sharedWorkerState.running = true;
+  sharedWorkerState.runningMaintenance = true;
 
   try {
-    // Kick the built-in download engine's drain loop when queued work exists.
     await ensureEngineRunnerStarted();
     await runCompletedDownloadImportPass();
+  } finally {
+    sharedWorkerState.runningMaintenance = false;
+  }
+}
 
-    const dueJobs = [
-      ...(await claimDueJobs("watch-history-sync", new Date(), 4)),
-      ...(await claimDueJobs("media-library-scan", new Date(), 2)),
-      ...(await claimDueJobs("recommendation-run", new Date(), 2)),
-      ...(await claimDueJobs("missing-content-search", new Date(), 2)),
-      ...(await claimDueJobs("metadata-refresh", new Date(), 2)),
-    ];
+async function runJobLane(jobType: JobType) {
+  const activeJobTypes = sharedWorkerState.activeJobTypes!;
+  if (activeJobTypes.has(jobType)) {
+    return;
+  }
 
-    for (const job of dueJobs) {
-      try {
-        await executeJob(job);
-        await completeJobRun(job.id, job.scheduleMinutes);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Background job failed unexpectedly.";
-        await failJobRun(job.id, job.scheduleMinutes, message);
+  activeJobTypes.add(jobType);
+
+  try {
+    // Claim one job at a time per workload class. This avoids pre-claiming a
+    // batch that would be stranded if the process exits before reaching it,
+    // while still allowing unrelated classes to make progress concurrently.
+    const [job] = await claimDueJobs(jobType, new Date(), 1);
+    if (!job) {
+      return;
+    }
+
+    const heartbeat = setInterval(() => {
+      void heartbeatJobRun(job.id, job.runToken).catch((error) => {
+        recordWorkerFailure(error, `lease heartbeat failed for job ${job.id}`);
+      });
+    }, jobHeartbeatIntervalMs);
+    heartbeat.unref?.();
+
+    try {
+      await executeJob(job);
+      await completeJobRun(job.id, job.runToken);
+    } catch (error) {
+      const message = workerErrorMessage(error);
+      await failJobRun(job.id, job.runToken, message);
+
+      if (job.jobType === "watch-history-sync") {
+        await safeDispatchNotificationWorkflow({
+          userId: job.userId,
+          payload: {
+            eventType: "watch_history_sync_failed",
+            sourceLabel: job.targetKey,
+            message,
+          },
+        });
       }
+
+      throw error;
+    } finally {
+      clearInterval(heartbeat);
     }
   } finally {
-    sharedWorkerState.running = false;
+    activeJobTypes.delete(jobType);
   }
+}
+
+const scheduledJobTypes: JobType[] = [
+  "watch-history-sync",
+  "media-library-scan",
+  "recommendation-run",
+  "missing-content-search",
+  "metadata-refresh",
+];
+
+export async function runDueJobs() {
+  sharedWorkerState.lastTickAt = new Date();
+
+  const results = await Promise.allSettled([
+    runMaintenancePass(),
+    ...scheduledJobTypes.map((jobType) => runJobLane(jobType)),
+  ]);
+  const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+
+  if (failures.length === 0) {
+    sharedWorkerState.lastSuccessAt = new Date();
+    sharedWorkerState.lastError = null;
+    return;
+  }
+
+  for (const failure of failures) {
+    recordWorkerFailure(failure.reason, "worker pass failed");
+  }
+}
+
+function runDueJobsSafely() {
+  void runDueJobs().catch((error) => {
+    // Every timer-triggered promise is observed so a transient database or
+    // integration failure cannot become a process-level unhandled rejection.
+    recordWorkerFailure(error, "worker pass failed");
+  });
 }
 
 export function startBackgroundWorker() {
@@ -275,12 +403,12 @@ export function startBackgroundWorker() {
 
   sharedWorkerState.started = true;
   sharedWorkerState.timer = setInterval(() => {
-    void runDueJobs();
+    runDueJobsSafely();
   }, workerIntervalMs);
 
   if (typeof sharedWorkerState.timer.unref === "function") {
     sharedWorkerState.timer.unref();
   }
 
-  void runDueJobs();
+  runDueJobsSafely();
 }

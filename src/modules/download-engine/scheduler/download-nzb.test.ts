@@ -30,7 +30,7 @@ function nzbXml(files: Array<{ subject: string; segmentIds: string[] }>) {
   const fileEntries = files
     .map((file) => {
       const segments = file.segmentIds
-        .map((id, index) => `<segment bytes="1000" number="${index + 1}">${id}</segment>`)
+        .map((id, index) => `<segment bytes="10000000" number="${index + 1}">${id}</segment>`)
         .join("");
       const subject = file.subject.replaceAll('"', "&quot;");
 
@@ -76,6 +76,7 @@ describe("downloadNzb", () => {
         password: "pass",
         connections: 3,
         timeoutMs: 3_000,
+        resolvedAddresses: [{ address: "127.0.0.1", family: 4 }],
       },
       workDir,
       onProgress: (progress) => progressUpdates.push(progress.completedSegments),
@@ -122,7 +123,7 @@ describe("downloadNzb", () => {
 
     const result = await downloadNzb({
       nzb,
-      server: { host: "127.0.0.1", port: server.port, tls: false, connections: 2, timeoutMs: 3_000 },
+      server: { host: "127.0.0.1", port: server.port, tls: false, connections: 2, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
       workDir,
     });
 
@@ -161,7 +162,7 @@ describe("downloadNzb", () => {
     let fetched = 0;
     const result = await downloadNzb({
       nzb,
-      server: { host: "127.0.0.1", port: server.port, tls: false, connections: 1, timeoutMs: 3_000 },
+      server: { host: "127.0.0.1", port: server.port, tls: false, connections: 1, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
       workDir,
       onProgress: () => {
         fetched += 1;
@@ -172,5 +173,75 @@ describe("downloadNzb", () => {
     expect(result.aborted).toBe(true);
     expect(result.ok).toBe(false);
     expect(result.completedSegments).toBeLessThan(24);
+  });
+
+  it("keeps distinct NZB files separate when yEnc names sanitize to the same path", async () => {
+    const first = buildDeterministicPayload(1000, 1);
+    const second = buildDeterministicPayload(1000, 2);
+    server = await startFakeNntpServer({
+      articles: new Map([
+        ["first@test", buildSinglePartArticle(first, "same:name.mkv")],
+        ["second@test", buildSinglePartArticle(second, "same?name.mkv")],
+      ]),
+    });
+    workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+    const result = await downloadNzb({
+      nzb: parseNzb(nzbXml([
+        { subject: '"first.mkv"', segmentIds: ["first@test"] },
+        { subject: '"second.mkv"', segmentIds: ["second@test"] },
+      ])),
+      server: { host: "127.0.0.1", port: server.port, tls: false, connections: 2, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      workDir,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(new Set(result.files.map((file) => file.fileName)).size).toBe(2);
+    const assembled = await Promise.all(result.files.map((file) => readFile(file.filePath!)));
+    expect(assembled.some((value) => value.equals(first))).toBe(true);
+    expect(assembled.some((value) => value.equals(second))).toBe(true);
+  });
+
+  it("rejects multipart metadata that proves the NZB omitted a part", async () => {
+    const payload = buildDeterministicPayload(3000, 4);
+    const articles = buildMultiPartArticles(payload, "partial.mkv", 3);
+    server = await startFakeNntpServer({
+      articles: new Map([
+        ["part-1@test", articles[0]],
+        ["part-3@test", articles[2]],
+      ]),
+    });
+    workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+    const result = await downloadNzb({
+      nzb: parseNzb(nzbXml([{ subject: '"partial.mkv"', segmentIds: ["part-1@test", "part-3@test"] }])),
+      server: { host: "127.0.0.1", port: server.port, tls: false, connections: 2, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      workDir,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.files[0]?.ok).toBe(false);
+    expect(result.failedSegments).toBe(2);
+  });
+
+  it("rejects a yEnc file larger than the NZB-declared file size", async () => {
+    const payload = buildDeterministicPayload(2_000, 9);
+    server = await startFakeNntpServer({
+      articles: new Map([["oversized@test", buildSinglePartArticle(payload, "oversized.mkv")]]),
+    });
+    workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+    const nzb = parseNzb(
+      `<nzb><file subject="oversized"><segments><segment bytes="1000" number="1">oversized@test</segment></segments></file></nzb>`,
+    );
+    const result = await downloadNzb({
+      nzb,
+      server: { host: "127.0.0.1", port: server.port, tls: false, connections: 1, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      workDir,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.failedSegments).toBe(1);
+    expect(result.files[0]?.filePath).toBeNull();
   });
 });

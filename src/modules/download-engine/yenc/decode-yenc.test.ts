@@ -202,4 +202,26 @@ describe("decodeYencArticle", () => {
 
     expect(() => decodeYencArticle(article)).toThrow(YencDecodeError);
   });
+
+  it("rejects a multipart payload whose decoded length does not cover its declared range", () => {
+    const payload = buildPayload(10);
+    const article = [
+      "=ybegin part=1 total=1 line=128 size=100 name=bad.bin",
+      "=ypart begin=1 end=50",
+      yencEncode(payload),
+      `=yend size=${payload.length}`,
+    ].join("\r\n");
+
+    expect(decodeYencArticle(article).sizeOk).toBe(false);
+  });
+
+  it("does not allocate from an oversized untrusted file declaration", () => {
+    const article = [
+      "=ybegin line=128 size=999999999999999 name=huge.bin",
+      "abc",
+      "=yend size=3",
+    ].join("\r\n");
+
+    expect(() => decodeYencArticle(article, { maxFileBytes: 1024 })).toThrow(/safety limit/);
+  });
 });

@@ -46,7 +46,7 @@ function matchItemKey(match: MatchedCompletedDownload) {
     return null;
   }
 
-  return `${match.request.mediaTitleId}:${match.request.episodeId ?? "movie"}`;
+  return `${match.request.mediaTitleId}:${match.request.episodeId ?? match.request.seasonId ?? "title"}`;
 }
 
 function importedItemKeys(downloads: OrganizedCompletedDownload[]) {
@@ -95,14 +95,16 @@ export async function retryFailedCompletedDownloads(
         seasonId: match.request.seasonId,
       });
 
-      if (exclusions.releaseKeys.length >= maxAutoRetriesPerItem) {
+      const attemptedReleaseCount = new Set(exclusions.resultIds).size;
+
+      if (attemptedReleaseCount >= maxAutoRetriesPerItem) {
         // Leave the request failed with an explanation instead of quietly
         // burning through the entire release list.
         await updateDownloadRequestStatus({
           userId,
           requestId: match.request.id,
           status: "failed",
-          statusMessage: `${match.historyItem.failMessage ?? "The download failed."} Auto-retry stopped after ${exclusions.releaseKeys.length} failed releases for this title — fix the cause, then retry manually.`,
+          statusMessage: `${match.historyItem.failMessage ?? "The download failed."} Auto-retry stopped after ${attemptedReleaseCount} failed releases for this title — fix the cause, then retry manually.`,
         });
         continue;
       }
@@ -111,6 +113,7 @@ export async function retryFailedCompletedDownloads(
 
       const retry = await searchLibraryItemReleasesWorkflow(userId, {
         titleId: mediaTitleId,
+        ...(match.request.seasonId ? { seasonId: match.request.seasonId } : {}),
         episodeId: match.request.episodeId ?? undefined,
         targetLibraryPathId: match.request.targetLibraryPathId,
         excludedResultIds: exclusions.resultIds,

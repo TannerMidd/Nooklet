@@ -22,6 +22,9 @@ vi.mock("@/modules/recommendations/workflows/update-recommendation-feedback", ()
 vi.mock("@/modules/recommendations/workflows/update-recommendation-hidden-state", () => ({
   updateRecommendationHiddenState: vi.fn(),
 }));
+vi.mock("@/modules/notifications/workflows/dispatch-notification", () => ({
+  safeDispatchNotificationWorkflow: vi.fn().mockResolvedValue(null),
+}));
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -30,6 +33,7 @@ import { auth } from "@/auth";
 import { addRecommendationToLibrary } from "@/modules/recommendations/workflows/add-recommendation-to-library";
 import { updateRecommendationFeedback } from "@/modules/recommendations/workflows/update-recommendation-feedback";
 import { updateRecommendationHiddenState } from "@/modules/recommendations/workflows/update-recommendation-hidden-state";
+import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
 
 import {
   submitRecommendationFeedbackAction,
@@ -43,6 +47,7 @@ const revalidateMock = vi.mocked(revalidatePath);
 const feedbackMock = vi.mocked(updateRecommendationFeedback);
 const hiddenStateMock = vi.mocked(updateRecommendationHiddenState);
 const libraryMock = vi.mocked(addRecommendationToLibrary);
+const notificationMock = vi.mocked(safeDispatchNotificationWorkflow);
 
 const ITEM_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -136,6 +141,7 @@ describe("submitRecommendationLibraryAction", () => {
   function validForm() {
     const formData = new FormData();
     formData.set("itemId", ITEM_ID);
+    formData.set("notificationTitle", "Arrival (2016)");
     formData.set("qualityProfile", "hd-1080p");
     formData.set("monitored", "true");
     formData.set("returnTo", "/history?run=abc");
@@ -176,6 +182,8 @@ describe("submitRecommendationLibraryAction", () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
     libraryMock.mockResolvedValue({
       ok: false,
+      outcome: "failed",
+      catalogAdded: false,
       message: "Choose a matching active library folder before adding that title.",
       field: "targetLibraryPathId",
     } as never);
@@ -188,17 +196,51 @@ describe("submitRecommendationLibraryAction", () => {
     expect(result).toEqual({
       status: "error",
       message: "Choose a matching active library folder before adding that title.",
+      outcome: "failed",
       fieldErrors: {
         targetLibraryPathId: "Choose a matching active library folder before adding that title.",
       },
     });
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(revalidateMock).toHaveBeenCalledWith("/history");
+    expect(notificationMock).toHaveBeenCalledWith({
+      userId: "u1",
+      payload: {
+        eventType: "library_add_failed",
+        title: "Arrival (2016)",
+        message: "Choose a matching active library folder before adding that title.",
+      },
+    });
+  });
+
+  it("turns unexpected workflow failures into a notification and stable action error", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    libraryMock.mockRejectedValue(new Error("database internals"));
+
+    const result = await submitRecommendationLibraryAction(
+      { status: "idle" } as never,
+      validForm(),
+    );
+
+    expect(result).toEqual({ status: "error", message: "Nooklet could not add that title." });
+    expect(notificationMock).toHaveBeenCalledWith({
+      userId: "u1",
+      payload: {
+        eventType: "library_add_failed",
+        title: "Arrival (2016)",
+        message: "Nooklet could not add that title.",
+      },
+    });
   });
 
   it("returns plain success and revalidates without redirecting on a normal success", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-    libraryMock.mockResolvedValue({ ok: true, message: "Added to Nooklet." } as never);
+    libraryMock.mockResolvedValue({
+      ok: true,
+      outcome: "queued",
+      catalogAdded: true,
+      message: "Added to catalog and queued.",
+    } as never);
 
     const result = await submitRecommendationLibraryAction(
       { status: "idle" } as never,
@@ -207,9 +249,32 @@ describe("submitRecommendationLibraryAction", () => {
 
     expect(result).toEqual({
       status: "success",
-      message: "Added to Nooklet.",
+      message: "Added to catalog and queued.",
+      outcome: "queued",
       fieldErrors: undefined,
     });
     expect(revalidateMock).toHaveBeenCalledWith("/library");
+  });
+
+  it("returns a warning when the catalog add succeeds but queueing does not", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    libraryMock.mockResolvedValue({
+      ok: false,
+      outcome: "no_match",
+      catalogAdded: true,
+      message: "Arrival was added to your catalog, but no matching release was found.",
+    });
+
+    const result = await submitRecommendationLibraryAction(
+      { status: "idle" },
+      validForm(),
+    );
+
+    expect(result).toEqual({
+      status: "warning",
+      outcome: "no_match",
+      message: "Arrival was added to your catalog, but no matching release was found.",
+      fieldErrors: undefined,
+    });
   });
 });

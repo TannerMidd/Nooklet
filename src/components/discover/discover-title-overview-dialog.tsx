@@ -97,7 +97,7 @@ export function DiscoverTitleOverviewDialog({
           <section className="space-y-4 text-sm leading-6 text-foreground">
             <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                Add to Nooklet
+                Request title
               </p>
               <div className="mt-3">
                 <DiscoverTitleRequestForm

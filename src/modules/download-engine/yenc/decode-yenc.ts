@@ -74,7 +74,7 @@ function parseHeaderAttributes(line: string): YencAttributes {
 function parseIntAttribute(attributes: YencAttributes, key: string): number | null {
   const raw = attributes[key];
 
-  if (raw === undefined) {
+  if (raw === undefined || !/^\d+$/.test(raw)) {
     return null;
   }
 
@@ -86,7 +86,7 @@ function parseIntAttribute(attributes: YencAttributes, key: string): number | nu
 function parseCrcAttribute(attributes: YencAttributes, key: string): number | null {
   const raw = attributes[key];
 
-  if (raw === undefined) {
+  if (raw === undefined || !/^[a-f\d]{1,8}$/i.test(raw)) {
     return null;
   }
 
@@ -160,8 +160,22 @@ function decodeDataLine(line: Buffer, output: Buffer, cursor: number): number {
   return cursor;
 }
 
-export function decodeYencArticle(body: Buffer | string): DecodedYencArticle {
-  const lines = splitLines(toBuffer(body));
+export const defaultMaxDecodedYencBytes = 32 * 1024 * 1024;
+export const defaultMaxYencFileBytes = 16 * 1024 * 1024 * 1024 * 1024;
+
+export function decodeYencArticle(
+  body: Buffer | string,
+  options: { maxDecodedBytes?: number; maxFileBytes?: number } = {},
+): DecodedYencArticle {
+  const article = toBuffer(body);
+  const maxDecodedBytes = options.maxDecodedBytes ?? defaultMaxDecodedYencBytes;
+  const maxFileBytes = options.maxFileBytes ?? defaultMaxYencFileBytes;
+
+  if (article.length > maxDecodedBytes * 2) {
+    throw new YencDecodeError("Encoded article exceeds the decoder safety limit.");
+  }
+
+  const lines = splitLines(article);
 
   let beginAttributes: YencAttributes | null = null;
   let partAttributes: YencAttributes | null = null;
@@ -191,16 +205,19 @@ export function decodeYencArticle(body: Buffer | string): DecodedYencArticle {
     }
 
     if (output === null) {
-      // Allocate once: a part is bounded by its =ypart range, a single-part
-      // article by the declared file size. Grown only if the post lies.
-      const declaredSize = partAttributes
-        ? (parseIntAttribute(partAttributes, "end") ?? 0) - (parseIntAttribute(partAttributes, "begin") ?? 1) + 1
-        : parseIntAttribute(beginAttributes, "size") ?? 0;
-      output = Buffer.alloc(Math.max(declaredSize, 0) + 256);
+      // Decoded data cannot exceed the encoded article length. Never allocate
+      // from untrusted yEnc size/range declarations.
+      output = Buffer.alloc(Math.min(Math.max(article.length, 256), maxDecodedBytes));
     }
 
     if (cursor + line.length > output.length) {
-      const grown = Buffer.alloc(Math.max(output.length * 2, cursor + line.length + 256));
+      const nextLength = Math.max(output.length * 2, cursor + line.length + 256);
+
+      if (nextLength > maxDecodedBytes) {
+        throw new YencDecodeError("Decoded article exceeds the decoder safety limit.");
+      }
+
+      const grown = Buffer.alloc(nextLength);
       output.copy(grown, 0, 0, cursor);
       output = grown;
     }
@@ -223,13 +240,17 @@ export function decodeYencArticle(body: Buffer | string): DecodedYencArticle {
     throw new YencDecodeError("=ybegin header is missing name or size.");
   }
 
+  if (fileSize > maxFileBytes) {
+    throw new YencDecodeError("=ybegin file size exceeds the configured safety limit.");
+  }
+
   let part: YencPart | null = null;
 
   if (partAttributes) {
     const begin = parseIntAttribute(partAttributes, "begin");
     const end = parseIntAttribute(partAttributes, "end");
 
-    if (begin === null || end === null || end < begin) {
+    if (begin === null || end === null || begin < 1 || end < begin || end > fileSize) {
       throw new YencDecodeError("=ypart header has an invalid byte range.");
     }
 
@@ -243,8 +264,14 @@ export function decodeYencArticle(body: Buffer | string): DecodedYencArticle {
 
   const data = output ? output.subarray(0, cursor) : Buffer.alloc(0);
 
+  if (data.length > maxDecodedBytes) {
+    throw new YencDecodeError("Decoded article exceeds the decoder safety limit.");
+  }
+
   const declaredEndSize = parseIntAttribute(endAttributes, "size");
-  const sizeOk = declaredEndSize === null ? true : declaredEndSize === data.length;
+  const expectedPartSize = part ? part.end - part.begin + 1 : fileSize;
+  const sizeOk = expectedPartSize === data.length
+    && (declaredEndSize === null || declaredEndSize === data.length);
 
   // Multi-part posts carry the part CRC in pcrc32; single-part posts use crc32.
   const declaredCrc = part

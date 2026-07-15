@@ -8,13 +8,13 @@ export function buildReleaseSelectionTargets(
   request: RequestTitleWithReleaseSearchInput,
 ): ReleaseSelectionTarget[] {
   if (request.mediaType !== "tv" || !request.selections) {
-    return [{ kind: "all" }];
+    return [{ kind: "all", mediaType: request.mediaType }];
   }
 
   const selections = request.selections;
 
   if (selections.mode === "all") {
-    return [{ kind: "all" }];
+    return [{ kind: "all", mediaType: "tv" }];
   }
 
   if (selections.mode === "seasons") {

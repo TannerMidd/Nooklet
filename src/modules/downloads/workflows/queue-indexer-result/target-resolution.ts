@@ -7,7 +7,9 @@ import { QueueIndexerResultWorkflowError } from "./errors";
 import { type QueueIndexerResultInput } from "./request-validation";
 import { type ResolvedQueueIndexerResult } from "./result-resolution";
 
-export type ResolvedQueueIndexerResultTarget = Awaited<ReturnType<typeof resolveMediaLibraryDownloadTarget>>;
+export type ResolvedQueueIndexerResultTarget = NonNullable<
+  Awaited<ReturnType<typeof resolveMediaLibraryDownloadTarget>>
+>;
 
 export async function resolveQueueIndexerResultTarget(
   userId: string,
@@ -15,10 +17,19 @@ export async function resolveQueueIndexerResultTarget(
   resolvedResult: ResolvedQueueIndexerResult,
 ): Promise<ResolvedQueueIndexerResultTarget> {
   if (!request.targetLibraryPathId) {
-    return resolveDefaultMediaLibraryDownloadTarget(userId, {
+    const target = await resolveDefaultMediaLibraryDownloadTarget(userId, {
       mediaType: resolvedResult.result.mediaType,
       libraryId: request.targetLibraryId ?? null,
     });
+
+    if (!target) {
+      throw new QueueIndexerResultWorkflowError(
+        "target_path_not_found",
+        "Configure a default matching library folder before queueing releases.",
+      );
+    }
+
+    return target;
   }
 
   const target = await resolveMediaLibraryDownloadTarget(userId, {

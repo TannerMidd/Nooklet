@@ -1,6 +1,5 @@
 import {
-  markDownloadRequestSubmitted,
-  recordDownloadQueueItem,
+  recordSubmittedDownload,
   updateDownloadRequestStatus,
 } from "@/modules/downloads/repositories/download-repository";
 
@@ -11,9 +10,9 @@ import { type ReservedDownloadRequest } from "./reservation";
 import { type ResolvedQueueIndexerResult } from "./result-resolution";
 
 export type QueuedIndexerResultDownload = {
-  downloadRequest: NonNullable<Awaited<ReturnType<typeof markDownloadRequestSubmitted>>>;
-  queueItem: Awaited<ReturnType<typeof recordDownloadQueueItem>> | null;
-  queueItems: Awaited<ReturnType<typeof recordDownloadQueueItem>>[];
+  downloadRequest: Awaited<ReturnType<typeof recordSubmittedDownload>>["request"];
+  queueItem: Awaited<ReturnType<typeof recordSubmittedDownload>>["queueItems"][number] | null;
+  queueItems: Awaited<ReturnType<typeof recordSubmittedDownload>>["queueItems"];
   queueIds: string[];
 };
 
@@ -26,41 +25,29 @@ export async function persistQueuedIndexerResultDownload(input: {
 }): Promise<QueuedIndexerResultDownload> {
   const primaryQueueId = input.submission.queueIds[0] ?? null;
 
-  const queuedRequest = await markDownloadRequestSubmitted({
+  if (!primaryQueueId) {
+    throw new QueueIndexerResultWorkflowError(
+      "download_request_failed",
+      "The downloader did not return a queue id, so Nooklet could not track the download.",
+    );
+  }
+
+  const submitted = await recordSubmittedDownload({
     userId: input.userId,
     requestId: input.reservedRequest.id,
-    status: "queued",
-    externalJobId: primaryQueueId,
+    clientId: input.downloadClient.client.id,
+    externalQueueIds: input.submission.queueIds,
+    sizeBytes: input.resolvedResult.result.sizeBytes,
+    category: input.submission.category,
     statusMessage: input.downloadClient.kind === "nooklet"
       ? "Queued in the Nooklet downloader."
       : "Queued in SABnzbd.",
   });
 
-  if (!queuedRequest) {
-    throw new QueueIndexerResultWorkflowError(
-      "download_request_failed",
-      "Nooklet could not record the queued download.",
-    );
-  }
-
-  const queueItems: Awaited<ReturnType<typeof recordDownloadQueueItem>>[] = [];
-  for (const externalQueueId of input.submission.queueIds) {
-    const item = await recordDownloadQueueItem({
-      requestId: input.reservedRequest.id,
-      userId: input.userId,
-      clientId: input.downloadClient.client.id,
-      externalQueueId,
-      status: "queued",
-      sizeBytes: input.resolvedResult.result.sizeBytes,
-      category: input.submission.category,
-    });
-    queueItems.push(item);
-  }
-
   return {
-    downloadRequest: queuedRequest,
-    queueItem: queueItems[0] ?? null,
-    queueItems,
+    downloadRequest: submitted.request,
+    queueItem: submitted.queueItems[0] ?? null,
+    queueItems: submitted.queueItems,
     queueIds: input.submission.queueIds,
   };
 }

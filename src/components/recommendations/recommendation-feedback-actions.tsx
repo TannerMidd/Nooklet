@@ -55,7 +55,7 @@ export function RecommendationFeedbackActions({
           type="submit"
           variant={optimisticFeedback === "like" ? "primary" : "secondary"}
           size="icon"
-          className={cn("h-8 min-h-8 w-8 rounded-full", buttonClassName)}
+          className={cn("rounded-full", buttonClassName)}
           disabled={isPending}
           aria-pressed={optimisticFeedback === "like"}
           aria-label="Like recommendation"
@@ -73,7 +73,7 @@ export function RecommendationFeedbackActions({
           type="submit"
           variant={optimisticFeedback === "dislike" ? "primary" : "secondary"}
           size="icon"
-          className={cn("h-8 min-h-8 w-8 rounded-full", buttonClassName)}
+          className={cn("rounded-full", buttonClassName)}
           disabled={isPending}
           aria-pressed={optimisticFeedback === "dislike"}
           aria-label="Dislike recommendation"

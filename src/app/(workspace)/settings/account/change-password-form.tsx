@@ -1,25 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
-import { useFormStatus } from "react-dom";
 
 import { initialChangePasswordActionState } from "@/app/(workspace)/settings/account/action-state";
-import { Button } from "@/components/ui/button";
+import { AsyncButton } from "@/components/ui/async-button";
+import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 
 import {
   submitChangePasswordAction,
 } from "./actions";
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button type="submit" className="w-full sm:w-auto">
-      {pending ? "Updating password..." : "Update password"}
-    </Button>
-  );
-}
 
 type PasswordFieldProps = {
   label: string;
@@ -29,17 +20,24 @@ type PasswordFieldProps = {
 };
 
 function PasswordField({ label, name, autoComplete, error }: PasswordFieldProps) {
+  const isNewPassword = name !== "currentPassword";
   return (
-    <label className="space-y-1.5">
-      <span className="text-sm font-medium text-foreground">{label}</span>
-      <Input
-        name={name}
-        type="password"
-        autoComplete={autoComplete}
-        aria-invalid={Boolean(error)}
-      />
-      {error ? <p className="text-sm text-accent-wine">{error}</p> : null}
-    </label>
+    <FormField
+      label={label}
+      required
+      error={error}
+      description={name === "newPassword" ? "At least 12 characters with uppercase, lowercase, and a number." : undefined}
+    >
+      {(controlProps) => (
+        <Input
+          {...controlProps}
+          name={name}
+          type="password"
+          autoComplete={autoComplete}
+          minLength={isNewPassword ? 12 : undefined}
+        />
+      )}
+    </FormField>
   );
 }
 
@@ -72,6 +70,7 @@ export function ChangePasswordForm() {
 
       {state.message ? (
         <p
+          role={state.status === "error" ? "alert" : "status"}
           className={
             state.status === "success"
               ? "rounded-lg border border-accent/20 bg-accent/10 px-3 py-2 text-sm text-foreground"
@@ -82,8 +81,16 @@ export function ChangePasswordForm() {
         </p>
       ) : null}
 
+      {state.status === "success" ? (
+        <Link href="/home" className="inline-flex min-h-11 items-center rounded-lg border border-control px-4 text-sm font-semibold text-foreground hover:bg-cream/[0.06]">
+          Continue to Nooklet
+        </Link>
+      ) : null}
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <SubmitButton />
+        <AsyncButton type="submit" pendingLabel="Updating password…" className="w-full sm:w-auto">
+          Update password
+        </AsyncButton>
         <p className="text-sm leading-6 text-muted">
           Password rules match bootstrap: at least 12 characters with uppercase,
           lowercase, and a number.
