@@ -10,7 +10,7 @@ Nooklet is a self-hosted workspace for discovering, recommending, requesting, do
 | --- | --- |
 | Install Nooklet with Docker | [Docker installation](Docker-Installation) |
 | Reach the first successful request | [First-time setup](First-Time-Setup) |
-| Fix an “insufficient disk space” message | [Storage and path mapping](Storage-and-Path-Mapping#capacity-preflight) |
+| Fix an “insufficient disk space” message | [Storage and path mapping](Storage-and-Path-Mapping#download-capacity-policy) |
 | Connect TMDB, Usenet, SABnzbd, Plex, or another service | [Service connections](Service-Connections) |
 | Back up or upgrade safely | [Backup, restore, and upgrades](Backup-Restore-and-Upgrades) |
 | Diagnose an unhealthy container or failed request | [Troubleshooting](Troubleshooting) |
