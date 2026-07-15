@@ -125,14 +125,19 @@
   if (reduceMotion || !("IntersectionObserver" in window)) {
     revealItems.forEach((item) => item.classList.add("is-visible"));
   } else {
-    const revealObserver = new IntersectionObserver((entries, observer) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        entry.target.classList.add("is-visible");
-        observer.unobserve(entry.target);
-      });
-    }, { rootMargin: "0px 0px -8%", threshold: 0.08 });
-    revealItems.forEach((item) => revealObserver.observe(item));
+    try {
+      const revealObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        });
+      }, { rootMargin: "0px 0px -8%", threshold: 0.08 });
+      root.classList.add("reveal-ready");
+      revealItems.forEach((item) => revealObserver.observe(item));
+    } catch {
+      revealItems.forEach((item) => item.classList.add("is-visible"));
+    }
   }
 
   const sectionLinks = Array.from(siteNav?.querySelectorAll('a[href^="#"]') ?? []);
@@ -155,6 +160,86 @@
       });
     }, { rootMargin: "-25% 0px -58%", threshold: [0.05, 0.2, 0.5] });
     observedSections.forEach((section) => sectionObserver.observe(section));
+  }
+
+  const capacityModel = document.querySelector("#capacity-model");
+
+  if (capacityModel) {
+    const freeInput = capacityModel.querySelector("#capacity-free");
+    const activeInput = capacityModel.querySelector("#capacity-active");
+    const freeOutput = capacityModel.querySelector("#capacity-free-output");
+    const activeOutput = capacityModel.querySelector("#capacity-active-output");
+    const resultValue = capacityModel.querySelector("#capacity-result-value");
+    const resultStatus = capacityModel.querySelector("#capacity-result-status");
+    const resultPanel = capacityModel.querySelector(".capacity-result");
+    const budget = capacityModel.querySelector("#capacity-budget");
+    const floorSegment = capacityModel.querySelector("#capacity-floor-segment");
+    const activeSegment = capacityModel.querySelector("#capacity-active-segment");
+    const archiveSegment = capacityModel.querySelector("#capacity-archive-segment");
+    const unpackSegment = capacityModel.querySelector("#capacity-unpack-segment");
+    const activeReserveValue = capacityModel.querySelector("#capacity-active-reserve-value");
+    const archiveValue = capacityModel.querySelector("#capacity-archive-value");
+    const unpackValue = capacityModel.querySelector("#capacity-unpack-value");
+    const safetyReserveGiB = 0.5;
+
+    function formatGiB(value) {
+      if (value === 0) return "0 GiB";
+      return `${value.toFixed(1).replace(/\.0$/, "")} GiB`;
+    }
+
+    function setSegmentSize(segment, value, total) {
+      if (!segment) return;
+      const percent = total > 0 ? Math.max(0, Math.min(100, (value / total) * 100)) : 0;
+      segment.style.flexBasis = `${percent}%`;
+    }
+
+    function updateCapacityModel() {
+      if (!(freeInput instanceof HTMLInputElement) || !(activeInput instanceof HTMLInputElement)) return;
+
+      const freeGiB = Number.parseFloat(freeInput.value);
+      const activeGiB = Number.parseFloat(activeInput.value);
+      const activeReservationGiB = activeGiB * 2;
+      const processingReservationGiB = safetyReserveGiB + activeReservationGiB;
+      const availableGiB = Math.max(0, freeGiB - processingReservationGiB);
+      const maximumNewGiB = availableGiB / 2;
+      const blockedByGiB = Math.max(0, processingReservationGiB - freeGiB);
+      const visibleFloorGiB = Math.min(freeGiB, safetyReserveGiB);
+      const visibleActiveGiB = Math.min(Math.max(0, freeGiB - visibleFloorGiB), activeReservationGiB);
+
+      if (freeOutput) freeOutput.textContent = formatGiB(freeGiB);
+      if (activeOutput) activeOutput.textContent = formatGiB(activeGiB);
+      if (resultValue) resultValue.textContent = formatGiB(maximumNewGiB);
+      if (activeReserveValue) activeReserveValue.textContent = formatGiB(activeReservationGiB);
+      if (archiveValue) archiveValue.textContent = formatGiB(maximumNewGiB);
+      if (unpackValue) unpackValue.textContent = formatGiB(maximumNewGiB);
+
+      freeInput.setAttribute("aria-valuetext", formatGiB(freeGiB));
+      activeInput.setAttribute("aria-valuetext", formatGiB(activeGiB));
+
+      setSegmentSize(floorSegment, visibleFloorGiB, freeGiB);
+      setSegmentSize(activeSegment, visibleActiveGiB, freeGiB);
+      setSegmentSize(archiveSegment, maximumNewGiB, freeGiB);
+      setSegmentSize(unpackSegment, maximumNewGiB, freeGiB);
+
+      const blocked = blockedByGiB > 0;
+      resultPanel?.classList.toggle("is-blocked", blocked);
+      if (resultStatus) {
+        resultStatus.textContent = blocked
+          ? `Active work and the safety floor exceed free capacity by ${formatGiB(blockedByGiB)}. A new request would be blocked.`
+          : "Request can be admitted at or below this declared size.";
+      }
+
+      budget?.setAttribute(
+        "aria-label",
+        blocked
+          ? `Capacity blocked: ${formatGiB(freeGiB)} free, ${formatGiB(processingReservationGiB)} reserved for active work and the safety floor.`
+          : `Capacity budget: ${formatGiB(safetyReserveGiB)} safety floor, ${formatGiB(activeReservationGiB)} active-work reservation, ${formatGiB(maximumNewGiB)} new archive, and ${formatGiB(maximumNewGiB)} unpack headroom.`,
+      );
+    }
+
+    freeInput?.addEventListener("input", updateCapacityModel);
+    activeInput?.addEventListener("input", updateCapacityModel);
+    updateCapacityModel();
   }
 
   const copyStatus = document.querySelector("#copy-status");
