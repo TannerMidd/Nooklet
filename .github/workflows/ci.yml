@@ -20,7 +20,6 @@ jobs:
       APP_URL: http://localhost:42021
       AUTH_SECRET: ci-auth-secret-that-is-at-least-thirty-two-characters
       SECRET_BOX_KEY: ci-secret-box-key-that-is-at-least-thirty-two-characters
-      APPROVED_MEDIA_ROOTS: /tmp/nooklet-media
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -50,6 +49,7 @@ jobs:
         run: npm run build
         env:
           DATABASE_URL: file:./data/ci-build.db
+          APPROVED_MEDIA_ROOTS: /tmp/nooklet-media
 
   docker-smoke:
     needs: verify
