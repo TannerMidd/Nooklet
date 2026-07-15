@@ -22,7 +22,7 @@ jobs:
       SECRET_BOX_KEY: ci-secret-box-key-that-is-at-least-thirty-two-characters
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -60,7 +60,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Build production image
         run: docker build --tag nooklet-ci:${{ github.sha }} .
