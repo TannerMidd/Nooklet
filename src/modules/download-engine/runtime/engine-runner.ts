@@ -1,8 +1,12 @@
 import path from "node:path";
 import { rm } from "node:fs/promises";
 
+import { type EngineDownloadFailureKind } from "@/lib/database/schema";
 import { env } from "@/lib/env";
-import { resolveUsenetServer } from "@/modules/download-engine/config/resolve-usenet-server";
+import {
+  resolveUsenetServer,
+  UsenetServerConfigError,
+} from "@/modules/download-engine/config/resolve-usenet-server";
 import { finalizeDownload, FinalizeDownloadError } from "@/modules/download-engine/finalize/finalize-download";
 import { parseNzb } from "@/modules/download-engine/nzb/parse-nzb";
 import {
@@ -12,8 +16,11 @@ import {
   requeueStrandedEngineDownloads,
   resolveEngineDownloadPayload,
   type EngineDownloadRecord,
+  transitionEngineDownloadState,
 } from "@/modules/download-engine/queue/engine-repository";
 import { downloadNzb } from "@/modules/download-engine/scheduler/download-nzb";
+import { NntpError, type NntpErrorKind } from "@/modules/download-engine/nntp/nntp-client";
+import { SafeFetchAbortError, SsrfBlockedError } from "@/lib/security/safe-fetch";
 
 /**
  * In-process engine runner (ADR-0002). The background worker tick calls
@@ -40,6 +47,73 @@ const engineGlobals = globalThis as typeof globalThis & {
 const runtime: EngineRuntimeState = engineGlobals.__nookletEngine ?? {};
 engineGlobals.__nookletEngine = runtime;
 runtime.controls = runtime.controls ?? new Map();
+
+const infrastructureNntpFailureKinds: NntpErrorKind[] = [
+  "connect-failed",
+  "auth-failed",
+  "timeout",
+  "connection-closed",
+];
+
+const infrastructureSystemErrorCodes = new Set([
+  "EAI_AGAIN",
+  "ENOTFOUND",
+  "ECONNABORTED",
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "ETIMEDOUT",
+  "ENOSPC",
+  "EACCES",
+  "EPERM",
+  "EROFS",
+  "CERT_HAS_EXPIRED",
+  "DEPTH_ZERO_SELF_SIGNED_CERT",
+  "ERR_TLS_CERT_ALTNAME_INVALID",
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+]);
+
+export function classifyEngineNntpFailureKinds(
+  failureKinds: readonly NntpErrorKind[],
+): EngineDownloadFailureKind {
+  return failureKinds.some((kind) => infrastructureNntpFailureKinds.includes(kind))
+    ? "infrastructure"
+    : "content";
+}
+
+export function classifyEngineRuntimeError(
+  error: unknown,
+  transferFailureKinds: readonly NntpErrorKind[] = [],
+): EngineDownloadFailureKind {
+  if (classifyEngineNntpFailureKinds(transferFailureKinds) === "infrastructure") {
+    return "infrastructure";
+  }
+
+  if (error instanceof NntpError) {
+    return infrastructureNntpFailureKinds.includes(error.kind) ? "infrastructure" : "content";
+  }
+
+  if (
+    error instanceof UsenetServerConfigError
+    || error instanceof SafeFetchAbortError
+    || error instanceof SsrfBlockedError
+  ) {
+    return "infrastructure";
+  }
+
+  if (
+    error
+    && typeof error === "object"
+    && "code" in error
+    && typeof error.code === "string"
+    && infrastructureSystemErrorCodes.has(error.code)
+  ) {
+    return "infrastructure";
+  }
+
+  return error instanceof FinalizeDownloadError ? "content" : "unknown";
+}
 
 export function engineIncompleteDir(downloadId: string) {
   return path.join(env.DOWNLOAD_ENGINE_DIR, "incomplete", downloadId);
@@ -91,6 +165,7 @@ function trackSpeed(downloadId: string, downloadedBytes: number) {
 
 async function processEngineDownload(download: EngineDownloadRecord) {
   const workDir = engineIncompleteDir(download.id);
+  let transferFailureKinds: NntpErrorKind[] = [];
 
   try {
     const payload = resolveEngineDownloadPayload(download);
@@ -98,6 +173,7 @@ async function processEngineDownload(download: EngineDownloadRecord) {
 
     if (!resolvedServer) {
       await setEngineDownloadState(download.id, "failed", {
+        failureKind: "infrastructure",
         errorMessage: "No usenet server is configured. Add one under Settings → Connections.",
         completedAt: new Date(),
       });
@@ -145,6 +221,7 @@ async function processEngineDownload(download: EngineDownloadRecord) {
       },
       shouldAbort: () => runtime.controls!.has(download.id),
     });
+    transferFailureKinds = result.failureKinds;
 
     await progressPersistence;
     if (progressPersistenceError) {
@@ -165,6 +242,7 @@ async function processEngineDownload(download: EngineDownloadRecord) {
       // The queue action already deleted (or will delete) the row; if it
       // still exists mark it failed so nothing dangles.
       await setEngineDownloadState(download.id, "failed", {
+        failureKind: "cancelled",
         errorMessage: "Cancelled.",
         completedAt: new Date(),
       });
@@ -177,14 +255,49 @@ async function processEngineDownload(download: EngineDownloadRecord) {
     }
 
     if (result.completedSegments === 0) {
+      const failureKind = classifyEngineNntpFailureKinds(result.failureKinds);
       await setEngineDownloadState(download.id, "failed", {
-        errorMessage: "No article could be fetched from the news server — the post may have been removed.",
+        failureKind,
+        errorMessage: failureKind === "infrastructure"
+          ? "The built-in downloader could not reach or authenticate with the news server. Check the Usenet connection, then resume this download."
+          : "No article could be fetched from the news server — the post may have been removed.",
         completedAt: new Date(),
       });
       return;
     }
 
-    await setEngineDownloadState(download.id, result.ok ? "extracting" : "repairing");
+    const lateSignal = runtime.controls!.get(download.id);
+    if (lateSignal) {
+      runtime.controls!.delete(download.id);
+      if (lateSignal === "cancel") {
+        await rm(workDir, { recursive: true, force: true });
+        await setEngineDownloadState(download.id, "failed", {
+          failureKind: "cancelled",
+          errorMessage: "Cancelled.",
+          completedAt: new Date(),
+        });
+      } else {
+        await setEngineDownloadState(download.id, "paused");
+      }
+      return;
+    }
+
+    const postProcessState = result.ok ? "extracting" : "repairing";
+    const claimedPostProcessing = await transitionEngineDownloadState(
+      download.userId,
+      download.id,
+      ["fetching"],
+      postProcessState,
+    );
+    if (!claimedPostProcessing) {
+      // A cancellation may delete the row after the signal check. The
+      // fetching->post-process CAS is the durable acknowledgement: without
+      // it, no output is allowed to finalize.
+      runtime.controls!.delete(download.id);
+      await rm(workDir, { recursive: true, force: true });
+      await rm(engineCompleteDir(download.id), { recursive: true, force: true });
+      return;
+    }
 
     const finalized = await finalizeDownload({
       workDir,
@@ -195,6 +308,7 @@ async function processEngineDownload(download: EngineDownloadRecord) {
     });
 
     await setEngineDownloadState(download.id, "completed", {
+      failureKind: null,
       outputPath: finalized.outputPath,
       errorMessage: finalized.warnings.length > 0 ? finalized.warnings.join(" ") : null,
       completedAt: new Date(),
@@ -207,6 +321,7 @@ async function processEngineDownload(download: EngineDownloadRecord) {
         : "The download failed unexpectedly.";
 
     await setEngineDownloadState(download.id, "failed", {
+      failureKind: classifyEngineRuntimeError(error, transferFailureKinds),
       errorMessage: message,
       completedAt: new Date(),
     });

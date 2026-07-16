@@ -6,9 +6,12 @@ vi.mock("@/lib/integrations/sabnzbd", () => ({
 }));
 vi.mock("@/lib/security/safe-fetch", () => ({ safeFetch: vi.fn() }));
 vi.mock("@/lib/security/secret-box", () => ({ decryptSecret: vi.fn((value: string) => value) }));
-vi.mock("@/modules/download-engine/workflows/enqueue-nzb-download", () => ({
-  enqueueNzbDownloadWorkflow: vi.fn(),
-}));
+vi.mock("@/modules/download-engine/workflows/enqueue-nzb-download", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("@/modules/download-engine/workflows/enqueue-nzb-download")
+  >();
+  return { ...actual, enqueueNzbDownloadWorkflow: vi.fn() };
+});
 vi.mock("@/modules/download-engine/workflows/apply-engine-queue-action", () => ({
   applyEngineQueueAction: vi.fn(),
 }));
@@ -18,7 +21,10 @@ vi.mock("@/modules/indexers/repositories/indexer-repository", () => ({
 
 import { addSabnzbdUrlToQueue, removeSabnzbdQueueItem } from "@/lib/integrations/sabnzbd";
 import { safeFetch } from "@/lib/security/safe-fetch";
-import { enqueueNzbDownloadWorkflow } from "@/modules/download-engine/workflows/enqueue-nzb-download";
+import {
+  EnqueueNzbDownloadError,
+  enqueueNzbDownloadWorkflow,
+} from "@/modules/download-engine/workflows/enqueue-nzb-download";
 import { findIndexerById } from "@/modules/indexers/repositories/indexer-repository";
 
 import {
@@ -100,6 +106,49 @@ describe("download submission", () => {
       "https://indexer.test/api?t=get&id=1",
       expect.objectContaining({ maxBytes: 50 * 1024 * 1024 }),
     );
+  });
+
+  it("classifies an invalid NZB as release-specific", async () => {
+    findIndexerMock.mockResolvedValue({ baseUrl: "https://indexer.test" } as never);
+    fetchMock.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue("<broken />") } as never);
+    enqueueMock.mockRejectedValue(new EnqueueNzbDownloadError("invalid_nzb", "Invalid NZB."));
+
+    await expect(submitIndexerResultToDownloadClient(
+      resolvedResult,
+      { kind: "nooklet", client: { id: "client-1" } } as never,
+    )).rejects.toMatchObject({ code: "release_unavailable" });
+  });
+
+  it("preserves structured disk-capacity details for release selection", async () => {
+    findIndexerMock.mockResolvedValue({ baseUrl: "https://indexer.test" } as never);
+    fetchMock.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue("<nzb />") } as never);
+    enqueueMock.mockRejectedValue(new EnqueueNzbDownloadError(
+      "insufficient_space",
+      "There is not enough free disk space.",
+      {
+        availableBytes: 10_000,
+        filesystemCapacityBytes: 100_000,
+        requiredBytes: 20_000,
+        activeReservationBytes: 12_000,
+        activeRemainingBytes: 5_000,
+        activeDownloadedBytes: 2_000,
+      },
+    ));
+
+    await expect(submitIndexerResultToDownloadClient(
+      resolvedResult,
+      { kind: "nooklet", client: { id: "client-1" } } as never,
+    )).rejects.toMatchObject({
+      code: "download_capacity_exceeded",
+      capacity: {
+        availableBytes: 10_000,
+        filesystemCapacityBytes: 100_000,
+        requiredBytes: 20_000,
+        activeReservationBytes: 12_000,
+        activeRemainingBytes: 5_000,
+        activeDownloadedBytes: 2_000,
+      },
+    });
   });
 
   it("removes SABnzbd jobs during persistence compensation", async () => {

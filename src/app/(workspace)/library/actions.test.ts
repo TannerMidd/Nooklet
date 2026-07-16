@@ -6,6 +6,15 @@ vi.mock("next/cache", () => ({
 vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
+vi.mock("@/modules/media-library/workflows/request-title-with-release-search", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("@/modules/media-library/workflows/request-title-with-release-search")
+  >();
+  return {
+    ...actual,
+    requestExistingTitleContentWorkflow: vi.fn(),
+  };
+});
 vi.mock("@/modules/media-library/commands/add-library-path", () => {
   class LibraryPathCommandError extends Error {
     constructor(
@@ -125,6 +134,13 @@ vi.mock("@/modules/media-library/workflows/search-library-item-releases", async 
     searchLibraryItemReleasesWorkflow: vi.fn(),
   };
 });
+vi.mock("@/modules/media-library/repositories/media-library-repository", () => ({
+  findTvSeasonByIdForUser: vi.fn(),
+}));
+vi.mock("@/modules/downloads/workflows/season-fulfillment", () => ({
+  attemptSeasonPack: vi.fn(),
+  createSeasonFulfillment: vi.fn(),
+}));
 
 import { revalidatePath } from "next/cache";
 
@@ -170,11 +186,20 @@ import {
   searchLibraryItemReleasesWorkflow,
   SearchLibraryItemReleasesWorkflowError,
 } from "@/modules/media-library/workflows/search-library-item-releases";
+import { findTvSeasonByIdForUser } from "@/modules/media-library/repositories/media-library-repository";
+import {
+  attemptSeasonPack,
+  createSeasonFulfillment,
+} from "@/modules/downloads/workflows/season-fulfillment";
+import {
+  requestExistingTitleContentWorkflow,
+} from "@/modules/media-library/workflows/request-title-with-release-search";
 
 import {
   addLibraryPathAction,
   removeMediaTitleAction,
   removeLibraryPathAction,
+  requestExistingTitleContentAction,
   scanLibraryAction,
   searchLibraryItemReleasesAction,
   updateLibraryPathAction,
@@ -193,6 +218,7 @@ import {
   initialMediaTitlePreferenceActionState,
   initialMissingSearchScheduleActionState,
   initialRemoveMediaTitleActionState,
+  initialRequestExistingTitleContentActionState,
   initialTvEpisodeMonitoringActionState,
 } from "./action-state";
 
@@ -208,10 +234,71 @@ const scanLibraryMock = vi.mocked(scanMediaLibraryWorkflow);
 const configureLibraryScanScheduleMock = vi.mocked(configureLibraryScanSchedule);
 const configureMissingSearchScheduleMock = vi.mocked(configureMissingSearchSchedule);
 const searchLibraryItemMock = vi.mocked(searchLibraryItemReleasesWorkflow);
+const findTvSeasonMock = vi.mocked(findTvSeasonByIdForUser);
+const attemptSeasonPackMock = vi.mocked(attemptSeasonPack);
+const createSeasonFulfillmentMock = vi.mocked(createSeasonFulfillment);
+const requestExistingTitleContentMock = vi.mocked(requestExistingTitleContentWorkflow);
 const revalidateMock = vi.mocked(revalidatePath);
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe("requestExistingTitleContentAction", () => {
+  function seasonForm(downloadNow = true) {
+    const form = new FormData();
+    form.set("titleId", "f9cf3e46-c202-46f4-97aa-dd37be8f7766");
+    form.set("selectionMode", "seasons");
+    form.append("selectedSeasons", "1");
+    if (downloadNow) form.set("downloadNow", "on");
+    else form.set("downloadNow", "off");
+    return form;
+  }
+
+  it("reports automatic episode fallback as a successful recovery outcome", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    requestExistingTitleContentMock.mockResolvedValue({
+      title: {
+        id: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+        title: "Severance",
+        qualityProfile: "hd-1080p",
+      },
+      selections: [{
+        target: { kind: "season", season: 1 },
+        releaseSearch: { searched: true, searchRun: { status: "succeeded" }, results: [] },
+        queuedDownload: {
+          queued: false,
+          reason: "no_matching_release",
+          message: null,
+        },
+        seasonFallback: {
+          completed: false,
+          queuedCount: 2,
+          activeCount: 0,
+          ownedCount: 0,
+          unavailableCount: 1,
+        },
+      }],
+      queuedDownload: {
+        queued: false,
+        reason: "no_matching_release",
+        message: null,
+      },
+    } as never);
+
+    const result = await requestExistingTitleContentAction(
+      initialRequestExistingTitleContentActionState,
+      seasonForm(),
+    );
+
+    expect(result).toMatchObject({
+      status: "warning",
+      titleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+      queuedCount: 1,
+      message: expect.stringContaining("switched automatically to individual episodes"),
+    });
+    expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
+  });
 });
 
 describe("addLibraryPathAction", () => {
@@ -723,6 +810,62 @@ describe("searchLibraryItemReleasesAction", () => {
       status: "success",
       message: "Queued a matching episode release for download.",
       downloadRequestId: "download2",
+    });
+  });
+
+  it("reports when a season search falls back to individual episode downloads", async () => {
+    const seasonId = "54186288-7b5b-47d3-8a4b-58126b78b037";
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    const form = validForm();
+    form.set("seasonId", seasonId);
+    findTvSeasonMock.mockResolvedValue({
+      title: { id: titleId, title: "The Show", mediaType: "tv" },
+      season: { id: seasonId, seasonNumber: 1 },
+    } as never);
+    createSeasonFulfillmentMock.mockResolvedValue({ id: "fulfillment-1" } as never);
+    attemptSeasonPackMock.mockResolvedValue({
+      fulfillment: {
+        id: "fulfillment-1",
+        status: "active",
+        strategy: "episodes",
+      },
+      releaseSearch: {
+        queuedDownload: {
+          queued: false,
+          reason: "no_matching_release",
+          message: "No complete-season release matched.",
+        },
+      },
+      fallback: {
+        fulfillmentId: "fulfillment-1",
+        queuedCount: 2,
+        activeCount: 1,
+        message: "Using individual episodes: 3 active.",
+      },
+    } as never);
+
+    const result = await searchLibraryItemReleasesAction(
+      initialLibraryItemSearchActionState,
+      form,
+    );
+
+    expect(findTvSeasonMock).toHaveBeenCalledWith("u1", seasonId);
+    expect(createSeasonFulfillmentMock).toHaveBeenCalledWith({
+      userId: "u1",
+      mediaTitleId: titleId,
+      seasonId,
+      requestedTitle: "The Show S01",
+      targetLibraryPathId,
+    });
+    expect(attemptSeasonPackMock).toHaveBeenCalledWith("u1", "fulfillment-1");
+    expect(searchLibraryItemMock).not.toHaveBeenCalled();
+    expect(revalidateMock).toHaveBeenCalledWith("/library");
+    expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
+    expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
+    expect(result).toEqual({
+      status: "success",
+      message: "No usable season pack was found, so Nooklet switched to individual episodes. Using individual episodes: 3 active.",
+      downloadRequestId: null,
     });
   });
 

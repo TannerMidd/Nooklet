@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, inArray, isNotNull, isNull, lte, notExists, or, sql, type SQL } from "drizzle-orm";
+import { unionAll } from "drizzle-orm/sqlite-core";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
@@ -8,11 +9,13 @@ import {
   downloadClients,
   downloadImportedFiles,
   downloadImportRuns,
+  downloadFulfillments,
   downloadQueueItems,
   downloadRequests,
   indexerSearchResults,
   type DownloadClientStatus,
   type DownloadClientType,
+  type DownloadAttemptStrategy,
   type DownloadImportRunStatus,
   type DownloadQueueItemStatus,
   type DownloadRequestStatus,
@@ -20,21 +23,38 @@ import {
 } from "@/lib/database/schema";
 
 const localImportRetryCooldownMs = 60_000;
+export const DOWNLOAD_REQUEST_CANCELLATION_RETRY_DELAY_MS = 5 * 60_000;
+
+/**
+ * A reservation exists only while Nooklet submits a release to the downloader.
+ * The slowest bounded network operation in that path is 60 seconds, so this
+ * cutoff leaves a wide safety margin for a healthy in-flight submission while
+ * ensuring a process crash cannot block the item forever.
+ */
+export const STALE_DOWNLOAD_RESERVATION_AFTER_MS = 15 * 60_000;
+export const STALE_DOWNLOAD_RESERVATION_MESSAGE =
+  "The download reservation expired before submission was confirmed. Nooklet can safely try this item again.";
+
+const openDownloadFulfillmentStatuses = ["active", "retry_wait", "partial"] as const;
+const attentionDownloadFulfillmentStatuses = ["blocked", "failed", "cancelled"] as const;
 
 function localImportRetryCutoff() {
   return new Date(Date.now() - localImportRetryCooldownMs);
 }
 
 function importableRequestPredicate() {
-  return or(
-    and(
-      inArray(downloadRequests.status, ["queued", "downloading", "requeuing"]),
-      inArray(downloadQueueItems.status, ["queued", "downloading"]),
-    ),
-    and(
-      eq(downloadRequests.status, "failed"),
-      eq(downloadQueueItems.status, "completed"),
-      lte(downloadRequests.updatedAt, localImportRetryCutoff()),
+  return and(
+    isNull(downloadRequests.cancellationRequestedAt),
+    or(
+      and(
+        inArray(downloadRequests.status, ["queued", "downloading", "requeuing"]),
+        inArray(downloadQueueItems.status, ["queued", "downloading"]),
+      ),
+      and(
+        eq(downloadRequests.status, "failed"),
+        eq(downloadQueueItems.status, "completed"),
+        lte(downloadRequests.updatedAt, localImportRetryCutoff()),
+      ),
     ),
   );
 }
@@ -106,6 +126,9 @@ export async function createDownloadRequest(input: {
   targetLibraryPathId?: string | null;
   status?: DownloadRequestStatus;
   releaseTitle?: string | null;
+  fulfillmentId?: string | null;
+  attemptStrategy?: DownloadAttemptStrategy | null;
+  attemptNumber?: number | null;
 }) {
   const database = ensureDatabaseReady();
   const id = randomUUID();
@@ -126,6 +149,9 @@ export async function createDownloadRequest(input: {
       targetLibraryPathId: input.targetLibraryPathId ?? null,
       status: input.status ?? "pending",
       releaseTitle: input.releaseTitle ?? null,
+      fulfillmentId: input.fulfillmentId ?? null,
+      attemptStrategy: input.attemptStrategy ?? null,
+      attemptNumber: input.attemptNumber ?? null,
     })
     .run();
 
@@ -134,6 +160,60 @@ export async function createDownloadRequest(input: {
     .from(downloadRequests)
     .where(eq(downloadRequests.id, id))
     .get()!;
+}
+
+export async function expireStalePendingDownloadReservations(input: {
+  now?: Date;
+  staleAfterMs?: number;
+  userId?: string;
+  mediaTitleId?: string;
+  episodeId?: string | null;
+  seasonId?: string | null;
+} = {}): Promise<number> {
+  const staleAfterMs = input.staleAfterMs ?? STALE_DOWNLOAD_RESERVATION_AFTER_MS;
+  if (!Number.isSafeInteger(staleAfterMs) || staleAfterMs <= 0) {
+    throw new TypeError("The stale download-reservation window must be a positive integer.");
+  }
+
+  const database = ensureDatabaseReady();
+  const now = input.now ?? new Date();
+  const cutoff = new Date(now.getTime() - staleAfterMs);
+  const filters: SQL[] = [
+    eq(downloadRequests.status, "pending"),
+    isNull(downloadRequests.submittedAt),
+    lte(downloadRequests.createdAt, cutoff),
+    lte(downloadRequests.updatedAt, cutoff),
+    notExists(
+      database
+        .select({ id: downloadQueueItems.id })
+        .from(downloadQueueItems)
+        .where(eq(downloadQueueItems.requestId, downloadRequests.id)),
+    ),
+  ];
+
+  if (input.userId) filters.push(eq(downloadRequests.userId, input.userId));
+  if (input.mediaTitleId) {
+    filters.push(eq(downloadRequests.mediaTitleId, input.mediaTitleId));
+    filters.push(input.episodeId
+      ? eq(downloadRequests.episodeId, input.episodeId)
+      : isNull(downloadRequests.episodeId));
+    filters.push(input.seasonId
+      ? eq(downloadRequests.seasonId, input.seasonId)
+      : isNull(downloadRequests.seasonId));
+  }
+
+  const result = database
+    .update(downloadRequests)
+    .set({
+      status: "failed",
+      statusMessage: STALE_DOWNLOAD_RESERVATION_MESSAGE,
+      completedAt: now,
+      updatedAt: now,
+    })
+    .where(and(...filters))
+    .run();
+
+  return result.changes;
 }
 
 export async function updateDownloadRequestStatus(input: {
@@ -163,6 +243,34 @@ export async function updateDownloadRequestStatus(input: {
     .from(downloadRequests)
     .where(and(eq(downloadRequests.userId, input.userId), eq(downloadRequests.id, input.requestId)))
     .get() ?? null;
+}
+
+/**
+ * Removes a reservation that never reached a downloader and therefore must
+ * not consume a release-attempt budget or become a durable exclusion.
+ */
+export async function discardPendingDownloadRequest(input: {
+  userId: string;
+  requestId: string;
+}) {
+  const database = ensureDatabaseReady();
+  const result = database
+    .delete(downloadRequests)
+    .where(and(
+      eq(downloadRequests.userId, input.userId),
+      eq(downloadRequests.id, input.requestId),
+      eq(downloadRequests.status, "pending"),
+      isNull(downloadRequests.submittedAt),
+      notExists(
+        database
+          .select({ id: downloadQueueItems.id })
+          .from(downloadQueueItems)
+          .where(eq(downloadQueueItems.requestId, downloadRequests.id)),
+      ),
+    ))
+    .run();
+
+  return result.changes === 1;
 }
 
 export async function recordDownloadQueueItem(input: {
@@ -335,6 +443,206 @@ export async function listActiveRequestsForExternalQueueId(userId: string, exter
     .all();
 }
 
+export async function checkpointDownloadRequestCancellation(input: {
+  userId: string;
+  requestId: string;
+  requestedAt?: Date;
+}) {
+  const database = ensureDatabaseReady();
+  const current = await findDownloadRequestById(input.userId, input.requestId);
+  if (
+    !current
+    || current.fulfillmentId
+    || !activeDownloadRequestStatuses.includes(
+      current.status as (typeof activeDownloadRequestStatuses)[number],
+    )
+  ) {
+    return null;
+  }
+  if (current.cancellationRequestedAt) {
+    return current;
+  }
+
+  const requestedAt = input.requestedAt ?? new Date();
+  const updated = database
+    .update(downloadRequests)
+    .set({
+      cancellationRequestedAt: requestedAt,
+      statusMessage: "Cancellation is pending while Nooklet verifies downloader cleanup.",
+      updatedAt: requestedAt,
+    })
+    .where(and(
+      eq(downloadRequests.userId, input.userId),
+      eq(downloadRequests.id, input.requestId),
+      isNull(downloadRequests.fulfillmentId),
+      isNull(downloadRequests.cancellationRequestedAt),
+      inArray(downloadRequests.status, [...activeDownloadRequestStatuses]),
+    ))
+    .run();
+
+  if (updated.changes !== 1) {
+    return findDownloadRequestById(input.userId, input.requestId);
+  }
+  return findDownloadRequestById(input.userId, input.requestId);
+}
+
+export async function listPendingDownloadRequestCancellations(
+  limit = 100,
+  now = new Date(),
+) {
+  const database = ensureDatabaseReady();
+  const retryCutoff = new Date(
+    now.getTime() - DOWNLOAD_REQUEST_CANCELLATION_RETRY_DELAY_MS,
+  );
+
+  return database
+    .select()
+    .from(downloadRequests)
+    .where(and(
+      isNull(downloadRequests.fulfillmentId),
+      isNotNull(downloadRequests.cancellationRequestedAt),
+      inArray(downloadRequests.status, [...activeDownloadRequestStatuses]),
+      or(
+        // A fresh checkpoint writes both timestamps to the same value so it is
+        // due immediately. Deferral advances updatedAt and makes this row wait
+        // for the persisted retry window before it can consume worker time.
+        sql`${downloadRequests.updatedAt} = ${downloadRequests.cancellationRequestedAt}`,
+        lte(downloadRequests.updatedAt, retryCutoff),
+      ),
+    ))
+    // Least-recently attempted work goes first. An unreachable old client
+    // therefore cannot monopolize a bounded batch and starve fresh requests.
+    .orderBy(
+      asc(downloadRequests.updatedAt),
+      asc(downloadRequests.cancellationRequestedAt),
+      asc(downloadRequests.id),
+    )
+    .limit(limit)
+    .all();
+}
+
+export async function listDownloadQueueItemsForRequest(
+  userId: string,
+  requestId: string,
+) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(downloadQueueItems)
+    .where(and(
+      eq(downloadQueueItems.userId, userId),
+      eq(downloadQueueItems.requestId, requestId),
+    ))
+    .orderBy(asc(downloadQueueItems.createdAt), asc(downloadQueueItems.id))
+    .all();
+}
+
+export async function deferDownloadRequestCancellation(input: {
+  userId: string;
+  requestId: string;
+  requestedAt: Date;
+  message: string;
+}) {
+  const database = ensureDatabaseReady();
+  const deferredAt = new Date(Math.max(
+    Date.now(),
+    input.requestedAt.getTime() + 1,
+  ));
+  const updated = database
+    .update(downloadRequests)
+    .set({
+      statusMessage: input.message,
+      updatedAt: deferredAt,
+    })
+    .where(and(
+      eq(downloadRequests.userId, input.userId),
+      eq(downloadRequests.id, input.requestId),
+      isNull(downloadRequests.fulfillmentId),
+      eq(downloadRequests.cancellationRequestedAt, input.requestedAt),
+      inArray(downloadRequests.status, [...activeDownloadRequestStatuses]),
+    ))
+    .run();
+
+  return updated.changes === 1;
+}
+
+export async function finalizeDownloadRequestCancellation(input: {
+  userId: string;
+  requestId: string;
+  requestedAt: Date;
+  completedAt?: Date;
+  message?: string;
+}) {
+  const database = ensureDatabaseReady();
+  const completedAt = input.completedAt ?? new Date();
+  let changed = false;
+
+  database.transaction((transaction) => {
+    const updated = transaction
+      .update(downloadRequests)
+      .set({
+        status: "cancelled",
+        statusMessage: input.message ?? "Removed from the download queue.",
+        completedAt,
+        updatedAt: completedAt,
+      })
+      .where(and(
+        eq(downloadRequests.userId, input.userId),
+        eq(downloadRequests.id, input.requestId),
+        isNull(downloadRequests.fulfillmentId),
+        eq(downloadRequests.cancellationRequestedAt, input.requestedAt),
+        inArray(downloadRequests.status, [...activeDownloadRequestStatuses]),
+      ))
+      .run();
+    if (updated.changes !== 1) return;
+
+    transaction
+      .update(downloadQueueItems)
+      .set({
+        status: "failed",
+        completedAt,
+        updatedAt: completedAt,
+      })
+      .where(and(
+        eq(downloadQueueItems.userId, input.userId),
+        eq(downloadQueueItems.requestId, input.requestId),
+        inArray(downloadQueueItems.status, ["queued", "downloading", "paused", "completed"]),
+      ))
+      .run();
+    changed = true;
+  });
+
+  return changed
+    ? findDownloadRequestById(input.userId, input.requestId)
+    : null;
+}
+
+/**
+ * Returns every physical queue entry ever owned by one durable season
+ * fulfillment, including terminal attempts. Cancellation reconciliation must
+ * remove old history/files as well as the currently active attempt.
+ */
+export async function listRequestsForFulfillment(userId: string, fulfillmentId: string) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({ request: downloadRequests, queueItem: downloadQueueItems })
+    .from(downloadQueueItems)
+    .innerJoin(downloadRequests, eq(downloadRequests.id, downloadQueueItems.requestId))
+    .where(and(
+      eq(downloadRequests.userId, userId),
+      eq(downloadRequests.fulfillmentId, fulfillmentId),
+    ))
+    .orderBy(
+      asc(downloadRequests.createdAt),
+      asc(downloadRequests.id),
+      asc(downloadQueueItems.createdAt),
+      asc(downloadQueueItems.id),
+    )
+    .all();
+}
+
 export async function listDownloadRequestsByStatus(userId: string, status: DownloadRequestStatus) {
   const database = ensureDatabaseReady();
 
@@ -356,35 +664,215 @@ export async function findDownloadRequestById(userId: string, requestId: string)
     .get() ?? null;
 }
 
-export async function listRecentDownloadRequestsWithQueueItems(userId: string, limit: number) {
-  const database = ensureDatabaseReady();
+export type DownloadActivityRepositoryRow = {
+  request: typeof downloadRequests.$inferSelect | null;
+  queueItem: typeof downloadQueueItems.$inferSelect | null;
+  fulfillment: typeof downloadFulfillments.$inferSelect | null;
+};
 
-  return database
-    .select({ request: downloadRequests, queueItem: downloadQueueItems })
-    .from(downloadRequests)
-    .leftJoin(downloadQueueItems, eq(downloadQueueItems.requestId, downloadRequests.id))
-    .where(eq(downloadRequests.userId, userId))
-    .orderBy(desc(downloadRequests.createdAt), desc(downloadRequests.id))
-    .limit(limit)
-    .all();
+type DownloadActivityLogicalItem = {
+  id: string;
+  kind: "fulfillment" | "request";
+  sortAt: Date;
+};
+
+function downloadActivityHistoryKind(statuses?: DownloadRequestStatus[]) {
+  if (!statuses?.length) return "all" as const;
+  if (statuses.every((status) => (
+    activeDownloadRequestStatuses.includes(status as (typeof activeDownloadRequestStatuses)[number])
+  ))) return "active" as const;
+  if (statuses.every((status) => status === "failed" || status === "cancelled")) {
+    return "attention" as const;
+  }
+  if (statuses.length === 1 && statuses[0] === "succeeded") return "completed" as const;
+  return "request_only" as const;
 }
 
-function downloadRequestHistoryFilters(input: {
+function escapedActivitySearchPattern(query?: string) {
+  if (!query) return null;
+  const escaped = query.replace(/[\\%_]/g, (character) => `\\${character}`);
+  return `%${escaped}%`;
+}
+
+function standaloneDownloadRequestHistoryFilters(input: {
   userId: string;
   statuses?: DownloadRequestStatus[];
   query?: string;
 }) {
-  const filters: SQL[] = [eq(downloadRequests.userId, input.userId)];
+  const filters: SQL[] = [
+    eq(downloadRequests.userId, input.userId),
+    isNull(downloadRequests.fulfillmentId),
+  ];
   if (input.statuses?.length) filters.push(inArray(downloadRequests.status, input.statuses));
-  if (input.query) {
-    const escaped = input.query.replace(/[\\%_]/g, (character) => `\\${character}`);
-    const pattern = `%${escaped}%`;
+  const pattern = escapedActivitySearchPattern(input.query);
+  if (pattern) {
     filters.push(sql`(
       lower(${downloadRequests.requestedTitle}) like lower(${pattern}) escape '\\'
       or lower(coalesce(${downloadRequests.releaseTitle}, '')) like lower(${pattern}) escape '\\'
     )`);
   }
   return and(...filters);
+}
+
+function downloadFulfillmentHistoryFilters(
+  database: ReturnType<typeof ensureDatabaseReady>,
+  input: {
+    userId: string;
+    statuses?: DownloadRequestStatus[];
+    query?: string;
+  },
+) {
+  const filters: SQL[] = [eq(downloadFulfillments.userId, input.userId)];
+  const historyKind = downloadActivityHistoryKind(input.statuses);
+  if (historyKind === "active") {
+    filters.push(inArray(downloadFulfillments.status, [...openDownloadFulfillmentStatuses]));
+  } else if (historyKind === "attention") {
+    filters.push(inArray(downloadFulfillments.status, [...attentionDownloadFulfillmentStatuses]));
+  } else if (historyKind === "completed") {
+    filters.push(eq(downloadFulfillments.status, "succeeded"));
+  } else if (historyKind === "request_only") {
+    filters.push(sql`0 = 1`);
+  }
+
+  const pattern = escapedActivitySearchPattern(input.query);
+  if (pattern) {
+    const matchingAttempt = database
+      .select({ value: sql<number>`1` })
+      .from(downloadRequests)
+      .where(and(
+        eq(downloadRequests.userId, input.userId),
+        eq(downloadRequests.fulfillmentId, downloadFulfillments.id),
+        or(
+          sql`lower(${downloadRequests.requestedTitle}) like lower(${pattern}) escape '\\'`,
+          sql`lower(coalesce(${downloadRequests.releaseTitle}, '')) like lower(${pattern}) escape '\\'`,
+        ),
+      ));
+    filters.push(or(
+      sql`lower(${downloadFulfillments.requestedTitle}) like lower(${pattern}) escape '\\'`,
+      exists(matchingAttempt),
+    )!);
+  }
+  return and(...filters);
+}
+
+function buildDownloadActivityLogicalItems(
+  database: ReturnType<typeof ensureDatabaseReady>,
+  input: {
+    userId: string;
+    statuses?: DownloadRequestStatus[];
+    query?: string;
+  },
+) {
+  const fulfillmentItems = database
+    .select({
+      id: downloadFulfillments.id,
+      kind: sql<DownloadActivityLogicalItem["kind"]>`'fulfillment'`.as("kind"),
+      sortAt: downloadFulfillments.updatedAt,
+    })
+    .from(downloadFulfillments)
+    .where(downloadFulfillmentHistoryFilters(database, input));
+  const standaloneRequestItems = database
+    .select({
+      id: downloadRequests.id,
+      kind: sql<DownloadActivityLogicalItem["kind"]>`'request'`.as("kind"),
+      sortAt: downloadRequests.createdAt,
+    })
+    .from(downloadRequests)
+    .where(standaloneDownloadRequestHistoryFilters(input));
+
+  return unionAll(fulfillmentItems, standaloneRequestItems).as("download_activity_logical_items");
+}
+
+function compareActivityRows(
+  logicalOrder: Map<string, number>,
+  left: DownloadActivityRepositoryRow,
+  right: DownloadActivityRepositoryRow,
+) {
+  const leftLogicalId = left.fulfillment?.id ?? left.request?.id ?? "";
+  const rightLogicalId = right.fulfillment?.id ?? right.request?.id ?? "";
+  const groupOrder = (logicalOrder.get(leftLogicalId) ?? Number.MAX_SAFE_INTEGER)
+    - (logicalOrder.get(rightLogicalId) ?? Number.MAX_SAFE_INTEGER);
+  if (groupOrder !== 0) return groupOrder;
+
+  const requestOrder = (right.request?.createdAt.getTime() ?? 0)
+    - (left.request?.createdAt.getTime() ?? 0);
+  if (requestOrder !== 0) return requestOrder;
+  const requestIdOrder = (left.request?.id ?? "").localeCompare(right.request?.id ?? "");
+  if (requestIdOrder !== 0) return requestIdOrder;
+  const queueOrder = (right.queueItem?.updatedAt.getTime() ?? 0)
+    - (left.queueItem?.updatedAt.getTime() ?? 0);
+  if (queueOrder !== 0) return queueOrder;
+  return (left.queueItem?.id ?? "").localeCompare(right.queueItem?.id ?? "");
+}
+
+function hydrateDownloadActivityLogicalItems(
+  database: ReturnType<typeof ensureDatabaseReady>,
+  userId: string,
+  logicalItems: DownloadActivityLogicalItem[],
+) {
+  if (logicalItems.length === 0) return [];
+
+  const fulfillmentIds = logicalItems
+    .filter((item) => item.kind === "fulfillment")
+    .map((item) => item.id);
+  const requestIds = logicalItems
+    .filter((item) => item.kind === "request")
+    .map((item) => item.id);
+  const rows: DownloadActivityRepositoryRow[] = [];
+
+  if (fulfillmentIds.length > 0) {
+    rows.push(...database
+      .select({
+        request: downloadRequests,
+        queueItem: downloadQueueItems,
+        fulfillment: downloadFulfillments,
+      })
+      .from(downloadFulfillments)
+      .leftJoin(downloadRequests, and(
+        eq(downloadRequests.fulfillmentId, downloadFulfillments.id),
+        eq(downloadRequests.userId, userId),
+      ))
+      .leftJoin(downloadQueueItems, eq(downloadQueueItems.requestId, downloadRequests.id))
+      .where(and(
+        eq(downloadFulfillments.userId, userId),
+        inArray(downloadFulfillments.id, fulfillmentIds),
+      ))
+      .all());
+  }
+
+  if (requestIds.length > 0) {
+    rows.push(...database
+      .select({
+        request: downloadRequests,
+        queueItem: downloadQueueItems,
+        fulfillment: downloadFulfillments,
+      })
+      .from(downloadRequests)
+      .leftJoin(downloadQueueItems, eq(downloadQueueItems.requestId, downloadRequests.id))
+      .leftJoin(downloadFulfillments, eq(downloadFulfillments.id, downloadRequests.fulfillmentId))
+      .where(and(
+        eq(downloadRequests.userId, userId),
+        isNull(downloadRequests.fulfillmentId),
+        inArray(downloadRequests.id, requestIds),
+      ))
+      .all());
+  }
+
+  const logicalOrder = new Map(logicalItems.map((item, index) => [item.id, index]));
+  return rows.sort((left, right) => compareActivityRows(logicalOrder, left, right));
+}
+
+export async function listRecentDownloadRequestsWithQueueItems(userId: string, limit: number) {
+  const database = ensureDatabaseReady();
+  const logicalItems = buildDownloadActivityLogicalItems(database, { userId });
+  const selectedItems = database
+    .select()
+    .from(logicalItems)
+    .orderBy(desc(logicalItems.sortAt), asc(logicalItems.kind), asc(logicalItems.id))
+    .limit(limit)
+    .all() as DownloadActivityLogicalItem[];
+
+  return hydrateDownloadActivityLogicalItems(database, userId, selectedItems);
 }
 
 export async function listDownloadRequestHistoryPage(input: {
@@ -395,36 +883,21 @@ export async function listDownloadRequestHistoryPage(input: {
   offset: number;
 }) {
   const database = ensureDatabaseReady();
-  const filters = downloadRequestHistoryFilters(input);
-  const requests = database
+  const logicalItems = buildDownloadActivityLogicalItems(database, input);
+  const selectedItems = database
     .select()
-    .from(downloadRequests)
-    .where(filters)
-    .orderBy(desc(downloadRequests.createdAt), desc(downloadRequests.id))
+    .from(logicalItems)
+    .orderBy(desc(logicalItems.sortAt), asc(logicalItems.kind), asc(logicalItems.id))
     .limit(input.limit)
     .offset(input.offset)
-    .all();
+    .all() as DownloadActivityLogicalItem[];
   const total = database
-    .select({ value: count(downloadRequests.id) })
-    .from(downloadRequests)
-    .where(filters)
+    .select({ value: count() })
+    .from(logicalItems)
     .get()?.value ?? 0;
 
-  if (requests.length === 0) return { rows: [], total };
-  const requestById = new Map(requests.map((request) => [request.id, request]));
-  const rows = database
-    .select({ request: downloadRequests, queueItem: downloadQueueItems })
-    .from(downloadRequests)
-    .leftJoin(downloadQueueItems, eq(downloadQueueItems.requestId, downloadRequests.id))
-    .where(inArray(downloadRequests.id, requests.map((request) => request.id)))
-    .all()
-    .sort((left, right) => (
-      requests.findIndex((request) => request.id === left.request.id)
-      - requests.findIndex((request) => request.id === right.request.id)
-    ));
-
   return {
-    rows: rows.filter((row) => requestById.has(row.request.id)),
+    rows: hydrateDownloadActivityLogicalItems(database, input.userId, selectedItems),
     total,
   };
 }
@@ -435,10 +908,10 @@ export async function countDownloadRequestHistory(input: {
   query?: string;
 }) {
   const database = ensureDatabaseReady();
+  const logicalItems = buildDownloadActivityLogicalItems(database, input);
   return database
-    .select({ value: count(downloadRequests.id) })
-    .from(downloadRequests)
-    .where(downloadRequestHistoryFilters(input))
+    .select({ value: count() })
+    .from(logicalItems)
     .get()?.value ?? 0;
 }
 
@@ -449,6 +922,13 @@ export async function findActiveDownloadRequestForItem(input: {
   seasonId?: string | null;
 }) {
   const database = ensureDatabaseReady();
+
+  await expireStalePendingDownloadReservations({
+    userId: input.userId,
+    mediaTitleId: input.mediaTitleId,
+    episodeId: input.episodeId ?? null,
+    seasonId: input.seasonId ?? null,
+  });
 
   return database
     .select()
@@ -476,7 +956,13 @@ export async function listActiveDownloadRequestsForImport(userId: string, client
     .innerJoin(downloadRequests, eq(downloadRequests.id, downloadQueueItems.requestId))
     .where(and(
       eq(downloadRequests.userId, userId),
-      eq(downloadRequests.clientId, clientId),
+      or(
+        eq(downloadQueueItems.clientId, clientId),
+        and(
+          isNull(downloadQueueItems.clientId),
+          eq(downloadRequests.clientId, clientId),
+        ),
+      ),
       importableRequestPredicate(),
     ))
     .orderBy(desc(downloadRequests.createdAt))

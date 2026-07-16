@@ -5,6 +5,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { startFakeNntpServer, type FakeNntpServer } from "@/modules/download-engine/nntp/fake-nntp-server";
+import { NntpError } from "@/modules/download-engine/nntp/nntp-client";
 import { parseNzb } from "@/modules/download-engine/nzb/parse-nzb";
 import { downloadNzb } from "@/modules/download-engine/scheduler/download-nzb";
 import {
@@ -130,6 +131,7 @@ describe("downloadNzb", () => {
     expect(result.ok).toBe(false);
     expect(result.aborted).toBe(false);
     expect(result.failedSegments).toBe(1);
+    expect(result.failureKinds).toEqual(["article-not-found"]);
 
     const goodFile = result.files.find((file) => file.fileName === "good.bin");
     const partialFile = result.files.find((file) => file.subject === '"partial.bin"');
@@ -138,6 +140,47 @@ describe("downloadNzb", () => {
     expect((await readFile(goodFile!.filePath!)).equals(goodPayload)).toBe(true);
     expect(partialFile?.ok).toBe(false);
     expect(partialFile?.failedSegments).toBe(1);
+  });
+
+  it("preserves an exhausted connection failure for the engine classifier", async () => {
+    workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+    const result = await downloadNzb({
+      nzb: parseNzb(nzbXml([{ subject: '"unreachable.mkv"', segmentIds: ["segment@test"] }])),
+      server: { host: "news.invalid", port: 563, tls: true, connections: 1 },
+      workDir,
+      maxRetriesPerSegment: 0,
+      clientFactory: () => ({
+        connect: async () => {
+          throw new NntpError("connect-failed", "Connection refused.");
+        },
+        body: async () => Buffer.alloc(0),
+        quit: async () => undefined,
+        destroy: () => undefined,
+      }),
+    });
+
+    expect(result.completedSegments).toBe(0);
+    expect(result.failedSegments).toBe(1);
+    expect(result.failureKinds).toEqual(["connect-failed"]);
+  });
+
+  it("preserves authentication failures as typed terminal errors", async () => {
+    workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+    await expect(downloadNzb({
+      nzb: parseNzb(nzbXml([{ subject: '"private.mkv"', segmentIds: ["segment@test"] }])),
+      server: { host: "news.invalid", port: 563, tls: true, connections: 1 },
+      workDir,
+      clientFactory: () => ({
+        connect: async () => {
+          throw new NntpError("auth-failed", "Authentication rejected.", true);
+        },
+        body: async () => Buffer.alloc(0),
+        quit: async () => undefined,
+        destroy: () => undefined,
+      }),
+    })).rejects.toMatchObject({ kind: "auth-failed" });
   });
 
   it("stops promptly when aborted", async () => {

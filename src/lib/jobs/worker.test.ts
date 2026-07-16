@@ -6,6 +6,12 @@ vi.mock("@/modules/downloads/queries/list-users-with-active-download-requests", 
 vi.mock("@/modules/downloads/workflows/import-completed-downloads", () => ({
   importCompletedDownloadsWorkflow: vi.fn(),
 }));
+vi.mock("@/modules/downloads/workflows/reconcile-season-fulfillment-cancellations", () => ({
+  reconcilePendingSeasonFulfillmentCancellations: vi.fn(),
+}));
+vi.mock("@/modules/downloads/workflows/reconcile-download-request-cancellations", () => ({
+  reconcilePendingDownloadRequestCancellations: vi.fn(),
+}));
 vi.mock("@/modules/downloads/workflows/reconcile-duplicate-queue-items", () => ({
   reconcileDuplicateSabnzbdQueueItemsWorkflow: vi.fn(),
 }));
@@ -28,6 +34,8 @@ vi.mock("@/modules/media-library/workflows/search-missing-monitored", () => ({
 import { listUsersWithActiveDownloadRequestsForImport } from "@/modules/downloads/queries/list-users-with-active-download-requests";
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
 import { ImportCompletedDownloadsWorkflowError } from "@/modules/downloads/workflows/import-completed-downloads/errors";
+import { reconcilePendingSeasonFulfillmentCancellations } from "@/modules/downloads/workflows/reconcile-season-fulfillment-cancellations";
+import { reconcilePendingDownloadRequestCancellations } from "@/modules/downloads/workflows/reconcile-download-request-cancellations";
 import { reconcileDuplicateSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-duplicate-queue-items";
 import { reconcileMissingSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-missing-queue-items";
 import { claimDueJobs } from "@/modules/jobs/repositories/job-repository";
@@ -38,6 +46,8 @@ import { getBackgroundWorkerHealth, runDueJobs } from "./worker";
 
 const listActiveUsersMock = vi.mocked(listUsersWithActiveDownloadRequestsForImport);
 const importCompletedDownloadsMock = vi.mocked(importCompletedDownloadsWorkflow);
+const reconcileCancellationsMock = vi.mocked(reconcilePendingSeasonFulfillmentCancellations);
+const reconcileRequestCancellationsMock = vi.mocked(reconcilePendingDownloadRequestCancellations);
 const reconcileDuplicateQueueMock = vi.mocked(reconcileDuplicateSabnzbdQueueItemsWorkflow);
 const reconcileMissingQueueMock = vi.mocked(reconcileMissingSabnzbdQueueItemsWorkflow);
 const claimDueJobsMock = vi.mocked(claimDueJobs);
@@ -83,6 +93,9 @@ describe("runDueJobs", () => {
 
     expect(importCompletedDownloadsMock).toHaveBeenNthCalledWith(1, "user1");
     expect(importCompletedDownloadsMock).toHaveBeenNthCalledWith(2, "user2");
+    expect(reconcileRequestCancellationsMock).toHaveBeenCalledTimes(1);
+    expect(reconcileRequestCancellationsMock.mock.invocationCallOrder[0])
+      .toBeLessThan(importCompletedDownloadsMock.mock.invocationCallOrder[0]);
     expect(reconcileMissingQueueMock).toHaveBeenNthCalledWith(1, "user1");
     expect(reconcileMissingQueueMock).toHaveBeenNthCalledWith(2, "user2");
     expect(reconcileDuplicateQueueMock).toHaveBeenNthCalledWith(1, "user1");
@@ -120,6 +133,18 @@ describe("runDueJobs", () => {
     expect(claimDueJobsMock).toHaveBeenCalledWith("watch-history-sync", expect.any(Date), 1);
     expect(claimDueJobsMock).toHaveBeenCalledWith("media-library-scan", expect.any(Date), 1);
     expect(claimDueJobsMock).toHaveBeenCalledWith("recommendation-run", expect.any(Date), 1);
+  });
+  reconcileRequestCancellationsMock.mockResolvedValue({
+    attemptedCount: 0,
+    cancelledCount: 0,
+    pendingCount: 0,
+    failedCount: 0,
+  });
+  reconcileCancellationsMock.mockResolvedValue({
+    attemptedCount: 0,
+    cancelledCount: 0,
+    pendingCount: 0,
+    failedCount: 0,
   });
 
   it("treats an absent optional SABnzbd connection as a successful no-op", async () => {

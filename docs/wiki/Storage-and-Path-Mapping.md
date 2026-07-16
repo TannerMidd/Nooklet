@@ -62,11 +62,17 @@ Before the built-in engine accepts an NZB, it reads free space on the filesystem
 ```text
 required free bytes
   = 512 MiB
-  + (2 x remaining bytes in active built-in downloads)
+  + sum(total bytes + remaining bytes for active built-in downloads)
   + (2 x declared bytes in the new NZB)
 ```
 
-The two-times factors keep room for both the assembled download and an unpacked copy. The 512 MiB component is a fixed safety reserve.
+Free-space readings already exclude bytes downloaded so far. Each active item therefore reserves its remaining transfer plus one complete output/post-processing copy. The new item reserves both its assembled archive and an unpacked copy. The 512 MiB component is a fixed safety reserve.
+
+Queue-time failures are classified before recovery acts:
+
+- active-download contention waits and retries without consuming the release;
+- a release larger than the entire staging filesystem is skipped in favor of another candidate;
+- current non-active free-space pressure or a wrong/small volume mapping blocks with a storage repair action without excluding the release.
 
 **Settings -> Storage** shows:
 
@@ -85,7 +91,7 @@ Readiness requires the built-in workspace to be reachable, writable, and to have
 2. Read the exact **download workspace** path; do not assume it is the final media folder.
 3. Confirm `DOWNLOAD_ENGINE_DIR` uses the intended container mount, such as `/downloads/nooklet-engine`.
 4. Confirm the host staging folder is actually bound to `/downloads`.
-5. Check active downloads, because their remaining declared bytes are reserved twice.
+5. Check active downloads, because each reserves its remaining transfer plus a full output/post-processing copy.
 6. Confirm the Nooklet container user can write to the mount.
 7. Recreate the container if `.env` or the Compose override changed.
 8. Recheck Storage and retry the request.

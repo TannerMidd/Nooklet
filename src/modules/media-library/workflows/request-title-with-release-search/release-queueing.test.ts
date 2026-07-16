@@ -1,11 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/modules/downloads/workflows/queue-indexer-result", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/modules/downloads/workflows/queue-indexer-result")>();
+vi.mock("@/modules/downloads/workflows/queue-indexer-result", () => {
+  class MockQueueIndexerResultWorkflowError extends Error {
+    constructor(
+      public readonly code: string,
+      message: string,
+      public readonly capacity: {
+        availableBytes: number;
+        filesystemCapacityBytes: number;
+        requiredBytes: number;
+        activeReservationBytes: number;
+        activeRemainingBytes: number;
+        activeDownloadedBytes: number;
+      } | null = null,
+    ) {
+      super(message);
+      this.name = "QueueIndexerResultWorkflowError";
+    }
+  }
 
   return {
-    ...actual,
     queueIndexerResultWorkflow: vi.fn(),
+    QueueIndexerResultWorkflowError: MockQueueIndexerResultWorkflowError,
   };
 });
 
@@ -142,6 +158,11 @@ describe("queueRequestedTitleRelease", () => {
       requestedTitle: "Arrival",
       targetLibraryId: "e95d5704-d31e-46c2-b1c3-7c1e0c22dbea",
       targetLibraryPathId: "0ca60f81-387b-47d0-a9d2-571e8dd7a44d",
+    }, {
+      fulfillmentId: null,
+      attemptStrategy: null,
+      attemptNumber: null,
+      workLease: null,
     });
     expect(queued).toMatchObject({ queued: true, selectedResultId: "1080-high" });
   });
@@ -149,6 +170,39 @@ describe("queueRequestedTitleRelease", () => {
   it("tries the next matching release when a stored search result expires", async () => {
     queueMock
       .mockRejectedValueOnce(new QueueIndexerResultWorkflowError("result_not_found", "Search result expired."))
+      .mockResolvedValueOnce({ downloadRequest: { id: "download2" } } as never);
+
+    const queued = await queueRequestedTitleRelease(userId, request, title, {
+      searched: true,
+      searchRun: { id: "run1", status: "succeeded" },
+      results: [
+        result({ id: "first", title: "Arrival 2016 1080p", seeders: 20 }),
+        result({ id: "second", title: "Arrival 2016 1080p", seeders: 10 }),
+      ],
+    } as never);
+
+    expect(queueMock).toHaveBeenCalledTimes(2);
+    expect(queued).toMatchObject({
+      queued: true,
+      selectedResultId: "second",
+      rejectedResultIds: [],
+    });
+  });
+
+  it("skips an oversized title release and queues the next candidate", async () => {
+    queueMock
+      .mockRejectedValueOnce(new QueueIndexerResultWorkflowError(
+        "download_capacity_exceeded",
+        "The first release is too large for this workspace.",
+        {
+          availableBytes: 10_000,
+          filesystemCapacityBytes: 20_000,
+          requiredBytes: 30_000,
+          activeReservationBytes: 5_000,
+          activeRemainingBytes: 2_000,
+          activeDownloadedBytes: 1_000,
+        },
+      ))
       .mockResolvedValueOnce({ downloadRequest: { id: "download2" } } as never);
 
     const queued = await queueRequestedTitleRelease(userId, request, title, {

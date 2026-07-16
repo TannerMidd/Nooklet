@@ -1,4 +1,4 @@
-import { removeSabnzbdQueueItem, type SabnzbdQueueSnapshot } from "@/lib/integrations/sabnzbd";
+import { type SabnzbdQueueSnapshot } from "@/lib/integrations/sabnzbd";
 import {
   listActiveDownloadRequestsForImport,
   updateDownloadQueueItemStatus,
@@ -6,6 +6,7 @@ import {
 } from "@/modules/downloads/repositories/download-repository";
 
 import { type ResolvedImportSabnzbdClient } from "../import-completed-downloads/client-resolution";
+import { removeAndVerifySabnzbdItems } from "../verified-sabnzbd-removal";
 
 type ActiveDownloadRequest = Awaited<ReturnType<typeof listActiveDownloadRequestsForImport>>[number];
 
@@ -101,11 +102,14 @@ export async function removeDuplicateSabnzbdQueueItems(
       }
 
       try {
-        await removeSabnzbdQueueItem({
+        const removal = await removeAndVerifySabnzbdItems({
           baseUrl: client.baseUrl,
           apiKey: client.apiKey,
-          itemId: entry.queueItem.externalQueueId,
-        });
+        }, [entry.queueItem.externalQueueId]);
+        if (!removal.get(entry.queueItem.externalQueueId)?.removed) {
+          failedCount += 1;
+          continue;
+        }
         await updateDownloadQueueItemStatus({
           userId,
           queueItemId: entry.queueItem.id,

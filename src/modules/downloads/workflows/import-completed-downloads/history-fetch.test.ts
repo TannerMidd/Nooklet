@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/integrations/sabnzbd", () => ({
-  listSabnzbdHistory: vi.fn(),
+vi.mock("@/modules/downloads/workflows/targeted-sabnzbd-history", () => ({
+  listTrackedSabnzbdHistory: vi.fn(),
 }));
 
-import { listSabnzbdHistory } from "@/lib/integrations/sabnzbd";
+import {
+  listTrackedSabnzbdHistory,
+} from "@/modules/downloads/workflows/targeted-sabnzbd-history";
 
 import { fetchFinishedSabnzbdHistory } from "./history-fetch";
 
-const listHistoryMock = vi.mocked(listSabnzbdHistory);
+const listHistoryMock = vi.mocked(listTrackedSabnzbdHistory);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -27,6 +29,7 @@ describe("fetchFinishedSabnzbdHistory", () => {
     } as never);
 
     const result = await fetchFinishedSabnzbdHistory(
+      "user-1",
       { baseUrl: "http://sab", apiKey: "secret" } as never,
       { historyLimit: 100 } as never,
     );
@@ -37,5 +40,16 @@ describe("fetchFinishedSabnzbdHistory", () => {
       ["aborted", "failed"],
       ["deleted", "failed"],
     ]);
+    expect(listHistoryMock).toHaveBeenCalledWith(
+      "user-1",
+      expect.objectContaining({
+        baseUrl: "http://sab",
+        apiKey: "secret",
+      }),
+      {
+        batchSize: 100,
+        timeoutMs: 20_000,
+      },
+    );
   });
 });

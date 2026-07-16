@@ -1,9 +1,12 @@
 import { type QueuedIndexerResultDownload } from "@/modules/downloads/workflows/queue-indexer-result";
+import { type DownloadCapacityDetails } from "@/modules/downloads/workflows/queue-indexer-result/errors";
 import {
   queueReleaseCandidates,
   selectReleaseCandidates,
   type ReleaseSelectionTarget,
 } from "@/modules/media-library/release-selection";
+import { isInfrastructureIndexerSearchFailure } from "@/modules/downloads/workflows/download-failure-classification";
+import { type SeasonFulfillmentWorkLease } from "@/modules/downloads/workflows/season-fulfillment-work-lease";
 
 import { type ResolvedLibrarySearchItem } from "./item-resolution";
 import { type LibraryItemReleaseSearch } from "./release-search";
@@ -15,6 +18,8 @@ export type LibraryItemQueuedDownload =
       queued: false;
       reason: "search_failed" | "no_matching_release" | "queue_failed";
       message: string | null;
+      failureKind?: "release" | "infrastructure" | "capacity" | "conflict" | "unknown";
+      capacity?: DownloadCapacityDetails | null;
       selectedResultId: null;
       rejectedResultIds: string[];
       download: null;
@@ -31,6 +36,11 @@ export type LibraryItemQueuedDownload =
 type ReleaseQueueingOptions = {
   excludedResultIds?: string[];
   excludedReleaseKeys?: string[];
+  fulfillmentId?: string | null;
+  attemptStrategy?: "season_pack" | "episode" | null;
+  attemptNumber?: number | null;
+  maxCandidateAttempts?: number | null;
+  workLease?: SeasonFulfillmentWorkLease | null;
 };
 
 function itemSelectionTarget(item: ResolvedLibrarySearchItem): ReleaseSelectionTarget | null {
@@ -89,6 +99,9 @@ export async function queueLibraryItemRelease(
       queued: false,
       reason: "search_failed",
       message: releaseSearch.searchRun.errorMessage,
+      failureKind: isInfrastructureIndexerSearchFailure(releaseSearch.searchRun.errorMessage)
+        ? "infrastructure"
+        : "unknown",
       selectedResultId: null,
       rejectedResultIds: [],
       download: null,
@@ -115,5 +128,10 @@ export async function queueLibraryItemRelease(
     targetLibraryPathId: item.targetLibraryPathId,
     seasonId: item.season?.id ?? item.episode?.seasonId,
     episodeId: item.episode?.id,
+    fulfillmentId: options.fulfillmentId,
+    attemptStrategy: options.attemptStrategy,
+    attemptNumber: options.attemptNumber,
+    maxCandidateAttempts: options.maxCandidateAttempts,
+    workLease: options.workLease,
   });
 }

@@ -1,12 +1,10 @@
-import { rm } from "node:fs/promises";
-
 import {
+  checkpointDownloadRequestCancellation,
+  finalizeDownloadRequestCancellation,
   listActiveRequestsForExternalQueueId,
-  updateDownloadQueueItemStatus,
-  updateDownloadRequestStatus,
+  listDownloadQueueItemsForRequest,
 } from "@/modules/downloads/repositories/download-repository";
 import {
-  deleteEngineDownload,
   findEngineDownloadById,
   isEngineDownloadPostProcessing,
   listActiveEngineDownloads,
@@ -15,12 +13,28 @@ import {
 } from "@/modules/download-engine/queue/engine-repository";
 import {
   clearEngineDownloadSignal,
-  engineCompleteDir,
-  engineIncompleteDir,
   ensureEngineRunnerStarted,
   signalEngineDownload,
 } from "@/modules/download-engine/runtime/engine-runner";
 import { type SabnzbdQueueActionInput } from "@/modules/service-connections/sabnzbd-queue-actions";
+import {
+  checkpointSeasonFulfillmentCancellation,
+  rollbackSeasonFulfillmentCancellation,
+  type SeasonFulfillmentCancellationCheckpoint,
+} from "@/modules/downloads/workflows/season-fulfillment-cancellation";
+import {
+  acquireDownloadRequestWorkLease,
+  releaseDownloadRequestWorkLease,
+  renewDownloadRequestWorkLease,
+  type DownloadRequestWorkLease,
+} from "@/modules/downloads/workflows/download-request-work-lease";
+import {
+  acquireSeasonFulfillmentWorkLease,
+  releaseSeasonFulfillmentWorkLease,
+  renewSeasonFulfillmentWorkLease,
+  type SeasonFulfillmentWorkLease,
+} from "@/modules/downloads/workflows/season-fulfillment-work-lease";
+import { removeAndVerifyEngineItems } from "@/modules/downloads/workflows/verified-engine-removal";
 
 /**
  * Queue controls for the built-in engine, accepting the same action shapes
@@ -72,40 +86,145 @@ async function removeItem(userId: string, itemId: string) {
     );
   }
 
-  if (record.state === "fetching") {
-    signalEngineDownload(itemId, "cancel");
-  }
-
-  const removed = await deleteEngineDownload(userId, itemId);
-
-  if (!removed) {
-    if (record.state === "fetching") {
-      clearEngineDownloadSignal(itemId);
+  const entries = await listActiveRequestsForExternalQueueId(userId, itemId);
+  const workLeases = new Map<string, SeasonFulfillmentWorkLease>();
+  const requestWorkLeases = new Map<string, DownloadRequestWorkLease>();
+  const cancellationCheckpoints = new Map<string, SeasonFulfillmentCancellationCheckpoint>();
+  const requestCancellationCheckpoints = new Map<string, Date>();
+  const requestsWithSiblingQueueItems = new Set<string>();
+  let externalRemoved = false;
+  const renewOwnedLeases = async () => {
+    for (const [fulfillmentId, lease] of workLeases) {
+      const renewed = await renewSeasonFulfillmentWorkLease(lease);
+      if (!renewed) {
+        throw new Error("Season recovery changed while built-in cleanup was being verified.");
+      }
+      workLeases.set(fulfillmentId, renewed);
+    }
+    for (const [requestId, lease] of requestWorkLeases) {
+      const renewed = await renewDownloadRequestWorkLease(lease);
+      if (!renewed) {
+        throw new Error("The download changed while built-in cleanup was being verified.");
+      }
+      requestWorkLeases.set(requestId, renewed);
+    }
+  };
+  try {
+    for (const entry of entries) {
+      const fulfillmentId = entry.request.fulfillmentId;
+      if (!fulfillmentId || workLeases.has(fulfillmentId)) continue;
+      const lease = await acquireSeasonFulfillmentWorkLease(userId, fulfillmentId);
+      if (!lease) {
+        throw new EngineQueueActionError(
+          "Season recovery is updating this download. Wait a moment and remove it again.",
+        );
+      }
+      workLeases.set(fulfillmentId, lease);
+    }
+    for (const entry of entries) {
+      if (entry.request.fulfillmentId || requestWorkLeases.has(entry.request.id)) continue;
+      const lease = await acquireDownloadRequestWorkLease(userId, entry.request.id);
+      if (!lease) {
+        throw new EngineQueueActionError(
+          "This download is being imported or recovered. Wait a moment and remove it again.",
+        );
+      }
+      requestWorkLeases.set(entry.request.id, lease);
     }
 
-    throw new EngineQueueActionError(
-      "This download entered post-processing before it could be removed. Wait for it to finish and try again.",
+    for (const entry of entries) {
+      const fulfillmentId = entry.request.fulfillmentId;
+      if (!fulfillmentId || cancellationCheckpoints.has(fulfillmentId)) continue;
+      const workLease = workLeases.get(fulfillmentId);
+      if (!workLease) continue;
+      const checkpoint = await checkpointSeasonFulfillmentCancellation(
+        userId,
+        entry.request,
+        workLease,
+      );
+      if (checkpoint) cancellationCheckpoints.set(fulfillmentId, checkpoint);
+    }
+    for (const entry of entries) {
+      if (entry.request.fulfillmentId || requestCancellationCheckpoints.has(entry.request.id)) {
+        continue;
+      }
+      const checkpoint = await checkpointDownloadRequestCancellation({
+        userId,
+        requestId: entry.request.id,
+      });
+      if (checkpoint?.cancellationRequestedAt) {
+        requestCancellationCheckpoints.set(
+          checkpoint.id,
+          checkpoint.cancellationRequestedAt,
+        );
+      }
+    }
+
+    for (const requestId of requestCancellationCheckpoints.keys()) {
+      const queueItems = await listDownloadQueueItemsForRequest(userId, requestId);
+      if (queueItems.some((queueItem) => queueItem.externalQueueId !== itemId)) {
+        requestsWithSiblingQueueItems.add(requestId);
+      }
+    }
+
+    // Retry attempts can span SABnzbd and the built-in engine. Only remove the
+    // selected engine item here; reconciliation classifies any sibling IDs and
+    // sends each one to the correct downloader before finalizing the request.
+    const removal = await removeAndVerifyEngineItems(
+      userId,
+      [itemId],
+      { beforeExternalPhase: renewOwnedLeases },
     );
-  }
+    externalRemoved = [...removal.values()].some((result) => result.externalRemoved === true);
+    if (removal.get(itemId)?.removed !== true) {
+      throw new EngineQueueActionError(
+        removal.get(itemId)?.message
+          ?? "Built-in downloader cleanup could not be verified yet.",
+      );
+    }
+    externalRemoved = true;
+    await renewOwnedLeases();
 
-  await rm(engineIncompleteDir(itemId), { recursive: true, force: true }).catch(() => undefined);
-  await rm(engineCompleteDir(itemId), { recursive: true, force: true }).catch(() => undefined);
+    // The linked library request must not stay "queued" forever once its
+    // download is gone — close it out with a visible reason.
+    for (const [requestId, requestedAt] of requestCancellationCheckpoints) {
+      if (requestsWithSiblingQueueItems.has(requestId)) continue;
+      const finalized = await finalizeDownloadRequestCancellation({
+        userId,
+        requestId,
+        requestedAt,
+      });
+      if (!finalized) {
+        throw new Error("The download changed before cancellation could be finalized.");
+      }
+    }
 
-  // The linked library request must not stay "queued" forever once its
-  // download is gone — close it out with a visible reason.
-  for (const entry of await listActiveRequestsForExternalQueueId(userId, itemId)) {
-    await updateDownloadQueueItemStatus({
-      userId,
-      queueItemId: entry.queueItem.id,
-      status: "failed",
-      completedAt: new Date(),
-    });
-    await updateDownloadRequestStatus({
-      userId,
-      requestId: entry.request.id,
-      status: "cancelled",
-      statusMessage: "Removed from the download queue.",
-    });
+    // Season checkpoints intentionally remain open here. The background
+    // reconciler removes any sibling episode jobs and only then terminalizes
+    // the durable plan, so a single manual removal cannot strand hidden work.
+  } catch (error) {
+    if (!externalRemoved) {
+      await Promise.allSettled(
+        [...cancellationCheckpoints.entries()].map(([fulfillmentId, checkpoint]) => {
+          const workLease = workLeases.get(fulfillmentId);
+          return workLease
+            ? rollbackSeasonFulfillmentCancellation(userId, checkpoint, workLease)
+            : Promise.resolve(null);
+        }),
+      );
+    }
+    if (requestCancellationCheckpoints.size > 0) {
+      const detail = error instanceof Error ? ` ${error.message}` : "";
+      throw new EngineQueueActionError(
+        `Built-in download cancellation remains pending.${detail} Nooklet will retry cleanup automatically.`,
+      );
+    }
+    throw error;
+  } finally {
+    await Promise.all([
+      ...[...workLeases.values()].map((lease) => releaseSeasonFulfillmentWorkLease(lease)),
+      ...[...requestWorkLeases.values()].map((lease) => releaseDownloadRequestWorkLease(lease)),
+    ]);
   }
 }
 

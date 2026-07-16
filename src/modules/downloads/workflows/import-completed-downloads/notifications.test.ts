@@ -6,14 +6,24 @@ vi.mock("@/modules/downloads/repositories/download-repository", () => ({
 vi.mock("@/modules/notifications/workflows/dispatch-notification", () => ({
   safeDispatchNotificationWorkflow: vi.fn(),
 }));
+vi.mock("@/modules/downloads/repositories/season-fulfillment-repository", () => ({
+  findDownloadFulfillmentById: vi.fn(),
+  findOpenSeasonFulfillment: vi.fn(),
+}));
 
 import { findActiveDownloadRequestForItem } from "@/modules/downloads/repositories/download-repository";
 import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
+import {
+  findDownloadFulfillmentById,
+  findOpenSeasonFulfillment,
+} from "@/modules/downloads/repositories/season-fulfillment-repository";
 
 import { dispatchCompletedDownloadNotifications } from "./notifications";
 
 const findActiveMock = vi.mocked(findActiveDownloadRequestForItem);
 const dispatchMock = vi.mocked(safeDispatchNotificationWorkflow);
+const findFulfillmentMock = vi.mocked(findDownloadFulfillmentById);
+const findOpenFulfillmentMock = vi.mocked(findOpenSeasonFulfillment);
 
 function match(overrides: Record<string, unknown> = {}) {
   return {
@@ -44,6 +54,7 @@ function failedDownload(input: {
   statusKind?: "completed" | "failed";
   requestStatus?: "downloading" | "failed";
   message?: string;
+  requestOverrides?: Record<string, unknown>;
 } = {}) {
   return {
     kind: "failed",
@@ -53,7 +64,10 @@ function failedDownload(input: {
       source: {
         kind: "failed",
         match: {
-          ...match({ status: input.requestStatus ?? "downloading" }),
+          ...match({
+            status: input.requestStatus ?? "downloading",
+            ...input.requestOverrides,
+          }),
           historyItem: { statusKind: input.statusKind ?? "failed" },
         },
       },
@@ -65,6 +79,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   findActiveMock.mockResolvedValue(null);
   dispatchMock.mockResolvedValue(null);
+  findFulfillmentMock.mockResolvedValue(null);
+  findOpenFulfillmentMock.mockResolvedValue(null);
 });
 
 describe("dispatchCompletedDownloadNotifications", () => {
@@ -94,6 +110,38 @@ describe("dispatchCompletedDownloadNotifications", () => {
 
     expect(dispatchMock).not.toHaveBeenCalled();
     expect(result.suppressedRetryCount).toBe(1);
+  });
+
+  it("suppresses a season-pack failure while its open episode fallback plan is still working", async () => {
+    findOpenFulfillmentMock.mockResolvedValue({
+      id: "fulfillment-1",
+      status: "partial",
+      strategy: "episodes",
+    } as never);
+
+    const result = await dispatchCompletedDownloadNotifications("user-1", [
+      failedDownload({
+        requestOverrides: {
+          mediaTitleId: "title-1",
+          seasonId: "season-1",
+          fulfillmentId: null,
+          requestedTitle: "The Show S01",
+          mediaType: "tv",
+        },
+      }),
+    ]);
+
+    expect(findOpenFulfillmentMock).toHaveBeenCalledWith({
+      userId: "user-1",
+      mediaTitleId: "title-1",
+      seasonId: "season-1",
+    });
+    expect(findActiveMock).not.toHaveBeenCalled();
+    expect(dispatchMock).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      downloadFailedCount: 0,
+      suppressedRetryCount: 1,
+    });
   });
 
   it("announces a terminal download failure only on its first failed transition", async () => {

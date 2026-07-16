@@ -3,6 +3,7 @@ import { rm } from "node:fs/promises";
 import {
   findDownloadClientByServiceConnectionId,
   findDownloadRequestById,
+  listDownloadQueueItemsForRequest,
   listDownloadRequestsForExternalQueueIds,
   listDownloadRequestsForExternalQueueIdsForImport,
   listActiveDownloadRequestsForImport,
@@ -16,6 +17,7 @@ import {
 } from "@/modules/download-engine/queue/engine-repository";
 import { engineIncompleteDir } from "@/modules/download-engine/runtime/engine-runner";
 import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
+import { scheduleSeasonFulfillmentAfterRequest } from "@/modules/downloads/workflows/season-fulfillment-terminal-scheduling";
 import { findServiceConnectionByType } from "@/modules/service-connections/queries/find-service-connection-by-type";
 
 import { recordCompletedDownloadImportAudit } from "./import-completed-downloads/audit";
@@ -28,7 +30,12 @@ import { type MatchedCompletedDownload } from "./import-completed-downloads/requ
 import { persistCompletedDownloadImports } from "./import-completed-downloads/persistence";
 import { retryFailedCompletedDownloads } from "./import-completed-downloads/retry-handling";
 import { triggerCompletedDownloadDiscovery } from "./import-completed-downloads/scan-trigger";
+import { acquireSeasonImportFences } from "./import-completed-downloads/season-import-fence";
 import { withCompletedImportLock } from "./completed-import-lock";
+
+export type ImportCompletedEngineDownloadsInput = {
+  requestId?: string;
+};
 
 /**
  * Import pass for the built-in download engine. The engine writes finished
@@ -38,13 +45,16 @@ import { withCompletedImportLock } from "./completed-import-lock";
  * media-file inspection, organization into library folders, persistence,
  * retry scheduling, and library-scan triggering.
  */
-async function runImportCompletedEngineDownloadsWorkflow(userId: string) {
+async function runImportCompletedEngineDownloadsWorkflow(
+  userId: string,
+  input: ImportCompletedEngineDownloadsInput = {},
+) {
   const usenetServer = await findServiceConnectionByType(userId, "usenet-server");
 
   // Safety net: an active request whose engine download no longer exists
   // (removed from the queue, or lost to a crash between writes) must not
   // stay "queued" forever — close it out with a visible reason.
-  if (usenetServer) {
+  if (!input.requestId && usenetServer) {
     const nookletClient = await findDownloadClientByServiceConnectionId(userId, usenetServer.connection.id);
 
     if (nookletClient) {
@@ -53,6 +63,24 @@ async function runImportCompletedEngineDownloadsWorkflow(userId: string) {
 
         if (!engineDownload) {
           const message = "The download is no longer in the queue — it was removed or lost.";
+          const seasonFulfillment = await scheduleSeasonFulfillmentAfterRequest(
+            userId,
+            entry.request,
+            {
+              status: "failed",
+              message,
+              retryableContentFailure: true,
+            },
+          );
+          if (
+            seasonFulfillment?.cancellationRequestedAt
+            || seasonFulfillment?.status === "cancelled"
+          ) {
+            // The cancellation reconciler still needs this queue id to retry
+            // deterministic directory cleanup. Do not hide it behind a local
+            // failed status merely because the engine row is already gone.
+            continue;
+          }
           await updateDownloadQueueItemStatus({
             userId,
             queueItemId: entry.queueItem.id,
@@ -65,7 +93,7 @@ async function runImportCompletedEngineDownloadsWorkflow(userId: string) {
             status: "failed",
             statusMessage: message,
           });
-          if (entry.request.status !== "failed") {
+          if (!seasonFulfillment && entry.request.status !== "failed") {
             await safeDispatchNotificationWorkflow({
               userId,
               payload: {
@@ -81,7 +109,17 @@ async function runImportCompletedEngineDownloadsWorkflow(userId: string) {
     }
   }
 
-  const finished = await listUnimportedFinishedEngineDownloads(userId);
+  const targetRequest = input.requestId
+    ? await findDownloadRequestById(userId, input.requestId)
+    : null;
+  const targetQueueItems = targetRequest && !targetRequest.cancellationRequestedAt
+    ? await listDownloadQueueItemsForRequest(userId, targetRequest.id)
+    : [];
+  const targetQueueIds = new Set(targetQueueItems.map((item) => item.externalQueueId));
+  const allFinished = await listUnimportedFinishedEngineDownloads(userId);
+  const finished = input.requestId
+    ? allFinished.filter((record) => targetQueueIds.has(record.id))
+    : allFinished;
 
   if (finished.length === 0) {
     return null;
@@ -98,6 +136,7 @@ async function runImportCompletedEngineDownloadsWorkflow(userId: string) {
       failMessage: record.state === "failed"
         ? record.errorMessage ?? "The download failed."
         : null,
+      failureKind: record.failureKind,
       sizeLabel: null,
       totalMb: record.totalBytes > 0 ? record.totalBytes / (1024 * 1024) : null,
       statusKind: record.state === "failed" ? "failed" : "completed",
@@ -107,26 +146,49 @@ async function runImportCompletedEngineDownloadsWorkflow(userId: string) {
   // Match by the engine id itself rather than a mutable connection/client id.
   // This keeps completed local files importable after a connection is
   // removed and recreated.
-  const activeRequests = await listDownloadRequestsForExternalQueueIdsForImport(
-    userId,
-    finished.map((record) => record.id),
-  );
-  const trackedRequests = await listDownloadRequestsForExternalQueueIds(
-    userId,
-    finished.map((record) => record.id),
-  );
+  const activeRequests = input.requestId
+    ? targetRequest
+      ? targetQueueItems.map((queueItem) => ({ request: targetRequest, queueItem }))
+      : []
+    : await listDownloadRequestsForExternalQueueIdsForImport(
+        userId,
+        finished.map((record) => record.id),
+      );
+  const trackedRequests = input.requestId
+    ? activeRequests
+    : await listDownloadRequestsForExternalQueueIds(
+        userId,
+        finished.map((record) => record.id),
+      );
   const matches: MatchedCompletedDownload[] = activeRequests.flatMap((entry) => {
     const historyItem = historyById.get(entry.queueItem.externalQueueId);
 
     return historyItem ? [{ ...entry, historyItem }] : [];
   });
 
-  const matchedEngineIds = new Set(matches.map((match) => match.historyItem.id));
+  const fences = await acquireSeasonImportFences(userId, matches);
+  let organized;
+  let persisted;
 
-  const resolved = await resolveCompletedDownloadDestinations(userId, matches, { sourcePathKind: "local" });
-  const inspected = await inspectCompletedDownloadFiles(resolved);
-  const organized = await organizeCompletedDownloadFiles(inspected);
-  const persisted = await persistCompletedDownloadImports(userId, organized);
+  try {
+    const resolved = await resolveCompletedDownloadDestinations(
+      userId,
+      fences.matches,
+      { sourcePathKind: "local" },
+    );
+    const inspected = await inspectCompletedDownloadFiles(resolved);
+    await fences.renew();
+    organized = await organizeCompletedDownloadFiles(inspected);
+    await fences.renew();
+    persisted = fences.workLeases.size > 0
+      ? await persistCompletedDownloadImports(userId, organized, {
+          workLeases: fences.workLeases,
+        })
+      : await persistCompletedDownloadImports(userId, organized);
+  } finally {
+    await fences.release();
+  }
+  const matchedEngineIds = new Set(fences.matches.map((match) => match.historyItem.id));
   const retry = await retryFailedCompletedDownloads(userId, organized);
   const discovery = await triggerCompletedDownloadDiscovery(userId, persisted);
 
@@ -180,6 +242,12 @@ async function runImportCompletedEngineDownloadsWorkflow(userId: string) {
   return { ...persisted, retry, discovery };
 }
 
-export async function importCompletedEngineDownloadsWorkflow(userId: string) {
-  return withCompletedImportLock(userId, () => runImportCompletedEngineDownloadsWorkflow(userId));
+export async function importCompletedEngineDownloadsWorkflow(
+  userId: string,
+  input: ImportCompletedEngineDownloadsInput = {},
+) {
+  return withCompletedImportLock(
+    userId,
+    () => runImportCompletedEngineDownloadsWorkflow(userId, input),
+  );
 }

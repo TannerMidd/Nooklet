@@ -65,7 +65,7 @@ export async function persistIndexerSearchResults(
       : "succeeded",
     resultCount,
     errorMessage: noSources
-      ? "No enabled indexers were available for this media type."
+      ? "No enabled Newznab indexers were available for this media type."
       : errorMessages.length > 0 ? errorMessages.join("; ") : null,
   });
 

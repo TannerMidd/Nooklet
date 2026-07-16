@@ -106,18 +106,18 @@
             <span class="status-pulse" aria-hidden="true"></span>
             Document control
           </div>
-          <h2 id="document-control-title">Published architecture baseline.</h2>
+          <h2 id="document-control-title">Current-main release candidate.</h2>
           <dl class="verification-list">
             <div><dt>System</dt><dd>Nooklet 0.1.0</dd></div>
             <div><dt>Architecture</dt><dd>Modular monolith</dd></div>
             <div><dt>Runtime</dt><dd>Single Node 24 process</dd></div>
             <div><dt>Persistence</dt><dd>SQLite in WAL mode</dd></div>
-            <div><dt>Validation date</dt><dd>15 July 2026</dd></div>
+            <div><dt>Validation date</dt><dd>16 July 2026</dd></div>
           </dl>
           <div class="commit-stamp">
-            <span>Application baseline</span>
-            <a href="https://github.com/TannerMidd/Nooklet/commit/49432fb1aabd0afc34e00c374ebe8e9507c42776">
-              <code>49432fb</code>
+            <span>Source snapshot</span>
+            <a href="https://github.com/TannerMidd/Nooklet/tree/main">
+              <code>current main &middot; release candidate</code>
             </a>
           </div>
         </aside>
@@ -125,9 +125,9 @@
         <div class="hero-metrics technical-metrics" aria-label="Audited repository scale" data-reveal>
           <p class="metric-label">Audited repository scale</p>
           <div><strong>17</strong><span>domain modules</span></div>
-          <div><strong>40</strong><span>normalized tables</span></div>
-          <div><strong>36</strong><span>SQL migrations</span></div>
-          <div><strong>173</strong><span>test files</span></div>
+          <div><strong>42</strong><span>normalized tables</span></div>
+          <div><strong>40</strong><span>SQL migrations</span></div>
+          <div><strong>199</strong><span>test files</span></div>
         </div>
       </section>
 
@@ -189,7 +189,7 @@
                 <th scope="row">Downloads</th>
                 <td>Newznab + native Usenet; optional SABnzbd</td>
                 <td>Torrent protocol support</td>
-                <td>The current protocol guard rejects Torznab releases with a typed outcome.</td>
+                <td>Automatic acquisition searches enabled Newznab sources only; a protocol guard remains as defense in depth.</td>
               </tr>
               <tr>
                 <th scope="row">Persistence</th>
@@ -376,7 +376,7 @@
               <p class="card-kicker">Domain ownership</p>
               <h3>Workflows are the unit of change.</h3>
               <p>
-                The repository contains 142 production workflow files and 80 workflow test files across request,
+                The repository contains 157 production workflow files and 95 workflow test files across request,
                 search, scan, import, recommendation, connection, and history domains.
               </p>
             </article>
@@ -427,8 +427,8 @@
                 <span class="sequence-arrow" aria-hidden="true">&rarr;</span>
                 <span class="sequence-to">SQLite</span>
                 <div>
-                  <strong>Acquire a 60-second logical-request lock</strong>
-                  <p>A short-lived idempotency record prevents duplicate processing of the same title selection.</p>
+                  <strong>Acquire an expiring logical-request lease</strong>
+                  <p>Normal requests use five minutes; TV expansion uses two hours, while season recovery has a separate renewable 15-minute per-plan lease.</p>
                 </div>
               </li>
               <li>
@@ -438,7 +438,7 @@
                 <span class="sequence-to">Verified sources</span>
                 <div>
                   <strong>Search, normalize, score, and persist results</strong>
-                  <p>Download URLs are encrypted, user-owned, and expire after 24 hours.</p>
+                  <p>Only enabled Newznab sources enter automatic acquisition ranking; URLs are encrypted, user-owned, and expire after 24 hours.</p>
                 </div>
               </li>
               <li>
@@ -458,7 +458,7 @@
                 <span class="sequence-to">Native engine</span>
                 <div>
                   <strong>Verify origin, fetch NZB, and run capacity preflight</strong>
-                  <p>The URL origin must match the supplying indexer; fetch is bounded to 60 seconds and 50 MiB.</p>
+                  <p>The URL origin must match the supplying indexer; fetch is bounded to 60 seconds and 50 MiB, then capacity is atomically reserved.</p>
                 </div>
               </li>
               <li>
@@ -501,10 +501,87 @@
           </figcaption>
         </figure>
 
+        <figure class="tech-figure" aria-labelledby="fulfillment-figure-title" data-reveal>
+          <header class="tech-figure-header">
+            <div>
+              <p class="figure-id">FIG 04 &middot; SEASON FULFILLMENT</p>
+              <h3 id="fulfillment-figure-title">One durable intent coordinates every pack and episode attempt</h3>
+            </div>
+            <ul class="diagram-legend" aria-label="Season fulfillment legend">
+              <li><span class="legend-swatch legend-domain" aria-hidden="true"></span>Coordinator state</li>
+              <li><span class="legend-swatch legend-data" aria-hidden="true"></span>Persisted evidence</li>
+              <li><span class="legend-swatch legend-interface" aria-hidden="true"></span>Operator boundary</li>
+            </ul>
+          </header>
+          <div class="tech-canvas fulfillment-canvas">
+            <div
+              class="fulfillment-map"
+              role="img"
+              aria-label="Season intent tries up to three season-pack releases, reconciles imported coverage, falls back to individual episodes when no usable pack remains or a pack cannot fit the staging filesystem, succeeds when monitored aired coverage is complete, waits for active capacity contention, and blocks rather than fans out on operator-repairable infrastructure failures."
+            >
+              <div class="state-node fulfillment-intent">
+                <small>Logical request</small>
+                <strong>season intent</strong>
+                <span>user &middot; title &middot; season &middot; destination</span>
+              </div>
+              <span class="fulfillment-edge fulfillment-edge-one" aria-hidden="true">&rarr;</span>
+              <div class="state-node state-active fulfillment-pack">
+                <small>Strategy 01</small>
+                <strong>season_pack</strong>
+                <span class="attempt-meter" aria-label="Three automatic pack-attempt slots"><i></i><i></i><i></i></span>
+              </div>
+              <div class="fulfillment-route fulfillment-pack-route">
+                <small>usable import</small><span aria-hidden="true">&rarr;</span>
+              </div>
+              <div class="state-node state-process fulfillment-coverage">
+                <small>Reconcile</small>
+                <strong>coverage gate</strong>
+                <span>current monitored + aired episodes</span>
+              </div>
+              <span class="fulfillment-edge fulfillment-edge-two" aria-hidden="true">&rarr;</span>
+              <div class="state-node state-success fulfillment-success">
+                <small>Terminal</small>
+                <strong>succeeded</strong>
+                <span>required files observed</span>
+              </div>
+
+              <div class="fulfillment-trigger">
+                <span>no usable pack</span>
+                <span>3 attempts exhausted</span>
+                <span>incomplete coverage</span>
+                <b aria-hidden="true">&darr;</b>
+              </div>
+              <div class="state-node state-warning fulfillment-episodes">
+                <small>Strategy 02</small>
+                <strong>episodes</strong>
+                <span>independent state, exclusions, and due time</span>
+              </div>
+              <div class="fulfillment-route fulfillment-episode-route">
+                <small>episode imports</small><span aria-hidden="true">&nearr;</span>
+              </div>
+            </div>
+
+            <div class="fulfillment-recovery-ledger" aria-label="Recovery timing and failure classification">
+              <div><strong>5 min &rarr; 6 hr</strong><span>transient search and active-capacity retry backoff</span></div>
+              <div><strong>15 min</strong><span>active-download coverage recheck</span></div>
+              <div><strong>6 hr</strong><span>unavailable episode release recheck</span></div>
+              <div class="fulfillment-blocked"><strong>blocked</strong><span>workspace free space/mapping, path, downloader, or credential repair required</span></div>
+            </div>
+          </div>
+          <figcaption>
+            <span>Figure 4.</span> A fulfillment is the Activity-level user outcome; a
+            <code>download_request</code> is one physical attempt. Failed or intrinsically oversized releases are
+            excluded within the plan; active capacity contention waits without burning a release; current storage
+            pressure blocks for repair. Due work survives restart in SQLite, and infrastructure faults stop fan-out.
+            Source:
+            <a href="https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/season-fulfillment.ts">season fulfillment workflow</a>.
+          </figcaption>
+        </figure>
+
         <figure class="tech-figure" aria-labelledby="state-figure-title" data-reveal>
           <header class="tech-figure-header">
             <div>
-              <p class="figure-id">FIG 04 &middot; STATE MODEL</p>
+              <p class="figure-id">FIG 05 &middot; ENGINE STATE MODEL</p>
               <h3 id="state-figure-title">Observed native-engine transitions</h3>
             </div>
           </header>
@@ -529,7 +606,7 @@
             </div>
           </div>
           <figcaption>
-            <span>Figure 4.</span> This reflects current code, not the aspirational ADR vocabulary. The
+            <span>Figure 5.</span> This reflects current code, not the aspirational ADR vocabulary. The
             <code>assembling</code> enum exists, but current assembly occurs during fetch without persisting that
             intermediate state.
             <a href="https://github.com/TannerMidd/Nooklet/blob/main/src/modules/download-engine/runtime/engine-runner.ts">Engine runner source</a>.
@@ -567,7 +644,7 @@
         <figure class="tech-figure capacity-figure" aria-labelledby="capacity-figure-title" data-reveal>
           <header class="tech-figure-header">
             <div>
-              <p class="figure-id">FIG 05 &middot; CAPACITY POLICY</p>
+              <p class="figure-id">FIG 06 &middot; CAPACITY POLICY</p>
               <h3 id="capacity-figure-title">Request-time staging estimator</h3>
             </div>
           </header>
@@ -587,16 +664,16 @@
                 />
               </label>
               <label>
-                <span>Active remaining downloads <output id="capacity-active-output" for="capacity-active">20 GiB</output></span>
+                <span>Active workspace reservation <output id="capacity-active-output" for="capacity-active">40 GiB</output></span>
                 <input
                   id="capacity-active"
                   type="range"
                   min="0"
-                  max="200"
+                  max="400"
                   step="5"
-                  value="20"
-                  aria-label="Active remaining downloads"
-                  aria-valuetext="20 GiB"
+                  value="40"
+                  aria-label="Active workspace reservation"
+                  aria-valuetext="40 GiB"
                 />
               </label>
             </div>
@@ -614,7 +691,7 @@
               aria-label="Capacity budget with safety reserve, active work reservation, new archive, and unpack headroom"
             >
               <div class="capacity-segment segment-floor" id="capacity-floor-segment"><span>512 MiB floor</span></div>
-              <div class="capacity-segment segment-active" id="capacity-active-segment"><span>2&times; active</span></div>
+              <div class="capacity-segment segment-active" id="capacity-active-segment"><span>Active work</span></div>
               <div class="capacity-segment segment-archive" id="capacity-archive-segment"><span>New archive</span></div>
               <div class="capacity-segment segment-unpack" id="capacity-unpack-segment"><span>Unpack copy</span></div>
             </div>
@@ -627,15 +704,17 @@
             </ul>
 
             <div class="formula-grid">
-              <div><span>Processing reservation</span><code>0.5 GiB + 2 &times; active remaining</code></div>
+              <div><span>Processing reservation</span><code>0.5 GiB + &Sigma;(active total + remaining)</code></div>
               <div><span>Available for new work</span><code>free - processing reservation</code></div>
               <div><span>Maximum new release</span><code>floor(available / 2)</code></div>
             </div>
           </div>
           <figcaption>
-            <span>Figure 5.</span> The estimator mirrors <code>assertDownloadCapacity</code>. It is an explicit
-            staging threshold, not a proof that every archive expansion or final-library write will fit. Completed
-            output awaiting import is not included in the active-remainder query.
+            <span>Figure 6.</span> The estimator mirrors the atomic queue reservation. Current free space already
+            excludes bytes downloaded so far; each active item therefore reserves its full output plus remaining
+            transfer, while a new item reserves an archive and unpacked copy. Active-work contention retries without
+            consuming a release, an item larger than the entire filesystem advances to another candidate, and
+            non-active storage pressure blocks with a drive/mount repair action.
             <a href="https://github.com/TannerMidd/Nooklet/blob/main/src/modules/download-engine/workflows/enqueue-nzb-download.ts">Capacity implementation</a>.
           </figcaption>
         </figure>
@@ -695,7 +774,7 @@
               <h2 id="data-title">Workflow state is normalized and independently auditable.</h2>
             </div>
             <p>
-              Forty Drizzle tables separate intent, queue state, transfer state, import evidence, recommendations,
+              Forty-two Drizzle tables separate intent, fulfillment state, queue state, transfer state, import evidence, recommendations,
               history, jobs, notifications, credentials, and audit events. SQLite-specific behavior is embraced
               deliberately rather than hidden behind portability claims.
             </p>
@@ -705,27 +784,27 @@
             <header class="tech-figure-header">
               <div>
                 <p class="figure-id">CHART 01 &middot; SCHEMA COMPOSITION</p>
-                <h3 id="schema-chart-title">Forty persisted record types by responsibility</h3>
+                <h3 id="schema-chart-title">Forty-two persisted record types by responsibility</h3>
               </div>
             </header>
             <div class="tech-canvas">
-              <div class="schema-stack" role="img" aria-label="Stacked chart of 40 tables: 6 identity and control, 8 library, 13 indexer and download, 9 history and recommendation, 4 jobs and notification">
-                <div class="schema-segment schema-identity" style="--segment: 15%"><strong>6</strong><span>Identity + control</span></div>
-                <div class="schema-segment schema-library" style="--segment: 20%"><strong>8</strong><span>Library</span></div>
-                <div class="schema-segment schema-download" style="--segment: 32.5%"><strong>13</strong><span>Indexer + download</span></div>
-                <div class="schema-segment schema-history" style="--segment: 22.5%"><strong>9</strong><span>History + recommendations</span></div>
-                <div class="schema-segment schema-ops" style="--segment: 10%"><strong>4</strong><span>Jobs + notifications</span></div>
+              <div class="schema-stack" role="img" aria-label="Stacked chart of 42 tables: 6 identity and control, 8 library, 15 indexer and download, 9 history and recommendation, 4 jobs and notification">
+                <div class="schema-segment schema-identity" style="--segment: 14.29%"><strong>6</strong><span>Identity + control</span></div>
+                <div class="schema-segment schema-library" style="--segment: 19.05%"><strong>8</strong><span>Library</span></div>
+                <div class="schema-segment schema-download" style="--segment: 35.71%"><strong>15</strong><span>Indexer + download</span></div>
+                <div class="schema-segment schema-history" style="--segment: 21.43%"><strong>9</strong><span>History + recommendations</span></div>
+                <div class="schema-segment schema-ops" style="--segment: 9.52%"><strong>4</strong><span>Jobs + notifications</span></div>
               </div>
               <div class="schema-legend" aria-hidden="true">
                 <span><i class="schema-identity"></i>Identity + control &middot; 6</span>
                 <span><i class="schema-library"></i>Library &middot; 8</span>
-                <span><i class="schema-download"></i>Indexer + download &middot; 13</span>
+                <span><i class="schema-download"></i>Indexer + download &middot; 15</span>
                 <span><i class="schema-history"></i>History + recommendations &middot; 9</span>
                 <span><i class="schema-ops"></i>Jobs + notifications &middot; 4</span>
               </div>
             </div>
             <figcaption>
-              <span>Chart 1.</span> Counts are derived from the 40 <code>sqliteTable</code> definitions in
+              <span>Chart 1.</span> Counts are derived from the 42 <code>sqliteTable</code> definitions in
               <a href="https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/schema.ts">schema.ts</a>.
               The categories explain responsibility; they are not storage-size measurements.
             </figcaption>
@@ -734,7 +813,7 @@
           <figure class="tech-figure" aria-labelledby="er-figure-title" data-reveal>
             <header class="tech-figure-header">
               <div>
-                <p class="figure-id">FIG 06 &middot; DOMAIN RELATIONSHIPS</p>
+                <p class="figure-id">FIG 07 &middot; DOMAIN RELATIONSHIPS</p>
                 <h3 id="er-figure-title">Core records across the request lifecycle</h3>
               </div>
             </header>
@@ -757,6 +836,12 @@
                 <small>owned, expiring, encrypted download URL</small>
               </div>
               <div class="er-arrow" aria-hidden="true">&rarr;</div>
+              <div class="er-domain er-fulfillment">
+                <span>Intent</span>
+                <strong>download_fulfillments</strong>
+                <small>strategy &middot; due time &middot; episode coverage</small>
+              </div>
+              <div class="er-arrow" aria-hidden="true">&rarr;</div>
               <div class="er-domain er-transfer">
                 <span>Transfer</span>
                 <strong>download_requests</strong>
@@ -775,8 +860,9 @@
               </div>
             </div>
             <figcaption>
-              <span>Figure 6.</span> The transfer path is not stored as one aggregate JSON document. Separate records
-              preserve intent, external ownership, local execution, import attempts, and operator-visible outcomes.
+              <span>Figure 7.</span> Season intent, physical release attempts, engine execution, and import evidence
+              remain separate records. That preserves both an aggregate user outcome and the technical history needed
+              to explain how it was reached.
             </figcaption>
           </figure>
 
@@ -796,6 +882,7 @@
               <h3>Database-enforced uniqueness</h3>
               <ul class="issue-list">
                 <li>One active request per user, title, and episode/season key.</li>
+                <li>One open season fulfillment per user, title, and season.</li>
                 <li>One job per user, type, target type, and target key.</li>
                 <li>One queue item per client and external queue identifier.</li>
                 <li>One normalized watch-history item per source and media key.</li>
@@ -814,7 +901,7 @@
           <figure class="tech-figure" aria-labelledby="migration-figure-title" data-reveal>
             <header class="tech-figure-header">
               <div>
-                <p class="figure-id">FIG 07 &middot; MIGRATION TIMELINE</p>
+                <p class="figure-id">FIG 08 &middot; MIGRATION TIMELINE</p>
                 <h3 id="migration-figure-title">Schema evolution from foundation to operational safety</h3>
               </div>
             </header>
@@ -826,10 +913,13 @@
                 <li><span>0028-0032</span><strong>Standalone engine</strong><small>External manager removal, request locks, destination, engine persistence</small></li>
                 <li><span>0033</span><strong>Repair</strong><small>Idempotent correction for a historical journal-order issue</small></li>
                 <li><span>0034-0035</span><strong>Execution safety</strong><small>Job leases, heartbeats, and forced temporary-password replacement</small></li>
+                <li><span>0036</span><strong>Season recovery</strong><small>Durable fulfillment plans, child episode state, and attempt linkage</small></li>
+                <li><span>0037</span><strong>Failure semantics</strong><small>Structured engine failure classification for safe recovery decisions</small></li>
+                <li><span>0038-0039</span><strong>Cancellation durability</strong><small>Season and standalone request checkpoints for verified asynchronous cleanup</small></li>
               </ol>
             </div>
             <figcaption>
-              <span>Figure 7.</span> Thirty-six migrations span <code>0000</code> through <code>0035</code>.
+              <span>Figure 8.</span> Forty migrations span <code>0000</code> through <code>0039</code>.
               Migration <code>0033</code> deliberately repairs a known historical state using idempotent DDL.
               <a href="https://github.com/TannerMidd/Nooklet/tree/main/drizzle">Migration source</a>.
             </figcaption>
@@ -885,7 +975,7 @@
         <figure class="tech-figure" aria-labelledby="lease-figure-title" data-reveal>
           <header class="tech-figure-header">
             <div>
-              <p class="figure-id">FIG 08 &middot; LEASE PROTOCOL</p>
+              <p class="figure-id">FIG 09 &middot; LEASE PROTOCOL</p>
               <h3 id="lease-figure-title">Persisted job ownership and deferred reruns</h3>
             </div>
           </header>
@@ -905,21 +995,54 @@
             </aside>
           </div>
           <figcaption>
-            <span>Figure 8.</span> Ownership is a persisted protocol, while concurrency remains intentionally bounded
+            <span>Figure 9.</span> Ownership is a persisted protocol, while concurrency remains intentionally bounded
             to one job per workload class.
             <a href="https://github.com/TannerMidd/Nooklet/blob/main/src/modules/jobs/repositories/job-repository.ts">Job repository source</a>.
+          </figcaption>
+        </figure>
+
+        <figure class="tech-figure" aria-labelledby="cancellation-figure-title" data-reveal>
+          <header class="tech-figure-header">
+            <div>
+              <p class="figure-id">FIG 09B &middot; CANCELLATION PROTOCOL</p>
+              <h3 id="cancellation-figure-title">Cancellation is a verified, restart-safe workflow</h3>
+            </div>
+          </header>
+          <div class="tech-canvas lease-flow">
+            <ol>
+              <li><span>01</span><strong>Persist intent</strong><small>Write an immutable cancellation-request timestamp before external cleanup</small></li>
+              <li><span>02</span><strong>Claim ownership</strong><small>Acquire the request or season work lease and re-read the checkpoint</small></li>
+              <li><span>03</span><strong>Enumerate all evidence</strong><small>Include current and historical queue identifiers across built-in and SABnzbd clients</small></li>
+              <li><span>04</span><strong>Remove and verify</strong><small>Delete queue/history entries and files, then observe confirmed absence</small></li>
+              <li><span>05</span><strong>CAS finalization</strong><small>Finalize only if the exact checkpoint still matches; otherwise persist a five-minute retry</small></li>
+            </ol>
+            <aside>
+              <strong>Standalone request</strong>
+              <p>The maintenance pass processes at most three due cancellations concurrently, ordered by least-recent attempt, so one unreachable client cannot starve imports.</p>
+              <strong>Season plan</strong>
+              <p>Every linked physical attempt is cleaned, including terminal siblings, while only active local rows are rewritten as cancelled.</p>
+            </aside>
+          </div>
+          <figcaption>
+            <span>Figure 9B.</span> A UI click records intent; it does not claim success before downloader absence and
+            file cleanup are verified. Both checkpoints survive restarts and retain client-aware ownership.
+            <a href="https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/reconcile-download-request-cancellations.ts">Standalone reconciler</a>
+            and
+            <a href="https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/reconcile-season-fulfillment-cancellations.ts">season reconciler</a>.
           </figcaption>
         </figure>
 
         <div class="lane-grid" data-reveal>
           <article>
             <p class="card-kicker">Maintenance lane</p>
-            <h3>Import order is intentional.</h3>
+            <h3>Maintenance order is intentional.</h3>
             <ol>
+              <li>Wake the built-in engine runner</li>
+              <li>Season cancellation reconciliation</li>
+              <li>Standalone cancellation reconciliation</li>
               <li>Built-in engine import</li>
-              <li>Legacy SAB completed import</li>
-              <li>Duplicate queue reconciliation</li>
-              <li>Missing queue reconciliation</li>
+              <li>Legacy SAB import and queue reconciliation</li>
+              <li>Due season-fulfillment recovery</li>
             </ol>
           </article>
           <article>
@@ -968,7 +1091,7 @@
           <figure class="tech-figure" aria-labelledby="trust-figure-title" data-reveal>
             <header class="tech-figure-header">
               <div>
-                <p class="figure-id">FIG 09 &middot; TRUST BOUNDARIES</p>
+                <p class="figure-id">FIG 10 &middot; TRUST BOUNDARIES</p>
                 <h3 id="trust-figure-title">Inbound, stored, outbound, and filesystem policy</h3>
               </div>
             </header>
@@ -1007,7 +1130,7 @@
               </div>
             </div>
             <figcaption>
-              <span>Figure 9.</span> Private network hosts require exact allowlisting or an explicit trusted-LAN
+              <span>Figure 10.</span> Private network hosts require exact allowlisting or an explicit trusted-LAN
               override. Link-local, metadata, multicast, and blocked address ranges remain denied.
             </figcaption>
           </figure>
@@ -1100,7 +1223,7 @@
         <figure class="tech-figure" aria-labelledby="deployment-figure-title" data-reveal>
           <header class="tech-figure-header">
             <div>
-              <p class="figure-id">FIG 10 &middot; DEPLOYMENT TOPOLOGY</p>
+              <p class="figure-id">FIG 11 &middot; DEPLOYMENT TOPOLOGY</p>
               <h3 id="deployment-figure-title">Container process, volumes, mounts, and integrations</h3>
             </div>
             <ul class="diagram-legend" aria-label="Deployment topology legend">
@@ -1136,7 +1259,7 @@
             </div>
           </div>
           <figcaption>
-            <span>Figure 10.</span> The image contains the repair and extraction binaries needed by the native
+            <span>Figure 11.</span> The image contains the repair and extraction binaries needed by the native
             downloader. The named volume and bind mounts are the durable boundary; the container image is replaceable.
           </figcaption>
         </figure>
@@ -1219,45 +1342,45 @@ npm run account:recover -- admin@example.com</code></pre>
               </ul>
             </header>
             <div class="tech-canvas module-chart">
-              <div class="module-bar" style="--total:100%;--source:66.67%;--tests:33.33%">
-                <span>media-library</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>90 + 45</strong>
+              <div class="module-bar" style="--total:100%;--source:66.18%;--tests:33.82%">
+                <span>media-library</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>90 + 46</strong>
               </div>
-              <div class="module-bar" style="--total:51.11%;--source:63.77%;--tests:36.23%">
-                <span>downloads</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>44 + 25</strong>
+              <div class="module-bar" style="--total:75.74%;--source:58.25%;--tests:41.75%">
+                <span>downloads</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>60 + 43</strong>
               </div>
-              <div class="module-bar" style="--total:42.22%;--source:68.42%;--tests:31.58%">
+              <div class="module-bar" style="--total:41.91%;--source:68.42%;--tests:31.58%">
                 <span>service-connections</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>39 + 18</strong>
               </div>
-              <div class="module-bar" style="--total:25.93%;--source:71.43%;--tests:28.57%">
-                <span>indexers</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>25 + 10</strong>
+              <div class="module-bar" style="--total:26.47%;--source:69.44%;--tests:30.56%">
+                <span>indexers</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>25 + 11</strong>
               </div>
-              <div class="module-bar" style="--total:22.22%;--source:70%;--tests:30%">
+              <div class="module-bar" style="--total:22.06%;--source:70%;--tests:30%">
                 <span>recommendations</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>21 + 9</strong>
               </div>
-              <div class="module-bar" style="--total:20.74%;--source:78.57%;--tests:21.43%">
+              <div class="module-bar" style="--total:21.32%;--source:58.62%;--tests:41.38%">
+                <span>download-engine</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>17 + 12</strong>
+              </div>
+              <div class="module-bar" style="--total:20.59%;--source:78.57%;--tests:21.43%">
                 <span>watch-history</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>22 + 6</strong>
               </div>
-              <div class="module-bar" style="--total:20%;--source:62.96%;--tests:37.04%">
-                <span>download-engine</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>17 + 10</strong>
-              </div>
-              <div class="module-bar" style="--total:12.59%;--source:82.35%;--tests:17.65%">
+              <div class="module-bar" style="--total:12.50%;--source:82.35%;--tests:17.65%">
                 <span>notifications</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>14 + 3</strong>
               </div>
-              <div class="module-bar" style="--total:37.04%;--source:72%;--tests:28%">
-                <span>nine smaller modules</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>36 + 14</strong>
+              <div class="module-bar" style="--total:37.50%;--source:70.59%;--tests:29.41%">
+                <span>nine smaller modules</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>36 + 15</strong>
               </div>
             </div>
             <figcaption>
-              <span>Chart 3.</span> The 17 domain directories contain 448 TypeScript files: 308 production and 140
+              <span>Chart 3.</span> The 17 domain directories contain 487 TypeScript/TSX files: 324 production and 163
               test files. The root module registry adds one production file outside those directories. The complete
-              <code>src</code> tree contains 693 TypeScript/TSX files, including 173 test files.
+              <code>src</code> tree contains 735 TypeScript/TSX files, including 199 test files.
             </figcaption>
           </figure>
 
           <figure class="tech-figure" aria-labelledby="proof-figure-title" data-reveal>
             <header class="tech-figure-header">
               <div>
-                <p class="figure-id">FIG 11 &middot; RELEASE PROOF LADDER</p>
+                <p class="figure-id">FIG 12 &middot; RELEASE PROOF LADDER</p>
                 <h3 id="proof-figure-title">Each gate answers a different engineering question</h3>
               </div>
             </header>
@@ -1265,23 +1388,23 @@ npm run account:recover -- admin@example.com</code></pre>
               <ol>
                 <li><span>01</span><strong>Lint</strong><p>Is source quality structurally clean?</p><b>Passed</b></li>
                 <li><span>02</span><strong>Typecheck</strong><p>Do TypeScript contracts compose?</p><b>Passed</b></li>
-                <li><span>03</span><strong>Vitest</strong><p>Do workflow and policy behaviors hold?</p><b>930 / 173 files</b></li>
+                <li><span>03</span><strong>Vitest</strong><p>Do workflow and policy behaviors hold?</p><b>1,148 collected / 199 files</b></li>
                 <li><span>04</span><strong>Production build</strong><p>Can the standalone artifact be assembled and sanitized?</p><b>Passed</b></li>
                 <li><span>05</span><strong>Docker smoke</strong><p>Does the hardened runtime start and report healthy?</p><b>Passed</b></li>
                 <li><span>06</span><strong>Signed-in browser QA</strong><p>Can key workflows be understood and operated responsively?</p><b>Desktop + mobile</b></li>
               </ol>
             </div>
             <figcaption>
-              <span>Figure 11.</span> Docker smoke validates startup and health, not a complete live media request.
+              <span>Figure 12.</span> Docker smoke validates startup and health, not a complete live media request.
               Browser QA is hands-on release evidence, not an automated cross-browser certification suite.
             </figcaption>
           </figure>
 
           <div class="evidence-ledger" data-reveal>
-            <div><span>Repository</span><strong>695 files under <code>src</code></strong><small>693 TypeScript/TSX &middot; 520 production &middot; 173 test</small></div>
-            <div><span>Application surface</span><strong>28 pages &middot; 15 action files &middot; 3 API route files</strong><small>Most mutations remain server-action shaped.</small></div>
-            <div><span>Workflow layer</span><strong>142 production workflow files</strong><small>80 colocated workflow test files.</small></div>
-            <div><span>Release change</span><strong>362 files in application overhaul</strong><small>20,879 additions &middot; 7,178 deletions.</small></div>
+            <div><span>Repository</span><strong>737 files under <code>src</code></strong><small>735 TypeScript/TSX &middot; 536 production &middot; 199 test</small></div>
+            <div><span>Application surface</span><strong>27 pages &middot; 13 action files &middot; 3 API route files</strong><small>Most mutations remain server-action shaped.</small></div>
+            <div><span>Workflow layer</span><strong>157 production workflow files</strong><small>95 colocated workflow test files.</small></div>
+            <div><span>Historical overhaul</span><strong><a href="https://github.com/TannerMidd/Nooklet/commit/49432fb1aabd0afc34e00c374ebe8e9507c42776">362 files in commit <code>49432fb</code></a></strong><small>20,879 additions &middot; 7,178 deletions.</small></div>
           </div>
 
           <p class="table-helper">Scroll horizontally to inspect implementation traceability on a narrow screen.</p>
@@ -1314,6 +1437,18 @@ npm run account:recover -- admin@example.com</code></pre>
                   <td>Search + Discover</td>
                   <td><a href="https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/queue-indexer-result/index.ts"><code>queue-indexer-result</code></a></td>
                   <td>Phase tests + database uniqueness</td>
+                </tr>
+                <tr>
+                  <th scope="row">Resilient season intent</th>
+                  <td>Library + Activity</td>
+                  <td><a href="https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/season-fulfillment.ts"><code>season-fulfillment</code></a><br /><a href="https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/repositories/season-fulfillment-repository.ts"><code>fulfillment repository</code></a></td>
+                  <td>State-machine, persistence, fallback, and migration tests</td>
+                </tr>
+                <tr>
+                  <th scope="row">Verified cancellation</th>
+                  <td>Activity</td>
+                  <td><a href="https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/reconcile-download-request-cancellations.ts"><code>request cancellation</code></a><br /><a href="https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/reconcile-season-fulfillment-cancellations.ts"><code>season cancellation</code></a></td>
+                  <td>Checkpoint, lease, cross-client removal, and retry-backoff tests</td>
                 </tr>
                 <tr>
                   <th scope="row">Native transfer</th>
@@ -1351,8 +1486,8 @@ npm run account:recover -- admin@example.com</code></pre>
 
           <div class="ci-callout" data-reveal>
             <div>
-              <span>Verified main run</span>
-              <strong>Lint, typecheck, 930 tests, production build, image build, and health smoke passed.</strong>
+              <span>Published main evidence</span>
+              <strong>The linked run passed its lint, typecheck, test, production-build, image-build, and health-smoke gates.</strong>
             </div>
             <a href="https://github.com/TannerMidd/Nooklet/actions/runs/29435486547">Inspect CI run</a>
           </div>
@@ -1381,8 +1516,8 @@ npm run account:recover -- admin@example.com</code></pre>
             <a href="https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0002-in-house-download-engine.md" data-reveal>
               <span>ADR 0002 &middot; accepted</span><h3>Native Usenet engine</h3><p>Establishes engine-owned queue state and the standalone direction; current-runtime differences are called out in this dossier.</p>
             </a>
-            <a href="https://github.com/TannerMidd/Nooklet/blob/main/docs/architecture/project-structure.md" data-reveal>
-              <span>Architecture</span><h3>Project structure</h3><p>Documents module ownership, thin routes, workflow phases, and allowed dependency direction.</p>
+            <a href="https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0003-durable-season-fulfillment.md" data-reveal>
+              <span>ADR 0003 &middot; accepted</span><h3>Durable season fulfillment</h3><p>Separates the user's season outcome from physical attempts, with classified pack retry, episode fallback, and restart-safe recovery.</p>
             </a>
             <a href="https://github.com/TannerMidd/Nooklet/blob/main/docs/product/behavior-matrix.md" data-reveal>
               <span>Product contract</span><h3>Behavior matrix</h3><p>Connects observable product behavior to its owning workflows instead of a specific screen implementation.</p>
@@ -1419,7 +1554,7 @@ npm run account:recover -- admin@example.com</code></pre>
           <a href="https://github.com/TannerMidd/Nooklet/security/advisories/new">Security advisory</a>
           <a href="https://github.com/TannerMidd/Nooklet/blob/main/LICENSE">MIT license</a>
         </nav>
-        <p class="revision">Application baseline <code>49432fb</code><br />Technical dossier revised July 15, 2026</p>
+        <p class="revision">Source snapshot <code>current main &middot; release candidate</code><br />Technical dossier revised July 16, 2026</p>
       </div>
     </footer>
 

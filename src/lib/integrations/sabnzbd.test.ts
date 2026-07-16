@@ -13,6 +13,8 @@ import {
   moveSabnzbdQueueItemToPosition,
   pauseSabnzbdQueue,
   pauseSabnzbdQueueItem,
+  removeSabnzbdHistoryItem,
+  removeSabnzbdQueueItem,
   resumeSabnzbdQueue,
 } from "./sabnzbd";
 
@@ -165,36 +167,59 @@ describe("listSabnzbdQueue", () => {
       limit: 10,
     });
 
-    expect(snapshot.items).toEqual([
-      {
-        id: "SABnzbd_nzo_3",
-        title: "Movie.Name.2024.1080p",
-        status: "Completed",
-        category: "movies",
-        storagePath: "C:/Downloads/complete/Movie.Name.2024.1080p",
-        completedAt: new Date("2026-05-07T00:00:00.000Z"),
-        failMessage: null,
-        sizeLabel: "12 GB",
-        totalMb: 12288,
-      },
-      {
-        id: "SABnzbd_nzo_4",
-        title: "Show.Name.S01E01.1080p",
-        status: "Failed",
-        category: null,
-        storagePath: "C:/Downloads/incomplete/Show.Name.S01E01.1080p",
-        completedAt: null,
-        failMessage: "Repair failed",
-        sizeLabel: null,
-        totalMb: null,
-      },
-    ]);
+    expect(snapshot).toEqual({
+      totalHistoryCount: 2,
+      items: [
+        {
+          id: "SABnzbd_nzo_3",
+          title: "Movie.Name.2024.1080p",
+          status: "Completed",
+          category: "movies",
+          storagePath: "C:/Downloads/complete/Movie.Name.2024.1080p",
+          completedAt: new Date("2026-05-07T00:00:00.000Z"),
+          failMessage: null,
+          sizeLabel: "12 GB",
+          totalMb: 12288,
+        },
+        {
+          id: "SABnzbd_nzo_4",
+          title: "Show.Name.S01E01.1080p",
+          status: "Failed",
+          category: null,
+          storagePath: "C:/Downloads/incomplete/Show.Name.S01E01.1080p",
+          completedAt: null,
+          failMessage: "Repair failed",
+          sizeLabel: null,
+          totalMb: null,
+        },
+      ],
+    });
 
     const requestUrl = mockedSafeFetch.mock.calls[0]?.[0];
 
     expect(requestUrl).toBeInstanceOf(URL);
     expect((requestUrl as URL).toString()).toBe(
       "http://localhost:8080/api?mode=history&output=json&limit=10&apikey=secret",
+    );
+  });
+
+  it("filters history by the requested SABnzbd job ids", async () => {
+    mockedSafeFetch.mockResolvedValue(
+      new Response(JSON.stringify({ history: { slots: [], noofslots: 0 } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await listSabnzbdHistory({
+      baseUrl: "http://localhost:8080",
+      apiKey: "secret",
+      limit: 2,
+      nzoIds: ["SABnzbd_nzo_3", "SABnzbd_nzo_4"],
+    });
+
+    expect((mockedSafeFetch.mock.calls[0]?.[0] as URL).toString()).toBe(
+      "http://localhost:8080/api?mode=history&output=json&limit=2&nzo_ids=SABnzbd_nzo_3%2CSABnzbd_nzo_4&apikey=secret",
     );
   });
 
@@ -217,6 +242,44 @@ describe("listSabnzbdQueue", () => {
     expect(requestUrl).toBeInstanceOf(URL);
     expect((requestUrl as URL).toString()).toBe(
       "http://localhost:8080/api?mode=queue&output=json&name=pause&value=SABnzbd_nzo_1&apikey=secret",
+    );
+  });
+
+  it("deletes a queue item and its partial files", async () => {
+    mockedSafeFetch.mockResolvedValue(
+      new Response(JSON.stringify({ status: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await removeSabnzbdQueueItem({
+      baseUrl: "http://localhost:8080",
+      apiKey: "secret",
+      itemId: "SABnzbd_nzo_1",
+    });
+
+    expect((mockedSafeFetch.mock.calls[0]?.[0] as URL).toString()).toBe(
+      "http://localhost:8080/api?mode=queue&output=json&name=delete&value=SABnzbd_nzo_1&del_files=1&apikey=secret",
+    );
+  });
+
+  it("deletes a history item and its completed files without archiving it", async () => {
+    mockedSafeFetch.mockResolvedValue(
+      new Response(JSON.stringify({ status: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await removeSabnzbdHistoryItem({
+      baseUrl: "http://localhost:8080",
+      apiKey: "secret",
+      itemId: "SABnzbd_nzo_3",
+    });
+
+    expect((mockedSafeFetch.mock.calls[0]?.[0] as URL).toString()).toBe(
+      "http://localhost:8080/api?mode=history&output=json&name=delete&value=SABnzbd_nzo_3&archive=0&del_files=1&apikey=secret",
     );
   });
 

@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
   downloadImportRuns,
+  downloadFulfillments,
   downloadQueueItems,
   downloadRequests,
   indexerSearchResults,
@@ -25,6 +26,7 @@ import {
   createDownloadClient,
   createDownloadImportRun,
   createDownloadRequest,
+  expireStalePendingDownloadReservations,
   findActiveDownloadRequestForItem,
   findDownloadClientById,
   findDownloadClientByServiceConnectionId,
@@ -32,6 +34,9 @@ import {
   incrementDownloadRequestMissingTickCount,
   incrementDownloadRequestRetryCount,
   isActiveDownloadRequestUniqueViolation,
+  countDownloadRequestHistory,
+  listDownloadRequestHistoryPage,
+  listRequestsForFulfillment,
   listDownloadRequestsByStatus,
   listActiveDownloadRequestsForImport,
   listDownloadRequestReleaseExclusionsForItem,
@@ -136,7 +141,7 @@ function seedImportedMovieFile(userId: string) {
   return { libraryPathId, mediaFileId };
 }
 
-function seedTitleAndEpisode(userId: string) {
+function seedTitleAndEpisode(userId: string, keySuffix = "") {
   const database = ensureDatabaseReady();
   const movieLibraryId = randomUUID();
   const tvLibraryId = randomUUID();
@@ -145,8 +150,8 @@ function seedTitleAndEpisode(userId: string) {
   const seasonId = randomUUID();
   const episodeId = randomUUID();
 
-  database.insert(mediaLibraries).values({ id: movieLibraryId, userId, mediaType: "movie", name: "Movies" }).run();
-  database.insert(mediaLibraries).values({ id: tvLibraryId, userId, mediaType: "tv", name: "TV" }).run();
+  database.insert(mediaLibraries).values({ id: movieLibraryId, userId, mediaType: "movie", name: `Movies ${movieLibraryId}` }).run();
+  database.insert(mediaLibraries).values({ id: tvLibraryId, userId, mediaType: "tv", name: `TV ${tvLibraryId}` }).run();
   database
     .insert(mediaTitles)
     .values({
@@ -154,10 +159,10 @@ function seedTitleAndEpisode(userId: string) {
       userId,
       libraryId: movieLibraryId,
       mediaType: "movie",
-      title: "Arrival",
-      sortTitle: "arrival",
+      title: `Arrival${keySuffix}`,
+      sortTitle: `arrival${keySuffix}`,
       year: 2016,
-      normalizedKey: "arrival::2016",
+      normalizedKey: `arrival${keySuffix}::2016`,
       status: "missing",
     })
     .run();
@@ -168,10 +173,10 @@ function seedTitleAndEpisode(userId: string) {
       userId,
       libraryId: tvLibraryId,
       mediaType: "tv",
-      title: "Severance",
-      sortTitle: "severance",
+      title: `Severance${keySuffix}`,
+      sortTitle: `severance${keySuffix}`,
       year: 2022,
-      normalizedKey: "severance::2022",
+      normalizedKey: `severance${keySuffix}::2022`,
       status: "missing",
     })
     .run();
@@ -191,7 +196,7 @@ function seedTitleAndEpisode(userId: string) {
     })
     .run();
 
-  return { movieTitleId, episodeTitleId, episodeId };
+  return { movieTitleId, episodeTitleId, seasonId, episodeId };
 }
 
 function seedSearchResult(input: {
@@ -236,6 +241,97 @@ beforeEach(() => {
 });
 
 describe("download-repository", () => {
+  it("expires only stale pre-submission reservations", async () => {
+    const database = ensureDatabaseReady();
+    const userId = await seedUser();
+    const now = new Date();
+    const old = new Date(now.getTime() - 20 * 60_000);
+
+    const stale = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Stale reservation",
+      status: "pending",
+    });
+    const fresh = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Fresh reservation",
+      status: "pending",
+    });
+    const submitted = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Submission already recorded",
+      status: "pending",
+    });
+    const queueLinked = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Queue-linked reservation",
+      status: "pending",
+    });
+    await recordDownloadQueueItem({
+      requestId: queueLinked.id,
+      userId,
+      externalQueueId: `queue-${queueLinked.id}`,
+    });
+
+    database
+      .update(downloadRequests)
+      .set({ createdAt: old, updatedAt: old })
+      .where(inArray(downloadRequests.id, [stale.id, submitted.id, queueLinked.id]))
+      .run();
+    database
+      .update(downloadRequests)
+      .set({ submittedAt: old })
+      .where(eq(downloadRequests.id, submitted.id))
+      .run();
+
+    const expired = await expireStalePendingDownloadReservations({ now });
+    const rows = database
+      .select()
+      .from(downloadRequests)
+      .where(inArray(downloadRequests.id, [stale.id, fresh.id, submitted.id, queueLinked.id]))
+      .all();
+    const byId = new Map(rows.map((row) => [row.id, row]));
+
+    expect(expired).toBe(1);
+    expect(byId.get(stale.id)).toMatchObject({
+      status: "failed",
+      completedAt: now,
+    });
+    expect(byId.get(stale.id)?.statusMessage).toMatch(/reservation expired/i);
+    expect(byId.get(fresh.id)?.status).toBe("pending");
+    expect(byId.get(submitted.id)?.status).toBe("pending");
+    expect(byId.get(queueLinked.id)?.status).toBe("pending");
+  });
+
+  it("reaps a stale item reservation before reporting an active conflict", async () => {
+    const database = ensureDatabaseReady();
+    const userId = await seedUser();
+    const { movieTitleId } = seedTitleAndEpisode(userId);
+    const request = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Arrival",
+      mediaTitleId: movieTitleId,
+      status: "pending",
+    });
+    const old = new Date(Date.now() - 20 * 60_000);
+    database
+      .update(downloadRequests)
+      .set({ createdAt: old, updatedAt: old })
+      .where(eq(downloadRequests.id, request.id))
+      .run();
+
+    const active = await findActiveDownloadRequestForItem({ userId, mediaTitleId: movieTitleId });
+    const stored = await findDownloadRequestById(userId, request.id);
+
+    expect(active).toBeNull();
+    expect(stored?.status).toBe("failed");
+  });
+
   it("publishes a pending request and all downloader queue ids atomically", async () => {
     const userId = await seedUser();
     const serviceConnectionId = seedSabnzbdConnection(userId);
@@ -361,7 +457,7 @@ describe("download-repository", () => {
     expect(reloadedRequest?.id).toBe(request.id);
     expect(missingRequest).toBeNull();
     expect(recentActivity).toHaveLength(1);
-    expect(recentActivity[0]?.request.id).toBe(request.id);
+    expect(recentActivity[0]?.request?.id).toBe(request.id);
     expect(recentActivity[0]?.queueItem?.externalQueueId).toBe("sab-queue-1");
   });
 
@@ -379,6 +475,26 @@ describe("download-repository", () => {
     });
 
     if (!client) throw new Error("download client missing");
+    const engineConnectionId = randomUUID();
+    ensureDatabaseReady()
+      .insert(serviceConnections)
+      .values({
+        id: engineConnectionId,
+        serviceType: "usenet-server",
+        ownerUserId: userId,
+        displayName: "Built-in downloader",
+        baseUrl: "news.example.test",
+        status: "verified",
+      })
+      .run();
+    const engineClient = await createDownloadClient({
+      userId,
+      serviceConnectionId: engineConnectionId,
+      clientType: "nooklet",
+      displayName: "Built-in downloader",
+      status: "verified",
+    });
+    if (!engineClient) throw new Error("built-in download client missing");
 
     const request = await createDownloadRequest({
       userId,
@@ -392,6 +508,13 @@ describe("download-repository", () => {
       userId,
       clientId: client.id,
       externalQueueId: "SABnzbd_nzo_1",
+      status: "queued",
+    });
+    const mixedClientQueueItem = await recordDownloadQueueItem({
+      requestId: request.id,
+      userId,
+      clientId: engineClient.id,
+      externalQueueId: randomUUID(),
       status: "queued",
     });
     const completedRequest = await createDownloadRequest({
@@ -472,6 +595,7 @@ describe("download-repository", () => {
     expect(activeRequests.map((entry) => entry.queueItem.id)).toContain(failedImportQueueItem.id);
     expect(activeRequests.map((entry) => entry.request.id)).toContain(requeuingRequest.id);
     expect(activeRequests.map((entry) => entry.request.id)).not.toContain(recentFailedImportRequest.id);
+    expect(activeRequests.map((entry) => entry.queueItem.id)).not.toContain(mixedClientQueueItem.id);
     expect(activeUserIds).toEqual(expect.arrayContaining([userId, otherUserId]));
   });
 
@@ -705,6 +829,73 @@ describe("download-repository", () => {
     expect(second.status).toBe("pending");
   });
 
+  it("lists active and terminal queue attempts for season cancellation cleanup", async () => {
+    const userId = await seedUser();
+    const { episodeTitleId, seasonId } = seedTitleAndEpisode(userId);
+    const fulfillmentId = randomUUID();
+    ensureDatabaseReady()
+      .insert(downloadFulfillments)
+      .values({
+        id: fulfillmentId,
+        userId,
+        mediaTitleId: episodeTitleId,
+        seasonId,
+        requestedTitle: "Severance Season 1",
+        status: "retry_wait",
+      })
+      .run();
+
+    const attempts = await Promise.all([
+      createDownloadRequest({
+        userId,
+        mediaType: "tv",
+        requestedTitle: "Severance Season 1",
+        mediaTitleId: episodeTitleId,
+        seasonId,
+        fulfillmentId,
+        status: "failed",
+      }),
+      createDownloadRequest({
+        userId,
+        mediaType: "tv",
+        requestedTitle: "Severance Season 1",
+        mediaTitleId: episodeTitleId,
+        seasonId,
+        fulfillmentId,
+        status: "succeeded",
+      }),
+      createDownloadRequest({
+        userId,
+        mediaType: "tv",
+        requestedTitle: "Severance Season 1",
+        mediaTitleId: episodeTitleId,
+        seasonId,
+        fulfillmentId,
+        status: "queued",
+      }),
+    ]);
+    await Promise.all(attempts.map((attempt, index) => recordDownloadQueueItem({
+      requestId: attempt.id,
+      userId,
+      externalQueueId: `season-attempt-${index + 1}`,
+      status: index === 0 ? "failed" : index === 1 ? "completed" : "queued",
+    })));
+
+    const entries = await listRequestsForFulfillment(userId, fulfillmentId);
+
+    expect(entries.map((entry) => entry.queueItem.externalQueueId)).toEqual(expect.arrayContaining([
+      "season-attempt-1",
+      "season-attempt-2",
+      "season-attempt-3",
+    ]));
+    expect(entries.map((entry) => entry.request.status)).toEqual(expect.arrayContaining([
+      "failed",
+      "succeeded",
+      "queued",
+    ]));
+    expect(entries).toHaveLength(3);
+  });
+
   it("tracks submission time, missing-tick count, and retry count", async () => {
     const userId = await seedUser();
     const { movieTitleId } = seedTitleAndEpisode(userId);
@@ -751,5 +942,185 @@ describe("download-repository", () => {
       .get();
     expect(afterRetry?.retryCount).toBe(1);
     expect(afterRetry?.lastRetriedAt).not.toBeNull();
+  });
+
+  it("counts an open season fulfillment once and keeps its failed attempts out of attention", async () => {
+    const database = ensureDatabaseReady();
+    const userId = await seedUser();
+    const { episodeTitleId, seasonId, episodeId } = seedTitleAndEpisode(userId);
+    const fulfillmentId = randomUUID();
+
+    database.insert(downloadFulfillments).values({
+      id: fulfillmentId,
+      userId,
+      mediaTitleId: episodeTitleId,
+      seasonId,
+      requestedTitle: "Severance Season 1",
+      strategy: "episodes",
+      status: "partial",
+      packAttemptCount: 1,
+      statusMessage: "Using individual episodes: 1 retrying.",
+    }).run();
+
+    await createDownloadRequest({
+      userId,
+      mediaType: "tv",
+      mediaTitleId: episodeTitleId,
+      seasonId,
+      requestedTitle: "Severance Season 1",
+      releaseTitle: "Severance.S01.PACK",
+      fulfillmentId,
+      attemptStrategy: "season_pack",
+      attemptNumber: 1,
+      status: "failed",
+    });
+    await createDownloadRequest({
+      userId,
+      mediaType: "tv",
+      mediaTitleId: episodeTitleId,
+      seasonId,
+      episodeId,
+      requestedTitle: "Severance S01E02",
+      releaseTitle: "Severance.S01E02.1080p",
+      fulfillmentId,
+      attemptStrategy: "episode",
+      attemptNumber: 1,
+      status: "failed",
+    });
+
+    const activeStatuses = ["pending", "queued", "downloading", "importing", "requeuing"] as const;
+    const activeCount = await countDownloadRequestHistory({
+      userId,
+      statuses: [...activeStatuses],
+    });
+    const attentionCount = await countDownloadRequestHistory({
+      userId,
+      statuses: ["failed", "cancelled"],
+    });
+    const page = await listDownloadRequestHistoryPage({
+      userId,
+      statuses: [...activeStatuses],
+      limit: 25,
+      offset: 0,
+    });
+
+    expect(activeCount).toBe(1);
+    expect(attentionCount).toBe(0);
+    expect(page.total).toBe(1);
+    expect(page.rows).toHaveLength(2);
+    expect(page.rows.every((row) => row.fulfillment?.id === fulfillmentId)).toBe(true);
+  });
+
+  it("counts and pages season fulfillments before any physical request exists", async () => {
+    const database = ensureDatabaseReady();
+    const userId = await seedUser();
+    const activeTarget = seedTitleAndEpisode(userId, " Active");
+    const blockedTarget = seedTitleAndEpisode(userId, " Blocked");
+    const completedTarget = seedTitleAndEpisode(userId, " Completed");
+
+    database.insert(downloadFulfillments).values([
+      {
+        id: "bare-active-plan",
+        userId,
+        mediaTitleId: activeTarget.episodeTitleId,
+        seasonId: activeTarget.seasonId,
+        requestedTitle: "Bare Active Season",
+        status: "active",
+      },
+      {
+        id: "bare-blocked-plan",
+        userId,
+        mediaTitleId: blockedTarget.episodeTitleId,
+        seasonId: blockedTarget.seasonId,
+        requestedTitle: "Bare Blocked Season",
+        status: "blocked",
+        statusMessage: "Storage must be fixed.",
+      },
+      {
+        id: "bare-completed-plan",
+        userId,
+        mediaTitleId: completedTarget.episodeTitleId,
+        seasonId: completedTarget.seasonId,
+        requestedTitle: "Bare Completed Season",
+        status: "succeeded",
+      },
+    ]).run();
+
+    const activeStatuses = ["pending", "queued", "downloading", "importing", "requeuing"] as const;
+    await expect(countDownloadRequestHistory({
+      userId,
+      statuses: [...activeStatuses],
+    })).resolves.toBe(1);
+    await expect(countDownloadRequestHistory({
+      userId,
+      statuses: ["failed", "cancelled"],
+    })).resolves.toBe(1);
+    await expect(countDownloadRequestHistory({
+      userId,
+      statuses: ["succeeded"],
+    })).resolves.toBe(1);
+
+    const attention = await listDownloadRequestHistoryPage({
+      userId,
+      statuses: ["failed", "cancelled"],
+      query: "Bare Blocked",
+      limit: 25,
+      offset: 0,
+    });
+    expect(attention.total).toBe(1);
+    expect(attention.rows).toEqual([
+      expect.objectContaining({
+        request: null,
+        queueItem: null,
+        fulfillment: expect.objectContaining({ id: "bare-blocked-plan" }),
+      }),
+    ]);
+  });
+
+  it("uses stable kind and id tie-breaks for logical Activity items", async () => {
+    const database = ensureDatabaseReady();
+    const userId = await seedUser();
+    const firstTarget = seedTitleAndEpisode(userId, " First");
+    const secondTarget = seedTitleAndEpisode(userId, " Second");
+    const tiedAt = new Date("2026-07-15T12:00:00.000Z");
+
+    database.insert(downloadFulfillments).values([
+      {
+        id: "a-fulfillment",
+        userId,
+        mediaTitleId: firstTarget.episodeTitleId,
+        seasonId: firstTarget.seasonId,
+        requestedTitle: "First Season",
+        status: "active",
+        createdAt: tiedAt,
+        updatedAt: tiedAt,
+      },
+      {
+        id: "b-fulfillment",
+        userId,
+        mediaTitleId: secondTarget.episodeTitleId,
+        seasonId: secondTarget.seasonId,
+        requestedTitle: "Second Season",
+        status: "active",
+        createdAt: tiedAt,
+        updatedAt: tiedAt,
+      },
+    ]).run();
+    database.insert(downloadRequests).values({
+      id: "a-request",
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Standalone Movie",
+      status: "queued",
+      createdAt: tiedAt,
+      updatedAt: tiedAt,
+    }).run();
+
+    const first = await listRecentDownloadRequestsWithQueueItems(userId, 10);
+    const second = await listRecentDownloadRequestsWithQueueItems(userId, 10);
+    const logicalIds = (rows: typeof first) => rows.map((row) => row.fulfillment?.id ?? row.request?.id);
+
+    expect(logicalIds(first)).toEqual(["a-fulfillment", "b-fulfillment", "a-request"]);
+    expect(logicalIds(second)).toEqual(logicalIds(first));
   });
 });

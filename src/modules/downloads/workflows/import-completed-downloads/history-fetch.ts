@@ -1,4 +1,8 @@
-import { listSabnzbdHistory, type SabnzbdHistoryItem } from "@/lib/integrations/sabnzbd";
+import { type SabnzbdHistoryItem } from "@/lib/integrations/sabnzbd";
+import { type DownloadFailureKind } from "@/modules/downloads/workflows/download-failure-classification";
+import {
+  listTrackedSabnzbdHistory,
+} from "@/modules/downloads/workflows/targeted-sabnzbd-history";
 
 import { ImportCompletedDownloadsWorkflowError } from "./errors";
 import { type ResolvedImportSabnzbdClient } from "./client-resolution";
@@ -6,6 +10,7 @@ import { type ImportCompletedDownloadsRequest } from "./request-validation";
 
 export type FinishedSabnzbdHistoryItem = SabnzbdHistoryItem & {
   statusKind: "completed" | "failed";
+  failureKind?: DownloadFailureKind | null;
 };
 
 export type FinishedSabnzbdHistory = {
@@ -33,15 +38,17 @@ function statusKind(status: string): FinishedSabnzbdHistoryItem["statusKind"] | 
 }
 
 export async function fetchFinishedSabnzbdHistory(
+  userId: string,
   client: ResolvedImportSabnzbdClient,
   request: ImportCompletedDownloadsRequest,
 ): Promise<FinishedSabnzbdHistory> {
   try {
-    const snapshot = await listSabnzbdHistory({
-      baseUrl: client.baseUrl,
-      apiKey: client.apiKey,
-      limit: request.historyLimit,
+    const snapshot = await listTrackedSabnzbdHistory(userId, client, {
+      // This is now a bounded request batch size, not a recency cutoff.
+      // Every active Nooklet job is targeted across as many batches as needed.
+      batchSize: request.historyLimit,
       timeoutMs: 20_000,
+      ...(request.requestId ? { requestId: request.requestId } : {}),
     });
 
     return {

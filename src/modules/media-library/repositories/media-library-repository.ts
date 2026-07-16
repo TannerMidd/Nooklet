@@ -1012,6 +1012,28 @@ export async function listTvEpisodesForTitle(titleId: string): Promise<TvEpisode
     .all();
 }
 
+export async function listTvEpisodesForSeasonForUser(input: {
+  userId: string;
+  titleId: string;
+  seasonId: string;
+}): Promise<TvEpisodeRecord[]> {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select({ episode: tvEpisodes })
+    .from(tvEpisodes)
+    .innerJoin(mediaTitles, eq(mediaTitles.id, tvEpisodes.titleId))
+    .innerJoin(tvSeasons, eq(tvSeasons.id, tvEpisodes.seasonId))
+    .where(and(
+      eq(mediaTitles.userId, input.userId),
+      eq(mediaTitles.id, input.titleId),
+      eq(tvSeasons.id, input.seasonId),
+    ))
+    .orderBy(asc(tvEpisodes.episodeNumber))
+    .all()
+    .map((row) => row.episode);
+}
+
 export async function setTvEpisodeHasFile(input: { episodeId: string; hasFile: boolean }) {
   const database = ensureDatabaseReady();
 

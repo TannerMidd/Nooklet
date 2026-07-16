@@ -302,8 +302,8 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
         open={pendingRemoval !== null}
         title="Remove download?"
         description={pendingRemoval?.source === "engine"
-          ? <>Removing <strong className="text-foreground">{pendingRemoval.title}</strong> cancels the download and permanently deletes its working and completed files. This cannot be undone.</>
-          : <>Removing <strong className="text-foreground">{pendingRemoval?.title}</strong> cancels the SABnzbd queue item. Files SABnzbd already completed are kept.</>}
+          ? <>Removing <strong className="text-foreground">{pendingRemoval.title}</strong> permanently deletes its working and completed files. If it belongs to a season recovery plan, the whole plan is cancelled and every linked sibling job and its files are also deleted. This cannot be undone.</>
+          : <>Removing <strong className="text-foreground">{pendingRemoval?.title}</strong> permanently deletes its partial or completed SABnzbd files. If it belongs to a season recovery plan, the whole plan is cancelled and every linked sibling job and its files are also deleted. This cannot be undone.</>}
         confirmLabel="Remove download"
         pending={isMutating}
         onClose={() => setPendingRemoval(null)}

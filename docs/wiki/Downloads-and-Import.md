@@ -1,6 +1,6 @@
 # Downloads and Import
 
-> Applies to the current `main` implementation. Last source review: 2026-07-15.
+> Applies to the current `main` implementation. Last source review: 2026-07-16.
 
 Nooklet can fetch Usenet releases directly through its built-in downloader or submit them to legacy SABnzbd. Both paths converge on Nooklet-owned request, queue, import, media-file, and audit records.
 
@@ -49,7 +49,51 @@ A complete built-in download path requires:
 
 TMDB is required by the current setup-readiness path for reliable discovery and title identity. AI is optional and is not required to search for or request a known title.
 
-Torznab indexers can currently be configured and searched, but queue submission rejects torrent results. Use Newznab for a functional download path. Torrent transport is not implemented.
+Torznab settings may still exist for compatibility, but automatic acquisition searches exclude them before ranking. If no enabled Newznab source is available, the request stops with a setup action instead of repeatedly retrying or selecting an unqueueable torrent. Torrent transport is not implemented.
+
+## Resilient season fulfillment
+
+Season requests have a coordinator above individual `download_requests`. The coordinator persists the requested season, destination, strategy, attempt budget, next due time, and an aggregate status message. Physical season-pack and episode downloads attach to it as independently inspectable attempts.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Pack: season requested
+  Pack --> Pack: content failure and another pack remains
+  Pack --> RetryWait: transient search or active capacity contention
+  RetryWait --> Pack: nextAttemptAt becomes due
+  Pack --> Episodes: no usable pack or 3 attempts exhausted
+  Pack --> Blocked: free-space or mount, path, downloader, credential, or indexer setup failure
+  Pack --> Coverage: pack imported
+  Coverage --> Succeeded: monitored aired coverage is present
+  Coverage --> Episodes: coverage is incomplete
+  Episodes --> Partial: one or more episodes await a release
+  Partial --> Episodes: due release recheck
+  Episodes --> Succeeded: required coverage is present
+  Episodes --> Blocked: remaining eligible work needs operator repair
+```
+
+Pack release exclusions belong to the fulfillment, so a new season request does not inherit an unrelated historical retry budget. The current automatic pack limit is three physical release attempts. Release/content failures advance the strategy; infrastructure and configuration failures stop fan-out and surface a blocked state.
+
+Capacity has three explicit outcomes:
+
+- If active downloads account for the shortage, the plan waits about five minutes, then retries with exponential backoff without consuming or excluding the release.
+- If the release could not fit even on an empty staging filesystem, it is treated as an unusable candidate; Nooklet advances to a smaller pack or episode release.
+- If the release fits the filesystem in principle but current non-active free space does not, Nooklet blocks with a workspace/drive-mapping repair action. The release is not consumed, so **Resume season recovery** can use it after the operator fixes storage.
+
+Episode fallback searches only missing, monitored episodes that have aired (an unknown air date is treated as eligible). It skips owned files, attaches to compatible active work, and runs at most three episode searches concurrently. Each episode retains its own attempt count, release exclusions, status, and next due time.
+
+Retry timing is persisted:
+
+| Recovery condition | Current schedule |
+| --- | ---: |
+| Transient search or unexpected workflow error | Starts at 5 minutes, doubles to a 6-hour cap |
+| Capacity reserved by active downloads | Starts at 5 minutes, doubles to a 6-hour cap |
+| Active download coverage check | 15 minutes |
+| No episode release currently available | 6 hours |
+
+The 15-second worker pass resumes due plans after a process restart. Activity groups all physical attempts into one season plan and shows **Recovering** until the plan succeeds, becomes blocked, or otherwise reaches a terminal state. Notifications are suppressed while the plan is still recovering.
+
+Source: [season fulfillment workflow](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/season-fulfillment.ts), [fulfillment repository](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/repositories/season-fulfillment-repository.ts), and [ADR-0003](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0003-durable-season-fulfillment.md).
 
 ## Staging capacity policy
 
@@ -59,11 +103,11 @@ For a new NZB, the request-time requirement is:
 
 ```text
 required bytes = 512 MiB
-               + 2 x remaining bytes of all active engine downloads
+               + sum(total bytes + remaining bytes for active engine downloads)
                + 2 x declared bytes of the new NZB
 ```
 
-The factor of two reserves room for downloaded/assembled data and an unpacked copy. The 512 MiB term is a fixed safety reserve. This is a conservative admission estimate, not a guarantee that every archive will expand within the estimate.
+Current free space already excludes bytes downloaded so far. Each active item therefore reserves its remaining transfer plus a complete output/post-processing copy. The new item receives room for both its assembled archive and an unpacked copy. The 512 MiB term is a fixed safety reserve. This is a conservative admission estimate, not a guarantee that every archive will expand within the estimate.
 
 Use **Settings > Storage** to see the configured path, effective path, underlying filesystem capacity, active reservation, and maximum estimated new download size. See [Storage and Path Mapping](Storage-and-Path-Mapping).
 
@@ -157,7 +201,11 @@ Use `SABNZBD_PATH_MAPPINGS` only when the path SAB reports cannot be resolved by
 | Import cannot reach destination | Bind mount, approved root, or permissions | Verify the container path, `APPROVED_MEDIA_ROOTS`, and write access |
 | SAB completion is never found | Reported path differs from Nooklet-visible path | Configure and verify `SABNZBD_PATH_MAPPINGS` |
 | Queue control returns conflict | Item entered post-processing or changed state | Refresh the queue and wait for repair/extraction to complete |
-| Verified Torznab result cannot queue | Torrent transport unsupported | Configure a Newznab indexer |
+| Failed season release remains visible | Attempt history inside a recovering plan | Check the plan message in Activity; no manual retry is needed while its status is **Recovering** |
+| No season pack was found | Release availability | Expected fallback: Activity should show the individual-episode strategy and each unavailable episode will be searched again later |
+| Season plan is blocked | Infrastructure or configuration | Follow the plan message, repair storage/path/downloader/credentials, then use **Resume season recovery** |
+| Most episodes queued but one is unavailable | Per-episode release availability | Leave the plan open; Nooklet preserves completed work and rechecks the unavailable episode after its cooldown |
+| No compatible automatic indexer | Only Torznab or no enabled Newznab source | Configure and verify a Newznab indexer |
 
 ## Current limitations
 

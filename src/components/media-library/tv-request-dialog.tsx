@@ -263,7 +263,9 @@ export function TvRequestPicker({
       ) : null}
 
       {!seasonsLoading && !seasonsError && mode === "all" ? (
-        <p className="text-sm text-muted">All available seasons and episodes will be requested.</p>
+        <p className="text-sm text-muted">
+          Every regular season will get its own recovery plan: Nooklet tries season packs first, retries alternatives, then fills remaining episodes individually.
+        </p>
       ) : null}
 
       {!seasonsLoading && !seasonsError && mode === "seasons" ? (

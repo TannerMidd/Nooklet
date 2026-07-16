@@ -1,30 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/integrations/sabnzbd", () => ({
-  removeSabnzbdQueueItem: vi.fn(),
-}));
 vi.mock("@/modules/downloads/repositories/download-repository", () => ({
   listActiveDownloadRequestsForImport: vi.fn(),
   updateDownloadQueueItemStatus: vi.fn(),
   updateDownloadRequestStatus: vi.fn(),
 }));
+vi.mock("@/modules/downloads/workflows/verified-sabnzbd-removal", () => ({
+  removeAndVerifySabnzbdItems: vi.fn(),
+}));
 
-import { removeSabnzbdQueueItem } from "@/lib/integrations/sabnzbd";
 import {
   listActiveDownloadRequestsForImport,
   updateDownloadQueueItemStatus,
   updateDownloadRequestStatus,
 } from "@/modules/downloads/repositories/download-repository";
+import { removeAndVerifySabnzbdItems } from "@/modules/downloads/workflows/verified-sabnzbd-removal";
 
 import { removeDuplicateSabnzbdQueueItems } from "./duplicate-removal";
 
-const removeQueueItemMock = vi.mocked(removeSabnzbdQueueItem);
+const removeQueueItemMock = vi.mocked(removeAndVerifySabnzbdItems);
 const listActiveMock = vi.mocked(listActiveDownloadRequestsForImport);
 const updateQueueItemMock = vi.mocked(updateDownloadQueueItemStatus);
 const updateRequestMock = vi.mocked(updateDownloadRequestStatus);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  removeQueueItemMock.mockImplementation(async (_context, ids) => new Map(
+    ids.map((id) => [id, { removed: true }]),
+  ));
 });
 
 describe("removeDuplicateSabnzbdQueueItems", () => {
@@ -71,11 +74,13 @@ describe("removeDuplicateSabnzbdQueueItems", () => {
       },
     );
 
-    expect(removeQueueItemMock).toHaveBeenCalledWith({
-      baseUrl: "http://sab",
-      apiKey: "secret",
-      itemId: "nzo-remove",
-    });
+    expect(removeQueueItemMock).toHaveBeenCalledWith(
+      {
+        baseUrl: "http://sab",
+        apiKey: "secret",
+      },
+      ["nzo-remove"],
+    );
     expect(updateQueueItemMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: "user1",
       queueItemId: "queue2",

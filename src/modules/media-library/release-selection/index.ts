@@ -17,5 +17,6 @@ export {
 export {
   queueReleaseCandidates,
   type QueueReleaseCandidatesContext,
+  type QueueFailureKind,
   type QueuedReleaseCandidatesOutcome,
 } from "./queue-attempts";

@@ -1,4 +1,8 @@
 import { findActiveDownloadRequestForItem } from "@/modules/downloads/repositories/download-repository";
+import {
+  findDownloadFulfillmentById,
+  findOpenSeasonFulfillment,
+} from "@/modules/downloads/repositories/season-fulfillment-repository";
 import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
 
 import { type OrganizedCompletedDownload } from "./file-organization";
@@ -54,6 +58,20 @@ export async function dispatchCompletedDownloadNotifications(
 
     if (successful.length > 0) {
       const match = matchFor(successful[0]!);
+      const request = match.request;
+      if (request.mediaTitleId && request.seasonId) {
+        const fulfillment = request.fulfillmentId
+          ? await findDownloadFulfillmentById(userId, request.fulfillmentId)
+          : await findOpenSeasonFulfillment({
+              userId,
+              mediaTitleId: request.mediaTitleId,
+              seasonId: request.seasonId,
+            });
+        if (fulfillment && ["active", "retry_wait", "partial"].includes(fulfillment.status)) {
+          summary.suppressedRetryCount += 1;
+          continue;
+        }
+      }
       const importedFileCount = new Set(successful.flatMap((download) => (
         download.kind === "organized"
           ? download.files.map((file) => file.destinationPath)
@@ -85,6 +103,21 @@ export async function dispatchCompletedDownloadNotifications(
     const request = match.request;
 
     if (request.mediaTitleId) {
+      const fulfillment = request.seasonId
+        ? request.fulfillmentId
+          ? await findDownloadFulfillmentById(userId, request.fulfillmentId)
+          : await findOpenSeasonFulfillment({
+              userId,
+              mediaTitleId: request.mediaTitleId,
+              seasonId: request.seasonId,
+            })
+        : null;
+
+      if (fulfillment && ["active", "retry_wait", "partial"].includes(fulfillment.status)) {
+        summary.suppressedRetryCount += 1;
+        continue;
+      }
+
       const replacement = await findActiveDownloadRequestForItem({
         userId,
         mediaTitleId: request.mediaTitleId,

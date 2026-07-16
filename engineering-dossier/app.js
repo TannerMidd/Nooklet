@@ -197,8 +197,7 @@
       if (!(freeInput instanceof HTMLInputElement) || !(activeInput instanceof HTMLInputElement)) return;
 
       const freeGiB = Number.parseFloat(freeInput.value);
-      const activeGiB = Number.parseFloat(activeInput.value);
-      const activeReservationGiB = activeGiB * 2;
+      const activeReservationGiB = Number.parseFloat(activeInput.value);
       const processingReservationGiB = safetyReserveGiB + activeReservationGiB;
       const availableGiB = Math.max(0, freeGiB - processingReservationGiB);
       const maximumNewGiB = availableGiB / 2;
@@ -207,14 +206,14 @@
       const visibleActiveGiB = Math.min(Math.max(0, freeGiB - visibleFloorGiB), activeReservationGiB);
 
       if (freeOutput) freeOutput.textContent = formatGiB(freeGiB);
-      if (activeOutput) activeOutput.textContent = formatGiB(activeGiB);
+      if (activeOutput) activeOutput.textContent = formatGiB(activeReservationGiB);
       if (resultValue) resultValue.textContent = formatGiB(maximumNewGiB);
       if (activeReserveValue) activeReserveValue.textContent = formatGiB(activeReservationGiB);
       if (archiveValue) archiveValue.textContent = formatGiB(maximumNewGiB);
       if (unpackValue) unpackValue.textContent = formatGiB(maximumNewGiB);
 
       freeInput.setAttribute("aria-valuetext", formatGiB(freeGiB));
-      activeInput.setAttribute("aria-valuetext", formatGiB(activeGiB));
+      activeInput.setAttribute("aria-valuetext", formatGiB(activeReservationGiB));
 
       setSegmentSize(floorSegment, visibleFloorGiB, freeGiB);
       setSegmentSize(activeSegment, visibleActiveGiB, freeGiB);

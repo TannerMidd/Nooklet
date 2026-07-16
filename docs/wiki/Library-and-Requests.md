@@ -18,17 +18,38 @@ Read-only access is enough for browsing an existing tree, but imports require wr
 
 ```mermaid
 flowchart LR
-    Title["Discovered title"] --> Scope["Movie or TV episode scope"]
+    Title["Discovered title"] --> Scope["Movie, season, or episode scope"]
     Scope --> Search["Indexer search"]
     Search --> Release["Selected release"]
-    Release --> Queue["Download request"]
+    Release --> Queue["Physical download attempt"]
     Queue --> Import["Verified import"]
     Import --> Library["Library availability"]
+
+    Scope -->|Season| Plan["Durable season plan"]
+    Plan --> Pack["Season-pack strategy"]
+    Pack -->|No usable pack| Episodes["Individual-episode strategy"]
+    Import -->|Incomplete pack| Episodes
+    Episodes --> Queue
 ```
 
 Movies are requested as a title. TV requests can carry season and episode scope. The selected destination determines where successful imports are organized.
 
 Nooklet prevents conflicting active work for the same scoped content and keeps request state visible while the downloader and import worker progress. A title is not considered available merely because an NZB was queued; the import must complete and the library must observe the resulting file.
+
+## What happens when you request a season
+
+A season request creates one durable plan in **Activity**. A release download is an attempt inside that plan, not the plan itself.
+
+1. Nooklet searches for a matching complete-season pack first.
+2. If a pack fails because of its content or cannot fit even on an empty staging filesystem, Nooklet excludes that release and tries another automatically, up to three physical pack attempts.
+3. If no usable pack exists or pack attempts are exhausted, Nooklet switches to individual episodes without requiring another request.
+4. A pack that imports successfully is checked against current episode coverage. Missing monitored, aired episodes are still queued individually.
+5. Episodes already in the library or already downloading are reused. Future or unmonitored episodes are deferred.
+6. Missing episodes keep independent release history and retry schedules, so one unavailable episode does not discard progress on the rest of the season.
+
+Activity groups the attempts under the season plan and labels it **Recovering** while automatic work remains. A failed child attempt does not mean the season request has failed. Manual retry is only offered after the plan is no longer recovering.
+
+Nooklet does not fan a configuration failure out into many episode requests. Capacity held by active downloads waits and retries automatically. A currently full or incorrectly mapped staging filesystem, destination problem, credential failure, missing Newznab source, or downloader failure blocks the plan with a corrective message without consuming the selected release. Fix that condition, then use **Resume season recovery** from Activity.
 
 ## Monitoring and rescans
 
@@ -50,15 +71,19 @@ Library scans reconcile the configured filesystem with stored media state. Autom
 | Path is outside approved roots | Use a container path under `APPROVED_MEDIA_ROOTS`. |
 | Scan works but import fails | The directory may be readable but not writable by the container user. |
 | TV request selects the wrong scope | Review season and episode selection before choosing a release. |
+| A season pack fails | Open **Activity**. A **Recovering** plan is already trying an alternate or individual episodes; no manual retry is needed. |
+| No season pack exists | Confirm the plan switched to individual episodes. Episodes without releases remain scheduled for a later search. |
+| Season recovery says blocked | Read the corrective message, fix storage, destination, downloader, or credentials, then use **Resume season recovery**. |
 | Completed download remains in progress | Inspect the import worker, path mapping, archive tools, and destination permissions. |
 
 ## Source references
 
 - [Media library module](https://github.com/TannerMidd/Nooklet/tree/main/src/modules/media-library)
 - [Downloads module](https://github.com/TannerMidd/Nooklet/tree/main/src/modules/downloads)
+- [Season fulfillment workflow](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/season-fulfillment.ts)
 - [Filesystem policy](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/security/filesystem-policy.ts)
 - [Product behavior matrix](https://github.com/TannerMidd/Nooklet/blob/main/docs/product/behavior-matrix.md)
 
 ---
 
-Last reviewed: **July 15, 2026**.
+Last reviewed: **July 16, 2026**.

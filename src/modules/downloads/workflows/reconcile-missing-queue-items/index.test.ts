@@ -12,11 +12,13 @@ vi.mock("./missing-queue-retry", () => ({
 vi.mock("./audit", () => ({
   recordMissingQueueItemAudit: vi.fn(),
 }));
-vi.mock("@/lib/integrations/sabnzbd", () => ({
-  listSabnzbdHistory: vi.fn(),
+vi.mock("@/modules/downloads/workflows/targeted-sabnzbd-history", () => ({
+  listTrackedSabnzbdHistory: vi.fn(),
 }));
 
-import { listSabnzbdHistory } from "@/lib/integrations/sabnzbd";
+import {
+  listTrackedSabnzbdHistory,
+} from "@/modules/downloads/workflows/targeted-sabnzbd-history";
 import { resolveImportSabnzbdClient } from "../import-completed-downloads/client-resolution";
 import { recordMissingQueueItemAudit } from "./audit";
 import { reconcileMissingSabnzbdQueueItemsWorkflow } from "./index";
@@ -27,7 +29,7 @@ const resolveClientMock = vi.mocked(resolveImportSabnzbdClient);
 const resolveSnapshotMock = vi.mocked(resolveMissingQueueSnapshot);
 const retryMock = vi.mocked(retryMissingSabnzbdQueueItems);
 const auditMock = vi.mocked(recordMissingQueueItemAudit);
-const listHistoryMock = vi.mocked(listSabnzbdHistory);
+const listHistoryMock = vi.mocked(listTrackedSabnzbdHistory);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -74,10 +76,11 @@ describe("reconcileMissingSabnzbdQueueItemsWorkflow", () => {
 
     expect(resolveClientMock).toHaveBeenCalledWith("user1");
     expect(resolveSnapshotMock).toHaveBeenCalledWith(client, snapshot);
-    expect(listHistoryMock).toHaveBeenCalledWith(expect.objectContaining({
-      baseUrl: client.baseUrl,
-      apiKey: client.apiKey,
-    }));
+    expect(listHistoryMock).toHaveBeenCalledWith(
+      "user1",
+      client,
+      { timeoutMs: 20_000 },
+    );
     expect(retryMock).toHaveBeenCalledWith("user1", client, snapshot, history);
     expect(auditMock).toHaveBeenCalledWith("user1", result);
     expect(calls).toEqual(["client", "queue", "history", "retry", "audit"]);

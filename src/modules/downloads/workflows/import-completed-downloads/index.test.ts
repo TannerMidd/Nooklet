@@ -15,6 +15,14 @@ vi.mock("./request-validation", () => ({
   validateImportCompletedDownloadsRequest: vi.fn(),
 }));
 vi.mock("./scan-trigger", () => ({ triggerCompletedDownloadDiscovery: vi.fn() }));
+vi.mock("./season-import-fence", () => ({
+  acquireSeasonImportFences: vi.fn(async (_userId, matches) => ({
+    matches,
+    workLeases: new Map(),
+    renew: vi.fn(),
+    release: vi.fn(),
+  })),
+}));
 
 import { recordCompletedDownloadImportAudit } from "./audit";
 import { resolveImportSabnzbdClient } from "./client-resolution";
@@ -131,7 +139,7 @@ describe("importCompletedDownloadsWorkflow", () => {
       "audit",
       "notify",
     ]);
-    expect(fetchHistoryMock).toHaveBeenCalledWith(client, request);
+    expect(fetchHistoryMock).toHaveBeenCalledWith("user1", client, request);
     expect(matchMock).toHaveBeenCalledWith("user1", client, history);
     expect(resolveDestinationsMock).toHaveBeenCalledWith("user1", matches);
     expect(inspectMock).toHaveBeenCalledWith(resolved);

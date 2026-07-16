@@ -12,6 +12,11 @@ import {
 export const noMediaFilesFoundMessage = "No media files were found in the completed download.";
 export { noPrimaryMediaFilesFoundMessage } from "./import-file-policy";
 
+export function isRetryableCompletedMediaFailure(message: string) {
+  return message === noMediaFilesFoundMessage
+    || message === noPrimaryMediaFilesFoundMessage;
+}
+
 export type InspectedDownloadFile = {
   sourcePath: string;
   relativePath: string;

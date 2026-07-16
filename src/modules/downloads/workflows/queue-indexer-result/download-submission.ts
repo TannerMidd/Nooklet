@@ -1,7 +1,10 @@
 import { addSabnzbdUrlToQueue, removeSabnzbdQueueItem } from "@/lib/integrations/sabnzbd";
 import { safeFetch } from "@/lib/security/safe-fetch";
 import { decryptSecret } from "@/lib/security/secret-box";
-import { enqueueNzbDownloadWorkflow } from "@/modules/download-engine/workflows/enqueue-nzb-download";
+import {
+  EnqueueNzbDownloadError,
+  enqueueNzbDownloadWorkflow,
+} from "@/modules/download-engine/workflows/enqueue-nzb-download";
 import { applyEngineQueueAction } from "@/modules/download-engine/workflows/apply-engine-queue-action";
 import { findIndexerById } from "@/modules/indexers/repositories/indexer-repository";
 
@@ -29,7 +32,12 @@ async function fetchNzbDocument(downloadUrl: string): Promise<string> {
   });
 
   if (!response.ok) {
-    throw new Error(`The indexer returned ${response.status} for the NZB download.`);
+    throw new QueueIndexerResultWorkflowError(
+      response.status === 404 || response.status === 410
+        ? "release_unavailable"
+        : "indexer_unavailable",
+      `The indexer returned ${response.status} for the NZB download.`,
+    );
   }
 
   return response.text();
@@ -73,8 +81,22 @@ async function submitToEngine(
 
     return { queueIds: [enqueued.id], category };
   } catch (error) {
+    if (error instanceof QueueIndexerResultWorkflowError) {
+      throw error;
+    }
+
+    if (error instanceof EnqueueNzbDownloadError) {
+      throw new QueueIndexerResultWorkflowError(
+        error.code === "insufficient_space"
+          ? "download_capacity_exceeded"
+          : "release_unavailable",
+        error.message,
+        error.capacity,
+      );
+    }
+
     throw new QueueIndexerResultWorkflowError(
-      "sabnzbd_enqueue_failed",
+      error instanceof TypeError ? "release_unavailable" : "indexer_unavailable",
       error instanceof Error
         ? `Nooklet could not queue the selected release: ${error.message}`
         : "Nooklet could not queue the selected release.",

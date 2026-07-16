@@ -1,4 +1,5 @@
 import { type ResolvedLibrarySearchItem } from "./item-resolution";
+import { type SeasonFulfillmentWorkLease } from "@/modules/downloads/workflows/season-fulfillment-work-lease";
 import {
   queueLibraryItemRelease,
   type LibraryItemQueuedDownload,
@@ -24,9 +25,18 @@ export type SearchLibraryItemReleasesResult = {
   queuedDownload: LibraryItemQueuedDownload;
 };
 
+export type SearchLibraryItemReleasesContext = {
+  fulfillmentId?: string | null;
+  attemptStrategy?: "season_pack" | "episode" | null;
+  attemptNumber?: number | null;
+  maxCandidateAttempts?: number | null;
+  workLease?: SeasonFulfillmentWorkLease | null;
+};
+
 export async function searchLibraryItemReleasesWorkflow(
   userId: string,
   input: SearchLibraryItemReleasesInput,
+  context: SearchLibraryItemReleasesContext = {},
 ): Promise<SearchLibraryItemReleasesResult> {
   const request = validateSearchLibraryItemReleasesRequest(input);
   const item = await resolveLibrarySearchItem(userId, request);
@@ -34,6 +44,7 @@ export async function searchLibraryItemReleasesWorkflow(
   const queuedDownload = await queueLibraryItemRelease(userId, item, releaseSearch, {
     excludedResultIds: request.excludedResultIds,
     excludedReleaseKeys: request.excludedReleaseKeys,
+    ...context,
   });
 
   return { item, releaseSearch, queuedDownload };

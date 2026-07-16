@@ -42,6 +42,7 @@ export type SabnzbdHistoryItem = {
 
 export type SabnzbdHistorySnapshot = {
   items: SabnzbdHistoryItem[];
+  totalHistoryCount?: number | null;
 };
 
 type SabnzbdStatusResponse = {
@@ -75,6 +76,8 @@ type SabnzbdQueueResponse = {
 
 type SabnzbdHistoryResponse = {
   history?: {
+    noofslots?: unknown;
+    noofslots_total?: unknown;
     slots?: unknown;
   };
 };
@@ -406,11 +409,30 @@ export async function removeSabnzbdQueueItem(input: {
 
   url.searchParams.set("name", "delete");
   url.searchParams.set("value", input.itemId);
+  url.searchParams.set("del_files", "1");
   setSabnzbdApiKey(url, input.apiKey);
 
   const payload = await fetchSabnzbdJson<SabnzbdStatusResponse>(url);
 
   assertSabnzbdStatus(payload, "remove the queue item");
+}
+
+export async function removeSabnzbdHistoryItem(input: {
+  baseUrl: string;
+  apiKey: string;
+  itemId: string;
+}) {
+  const url = buildSabnzbdApiUrl(input.baseUrl, { mode: "history" });
+
+  url.searchParams.set("name", "delete");
+  url.searchParams.set("value", input.itemId);
+  url.searchParams.set("archive", "0");
+  url.searchParams.set("del_files", "1");
+  setSabnzbdApiKey(url, input.apiKey);
+
+  const payload = await fetchSabnzbdJson<SabnzbdStatusResponse>(url);
+
+  assertSabnzbdStatus(payload, "remove the history item and its files");
 }
 
 export async function moveSabnzbdQueueItemToPosition(input: {
@@ -493,19 +515,29 @@ function normalizeSabnzbdHistorySnapshot(payload: SabnzbdHistoryResponse): Sabnz
         .filter((entry): entry is SabnzbdHistoryItem => entry !== null)
     : [];
 
-  return { items } satisfies SabnzbdHistorySnapshot;
+  return {
+    items,
+    totalHistoryCount:
+      normalizeNumber(payload.history?.noofslots_total)
+      ?? normalizeNumber(payload.history?.noofslots)
+      ?? items.length,
+  } satisfies SabnzbdHistorySnapshot;
 }
 
 export async function listSabnzbdHistory(input: {
   baseUrl: string;
   apiKey: string;
   limit?: number;
+  nzoIds?: string[];
   timeoutMs?: number;
 }) {
   const url = buildSabnzbdApiUrl(input.baseUrl, {
     mode: "history",
     limit: input.limit,
   });
+  if (input.nzoIds?.length) {
+    url.searchParams.set("nzo_ids", Array.from(new Set(input.nzoIds)).join(","));
+  }
 
   setSabnzbdApiKey(url, input.apiKey);
 

@@ -1,4 +1,8 @@
-import { upsertTvEpisode, upsertTvSeason } from "@/modules/media-library/repositories/media-library-repository";
+import {
+  listTvSeasonsForTitle,
+  upsertTvEpisode,
+  upsertTvSeason,
+} from "@/modules/media-library/repositories/media-library-repository";
 
 import { type RequestTitleWithReleaseSearchInput } from "./request-validation";
 import { type ReleaseSelectionTarget } from "./selection-targets";
@@ -22,6 +26,13 @@ export async function persistRequestedTitleSelections(
 
   if (request.mediaType !== "tv") {
     return { seasonIdByNumber, episodeIdByNumber };
+  }
+
+  if (targets.some((target) => target.kind === "all")) {
+    const existingSeasons = await listTvSeasonsForTitle(titleId);
+    for (const season of existingSeasons) {
+      seasonIdByNumber.set(season.seasonNumber, season.id);
+    }
   }
 
   const seasonsToPersist = new Map<number, { monitored: boolean }>();

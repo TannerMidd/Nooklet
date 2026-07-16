@@ -6,6 +6,7 @@ import {
 import { type ResolvedDownloadClient } from "./client-resolution";
 import { QueueIndexerResultWorkflowError } from "./errors";
 import { type QueueIndexerResultInput } from "./request-validation";
+import { type QueueIndexerResultContext } from "./index";
 import { type ResolvedQueueIndexerResult } from "./result-resolution";
 import { type ResolvedQueueIndexerResultTarget } from "./target-resolution";
 
@@ -17,6 +18,7 @@ export async function reserveDownloadRequest(input: {
   resolvedResult: ResolvedQueueIndexerResult;
   target: ResolvedQueueIndexerResultTarget;
   downloadClient: ResolvedDownloadClient;
+  context?: QueueIndexerResultContext;
 }): Promise<ReservedDownloadRequest> {
   try {
     return await createDownloadRequest({
@@ -32,6 +34,9 @@ export async function reserveDownloadRequest(input: {
       targetLibraryId: input.target.library.id,
       targetLibraryPathId: input.target.path.id,
       status: "pending",
+      fulfillmentId: input.context?.fulfillmentId ?? null,
+      attemptStrategy: input.context?.attemptStrategy ?? null,
+      attemptNumber: input.context?.attemptNumber ?? null,
     });
   } catch (error) {
     if (isActiveDownloadRequestUniqueViolation(error)) {

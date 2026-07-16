@@ -1,6 +1,6 @@
 # Architecture
 
-> Applies to the current `main` implementation. Last source review: 2026-07-15.
+> Applies to the current `main` implementation. Last source review: 2026-07-16.
 
 Nooklet is a single-process, single-container Next.js application. The same Node.js process serves the web application, runs workflow code, maintains the persisted job scheduler, and owns the built-in download-engine loop. SQLite is the durable system of record; media and download files remain on operator-controlled filesystems.
 
@@ -92,6 +92,30 @@ sequenceDiagram
 
 Most application behavior uses Next.js server actions. The stable HTTP surface is intentionally small and documented in [HTTP API](HTTP-API).
 
+## Durable season coordination
+
+A season request is modeled above the physical transfer lifecycle. `download_fulfillments` records the user outcome and active strategy; `download_requests` records each pack or episode release attempted to reach it.
+
+```mermaid
+flowchart LR
+  UI["Season request"] --> Plan["Durable fulfillment"]
+  Plan --> Pack["Season-pack search"]
+  Pack --> Attempt["Physical download request"]
+  Attempt --> Import["Import + coverage reconciliation"]
+  Import -->|Complete| Done["Succeeded"]
+  Import -->|Missing coverage| Episodes["Per-episode fallback"]
+  Pack -->|No usable pack| Episodes
+  Pack -->|Pack larger than staging filesystem| Episodes
+  Episodes --> Child["Independent episode attempts"]
+  Child --> Import
+  Worker["15-second worker"] -->|Resume nextAttemptAt| Plan
+  Plan -->|Storage/configuration failure| Blocked["Blocked with corrective message"]
+```
+
+The fulfillment owns plan-scoped release exclusions, a three-attempt pack budget, retry timing, and grouped Activity presentation. Release failures and packs proven larger than the staging filesystem can advance to another pack or episode fallback. Capacity held by active downloads waits without consuming the release; current free-space/mount, destination, downloader, credential, and compatible-indexer failures block fan-out with a corrective action. A successful pack is reconciled against current monitored, aired episode coverage instead of being assumed complete.
+
+This boundary keeps user intent separate from acquisition evidence and makes recovery restart-safe without adding an external queue service. See [ADR-0003](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0003-durable-season-fulfillment.md) and [Downloads and Import](Downloads-and-Import#resilient-season-fulfillment).
+
 ## Runtime composition
 
 - Next.js App Router supplies React Server Components, server actions, and route handlers.
@@ -112,7 +136,7 @@ The physical modules under [`src/modules`](https://github.com/TannerMidd/Nooklet
 | `admin` | Administrative queries and operational views |
 | `discover` | TMDB-backed discovery rails and title search |
 | `download-engine` | NZB parsing, NNTP transfer, repair, extraction, and engine queue |
-| `downloads` | Request association, enqueue, import, retry, and legacy reconciliation |
+| `downloads` | Durable season fulfillment, request association, enqueue, import, retry, and legacy reconciliation |
 | `identity-access` | Login, authorization, and first-admin bootstrap |
 | `indexers` | Indexer configuration, search, normalization, and protected result storage |
 | `instance-config` | Resolution of shared instance configuration ownership |
@@ -157,6 +181,7 @@ The shipped Compose configuration persists `/app/data` in a named volume and pub
 - One application process is the supported topology. Process-local runner state and import locks are not distributed coordination primitives.
 - SQLite and the in-process worker are deliberate single-container choices, not a horizontally scalable deployment design.
 - A process restart reclaims persisted jobs through leases, but an interrupted native download restarts from its stored NZB rather than resuming individual segments.
+- Season recovery schedules and a renewable per-plan work lease survive restart in SQLite. The surrounding maintenance-loop mutex remains process-local and assumes the supported one-process topology.
 - A single Usenet service connection is currently resolved. Multi-server priority and block-account scheduling described in ADR-0002 are not implemented.
 - Current authentication is local credentials only. Trakt accepts an OAuth access token as connection data, but Nooklet does not expose Trakt as an Auth.js sign-in provider.
 - Jellyfin is not a current service-connection or watch-history source despite references in older planning documents.
@@ -167,6 +192,7 @@ The shipped Compose configuration persists `/app/data` in a named volume and pub
 - [Domain modules](https://github.com/TannerMidd/Nooklet/tree/main/src/modules)
 - [Database schema](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/schema.ts)
 - [Architecture principles](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0001-architecture-principles.md)
+- [Durable season fulfillment decision](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0003-durable-season-fulfillment.md)
 - [Project structure note](https://github.com/TannerMidd/Nooklet/blob/main/docs/architecture/project-structure.md)
 - [Engineering dossier](https://tannermidd.github.io/Nooklet/)
 

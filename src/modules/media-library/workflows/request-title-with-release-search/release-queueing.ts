@@ -1,9 +1,12 @@
 import { type QueuedIndexerResultDownload } from "@/modules/downloads/workflows/queue-indexer-result";
+import { type DownloadCapacityDetails } from "@/modules/downloads/workflows/queue-indexer-result/errors";
 import {
   queueReleaseCandidates,
   selectReleaseCandidates,
 } from "@/modules/media-library/release-selection";
 import { type MediaTitleRecord } from "@/modules/media-library/repositories/media-library-repository";
+import { isInfrastructureIndexerSearchFailure } from "@/modules/downloads/workflows/download-failure-classification";
+import { type SeasonFulfillmentWorkLease } from "@/modules/downloads/workflows/season-fulfillment-work-lease";
 
 import { type RequestTitleWithReleaseSearchInput } from "./request-validation";
 import { type RequestedTitleReleaseSearch } from "./release-search";
@@ -16,6 +19,8 @@ export type RequestedTitleQueuedDownload =
       queued: false;
       reason: "not_requested" | "search_not_run" | "search_failed" | "no_matching_release" | "queue_failed";
       message: string | null;
+      failureKind?: "release" | "infrastructure" | "capacity" | "conflict" | "unknown";
+      capacity?: DownloadCapacityDetails | null;
       selectedResultId: null;
       rejectedResultIds: string[];
       download: null;
@@ -52,6 +57,11 @@ export async function queueRequestedTitleRelease(
     seasonId?: string | null;
     episodeId?: string | null;
     target?: ReleaseSelectionTarget;
+    fulfillmentId?: string | null;
+    attemptStrategy?: "season_pack" | "episode" | null;
+    attemptNumber?: number | null;
+    maxCandidateAttempts?: number | null;
+    workLease?: SeasonFulfillmentWorkLease | null;
   } = {},
 ): Promise<RequestedTitleQueuedDownload> {
   if (!request.downloadNow) {
@@ -81,6 +91,9 @@ export async function queueRequestedTitleRelease(
       queued: false,
       reason: "search_failed",
       message: releaseSearch.searchRun.errorMessage,
+      failureKind: isInfrastructureIndexerSearchFailure(releaseSearch.searchRun.errorMessage)
+        ? "infrastructure"
+        : "unknown",
       selectedResultId: null,
       rejectedResultIds: [],
       download: null,
@@ -111,5 +124,10 @@ export async function queueRequestedTitleRelease(
     targetLibraryPathId: request.targetLibraryPathId ?? null,
     seasonId: options.seasonId,
     episodeId: options.episodeId,
+    fulfillmentId: options.fulfillmentId,
+    attemptStrategy: options.attemptStrategy,
+    attemptNumber: options.attemptNumber,
+    maxCandidateAttempts: options.maxCandidateAttempts,
+    workLease: options.workLease,
   });
 }

@@ -7,10 +7,39 @@ import { decryptSecret, encryptSecret } from "@/lib/security/secret-box";
 import {
   engineDownloads,
   type EngineDownloadCategory,
+  type EngineDownloadFailureKind,
   type EngineDownloadState,
 } from "@/lib/database/schema";
 
 export type EngineDownloadRecord = typeof engineDownloads.$inferSelect;
+export type CreateEngineDownloadInput = {
+  userId: string;
+  name: string;
+  category: EngineDownloadCategory;
+  nzbXml: string;
+  password?: string | null;
+  totalBytes: number;
+  totalSegments: number;
+  priority?: number;
+};
+export type EngineDownloadCapacityReservation =
+  | {
+      created: true;
+      record: EngineDownloadRecord;
+      activeRemainingBytes: number;
+      activeWorkspaceBytes: number;
+      requiredBytes: number;
+    }
+  | {
+      created: false;
+      activeRemainingBytes: number;
+      activeWorkspaceBytes: number;
+      requiredBytes: number;
+    };
+export type ActiveEngineDownloadCapacityUsage = {
+  activeRemainingBytes: number;
+  activeWorkspaceBytes: number;
+};
 
 function decryptStoredValue(value: string) {
   return /^v\d+:/.test(value) ? decryptSecret(value) : value;
@@ -43,16 +72,26 @@ export function isEngineDownloadPostProcessing(state: EngineDownloadState) {
   return (enginePostProcessingStates as readonly EngineDownloadState[]).includes(state);
 }
 
-export async function createEngineDownload(input: {
-  userId: string;
-  name: string;
-  category: EngineDownloadCategory;
-  nzbXml: string;
-  password?: string | null;
-  totalBytes: number;
-  totalSegments: number;
-  priority?: number;
-}): Promise<EngineDownloadRecord> {
+function summarizeActiveEngineDownloadCapacity(
+  rows: Array<{ totalBytes: number; downloadedBytes: number }>,
+): ActiveEngineDownloadCapacityUsage {
+  return rows.reduce<ActiveEngineDownloadCapacityUsage>(
+    (usage, row) => {
+      const remainingBytes = Math.max(0, row.totalBytes - row.downloadedBytes);
+      usage.activeRemainingBytes += remainingBytes;
+      // Free-space readings already exclude the bytes downloaded so far.
+      // Future headroom must cover the unfinished transfer plus a complete
+      // post-processing/output copy for each active download.
+      usage.activeWorkspaceBytes += row.totalBytes + remainingBytes;
+      return usage;
+    },
+    { activeRemainingBytes: 0, activeWorkspaceBytes: 0 },
+  );
+}
+
+export async function createEngineDownload(
+  input: CreateEngineDownloadInput,
+): Promise<EngineDownloadRecord> {
   const database = ensureDatabaseReady();
   const id = randomUUID();
 
@@ -73,6 +112,83 @@ export async function createEngineDownload(input: {
     .run();
 
   return database.select().from(engineDownloads).where(eq(engineDownloads.id, id)).get()!;
+}
+
+/**
+ * Reserves disk capacity and inserts the queue row in one SQLite transaction.
+ * This closes the admission race where two concurrent requests could both
+ * observe the same free space before either one became visible as reserved.
+ */
+export async function createEngineDownloadWithCapacityReservation(
+  input: CreateEngineDownloadInput,
+  capacity: {
+    availableBytes: number;
+    minimumFreeSpaceReserveBytes: number;
+    workspaceMultiplier: number;
+  },
+): Promise<EngineDownloadCapacityReservation> {
+  const database = ensureDatabaseReady();
+
+  return database.transaction((transaction) => {
+    const activeRows = transaction
+      .select({
+        totalBytes: engineDownloads.totalBytes,
+        downloadedBytes: engineDownloads.downloadedBytes,
+      })
+      .from(engineDownloads)
+      .where(inArray(engineDownloads.state, [...activeEngineDownloadStates]))
+      .all();
+    const {
+      activeRemainingBytes,
+      activeWorkspaceBytes,
+    } = summarizeActiveEngineDownloadCapacity(activeRows);
+    const requiredBytes = capacity.minimumFreeSpaceReserveBytes
+      + activeWorkspaceBytes
+      + (input.totalBytes * capacity.workspaceMultiplier);
+
+    if (
+      !Number.isSafeInteger(requiredBytes)
+      || !Number.isSafeInteger(capacity.availableBytes)
+      || capacity.availableBytes < requiredBytes
+    ) {
+      return {
+        created: false,
+        activeRemainingBytes,
+        activeWorkspaceBytes,
+        requiredBytes,
+      };
+    }
+
+    const id = randomUUID();
+    transaction
+      .insert(engineDownloads)
+      .values({
+        id,
+        userId: input.userId,
+        name: input.name,
+        category: input.category,
+        nzbXml: encryptSecret(input.nzbXml),
+        password: input.password ? encryptSecret(input.password) : null,
+        totalBytes: input.totalBytes,
+        totalSegments: input.totalSegments,
+        priority: input.priority ?? 0,
+        state: "queued",
+      })
+      .run();
+    const record = transaction
+      .select()
+      .from(engineDownloads)
+      .where(eq(engineDownloads.id, id))
+      .get()!;
+
+    return {
+      created: true,
+      record,
+      activeRemainingBytes,
+      activeWorkspaceBytes,
+      requiredBytes,
+    };
+  });
 }
 
 export async function findEngineDownloadById(userId: string, id: string) {
@@ -131,6 +247,7 @@ export async function updateEngineDownloadProgress(id: string, progress: {
 }
 
 export async function setEngineDownloadState(id: string, state: EngineDownloadState, extras: {
+  failureKind?: EngineDownloadFailureKind | null;
   errorMessage?: string | null;
   outputPath?: string | null;
   completedAt?: Date | null;
@@ -167,6 +284,10 @@ export async function listActiveEngineDownloads(userId: string) {
 
 /** Estimated bytes still reserved by all active downloads, across users. */
 export async function getActiveEngineDownloadRemainingBytes() {
+  return (await getActiveEngineDownloadCapacityUsage()).activeRemainingBytes;
+}
+
+export async function getActiveEngineDownloadCapacityUsage() {
   const database = ensureDatabaseReady();
   const rows = database
     .select({
@@ -177,10 +298,7 @@ export async function getActiveEngineDownloadRemainingBytes() {
     .where(inArray(engineDownloads.state, [...activeEngineDownloadStates]))
     .all();
 
-  return rows.reduce(
-    (total, row) => total + Math.max(0, row.totalBytes - row.downloadedBytes),
-    0,
-  );
+  return summarizeActiveEngineDownloadCapacity(rows);
 }
 
 /** Completed or failed downloads the import pass has not consumed yet. */

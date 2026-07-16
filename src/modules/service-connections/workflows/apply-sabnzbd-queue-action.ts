@@ -3,16 +3,33 @@ import {
   moveSabnzbdQueueItemToPosition,
   pauseSabnzbdQueue,
   pauseSabnzbdQueueItem,
-  removeSabnzbdQueueItem,
   resumeSabnzbdQueue,
   resumeSabnzbdQueueItem,
 } from "@/lib/integrations/sabnzbd";
 import { decryptSecret } from "@/lib/security/secret-box";
 import {
+  checkpointDownloadRequestCancellation,
+  finalizeDownloadRequestCancellation,
   listActiveRequestsForExternalQueueId,
-  updateDownloadQueueItemStatus,
-  updateDownloadRequestStatus,
+  listDownloadQueueItemsForRequest,
 } from "@/modules/downloads/repositories/download-repository";
+import {
+  acquireDownloadRequestWorkLease,
+  releaseDownloadRequestWorkLease,
+  renewDownloadRequestWorkLease,
+  type DownloadRequestWorkLease,
+} from "@/modules/downloads/workflows/download-request-work-lease";
+import {
+  checkpointSeasonFulfillmentCancellation,
+  type SeasonFulfillmentCancellationCheckpoint,
+} from "@/modules/downloads/workflows/season-fulfillment-cancellation";
+import {
+  acquireSeasonFulfillmentWorkLease,
+  releaseSeasonFulfillmentWorkLease,
+  renewSeasonFulfillmentWorkLease,
+  type SeasonFulfillmentWorkLease,
+} from "@/modules/downloads/workflows/season-fulfillment-work-lease";
+import { removeAndVerifySabnzbdItems } from "@/modules/downloads/workflows/verified-sabnzbd-removal";
 import {
   formatSabnzbdQueueActionMessage,
   sabnzbdQueuePageLimit,
@@ -165,27 +182,149 @@ export async function applySabnzbdQueueAction(
       itemId: action.itemId,
     });
   } else {
-    await removeSabnzbdQueueItem({
-      baseUrl: context.baseUrl,
-      apiKey: context.apiKey,
-      itemId: action.itemId,
-    });
+    const entries = await listActiveRequestsForExternalQueueId(userId, action.itemId);
+    const workLeases = new Map<string, SeasonFulfillmentWorkLease>();
+    const requestWorkLeases = new Map<string, DownloadRequestWorkLease>();
+    const cancellationCheckpoints = new Map<string, SeasonFulfillmentCancellationCheckpoint>();
+    const requestCancellationCheckpoints = new Map<string, Date>();
+    const requestsWithSiblingQueueItems = new Set<string>();
+    let externalRemoved = false;
+    const renewOwnedLeases = async () => {
+      for (const [fulfillmentId, lease] of workLeases) {
+        const renewed = await renewSeasonFulfillmentWorkLease(lease);
+        if (!renewed) {
+          throw new Error(
+            "Season recovery changed while SABnzbd cancellation was being verified.",
+          );
+        }
+        workLeases.set(fulfillmentId, renewed);
+      }
+      for (const [requestId, lease] of requestWorkLeases) {
+        const renewed = await renewDownloadRequestWorkLease(lease);
+        if (!renewed) {
+          throw new Error(
+            "The download changed while SABnzbd cancellation was being verified.",
+          );
+        }
+        requestWorkLeases.set(requestId, renewed);
+      }
+    };
 
-    for (const entry of await listActiveRequestsForExternalQueueId(userId, action.itemId)) {
-      await updateDownloadQueueItemStatus({
-        userId,
-        queueItemId: entry.queueItem.id,
-        status: "failed",
-        completedAt: new Date(),
+    try {
+      for (const entry of entries) {
+        const fulfillmentId = entry.request.fulfillmentId;
+        if (!fulfillmentId || workLeases.has(fulfillmentId)) continue;
+
+        const lease = await acquireSeasonFulfillmentWorkLease(userId, fulfillmentId);
+        if (!lease) {
+          throw new Error(
+            "Season recovery is updating this download. Wait a moment and remove it again.",
+          );
+        }
+        workLeases.set(fulfillmentId, lease);
+      }
+      for (const entry of entries) {
+        if (entry.request.fulfillmentId || requestWorkLeases.has(entry.request.id)) continue;
+
+        const lease = await acquireDownloadRequestWorkLease(userId, entry.request.id);
+        if (!lease) {
+          throw new Error(
+            "This download is being imported or recovered. Wait a moment and remove it again.",
+          );
+        }
+        requestWorkLeases.set(entry.request.id, lease);
+      }
+
+      for (const entry of entries) {
+        const fulfillmentId = entry.request.fulfillmentId;
+        if (!fulfillmentId || cancellationCheckpoints.has(fulfillmentId)) continue;
+        const workLease = workLeases.get(fulfillmentId);
+        if (!workLease) continue;
+        const checkpoint = await checkpointSeasonFulfillmentCancellation(
+          userId,
+          entry.request,
+          workLease,
+        );
+        if (checkpoint) cancellationCheckpoints.set(fulfillmentId, checkpoint);
+      }
+      for (const entry of entries) {
+        if (entry.request.fulfillmentId || requestCancellationCheckpoints.has(entry.request.id)) {
+          continue;
+        }
+        const checkpoint = await checkpointDownloadRequestCancellation({
+          userId,
+          requestId: entry.request.id,
+        });
+        if (checkpoint?.cancellationRequestedAt) {
+          requestCancellationCheckpoints.set(
+            checkpoint.id,
+            checkpoint.cancellationRequestedAt,
+          );
+        }
+      }
+
+      for (const requestId of requestCancellationCheckpoints.keys()) {
+        const queueItems = await listDownloadQueueItemsForRequest(userId, requestId);
+        if (queueItems.some((queueItem) => queueItem.externalQueueId !== action.itemId)) {
+          requestsWithSiblingQueueItems.add(requestId);
+        }
+      }
+
+      // A request may contain retry attempts from different download clients.
+      // Remove only the item the user selected here; the durable reconciler
+      // classifies and verifies any sibling jobs against their actual client.
+      const removal = await removeAndVerifySabnzbdItems(context, [action.itemId], {
+        beforeExternalPhase: renewOwnedLeases,
       });
-      await updateDownloadRequestStatus({
-        userId,
-        requestId: entry.request.id,
-        status: "cancelled",
-        externalJobId: action.itemId,
-        statusMessage: "Removed from the download queue.",
-        completedAt: new Date(),
-      });
+      if (removal.get(action.itemId)?.removed !== true) {
+        const unverified = removal.get(action.itemId);
+        throw new Error(
+          unverified?.message
+            ?? "SABnzbd did not confirm that the download and its files were removed.",
+        );
+      }
+      externalRemoved = true;
+      await renewOwnedLeases();
+
+      for (const [requestId, requestedAt] of requestCancellationCheckpoints) {
+        if (requestsWithSiblingQueueItems.has(requestId)) continue;
+        const finalized = await finalizeDownloadRequestCancellation({
+          userId,
+          requestId,
+          requestedAt,
+        });
+        if (!finalized) {
+          throw new Error(
+            "The download changed before cancellation could be finalized.",
+          );
+        }
+      }
+
+      // Keep season checkpoints pending. Reconciliation removes sibling
+      // episode jobs and verifies the physical queue before closing the plan.
+    } catch (error) {
+      if (requestCancellationCheckpoints.size > 0) {
+        const detail = error instanceof Error ? ` ${error.message}` : "";
+        throw new Error(
+          `SABnzbd cancellation remains pending.${detail} Nooklet will verify the queue automatically.`,
+          { cause: error },
+        );
+      }
+      if (!externalRemoved && cancellationCheckpoints.size > 0) {
+        const detail = error instanceof Error ? ` ${error.message}` : "";
+        throw new Error(
+          `SABnzbd did not confirm the removal.${detail} Cancellation remains pending and Nooklet will verify the queue automatically.`,
+          { cause: error },
+        );
+      }
+      throw error;
+    } finally {
+      await Promise.all(
+        [
+          ...[...workLeases.values()].map((lease) => releaseSeasonFulfillmentWorkLease(lease)),
+          ...[...requestWorkLeases.values()].map((lease) => releaseDownloadRequestWorkLease(lease)),
+        ],
+      );
     }
   }
 

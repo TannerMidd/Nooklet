@@ -9,6 +9,7 @@ import { engineDownloads, users } from "@/lib/database/schema";
 import {
   claimNextQueuedEngineDownload,
   createEngineDownload,
+  createEngineDownloadWithCapacityReservation,
   deleteEngineDownload,
   findEngineDownloadById,
   listActiveEngineDownloads,
@@ -94,6 +95,70 @@ describe("engine repository", () => {
     expect(await claimNextQueuedEngineDownload()).toBeNull();
   });
 
+  it("checks active reservations and inserts atomically at the exact capacity boundary", async () => {
+    const active = await createEngineDownload(baseInput({ totalBytes: 100 }));
+    await updateEngineDownloadProgress(active.id, {
+      downloadedBytes: 50,
+      completedSegments: 1,
+      failedSegments: 0,
+    });
+
+    const rejected = await createEngineDownloadWithCapacityReservation(
+      baseInput({ name: "rejected", totalBytes: 100 }),
+      {
+        availableBytes: 449,
+        minimumFreeSpaceReserveBytes: 100,
+        workspaceMultiplier: 2,
+      },
+    );
+    expect(rejected).toEqual({
+      created: false,
+      activeRemainingBytes: 50,
+      activeWorkspaceBytes: 150,
+      requiredBytes: 450,
+    });
+    expect(await listActiveEngineDownloads(userId)).toHaveLength(1);
+
+    const admitted = await createEngineDownloadWithCapacityReservation(
+      baseInput({ name: "admitted", totalBytes: 100 }),
+      {
+        availableBytes: 450,
+        minimumFreeSpaceReserveBytes: 100,
+        workspaceMultiplier: 2,
+      },
+    );
+    expect(admitted).toMatchObject({
+      created: true,
+      activeRemainingBytes: 50,
+      activeWorkspaceBytes: 150,
+      requiredBytes: 450,
+      record: { name: "admitted" },
+    });
+  });
+
+  it("prevents concurrent enqueues from overcommitting the same free space", async () => {
+    const capacity = {
+      availableBytes: 300,
+      minimumFreeSpaceReserveBytes: 100,
+      workspaceMultiplier: 2,
+    };
+
+    const results = await Promise.all([
+      createEngineDownloadWithCapacityReservation(
+        baseInput({ name: "first", totalBytes: 100 }),
+        capacity,
+      ),
+      createEngineDownloadWithCapacityReservation(
+        baseInput({ name: "second", totalBytes: 100 }),
+        capacity,
+      ),
+    ]);
+
+    expect(results.filter((result) => result.created)).toHaveLength(1);
+    expect(results.filter((result) => !result.created)).toHaveLength(1);
+    expect(await listActiveEngineDownloads(userId)).toHaveLength(1);
+  });
+
   it("tracks progress and terminal state", async () => {
     const record = await createEngineDownload(baseInput());
 
@@ -112,6 +177,22 @@ describe("engine repository", () => {
     expect(updated?.completedSegments).toBe(5);
     expect(updated?.state).toBe("completed");
     expect(updated?.outputPath).toBe("/data/downloads/complete/x");
+  });
+
+  it("persists and clears a structured terminal failure kind", async () => {
+    const record = await createEngineDownload(baseInput());
+
+    await setEngineDownloadState(record.id, "failed", {
+      failureKind: "infrastructure",
+      errorMessage: "Authentication rejected.",
+      completedAt: new Date(),
+    });
+
+    expect(await findEngineDownloadById(userId, record.id)).toMatchObject({
+      state: "failed",
+      failureKind: "infrastructure",
+      errorMessage: "Authentication rejected.",
+    });
   });
 
   it("lists finished downloads until they are marked imported", async () => {
@@ -160,6 +241,19 @@ describe("engine repository", () => {
 
     expect(await deleteEngineDownload(userId, record.id)).toBe(true);
     expect(await findEngineDownloadById(userId, record.id)).toBeNull();
+  });
+
+  it("prevents a deleted fetch from claiming post-processing", async () => {
+    const record = await createEngineDownload(baseInput());
+    await claimNextQueuedEngineDownload();
+    expect(await deleteEngineDownload(userId, record.id)).toBe(true);
+
+    expect(await transitionEngineDownloadState(
+      userId,
+      record.id,
+      ["fetching"],
+      "extracting",
+    )).toBe(false);
   });
 
   it.each(["assembling", "repairing", "extracting"] as const)(

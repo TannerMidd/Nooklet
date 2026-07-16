@@ -8,6 +8,7 @@
 | --- | --- | --- | --- |
 | [ADR-0001: Architecture Principles](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0001-architecture-principles.md) | Accepted | Domain-oriented, workflow-oriented Next.js application with one-container deployment | Core dependency direction remains active; several inventory examples predate the current module tree and integrations |
 | [ADR-0002: In-House Download Engine](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0002-in-house-download-engine.md) | Accepted | Native Usenet engine behind Nooklet-owned queue state, with SABnzbd retained as legacy fallback | Native transfer/repair/extraction is implemented; some planned state and multi-server behavior is not |
+| [ADR-0003: Durable Season Fulfillment](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0003-durable-season-fulfillment.md) | Accepted | Persist season intent above physical pack/episode attempts, with classified recovery and restart-safe fallback | Implemented by fulfillment tables, worker maintenance, grouped Activity, and plan-scoped release exclusions |
 
 ## ADR-0001 implementation alignment
 
@@ -50,6 +51,21 @@ Planned language that is not current runtime behavior:
 - The runner drains one engine download at a time, using concurrent NNTP connections within that transfer.
 
 See [Downloads and Import](Downloads-and-Import) for the observed state model.
+
+## ADR-0003 implementation alignment
+
+Implemented:
+
+- One open fulfillment per user, title, and season.
+- Physical pack and episode requests attached as plan attempts.
+- Up to three automatic pack release attempts with fulfillment-scoped exclusions.
+- Immediate no-pack fallback and post-import incomplete-pack coverage checks.
+- Independent missing, monitored, aired episode searches with bounded concurrency.
+- Persisted transient, active-coverage, and unavailable-release retry times.
+- Infrastructure/configuration blocking instead of episode fan-out.
+- Worker restart recovery, grouped Activity presentation, and terminal-only lifecycle notification behavior.
+
+The coordinator does not make transfer bytes resumable. Engine restart behavior remains the separate concern documented by ADR-0002.
 
 ## How to add an ADR
 

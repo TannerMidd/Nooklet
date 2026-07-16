@@ -15,8 +15,9 @@ export async function selectIndexerSearchSources(
   request: ValidatedIndexerSearchRequest,
 ): Promise<SelectedIndexerSearchSource[]> {
   const indexers = await listEnabledIndexersForMedia(userId, request.mediaType);
+  const supportedIndexers = indexers.filter((indexer) => indexer.protocol === "newznab");
 
-  return Promise.all(indexers.map(async (indexer) => ({
+  return Promise.all(supportedIndexers.map(async (indexer) => ({
     indexer,
     categories: (await listIndexerMediaCategories(indexer.id, request.mediaType))
       .map((category) => category.categoryId),

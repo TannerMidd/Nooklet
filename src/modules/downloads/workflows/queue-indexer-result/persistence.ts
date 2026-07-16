@@ -1,4 +1,5 @@
 import {
+  discardPendingDownloadRequest,
   recordSubmittedDownload,
   updateDownloadRequestStatus,
 } from "@/modules/downloads/repositories/download-repository";
@@ -62,5 +63,15 @@ export async function failReservedDownloadRequest(input: {
     requestId: input.reservedRequest.id,
     status: "failed",
     statusMessage: input.reason,
+  });
+}
+
+export function discardReservedDownloadRequest(input: {
+  userId: string;
+  reservedRequest: ReservedDownloadRequest;
+}) {
+  return discardPendingDownloadRequest({
+    userId: input.userId,
+    requestId: input.reservedRequest.id,
   });
 }

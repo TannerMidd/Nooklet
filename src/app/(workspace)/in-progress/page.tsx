@@ -65,9 +65,9 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
 
   return (
     <div className="nk-enter space-y-8">
-      {currentView === "active" ? <ActivityAutoRefresh /> : null}
+      <ActivityAutoRefresh />
       <PageHeader
-        eyebrow={currentView === "active" ? "Live · refreshes every 15 seconds" : "Request history"}
+        eyebrow="Live · refreshes every 15 seconds"
         title="Activity"
         description="Track active work, resolve problems with the right recovery action, and review completed imports."
         actions={<ImportNowButton />}
@@ -107,10 +107,10 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
       <section className="space-y-4">
         <h2 className="font-heading text-2xl text-foreground">
           {currentView === "active"
-            ? "Active requests"
+            ? "Active downloads and season plans"
             : currentView === "attention"
-              ? "Requests needing attention"
-              : "Recently completed"}
+              ? "Items needing attention"
+              : "Recently completed items"}
         </h2>
         <DownloadActivityPanel entries={activity.entries} />
         {activity.pagination.pageCount > 1 ? (
@@ -118,7 +118,7 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
             {activity.pagination.hasPreviousPage ? (
               <Link href={activityHref(currentView, activity.query, activity.pagination.page - 1)} className="inline-flex min-h-11 items-center rounded-lg border border-control px-4 font-semibold text-foreground">Previous</Link>
             ) : <span />}
-            <span className="text-muted">Page {activity.pagination.page} of {activity.pagination.pageCount} · {activity.pagination.total} requests</span>
+            <span className="text-muted">Page {activity.pagination.page} of {activity.pagination.pageCount} · {activity.pagination.total} items</span>
             {activity.pagination.hasNextPage ? (
               <Link href={activityHref(currentView, activity.query, activity.pagination.page + 1)} className="inline-flex min-h-11 items-center rounded-lg border border-control px-4 font-semibold text-foreground">Next</Link>
             ) : <span />}

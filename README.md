@@ -37,13 +37,15 @@ Nooklet brings the full media workflow into one coherent interface. Plex, Tautul
 | Product experience | Media engine |
 | :--- | :--- |
 | TMDB discovery, search, artwork, cast, trailers, and watch-provider context | Direct Newznab search with movie, season, and episode request flows |
-| Optional recommendations from any OpenAI-compatible provider | Native NNTP downloading with queue controls and resumable state |
+| Optional recommendations from any OpenAI-compatible provider | Native NNTP downloading with persisted queue state, pause/resume, verified cancellation, and restart-safe recovery |
 | Movie and TV library views with scanning, monitoring, and file awareness | PAR2 verification and repair, archive extraction, and organized imports |
 | Guided setup, storage preflight, diagnostics, audit history, and recovery actions | Optional SABnzbd fallback plus Plex, Tautulli, and Trakt context |
 
 ## Run Nooklet
 
 Docker Compose is the recommended installation path. It packages the web app, background worker, SQLite database, downloader, PAR2, UnRAR, and 7-Zip into one reproducible deployment.
+
+Prerequisites: Docker Engine with Docker Compose v2, Git, and writable host folders for download staging and media libraries.
 
 ### 1. Clone and prepare the environment
 
@@ -79,6 +81,8 @@ docker compose ps
 ```
 
 Open [http://localhost:42021](http://localhost:42021), enter the bootstrap token, and create the first administrator. Setup Center then verifies TMDB, indexers, downloading, storage, and the background worker against the real request path.
+
+After the administrator exists, clear `BOOTSTRAP_TOKEN` in `.env` and recreate the container so the one-time bootstrap route is disabled.
 
 **Next:** follow the [first-time setup guide](https://github.com/TannerMidd/Nooklet/wiki/First-Time-Setup) or open the full [Docker installation guide](https://github.com/TannerMidd/Nooklet/wiki/Docker-Installation) for NAS mounts, reverse proxies, Windows paths, and production hardening.
 

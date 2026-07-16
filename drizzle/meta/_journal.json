@@ -253,6 +253,34 @@
       "when": 1784169063766,
       "tag": "0035_force_temporary_password_change",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1784255463766,
+      "tag": "0036_resilient_season_fulfillments",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1784341863766,
+      "tag": "0037_engine_download_failure_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1784428263766,
+      "tag": "0038_season_cancellation_checkpoint",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1784514663766,
+      "tag": "0039_download_request_cancellation_checkpoint",
+      "breakpoints": true
     }
   ]
 }

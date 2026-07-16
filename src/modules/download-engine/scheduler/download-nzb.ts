@@ -2,9 +2,17 @@ import path from "node:path";
 import { mkdir, open, type FileHandle } from "node:fs/promises";
 
 import { sanitizeDownloadFileName } from "@/modules/download-engine/assembly/sanitize-file-name";
-import { NntpClient, NntpError, type NntpServerOptions } from "@/modules/download-engine/nntp/nntp-client";
+import {
+  NntpClient,
+  NntpError,
+  type NntpErrorKind,
+  type NntpServerOptions,
+} from "@/modules/download-engine/nntp/nntp-client";
 import { type ParsedNzb } from "@/modules/download-engine/nzb/parse-nzb";
-import { decodeYencArticle } from "@/modules/download-engine/yenc/decode-yenc";
+import {
+  decodeYencArticle,
+  YencDecodeError,
+} from "@/modules/download-engine/yenc/decode-yenc";
 
 /**
  * Segment scheduler + assembly (ADR-0002 slice 2). Fetches every segment of a
@@ -45,6 +53,7 @@ export type DownloadNzbResult = {
   failedSegments: number;
   totalSegments: number;
   aborted: boolean;
+  failureKinds: NntpErrorKind[];
   /** True when every file completed with zero failed segments. */
   ok: boolean;
 };
@@ -138,6 +147,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
   let nextTaskIndex = 0;
   let aborted = false;
   let fatalError: Error | null = null;
+  const failureKinds = new Set<NntpErrorKind>();
   const reservedOutputNames = new Set<string>();
 
   const reportProgress = () => {
@@ -194,7 +204,17 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
   async function fetchSegment(client: NntpClientLike, task: SegmentTask) {
     const body = await client.body(task.messageId);
     const declaredFileBytes = input.nzb.files[task.fileIndex].declaredBytes;
-    const decoded = decodeYencArticle(body, { maxFileBytes: declaredFileBytes });
+    let decoded: ReturnType<typeof decodeYencArticle>;
+
+    try {
+      decoded = decodeYencArticle(body, { maxFileBytes: declaredFileBytes });
+    } catch (error) {
+      if (error instanceof YencDecodeError) {
+        throw new NntpError("protocol-error", error.message, true);
+      }
+
+      throw error;
+    }
     const state = fileStates[task.fileIndex];
 
     if (decoded.data.length > task.declaredBytes) {
@@ -334,6 +354,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
       const task = tasks[taskIndex];
       const state = fileStates[task.fileIndex];
       let failed = true;
+      let terminalFailureKind: NntpErrorKind | null = null;
 
       for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
         try {
@@ -341,6 +362,15 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
           failed = false;
           break;
         } catch (error) {
+          if (!(error instanceof NntpError)) {
+            aborted = true;
+            fatalError ??= error instanceof Error
+              ? error
+              : new Error("The segment worker failed unexpectedly.");
+            break;
+          }
+
+          terminalFailureKind = error.kind;
           const permanent = error instanceof NntpError && error.permanent;
           const connectionLost =
             error instanceof NntpError &&
@@ -364,6 +394,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
       }
 
       if (failed) {
+        if (terminalFailureKind) failureKinds.add(terminalFailureKind);
         state.failedSegments += 1;
         totals.failedSegments += 1;
       } else {
@@ -432,6 +463,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     failedSegments: totals.failedSegments,
     totalSegments: tasks.length,
     aborted,
+    failureKinds: [...failureKinds],
     ok: !aborted && files.every((file) => file.ok),
   };
 }

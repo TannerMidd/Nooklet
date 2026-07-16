@@ -1,6 +1,6 @@
 # Data and Background Jobs
 
-> Applies to the current `main` implementation. Last source review: 2026-07-15.
+> Applies to the current `main` implementation. Last source review: 2026-07-16.
 
 Nooklet uses one SQLite database for durable application state and an in-process worker for scheduled workflows. The worker does not rely on an in-memory queue for ownership: schedules, claims, run tokens, heartbeats, and leases are persisted in the `jobs` table.
 
@@ -21,13 +21,13 @@ The shipped Compose file overrides the container database URL to `file:/app/data
 
 ## Schema domains
 
-The current [schema](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/schema.ts) defines 40 SQLite tables. The grouping below is conceptual; foreign keys cross several groups.
+The current [schema](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/schema.ts) defines 42 SQLite tables. The grouping below is conceptual; foreign keys cross several groups.
 
 | Domain | Tables | Purpose |
 | --- | ---: | --- |
 | Identity and configuration | 5 | Users, audit events, preferences, service connections, encrypted service secrets |
 | Library and indexers | 14 | Libraries, folders, titles, episodes, files, scans, indexers, categories, secrets, searches, protected search results |
-| Downloads | 6 | Download clients, requests, queue items, import runs/files, built-in engine records |
+| Downloads | 8 | Download clients, durable season/episode fulfillments, physical requests, queue items, import runs/files, built-in engine records |
 | Watch history and jobs | 4 | History sources/runs/items and persisted jobs |
 | Recommendations | 6 | Runs, items, metrics, timeline events, feedback, hidden state |
 | Security and notifications | 5 | Rate limits, request-attempt guards, notification channels/events/delivery audit |
@@ -39,6 +39,9 @@ erDiagram
   MEDIA_LIBRARIES ||--o{ MEDIA_LIBRARY_PATHS : contains
   MEDIA_LIBRARIES ||--o{ MEDIA_TITLES : catalogs
   MEDIA_TITLES ||--o{ MEDIA_FILES : has
+  MEDIA_TITLES ||--o{ DOWNLOAD_FULFILLMENTS : coordinates
+  DOWNLOAD_FULFILLMENTS ||--o{ DOWNLOAD_FULFILLMENT_EPISODES : covers
+  DOWNLOAD_FULFILLMENTS ||--o{ DOWNLOAD_REQUESTS : attempts
   MEDIA_TITLES ||--o{ DOWNLOAD_REQUESTS : requests
   DOWNLOAD_REQUESTS ||--o{ DOWNLOAD_QUEUE_ITEMS : tracks
   ENGINE_DOWNLOADS ||--o| DOWNLOAD_QUEUE_ITEMS : backs
@@ -63,7 +66,45 @@ Five persisted job types are supported:
 - `missing-content-search`
 - `metadata-refresh`
 
-Download imports and legacy SABnzbd reconciliation are maintenance work run on each worker pass rather than separate `jobs` rows. The built-in engine runner is also kicked from maintenance and drains its own persisted queue.
+Cancellation reconciliation, download imports, legacy SABnzbd reconciliation, and due season-fulfillment recovery are maintenance work run on each worker pass rather than separate `jobs` rows. The built-in engine runner is also kicked from maintenance and drains its own persisted queue.
+
+The maintenance order is deliberate:
+
+1. Start or wake the built-in engine runner.
+2. Reconcile due season-plan cancellations.
+3. Reconcile up to three due standalone request cancellations concurrently.
+4. Import completed built-in downloads.
+5. Import completed SABnzbd downloads, then reconcile duplicate and missing SAB queue rows.
+6. Resume due season plans after cancellation, import, and failure evidence has been persisted.
+
+Cancellation intent is checkpointed in SQLite before external cleanup. A request or plan lease owns each reconciliation attempt, downloader queue/history IDs and files are removed and verified, and finalization uses the exact checkpoint timestamp as a compare-and-set fence. Failed verification is due again after five minutes rather than consuming every worker tick. Season cancellation enumerates every linked historical attempt; standalone cancellation is bounded and least-recently-attempted first so an unreachable client cannot starve import work.
+
+## Season-plan recovery protocol
+
+`download_fulfillments` is the durable coordinator for a season request; `download_requests` are its physical release attempts. Open plan state includes the active strategy, aggregate status, pack-attempt count and limit, and `nextAttemptAt`. `download_fulfillment_episodes` stores independent child status, attempt count, and due time.
+
+```mermaid
+sequenceDiagram
+  participant Tick as 15-second maintenance pass
+  participant Plan as Fulfillment repository
+  participant Guard as Renewable fulfillment-work lease
+  participant Search as Release workflow
+  participant Request as Physical download request
+
+  Tick->>Plan: list due open fulfillments (limit 50)
+  Plan-->>Tick: ordered by nextAttemptAt
+  Tick->>Guard: acquire shared per-plan lease
+  alt season-pack strategy
+    Tick->>Search: search next non-excluded pack
+  else episode strategy
+    Tick->>Search: search due missing episodes (concurrency 3)
+  end
+  Search->>Request: persist each accepted physical attempt
+  Tick->>Plan: persist aggregate state and next due time
+  Tick->>Guard: release maintenance key
+```
+
+Because plan and child due times live in SQLite, a restart does not erase pending searches. A shared renewable 15-minute lease prevents interactive, import, and maintenance entry points from advancing the same plan concurrently. If a process exits, the lease expires and a later worker pass can reclaim due work. The database uniqueness constraint also permits only one open plan per user, title, and season.
 
 ## Claim and lease protocol
 
@@ -102,6 +143,7 @@ Key timing values:
 | Worker poll | 15 seconds | [worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts) |
 | Job heartbeat | 60 seconds | [worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts) |
 | Claim lease | 5 minutes | [job repository](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/jobs/repositories/job-repository.ts) |
+| Season work lease | 15 minutes, renewed during work | [fulfillment work lease](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/season-fulfillment-work-lease.ts) |
 | Health stale threshold | 60 seconds | [worker readiness](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker-readiness.ts) |
 
 Each job type has its own process-local lane guard, so unrelated job types may run concurrently while only one job of a given type is claimed by this process at a time. The persisted run token prevents a stale claimant from completing a row it no longer owns.
@@ -130,6 +172,7 @@ See [Backup, Restore, and Upgrades](Backup-Restore-and-Upgrades).
 
 - SQLite supports the intended one-container topology; it is not a shared multi-node database configuration.
 - Persisted job leases improve crash recovery, but the engine singleton, active-lane guards, and import locks are still process-local.
+- Season-plan schedules and renewable per-plan work leases are persisted; the maintenance-loop mutex itself remains process-local under the supported one-process topology.
 - The public health probe reports worker responsiveness, not the success of every optional integration.
 - Migrations run at application startup. Back up before upgrading because rollback may require restoring the pre-upgrade database.
 - There is no automated restore drill in the current CI workflow.

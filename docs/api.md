@@ -280,7 +280,7 @@ Example response when no downloader is configured:
 ```json
 {
   "connectionStatus": "disconnected",
-  "statusMessage": "Add a usenet server under Settings â†’ Connections to download releases with the built-in downloader.",
+  "statusMessage": "Add a usenet server under Settings → Connections to download releases with the built-in downloader.",
   "snapshot": null,
   "sources": []
 }

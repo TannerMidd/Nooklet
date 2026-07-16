@@ -9,6 +9,9 @@ import { type JobType } from "@/lib/database/schema";
 import { listUsersWithActiveDownloadRequestsForImport } from "@/modules/downloads/queries/list-users-with-active-download-requests";
 import { listUsersWithUnimportedFinishedEngineDownloads } from "@/modules/download-engine/queue/engine-repository";
 import { ensureEngineRunnerStarted } from "@/modules/download-engine/runtime/engine-runner";
+import { runDueSeasonFulfillments } from "@/modules/downloads/workflows/season-fulfillment";
+import { reconcilePendingSeasonFulfillmentCancellations } from "@/modules/downloads/workflows/reconcile-season-fulfillment-cancellations";
+import { reconcilePendingDownloadRequestCancellations } from "@/modules/downloads/workflows/reconcile-download-request-cancellations";
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
 import { ImportCompletedDownloadsWorkflowError } from "@/modules/downloads/workflows/import-completed-downloads/errors";
 import { importCompletedEngineDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-engine-downloads";
@@ -303,7 +306,10 @@ async function runMaintenancePass() {
 
   try {
     await ensureEngineRunnerStarted();
+    await reconcilePendingSeasonFulfillmentCancellations();
+    await reconcilePendingDownloadRequestCancellations();
     await runCompletedDownloadImportPass();
+    await runDueSeasonFulfillments();
   } finally {
     sharedWorkerState.runningMaintenance = false;
   }

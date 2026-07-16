@@ -3,14 +3,28 @@ import { mkdir, statfs } from "node:fs/promises";
 import { env } from "@/lib/env";
 import { NzbParseError, parseNzb } from "@/modules/download-engine/nzb/parse-nzb";
 import {
-  createEngineDownload,
-  getActiveEngineDownloadRemainingBytes,
+  createEngineDownloadWithCapacityReservation,
 } from "@/modules/download-engine/queue/engine-repository";
 import { ensureEngineRunnerStarted } from "@/modules/download-engine/runtime/engine-runner";
 import { type EngineDownloadCategory } from "@/lib/database/schema";
 
+export type EnqueueNzbDownloadErrorCode = "invalid_nzb" | "insufficient_space";
+
+export type EnqueueNzbDownloadCapacity = {
+  availableBytes: number;
+  filesystemCapacityBytes: number;
+  requiredBytes: number;
+  activeReservationBytes: number;
+  activeRemainingBytes: number;
+  activeDownloadedBytes: number;
+};
+
 export class EnqueueNzbDownloadError extends Error {
-  constructor(message: string) {
+  constructor(
+    public readonly code: EnqueueNzbDownloadErrorCode,
+    message: string,
+    public readonly capacity: EnqueueNzbDownloadCapacity | null = null,
+  ) {
     super(message);
     this.name = "EnqueueNzbDownloadError";
   }
@@ -33,24 +47,13 @@ function formatCapacity(bytes: number) {
   return `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
 }
 
-async function assertDownloadCapacity(downloadBytes: number) {
+async function readDownloadCapacity() {
   await mkdir(env.DOWNLOAD_ENGINE_DIR, { recursive: true });
   const filesystem = await statfs(env.DOWNLOAD_ENGINE_DIR);
-  const availableBytes = filesystem.bavail * filesystem.bsize;
-  const alreadyReservedBytes = await getActiveEngineDownloadRemainingBytes();
-  // Keep room for both the assembled download and an unpacked copy.
-  const requiredBytes = minimumFreeSpaceReserveBytes
-    + (alreadyReservedBytes * 2)
-    + (downloadBytes * 2);
-
-  if (!Number.isSafeInteger(requiredBytes) || availableBytes < requiredBytes) {
-    throw new EnqueueNzbDownloadError(
-      `There is not enough free disk space in the built-in downloader directory `
-      + `"${env.DOWNLOAD_ENGINE_DIR}" (${formatCapacity(availableBytes)} available; `
-      + `${Number.isSafeInteger(requiredBytes) ? formatCapacity(requiredBytes) : "an invalid amount"} required `
-      + "for queued downloads, unpacking, and the safety reserve).",
-    );
-  }
+  return {
+    availableBytes: filesystem.bavail * filesystem.bsize,
+    filesystemCapacityBytes: filesystem.blocks * filesystem.bsize,
+  };
 }
 
 /**
@@ -70,23 +73,59 @@ export async function enqueueNzbDownloadWorkflow(userId: string, input: {
     parsed = parseNzb(input.nzbXml);
   } catch (error) {
     throw new EnqueueNzbDownloadError(
+      "invalid_nzb",
       error instanceof NzbParseError ? error.message : "The NZB could not be parsed.",
     );
   }
 
   const totalSegments = parsed.files.reduce((total, file) => total + file.segments.length, 0);
 
-  await assertDownloadCapacity(parsed.declaredBytes);
-
-  const record = await createEngineDownload({
-    userId,
-    name: input.name.trim() || "Untitled download",
-    category: input.category,
-    nzbXml: input.nzbXml,
-    password: input.password ?? parsed.password,
-    totalBytes: parsed.declaredBytes,
-    totalSegments,
-  });
+  const {
+    availableBytes,
+    filesystemCapacityBytes,
+  } = await readDownloadCapacity();
+  const reservation = await createEngineDownloadWithCapacityReservation(
+    {
+      userId,
+      name: input.name.trim() || "Untitled download",
+      category: input.category,
+      nzbXml: input.nzbXml,
+      password: input.password ?? parsed.password,
+      totalBytes: parsed.declaredBytes,
+      totalSegments,
+    },
+    {
+      availableBytes,
+      minimumFreeSpaceReserveBytes,
+      // Keep room for both the assembled download and an unpacked copy.
+      workspaceMultiplier: 2,
+    },
+  );
+  if (!reservation.created) {
+    throw new EnqueueNzbDownloadError(
+      "insufficient_space",
+      `There is not enough free disk space in the built-in downloader directory `
+      + `"${env.DOWNLOAD_ENGINE_DIR}" (${formatCapacity(availableBytes)} available; `
+      + `${Number.isSafeInteger(reservation.requiredBytes)
+        ? formatCapacity(reservation.requiredBytes)
+        : "an invalid amount"} required for queued downloads, unpacking, and the safety reserve; `
+      + `${Number.isSafeInteger(filesystemCapacityBytes)
+        ? formatCapacity(filesystemCapacityBytes)
+        : "an invalid amount"} total filesystem capacity).`,
+      {
+        availableBytes,
+        filesystemCapacityBytes,
+        requiredBytes: reservation.requiredBytes,
+        activeReservationBytes: reservation.activeWorkspaceBytes,
+        activeRemainingBytes: reservation.activeRemainingBytes,
+        activeDownloadedBytes: Math.max(
+          0,
+          reservation.activeWorkspaceBytes - (reservation.activeRemainingBytes * 2),
+        ),
+      },
+    );
+  }
+  const record = reservation.record;
 
   await ensureEngineRunnerStarted();
 

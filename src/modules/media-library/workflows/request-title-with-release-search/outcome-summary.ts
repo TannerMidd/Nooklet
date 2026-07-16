@@ -33,6 +33,14 @@ function selectionIssue(
 ) {
   const target = describeReleaseSelectionTarget(selection.target);
 
+  if (selection.seasonFallback) {
+    const fallback = selection.seasonFallback;
+    if (fallback.queuedCount > 0 || fallback.activeCount > 0) {
+      return `${target}: no usable season pack was found, so Nooklet switched to individual episodes (${fallback.queuedCount} queued now, ${fallback.activeCount} active, ${fallback.unavailableCount} awaiting a release).`;
+    }
+    return `${target}: no usable season pack was found. ${fallback.message}`;
+  }
+
   if (!selection.releaseSearch.searched || selection.queuedDownload.reason === "search_not_run") {
     return `${target}: the release search did not run.`;
   }
@@ -53,6 +61,19 @@ function selectionIssue(
   }
 
   return `${target}: no release was queued.`;
+}
+
+function selectionIsFulfilled(
+  selection: RequestTitleWithReleaseSearchResult["selections"][number],
+) {
+  if (selection.queuedDownload.queued) return true;
+  const fallback = selection.seasonFallback;
+  return fallback != null && (
+    fallback.completed
+    || fallback.queuedCount > 0
+    || fallback.activeCount > 0
+    || fallback.ownedCount > 0
+  );
 }
 
 /**
@@ -76,10 +97,46 @@ export function summarizeRequestSubmission(
   const queueResults = input.result.selections.length > 0
     ? input.result.selections.map((selection) => selection.queuedDownload)
     : [input.result.queuedDownload];
-  const queuedCount = queueResults.filter((result) => result.queued).length;
+  const queuedCount = input.result.selections.length > 0
+    ? input.result.selections.filter(selectionIsFulfilled).length
+    : queueResults.filter((result) => result.queued).length;
   const selectionCount = queueResults.length;
 
   if (queuedCount === selectionCount) {
+    const fallbacks = input.result.selections.flatMap((selection) => (
+      selection.seasonFallback ? [selection.seasonFallback] : []
+    ));
+    if (fallbacks.length > 0) {
+      const packCount = input.result.selections.filter((selection) => (
+        selection.queuedDownload.queued
+      )).length;
+      const queuedEpisodes = fallbacks.reduce((total, fallback) => total + fallback.queuedCount, 0);
+      const activeEpisodes = fallbacks.reduce((total, fallback) => total + fallback.activeCount, 0);
+      const ownedEpisodes = fallbacks.reduce((total, fallback) => total + fallback.ownedCount, 0);
+      const unavailableEpisodes = fallbacks.reduce(
+        (total, fallback) => total + fallback.unavailableCount,
+        0,
+      );
+      const episodeDetails = [
+        queuedEpisodes > 0 ? `${queuedEpisodes} queued now` : null,
+        activeEpisodes > 0 ? `${activeEpisodes} already active` : null,
+        ownedEpisodes > 0 ? `${ownedEpisodes} already in the library` : null,
+        unavailableEpisodes > 0
+          ? `${unavailableEpisodes} awaiting an automatic search`
+          : null,
+      ].filter((detail): detail is string => detail !== null);
+      const packMessage = packCount > 0
+        ? `${packCount} season pack${packCount === 1 ? " was" : "s were"} queued. `
+        : "";
+      const fallbackCount = fallbacks.length;
+      return {
+        outcome: "queued",
+        status: unavailableEpisodes > 0 ? "warning" : "success",
+        message: `${input.title} was added to your catalog. ${packMessage}${fallbackCount} season${fallbackCount === 1 ? "" : "s"} switched automatically to individual episodes${episodeDetails.length > 0 ? ` (${episodeDetails.join(", ")})` : ""}.`,
+        queuedCount,
+        selectionCount,
+      };
+    }
     return {
       outcome: "queued",
       status: "success",
@@ -93,7 +150,7 @@ export function summarizeRequestSubmission(
 
   const qualityLabel = getMediaQualityProfileLabel(input.qualityProfile);
   const issues = input.result.selections
-    .filter((selection) => !selection.queuedDownload.queued)
+    .filter((selection) => !selectionIsFulfilled(selection))
     .map((selection) => selectionIssue(selection, qualityLabel));
 
   if (queuedCount > 0) {

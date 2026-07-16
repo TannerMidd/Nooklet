@@ -22,6 +22,12 @@ import { METADATA_REFRESH_BACKOFF_MS, refreshTvMetadataWorkflow } from "./index"
 
 const listCandidatesMock = vi.mocked(listMonitoredTvTitlesWithTmdbId);
 const acquireAttemptMock = vi.mocked(acquireMediaRequestAttempt);
+const attemptLease = {
+  id: "lease-1",
+  userId: "user-1",
+  requestKey: "metadata-refresh:test",
+  expiresAt: new Date("2026-07-15T12:30:00Z"),
+};
 const syncMock = vi.mocked(syncTitleEpisodesWorkflow);
 const auditMock = vi.mocked(recordAuditEvent);
 
@@ -31,7 +37,7 @@ function candidate(id: string, tmdbId: string, monitored = true) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  acquireAttemptMock.mockResolvedValue(true);
+  acquireAttemptMock.mockResolvedValue(attemptLease);
 });
 
 describe("refreshTvMetadataWorkflow", () => {
@@ -69,7 +75,7 @@ describe("refreshTvMetadataWorkflow", () => {
 
   it("skips titles still inside the backoff window", async () => {
     listCandidatesMock.mockResolvedValue([candidate("t1", "100"), candidate("t2", "200")]);
-    acquireAttemptMock.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    acquireAttemptMock.mockResolvedValueOnce(null).mockResolvedValueOnce(attemptLease);
     syncMock.mockResolvedValue({
       ok: true,
       seasonIdByNumber: new Map(),

@@ -13,6 +13,9 @@ vi.mock("./active-download-guard", () => ({
 vi.mock("./association-validation", () => ({
   validateQueueIndexerResultAssociations: vi.fn(),
 }));
+vi.mock("./fulfillment-context-validation", () => ({
+  validateQueueIndexerResultFulfillmentContext: vi.fn(),
+}));
 vi.mock("./target-resolution", () => ({
   resolveQueueIndexerResultTarget: vi.fn(),
 }));
@@ -30,22 +33,29 @@ vi.mock("./download-submission", () => ({
   compensateIndexerResultSubmission: vi.fn(),
 }));
 vi.mock("./persistence", () => ({
+  discardReservedDownloadRequest: vi.fn(),
   persistQueuedIndexerResultDownload: vi.fn(),
   failReservedDownloadRequest: vi.fn(),
 }));
 vi.mock("./audit", () => ({
   recordQueuedIndexerResultAudit: vi.fn(),
 }));
+vi.mock("@/modules/downloads/workflows/season-fulfillment-work-lease", () => ({
+  isSeasonFulfillmentWorkLease: vi.fn(),
+  renewSeasonFulfillmentWorkLease: vi.fn(),
+}));
 
 import { recordQueuedIndexerResultAudit } from "./audit";
 import { ensureNoActiveDownloadRequest } from "./active-download-guard";
 import { validateQueueIndexerResultAssociations } from "./association-validation";
 import { resolveDownloadClient } from "./client-resolution";
+import { validateQueueIndexerResultFulfillmentContext } from "./fulfillment-context-validation";
 import {
   compensateIndexerResultSubmission,
   submitIndexerResultToDownloadClient,
 } from "./download-submission";
 import {
+  discardReservedDownloadRequest,
   failReservedDownloadRequest,
   persistQueuedIndexerResultDownload,
 } from "./persistence";
@@ -54,9 +64,14 @@ import { reserveDownloadRequest } from "./reservation";
 import { resolveQueueIndexerResult } from "./result-resolution";
 import { ensureSabnzbdCompatibleResult } from "./protocol-guard";
 import { resolveQueueIndexerResultTarget } from "./target-resolution";
-import { queueIndexerResultWorkflow } from "./index";
+import {
+  isSeasonFulfillmentWorkLease,
+  renewSeasonFulfillmentWorkLease,
+} from "@/modules/downloads/workflows/season-fulfillment-work-lease";
+import { queueIndexerResultWorkflow, QueueIndexerResultWorkflowError } from "./index";
 
 const validateMock = vi.mocked(validateQueueIndexerResultRequest);
+const fulfillmentContextMock = vi.mocked(validateQueueIndexerResultFulfillmentContext);
 const activeGuardMock = vi.mocked(ensureNoActiveDownloadRequest);
 const associationMock = vi.mocked(validateQueueIndexerResultAssociations);
 const resolveResultMock = vi.mocked(resolveQueueIndexerResult);
@@ -68,10 +83,17 @@ const submitMock = vi.mocked(submitIndexerResultToDownloadClient);
 const compensateMock = vi.mocked(compensateIndexerResultSubmission);
 const persistMock = vi.mocked(persistQueuedIndexerResultDownload);
 const failReservedMock = vi.mocked(failReservedDownloadRequest);
+const discardReservedMock = vi.mocked(discardReservedDownloadRequest);
 const auditMock = vi.mocked(recordQueuedIndexerResultAudit);
+const ownsWorkLeaseMock = vi.mocked(isSeasonFulfillmentWorkLease);
+const renewWorkLeaseMock = vi.mocked(renewSeasonFulfillmentWorkLease);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fulfillmentContextMock.mockResolvedValue({});
+  ownsWorkLeaseMock.mockReturnValue(true);
+  renewWorkLeaseMock.mockImplementation(async (lease) => lease);
+  discardReservedMock.mockResolvedValue(false);
 });
 
 describe("queueIndexerResultWorkflow", () => {
@@ -95,6 +117,10 @@ describe("queueIndexerResultWorkflow", () => {
     validateMock.mockImplementation(() => {
       calls.push("validate");
       return request;
+    });
+    fulfillmentContextMock.mockImplementation(async () => {
+      calls.push("fulfillment-context");
+      return {};
     });
     activeGuardMock.mockImplementation(async () => {
       calls.push("active-guard");
@@ -137,6 +163,7 @@ describe("queueIndexerResultWorkflow", () => {
 
     expect(calls).toEqual([
       "validate",
+      "fulfillment-context",
       "resolve-result",
       "association",
       "active-guard",
@@ -149,6 +176,7 @@ describe("queueIndexerResultWorkflow", () => {
       "audit",
     ]);
     expect(activeGuardMock).toHaveBeenCalledWith("user1", request);
+    expect(fulfillmentContextMock).toHaveBeenCalledWith("user1", request, {});
     expect(resolveResultMock).toHaveBeenCalledWith("user1", request);
     expect(associationMock).toHaveBeenCalledWith("user1", request, resolvedResult);
     expect(protocolGuardMock).toHaveBeenCalledWith(resolvedResult);
@@ -160,6 +188,7 @@ describe("queueIndexerResultWorkflow", () => {
       resolvedResult,
       target,
       downloadClient,
+      context: {},
     });
     expect(submitMock).toHaveBeenCalledWith(resolvedResult, downloadClient);
     expect(persistMock).toHaveBeenCalledWith({
@@ -172,6 +201,314 @@ describe("queueIndexerResultWorkflow", () => {
     expect(failReservedMock).not.toHaveBeenCalled();
     expect(auditMock).toHaveBeenCalledWith({ userId: "user1", resolvedResult, queuedDownload });
     expect(result).toBe(queuedDownload);
+  });
+
+  it("rejects invalid fulfillment metadata before resolution, reservation, or submission", async () => {
+    const request = {
+      resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9",
+      mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+      seasonId: "5760bd46-7923-4a45-8533-49878b2dd7c2",
+    };
+    const context = {
+      fulfillmentId: "0ee44176-1f53-4c77-b67b-3708ddb9567a",
+      attemptStrategy: "season_pack" as const,
+      attemptNumber: 1,
+    };
+    const validationError = new QueueIndexerResultWorkflowError(
+      "invalid_fulfillment_context",
+      "The fulfillment context is invalid.",
+    );
+
+    validateMock.mockReturnValue(request);
+    fulfillmentContextMock.mockRejectedValue(validationError);
+
+    await expect(queueIndexerResultWorkflow("user1", request, context)).rejects.toBe(validationError);
+
+    expect(fulfillmentContextMock).toHaveBeenCalledWith("user1", request, context);
+    expect(resolveResultMock).not.toHaveBeenCalled();
+    expect(associationMock).not.toHaveBeenCalled();
+    expect(resolveClientMock).not.toHaveBeenCalled();
+    expect(reserveMock).not.toHaveBeenCalled();
+    expect(submitMock).not.toHaveBeenCalled();
+    expect(persistMock).not.toHaveBeenCalled();
+  });
+
+  it("renews the fulfillment lease immediately before reservation and submission", async () => {
+    const calls: string[] = [];
+    const fulfillmentId = "0ee44176-1f53-4c77-b67b-3708ddb9567a";
+    const request = {
+      resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9",
+      mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+      seasonId: "5760bd46-7923-4a45-8533-49878b2dd7c2",
+    };
+    const context = {
+      fulfillmentId,
+      attemptStrategy: "season_pack" as const,
+      attemptNumber: 1,
+      workLease: {
+        id: "lease-1",
+        userId: "user1",
+        requestKey: `season-fulfillment:${fulfillmentId}:work`,
+        expiresAt: new Date("2026-07-16T15:15:00.000Z"),
+      },
+    };
+    const resolvedResult = { result: { id: request.resultId, title: "Severance S01" } };
+    const target = { path: { id: "path-1" }, library: { id: "library-1" } };
+    const downloadClient = { client: { id: "client-1" } };
+    const reservedRequest = { id: "request-1" };
+    const submission = { queueIds: ["queue-1"], category: "tv" };
+    const queuedDownload = { downloadRequest: reservedRequest, queueItem: null, queueIds: submission.queueIds };
+
+    validateMock.mockReturnValue(request as never);
+    fulfillmentContextMock.mockResolvedValue({
+      fulfillmentId,
+      attemptStrategy: "season_pack",
+      attemptNumber: 1,
+    });
+    resolveResultMock.mockResolvedValue(resolvedResult as never);
+    resolveTargetMock.mockResolvedValue(target as never);
+    resolveClientMock.mockResolvedValue(downloadClient as never);
+    renewWorkLeaseMock.mockImplementation(async (lease) => {
+      calls.push("renew");
+      return lease;
+    });
+    reserveMock.mockImplementation(async () => {
+      calls.push("reserve");
+      return reservedRequest as never;
+    });
+    submitMock.mockImplementation(async () => {
+      calls.push("submit");
+      return submission;
+    });
+    persistMock.mockResolvedValue(queuedDownload as never);
+
+    await expect(queueIndexerResultWorkflow("user1", request as never, context)).resolves.toBe(
+      queuedDownload,
+    );
+
+    expect(calls).toEqual(["renew", "reserve", "renew", "submit"]);
+    expect(ownsWorkLeaseMock).toHaveBeenCalledTimes(2);
+    expect(ownsWorkLeaseMock).toHaveBeenCalledWith(context.workLease, "user1", fulfillmentId);
+    expect(reserveMock).toHaveBeenCalledWith(expect.objectContaining({
+      context: {
+        fulfillmentId,
+        attemptStrategy: "season_pack",
+        attemptNumber: 1,
+      },
+    }));
+  });
+
+  it("does not reserve when fulfillment lease ownership is lost before reservation", async () => {
+    const fulfillmentId = "0ee44176-1f53-4c77-b67b-3708ddb9567a";
+    const request = {
+      resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9",
+      mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+      seasonId: "5760bd46-7923-4a45-8533-49878b2dd7c2",
+    };
+    const context = {
+      fulfillmentId,
+      attemptStrategy: "season_pack" as const,
+      attemptNumber: 1,
+      workLease: {
+        id: "lease-1",
+        userId: "user1",
+        requestKey: `season-fulfillment:${fulfillmentId}:work`,
+        expiresAt: new Date("2026-07-16T15:15:00.000Z"),
+      },
+    };
+
+    validateMock.mockReturnValue(request as never);
+    fulfillmentContextMock.mockResolvedValue({
+      fulfillmentId,
+      attemptStrategy: "season_pack",
+      attemptNumber: 1,
+    });
+    resolveResultMock.mockResolvedValue({ result: { id: request.resultId } } as never);
+    resolveTargetMock.mockResolvedValue({ path: { id: "path-1" } } as never);
+    resolveClientMock.mockResolvedValue({ client: { id: "client-1" } } as never);
+    renewWorkLeaseMock.mockResolvedValue(null);
+
+    await expect(
+      queueIndexerResultWorkflow("user1", request as never, context),
+    ).rejects.toMatchObject({ code: "season_fulfillment_busy" });
+
+    expect(renewWorkLeaseMock).toHaveBeenCalledTimes(1);
+    expect(reserveMock).not.toHaveBeenCalled();
+    expect(submitMock).not.toHaveBeenCalled();
+    expect(failReservedMock).not.toHaveBeenCalled();
+  });
+
+  it("fails the reservation without submitting when lease ownership is lost before submission", async () => {
+    const fulfillmentId = "0ee44176-1f53-4c77-b67b-3708ddb9567a";
+    const request = {
+      resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9",
+      mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+      seasonId: "5760bd46-7923-4a45-8533-49878b2dd7c2",
+    };
+    const context = {
+      fulfillmentId,
+      attemptStrategy: "season_pack" as const,
+      attemptNumber: 1,
+      workLease: {
+        id: "lease-1",
+        userId: "user1",
+        requestKey: `season-fulfillment:${fulfillmentId}:work`,
+        expiresAt: new Date("2026-07-16T15:15:00.000Z"),
+      },
+    };
+    const reservedRequest = { id: "request-1" };
+
+    validateMock.mockReturnValue(request as never);
+    fulfillmentContextMock.mockResolvedValue({
+      fulfillmentId,
+      attemptStrategy: "season_pack",
+      attemptNumber: 1,
+    });
+    resolveResultMock.mockResolvedValue({ result: { id: request.resultId } } as never);
+    resolveTargetMock.mockResolvedValue({ path: { id: "path-1" } } as never);
+    resolveClientMock.mockResolvedValue({ client: { id: "client-1" } } as never);
+    reserveMock.mockResolvedValue(reservedRequest as never);
+    discardReservedMock.mockResolvedValue(true);
+    renewWorkLeaseMock
+      .mockResolvedValueOnce(context.workLease)
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      queueIndexerResultWorkflow("user1", request as never, context),
+    ).rejects.toMatchObject({ code: "season_fulfillment_busy" });
+
+    expect(renewWorkLeaseMock).toHaveBeenCalledTimes(2);
+    expect(reserveMock).toHaveBeenCalledTimes(1);
+    expect(submitMock).not.toHaveBeenCalled();
+    expect(discardReservedMock).toHaveBeenCalledWith({
+      userId: "user1",
+      reservedRequest,
+    });
+    expect(failReservedMock).not.toHaveBeenCalled();
+    expect(persistMock).not.toHaveBeenCalled();
+  });
+
+  it("discards a capacity-blocked reservation so it does not consume the release budget", async () => {
+    const request = {
+      resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9",
+      mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+      seasonId: "5760bd46-7923-4a45-8533-49878b2dd7c2",
+    };
+    const resolvedResult = { result: { id: request.resultId, title: "Severance S01" } };
+    const reservedRequest = { id: "request-capacity" };
+    const capacityError = new QueueIndexerResultWorkflowError(
+      "download_capacity_exceeded",
+      "There is not enough free disk space.",
+      {
+        availableBytes: 10_000,
+        filesystemCapacityBytes: 100_000,
+        requiredBytes: 20_000,
+        activeReservationBytes: 12_000,
+        activeRemainingBytes: 5_000,
+        activeDownloadedBytes: 2_000,
+      },
+    );
+
+    validateMock.mockReturnValue(request as never);
+    resolveResultMock.mockResolvedValue(resolvedResult as never);
+    resolveTargetMock.mockResolvedValue({ path: { id: "path-1" } } as never);
+    resolveClientMock.mockResolvedValue({ client: { id: "client-1" } } as never);
+    reserveMock.mockResolvedValue(reservedRequest as never);
+    submitMock.mockRejectedValue(capacityError);
+    discardReservedMock.mockResolvedValue(true);
+
+    await expect(
+      queueIndexerResultWorkflow("user1", request as never),
+    ).rejects.toBe(capacityError);
+
+    expect(discardReservedMock).toHaveBeenCalledWith({
+      userId: "user1",
+      reservedRequest,
+    });
+    expect(failReservedMock).not.toHaveBeenCalled();
+    expect(persistMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps an intrinsically oversized candidate as a durable failed attempt", async () => {
+    const request = {
+      resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9",
+      mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+      seasonId: "5760bd46-7923-4a45-8533-49878b2dd7c2",
+    };
+    const resolvedResult = { result: { id: request.resultId, title: "Severance S01" } };
+    const reservedRequest = { id: "request-too-large" };
+    const capacityError = new QueueIndexerResultWorkflowError(
+      "download_capacity_exceeded",
+      "This release cannot fit in the configured download workspace.",
+      {
+        availableBytes: 10_000,
+        filesystemCapacityBytes: 20_000,
+        requiredBytes: 30_000,
+        activeReservationBytes: 5_000,
+        activeRemainingBytes: 2_000,
+        activeDownloadedBytes: 1_000,
+      },
+    );
+
+    validateMock.mockReturnValue(request as never);
+    resolveResultMock.mockResolvedValue(resolvedResult as never);
+    resolveTargetMock.mockResolvedValue({ path: { id: "path-1" } } as never);
+    resolveClientMock.mockResolvedValue({ client: { id: "client-1" } } as never);
+    reserveMock.mockResolvedValue(reservedRequest as never);
+    submitMock.mockRejectedValue(capacityError);
+
+    await expect(
+      queueIndexerResultWorkflow("user1", request as never),
+    ).rejects.toBe(capacityError);
+
+    expect(discardReservedMock).not.toHaveBeenCalled();
+    expect(failReservedMock).toHaveBeenCalledWith({
+      userId: "user1",
+      reservedRequest,
+      reason: capacityError.message,
+    });
+    expect(persistMock).not.toHaveBeenCalled();
+  });
+
+  it("discards a storage-shortage reservation without burning the release", async () => {
+    const request = {
+      resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9",
+      mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+      seasonId: "5760bd46-7923-4a45-8533-49878b2dd7c2",
+    };
+    const resolvedResult = { result: { id: request.resultId, title: "Severance S01" } };
+    const reservedRequest = { id: "request-storage-full" };
+    const capacityError = new QueueIndexerResultWorkflowError(
+      "download_capacity_exceeded",
+      "The configured workspace does not have enough current free space.",
+      {
+        availableBytes: 10_000,
+        filesystemCapacityBytes: 100_000,
+        requiredBytes: 30_000,
+        activeReservationBytes: 5_000,
+        activeRemainingBytes: 2_000,
+        activeDownloadedBytes: 1_000,
+      },
+    );
+
+    validateMock.mockReturnValue(request as never);
+    resolveResultMock.mockResolvedValue(resolvedResult as never);
+    resolveTargetMock.mockResolvedValue({ path: { id: "path-1" } } as never);
+    resolveClientMock.mockResolvedValue({ client: { id: "client-1" } } as never);
+    reserveMock.mockResolvedValue(reservedRequest as never);
+    submitMock.mockRejectedValue(capacityError);
+    discardReservedMock.mockResolvedValue(true);
+
+    await expect(
+      queueIndexerResultWorkflow("user1", request as never),
+    ).rejects.toBe(capacityError);
+
+    expect(discardReservedMock).toHaveBeenCalledWith({
+      userId: "user1",
+      reservedRequest,
+    });
+    expect(failReservedMock).not.toHaveBeenCalled();
+    expect(persistMock).not.toHaveBeenCalled();
   });
 
   it("marks the reserved request as failed when SABnzbd submission throws", async () => {

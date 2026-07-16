@@ -161,6 +161,26 @@ export const indexerConnectionStatuses = ["configured", "verified", "error", "di
 export const indexerSearchRunStatuses = ["pending", "running", "succeeded", "failed"] as const;
 export const downloadClientTypes = ["sabnzbd", "nooklet"] as const;
 export const downloadClientStatuses = ["configured", "verified", "error", "disabled"] as const;
+export const downloadFulfillmentStrategies = ["season_pack", "episodes"] as const;
+export const downloadFulfillmentStatuses = [
+  "active",
+  "retry_wait",
+  "partial",
+  "succeeded",
+  "blocked",
+  "failed",
+  "cancelled",
+] as const;
+export const downloadFulfillmentEpisodeStatuses = [
+  "pending",
+  "active",
+  "retry_wait",
+  "succeeded",
+  "unavailable",
+  "blocked",
+  "deferred",
+] as const;
+export const downloadAttemptStrategies = ["season_pack", "episode"] as const;
 export const downloadRequestStatuses = [
   "pending",
   "queued",
@@ -191,6 +211,7 @@ export const engineDownloadStates = [
   "paused",
 ] as const;
 export const engineDownloadCategories = ["tv", "movies"] as const;
+export const engineDownloadFailureKinds = ["content", "infrastructure", "cancelled", "unknown"] as const;
 
 export const mediaLibraries = sqliteTable(
   "media_libraries",
@@ -627,6 +648,93 @@ export const downloadClients = sqliteTable(
   ],
 );
 
+/**
+ * A season fulfillment is the durable user intent behind one or more physical
+ * download attempts. It survives failed pack releases, process restarts, and
+ * the transition from a season pack to per-episode downloads.
+ */
+export const downloadFulfillments = sqliteTable(
+  "download_fulfillments",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mediaTitleId: text("media_title_id")
+      .notNull()
+      .references(() => mediaTitles.id, { onDelete: "cascade" }),
+    seasonId: text("season_id")
+      .notNull()
+      .references(() => tvSeasons.id, { onDelete: "cascade" }),
+    targetLibraryPathId: text("target_library_path_id").references(
+      () => mediaLibraryPaths.id,
+      { onDelete: "set null" },
+    ),
+    requestedTitle: text("requested_title").notNull(),
+    strategy: text("strategy", { enum: downloadFulfillmentStrategies })
+      .notNull()
+      .default("season_pack"),
+    status: text("status", { enum: downloadFulfillmentStatuses })
+      .notNull()
+      .default("active"),
+    packAttemptCount: integer("pack_attempt_count").notNull().default(0),
+    packAttemptLimit: integer("pack_attempt_limit").notNull().default(3),
+    nextAttemptAt: integer("next_attempt_at", { mode: "timestamp_ms" }),
+    cancellationRequestedAt: integer("cancellation_requested_at", { mode: "timestamp_ms" }),
+    statusMessage: text("status_message"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("download_fulfillments_user_status_due_idx").on(
+      table.userId,
+      table.status,
+      table.nextAttemptAt,
+    ),
+    index("download_fulfillments_season_idx").on(table.seasonId),
+    uniqueIndex("download_fulfillments_open_season_unique")
+      .on(table.userId, table.mediaTitleId, table.seasonId)
+      .where(sql`status in ('active','retry_wait','partial')`),
+  ],
+);
+
+export const downloadFulfillmentEpisodes = sqliteTable(
+  "download_fulfillment_episodes",
+  {
+    fulfillmentId: text("fulfillment_id")
+      .notNull()
+      .references(() => downloadFulfillments.id, { onDelete: "cascade" }),
+    episodeId: text("episode_id")
+      .notNull()
+      .references(() => tvEpisodes.id, { onDelete: "cascade" }),
+    status: text("status", { enum: downloadFulfillmentEpisodeStatuses })
+      .notNull()
+      .default("pending"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextAttemptAt: integer("next_attempt_at", { mode: "timestamp_ms" }),
+    statusMessage: text("status_message"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    primaryKey({ columns: [table.fulfillmentId, table.episodeId] }),
+    index("download_fulfillment_episodes_status_due_idx").on(
+      table.fulfillmentId,
+      table.status,
+      table.nextAttemptAt,
+    ),
+  ],
+);
+
 export const downloadRequests = sqliteTable(
   "download_requests",
   {
@@ -639,6 +747,11 @@ export const downloadRequests = sqliteTable(
     }),
     episodeId: text("episode_id").references(() => tvEpisodes.id, { onDelete: "set null" }),
     seasonId: text("season_id").references(() => tvSeasons.id, { onDelete: "set null" }),
+    fulfillmentId: text("fulfillment_id").references(() => downloadFulfillments.id, {
+      onDelete: "set null",
+    }),
+    attemptStrategy: text("attempt_strategy", { enum: downloadAttemptStrategies }),
+    attemptNumber: integer("attempt_number"),
     searchResultId: text("search_result_id").references(() => indexerSearchResults.id, {
       onDelete: "set null",
     }),
@@ -655,6 +768,7 @@ export const downloadRequests = sqliteTable(
     releaseTitle: text("release_title"),
     externalJobId: text("external_job_id"),
     statusMessage: text("status_message"),
+    cancellationRequestedAt: integer("cancellation_requested_at", { mode: "timestamp_ms" }),
     submittedAt: integer("submitted_at", { mode: "timestamp_ms" }),
     missingTickCount: integer("missing_tick_count").notNull().default(0),
     retryCount: integer("retry_count").notNull().default(0),
@@ -679,6 +793,7 @@ export const downloadRequests = sqliteTable(
     index("download_requests_title_status_idx").on(table.mediaTitleId, table.status),
     index("download_requests_episode_status_idx").on(table.episodeId, table.status),
     index("download_requests_season_status_idx").on(table.seasonId, table.status),
+    index("download_requests_fulfillment_created_idx").on(table.fulfillmentId, table.createdAt),
     index("download_requests_client_status_updated_idx").on(
       table.clientId,
       table.status,
@@ -686,6 +801,10 @@ export const downloadRequests = sqliteTable(
     ),
     index("download_requests_search_result_idx").on(table.searchResultId),
     index("download_requests_target_path_status_idx").on(table.targetLibraryPathId, table.status),
+    index("download_requests_cancellation_pending_idx").on(
+      table.userId,
+      table.cancellationRequestedAt,
+    ).where(sql`cancellation_requested_at is not null`),
     uniqueIndex("download_requests_active_dedup_unique")
       .on(table.userId, table.mediaTitleId, table.dedupKey)
       .where(
@@ -817,6 +936,7 @@ export const engineDownloads = sqliteTable(
     totalSegments: integer("total_segments").notNull().default(0),
     completedSegments: integer("completed_segments").notNull().default(0),
     failedSegments: integer("failed_segments").notNull().default(0),
+    failureKind: text("failure_kind", { enum: engineDownloadFailureKinds }),
     errorMessage: text("error_message"),
     outputPath: text("output_path"),
     importedAt: integer("imported_at", { mode: "timestamp_ms" }),
@@ -1210,10 +1330,15 @@ export type IndexerConnectionStatus = (typeof indexerConnectionStatuses)[number]
 export type IndexerSearchRunStatus = (typeof indexerSearchRunStatuses)[number];
 export type DownloadClientType = (typeof downloadClientTypes)[number];
 export type DownloadClientStatus = (typeof downloadClientStatuses)[number];
+export type DownloadFulfillmentStrategy = (typeof downloadFulfillmentStrategies)[number];
+export type DownloadFulfillmentStatus = (typeof downloadFulfillmentStatuses)[number];
+export type DownloadFulfillmentEpisodeStatus = (typeof downloadFulfillmentEpisodeStatuses)[number];
+export type DownloadAttemptStrategy = (typeof downloadAttemptStrategies)[number];
 export type DownloadRequestStatus = (typeof downloadRequestStatuses)[number];
 export type DownloadQueueItemStatus = (typeof downloadQueueItemStatuses)[number];
 export type EngineDownloadState = (typeof engineDownloadStates)[number];
 export type EngineDownloadCategory = (typeof engineDownloadCategories)[number];
+export type EngineDownloadFailureKind = (typeof engineDownloadFailureKinds)[number];
 export type DownloadImportRunStatus = (typeof downloadImportRunStatuses)[number];
 export type WatchHistorySourceType = (typeof watchHistorySourceTypes)[number];
 export type WatchHistorySyncStatus = (typeof watchHistorySyncStatuses)[number];

@@ -1,12 +1,14 @@
 "use client";
 
-import { AlertCircle, DownloadCloud, RotateCcw, Settings } from "lucide-react";
+import { AlertCircle, DownloadCloud, RefreshCw, RotateCcw, Settings } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
+  resumeSeasonFulfillmentAction,
+  retryCompletedDownloadImportAction,
   retryDownloadRequestAction,
   runDownloadImportNowAction,
 } from "@/app/(workspace)/in-progress/actions";
@@ -28,6 +30,8 @@ const statusLabels: Record<DownloadActivityEntry["status"], string> = {
   succeeded: "Imported",
   failed: "Failed",
   cancelled: "Cancelled",
+  recovering: "Recovering",
+  cancelling: "Cancelling",
 };
 
 function statusBadgeVariant(status: DownloadActivityEntry["status"]) {
@@ -35,8 +39,12 @@ function statusBadgeVariant(status: DownloadActivityEntry["status"]) {
     return "accent-cool" as const;
   }
 
-  if (status === "failed" || status === "cancelled") {
+  if (status === "failed" || status === "cancelled" || status === "cancelling") {
     return "wine" as const;
+  }
+
+  if (status === "recovering") {
+    return "accent-cool" as const;
   }
 
   return "accent" as const;
@@ -138,14 +146,30 @@ function RetrySubmitButton() {
   );
 }
 
-function RetryImportForm() {
+function ResumeSeasonSubmitButton({ cancellationPending }: { cancellationPending: boolean }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" variant="secondary" size="sm" disabled={pending}>
+      <RotateCcw aria-hidden="true" size={14} className={pending ? "animate-spin" : undefined} />
+      {pending
+        ? "Resuming..."
+        : cancellationPending
+          ? "Undo cancellation"
+          : "Resume season recovery"}
+    </Button>
+  );
+}
+
+function RetryImportForm({ requestId }: { requestId: string }) {
   const [state, formAction] = useActionState(
-    runDownloadImportNowAction,
+    retryCompletedDownloadImportAction,
     initialDownloadActivityActionState,
   );
 
   return (
     <form action={formAction} className="flex flex-col items-end gap-1">
+      <input type="hidden" name="requestId" value={requestId} />
       <RetryImportSubmitButton />
       <ActionMessage state={state} />
     </form>
@@ -173,6 +197,27 @@ function RetryDownloadForm({ requestId }: { requestId: string }) {
     <form action={formAction} className="flex flex-col items-end gap-1">
       <input type="hidden" name="requestId" value={requestId} />
       <RetrySubmitButton />
+      <ActionMessage state={state} />
+    </form>
+  );
+}
+
+function ResumeSeasonFulfillmentForm({
+  fulfillmentId,
+  cancellationPending,
+}: {
+  fulfillmentId: string;
+  cancellationPending: boolean;
+}) {
+  const [state, formAction] = useActionState(
+    resumeSeasonFulfillmentAction,
+    initialDownloadActivityActionState,
+  );
+
+  return (
+    <form action={formAction} className="flex flex-col items-end gap-1">
+      <input type="hidden" name="fulfillmentId" value={fulfillmentId} />
+      <ResumeSeasonSubmitButton cancellationPending={cancellationPending} />
       <ActionMessage state={state} />
     </form>
   );
@@ -206,23 +251,31 @@ export function ImportNowButton() {
 export function DownloadActivityPanel({ entries }: { entries: DownloadActivityEntry[] }) {
   if (entries.length === 0) {
     return (
-      <EmptyState
-        message="There is nothing in this view. Find a title to start a new request."
-        action={(
-          <Link href="/search" className="inline-flex min-h-11 items-center rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground">
-            Find a title
-          </Link>
-        )}
-      />
+      <>
+        <p className="sr-only" aria-live="polite" aria-atomic="true">No activity items shown.</p>
+        <EmptyState
+          message="There is nothing in this view. Find a title to start a new request."
+          action={(
+            <Link href="/search" className="inline-flex min-h-11 items-center rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground">
+              Find a title
+            </Link>
+          )}
+        />
+      </>
     );
   }
 
   return (
-    <ul className="space-y-3">
+    <>
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {entries.length} activity item{entries.length === 1 ? "" : "s"} shown.
+      </p>
+      <ul className="space-y-3">
       {entries.map((entry) => {
         const failure = entry.status === "failed" || entry.status === "cancelled"
           ? friendlyFailure(entry.statusMessage)
           : null;
+        const technicalMessage = entry.technicalStatusMessage ?? entry.statusMessage;
 
         return (
         <li key={entry.id} className="rounded-2xl border border-cream/10 bg-cream/[0.03] px-5 py-4">
@@ -234,10 +287,15 @@ export function DownloadActivityPanel({ entries }: { entries: DownloadActivityEn
               ) : null}
               <p className="text-xs text-muted">
                 Requested {formatDate(entry.createdAt)}
-                {entry.completedAt ? ` / finished ${formatDate(entry.completedAt)}` : ""}
-                {entry.retryCount > 0 ? ` / ${entry.retryCount} retr${entry.retryCount === 1 ? "y" : "ies"}` : ""}
+                {entry.completedAt ? ` · finished ${formatDate(entry.completedAt)}` : ""}
+                {entry.retryCount > 0 ? ` · ${entry.retryCount} retr${entry.retryCount === 1 ? "y" : "ies"}` : ""}
+                {entry.fulfillmentId && entry.attemptCount === 0 ? " · no download attempts queued yet" : ""}
+                {entry.fulfillmentId && entry.attemptCount > 0 ? ` · ${entry.attemptCount} download attempt${entry.attemptCount === 1 ? "" : "s"}` : ""}
               </p>
-              {entry.queue && (entry.status === "queued" || entry.status === "downloading") && entry.queue.progressPercent > 0 ? (
+              {!entry.isRecovering && !entry.cancellationPending && entry.planMessage ? (
+                <p className="mt-2 text-xs leading-5 text-muted">{entry.planMessage}</p>
+              ) : null}
+              {entry.queue && (entry.queue.status === "queued" || entry.queue.status === "downloading") && entry.queue.progressPercent > 0 ? (
                 <div className="mt-2 max-w-xl space-y-1.5">
                   <div className="flex justify-between text-xs text-muted">
                     <span>Downloaded</span>
@@ -255,20 +313,86 @@ export function DownloadActivityPanel({ entries }: { entries: DownloadActivityEn
                   </div>
                 </div>
               ) : null}
+              {entry.isRecovering ? (
+                <div className="mt-3 rounded-xl border border-accent-cool/25 bg-accent-cool/10 p-3.5">
+                  <p className="flex items-start gap-2 text-sm font-medium text-foreground">
+                    <RefreshCw aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-accent-cool motion-safe:animate-spin motion-safe:[animation-duration:3s]" />
+                    Nooklet is recovering this season automatically.
+                  </p>
+                  {entry.planMessage ? (
+                    <p className="mt-2 text-sm leading-5 text-foreground/90">{entry.planMessage}</p>
+                  ) : null}
+                  {entry.statusMessage ? (
+                    <p className="mt-1 text-sm leading-5 text-muted">{entry.statusMessage}</p>
+                  ) : null}
+                  {entry.nextAttemptAt ? (
+                    <p className="mt-2 text-xs leading-5 text-muted">
+                      Next automatic check: {formatDate(entry.nextAttemptAt)}
+                    </p>
+                  ) : null}
+                  {entry.failedAttemptCount > 0 ? (
+                    <p className="mt-2 text-xs leading-5 text-muted">
+                      {entry.failedAttemptCount} unusable attempt{entry.failedAttemptCount === 1 ? " has" : "s have"} been ruled out. No manual retry is needed while this plan is active.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+              {entry.cancellationPending ? (
+                <div className="mt-3 rounded-xl border border-accent-wine/25 bg-accent-wine/10 p-3.5">
+                  <p className="flex items-start gap-2 text-sm font-medium text-foreground">
+                    <RefreshCw aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-accent-wine motion-safe:animate-spin motion-safe:[animation-duration:3s]" />
+                    {entry.fulfillmentId
+                      ? "Nooklet is cancelling the entire season plan."
+                      : "Nooklet is cancelling this download."}
+                  </p>
+                  <p className="mt-2 text-sm leading-5 text-muted">
+                    {entry.fulfillmentId
+                      ? "Every linked downloader job and its files are being removed and verified before the plan closes."
+                      : "The linked downloader job and its files are being removed and verified before the request closes."}
+                  </p>
+                  {entry.statusMessage ? (
+                    <p className="mt-1 text-sm leading-5 text-muted">{entry.statusMessage}</p>
+                  ) : null}
+                  {entry.nextAttemptAt ? (
+                    <p className="mt-2 text-xs leading-5 text-muted">
+                      Next verification: {formatDate(entry.nextAttemptAt)}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+              {entry.seasonEpisodeProgress && entry.seasonEpisodeProgress.total > 0 ? (
+                <dl className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 lg:grid-cols-6">
+                  {[
+                    ["In library", entry.seasonEpisodeProgress.succeeded],
+                    ["Active", entry.seasonEpisodeProgress.active],
+                    ["Retrying", entry.seasonEpisodeProgress.retry_wait + entry.seasonEpisodeProgress.pending],
+                    ["No release", entry.seasonEpisodeProgress.unavailable],
+                    ["Blocked", entry.seasonEpisodeProgress.blocked],
+                    ["Deferred", entry.seasonEpisodeProgress.deferred],
+                  ].map(([label, value]) => (
+                    <div key={String(label)} className="rounded-lg border border-cream/[0.08] bg-background/25 px-2.5 py-2">
+                      <dt className="text-muted">{label}</dt>
+                      <dd className="mt-0.5 font-semibold text-foreground">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
               {failure ? (
                 <div className="mt-3 rounded-xl border border-accent-wine/25 bg-accent-wine/10 p-3.5">
                   <p className="flex items-start gap-2 text-sm font-medium text-foreground">
                     <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-accent-wine" />
-                    {failure.summary}
+                    {entry.retryAction === "resume_season_recovery"
+                      ? "Season recovery paused and needs attention."
+                      : failure.summary}
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-3">
                     <Link href={failure.href} className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-accent hover:text-accent-strong">
                       <Settings aria-hidden="true" className="h-4 w-4" /> {failure.action}
                     </Link>
-                    {entry.statusMessage ? (
+                    {technicalMessage ? (
                       <details>
                         <summary className="cursor-pointer text-xs font-semibold text-muted hover:text-foreground">Technical details</summary>
-                        <p className="mt-2 max-w-2xl break-words rounded-lg bg-background/40 p-3 font-mono text-xs leading-5 text-muted">{entry.statusMessage}</p>
+                        <p className="mt-2 max-w-2xl break-words rounded-lg bg-background/40 p-3 font-mono text-xs leading-5 text-muted">{technicalMessage}</p>
                       </details>
                     ) : null}
                   </div>
@@ -277,16 +401,29 @@ export function DownloadActivityPanel({ entries }: { entries: DownloadActivityEn
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2">
               <Badge variant={statusBadgeVariant(entry.status)}>
-                {statusLabels[entry.status]}
+                {entry.cancellationPending
+                  ? statusLabels[entry.status]
+                  : entry.retryAction === "resume_season_recovery"
+                  ? "Needs attention"
+                  : statusLabels[entry.status]}
               </Badge>
-              {entry.retryAction === "find_alternative_release" ? (
-                <RetryDownloadForm requestId={entry.id} />
+              {entry.retryAction === "find_alternative_release" && entry.requestId ? (
+                <RetryDownloadForm requestId={entry.requestId} />
               ) : null}
-              {entry.retryAction === "retry_import" ? <RetryImportForm /> : null}
+              {entry.retryAction === "retry_import" && entry.requestId ? (
+                <RetryImportForm requestId={entry.requestId} />
+              ) : null}
+              {entry.retryAction === "resume_season_recovery" && entry.fulfillmentId ? (
+                <ResumeSeasonFulfillmentForm
+                  fulfillmentId={entry.fulfillmentId}
+                  cancellationPending={entry.cancellationPending}
+                />
+              ) : null}
             </div>
           </div>
         </li>
       );})}
-    </ul>
+      </ul>
+    </>
   );
 }

@@ -6,8 +6,16 @@ import {
   updateDownloadRequestStatus,
 } from "@/modules/downloads/repositories/download-repository";
 import { setTvEpisodeHasFile } from "@/modules/media-library/repositories/media-library-repository";
+import { scheduleSeasonFulfillmentAfterRequest } from "@/modules/downloads/workflows/season-fulfillment-terminal-scheduling";
+import {
+  acquireSeasonFulfillmentWorkLease,
+  isSeasonFulfillmentWorkLease,
+  releaseSeasonFulfillmentWorkLease,
+  type SeasonFulfillmentWorkLease,
+} from "@/modules/downloads/workflows/season-fulfillment-work-lease";
 
 import { type OrganizedCompletedDownload } from "./file-organization";
+import { isRetryableCompletedMediaFailure } from "./file-inspection";
 
 export type PersistedCompletedDownloadImports = {
   matchedCount: number;
@@ -36,6 +44,9 @@ function requestAndQueue(download: OrganizedCompletedDownload) {
 export async function persistCompletedDownloadImports(
   userId: string,
   downloads: OrganizedCompletedDownload[],
+  options: {
+    workLeases?: ReadonlyMap<string, SeasonFulfillmentWorkLease>;
+  } = {},
 ): Promise<PersistedCompletedDownloadImports> {
   const affectedLibraryPathIds = new Set<string>();
   let importedCount = 0;
@@ -45,8 +56,34 @@ export async function persistCompletedDownloadImports(
   for (const download of downloads) {
     const match = requestAndQueue(download);
     const completedAt = match.historyItem.completedAt ?? new Date();
+    const fulfillmentId = match.request.fulfillmentId;
+    const suppliedLease = fulfillmentId
+      ? options.workLeases?.get(fulfillmentId) ?? null
+      : null;
+    if (
+      suppliedLease
+      && fulfillmentId
+      && !isSeasonFulfillmentWorkLease(suppliedLease, userId, fulfillmentId)
+    ) {
+      throw new Error("The completed-download import lease does not own this season.");
+    }
+    const workLease = fulfillmentId
+      ? suppliedLease ?? await acquireSeasonFulfillmentWorkLease(userId, fulfillmentId)
+      : null;
+    const releaseWhenDone = Boolean(workLease && !suppliedLease);
+    if (match.request.fulfillmentId && !workLease) {
+      throw new Error("Season recovery is already advancing; import persistence will retry.");
+    }
 
+    try {
     if (download.kind === "failed") {
+      await scheduleSeasonFulfillmentAfterRequest(userId, match.request, {
+        status: "failed",
+        message: match.historyItem.failMessage ?? download.message,
+        failureKind: match.historyItem.failureKind,
+        retryableContentFailure: match.historyItem.statusKind === "failed"
+          || isRetryableCompletedMediaFailure(download.message),
+      }, { workLease: workLease ?? undefined });
       const libraryPathId = match.request.targetLibraryPathId;
       const importRun = await createDownloadImportRun({
         requestId: match.request.id,
@@ -111,6 +148,11 @@ export async function persistCompletedDownloadImports(
       await setTvEpisodeHasFile({ episodeId, hasFile: true });
     }
 
+    await scheduleSeasonFulfillmentAfterRequest(userId, match.request, {
+      status: "succeeded",
+      message: `Imported ${download.files.length} file${download.files.length === 1 ? "" : "s"}; verifying season coverage.`,
+    }, { workLease: workLease ?? undefined });
+
     await completeDownloadImportRun({
       userId,
       importRunId: importRun.id,
@@ -137,6 +179,11 @@ export async function persistCompletedDownloadImports(
     importedCount += 1;
     importedFileCount += download.files.length;
     affectedLibraryPathIds.add(download.source.source.target.path.id);
+    } finally {
+      if (workLease && releaseWhenDone) {
+        await releaseSeasonFulfillmentWorkLease(workLease);
+      }
+    }
   }
 
   return {

@@ -62,4 +62,61 @@ describe("summarizeRequestSubmission", () => {
       result: result(reason),
     })).toEqual(expect.objectContaining({ outcome, status: "warning", queuedCount: 0 }));
   });
+
+  it("reports mixed season-pack and episode-fallback outcomes accurately", () => {
+    const queuedPack = {
+      target: { kind: "season", season: 1 },
+      releaseSearch: { searched: true },
+      queuedDownload: {
+        queued: true,
+        reason: "queued",
+        message: null,
+        selectedResultId: "pack-1",
+        rejectedResultIds: [],
+        download: {},
+      },
+      seasonFallback: null,
+    };
+    const episodeFallback = {
+      target: { kind: "season", season: 2 },
+      releaseSearch: { searched: true },
+      queuedDownload: {
+        queued: false,
+        reason: "no_matching_release",
+        message: null,
+        selectedResultId: null,
+        rejectedResultIds: [],
+        download: null,
+      },
+      seasonFallback: {
+        queuedCount: 2,
+        activeCount: 1,
+        ownedCount: 7,
+        unavailableCount: 0,
+        completed: false,
+      },
+    };
+
+    const summary = summarizeRequestSubmission({
+      title: "Severance",
+      downloadNow: true,
+      qualityProfile: "hd-1080p",
+      result: {
+        selections: [queuedPack, episodeFallback],
+        queuedDownload: queuedPack.queuedDownload,
+      } as never,
+    });
+
+    expect(summary).toEqual(expect.objectContaining({
+      outcome: "queued",
+      status: "success",
+      queuedCount: 2,
+      selectionCount: 2,
+    }));
+    expect(summary.message).toContain("1 season pack was queued.");
+    expect(summary.message).toContain("1 season switched automatically to individual episodes");
+    expect(summary.message).toContain("2 queued now");
+    expect(summary.message).toContain("7 already in the library");
+    expect(summary.message).not.toContain("No usable season pack was available");
+  });
 });

@@ -2169,6 +2169,7 @@ pre {
 
   .site-header,
   .reading-progress,
+  .skip-link,
   .hero-actions,
   .theme-toggle,
   .nav-toggle,
@@ -2181,6 +2182,14 @@ pre {
   .closing {
     min-height: 0;
     padding-block: 2rem;
+  }
+
+  .section {
+    break-inside: auto;
+  }
+
+  .hero,
+  .closing {
     break-inside: avoid;
   }
 
@@ -2867,6 +2876,169 @@ pre {
   line-height: 1.45;
 }
 
+.fulfillment-canvas {
+  display: grid;
+  gap: 1.4rem;
+}
+
+.fulfillment-map {
+  display: grid;
+  grid-template-columns: minmax(125px, 0.85fr) 1.5rem minmax(145px, 1fr) minmax(75px, 0.55fr) minmax(150px, 1fr) 1.5rem minmax(125px, 0.85fr);
+  grid-template-areas:
+    "intent edge-one pack pack-route coverage edge-two success"
+    ". . trigger . coverage . ."
+    ". . episodes episode-route coverage . .";
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.fulfillment-map .state-node > span:not(.attempt-meter) {
+  display: block;
+  margin-top: 0.45rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.fulfillment-intent {
+  grid-area: intent;
+}
+
+.fulfillment-edge-one {
+  grid-area: edge-one;
+}
+
+.fulfillment-pack {
+  grid-area: pack;
+}
+
+.fulfillment-pack-route {
+  grid-area: pack-route;
+}
+
+.fulfillment-coverage {
+  grid-area: coverage;
+  align-self: stretch;
+  display: flex;
+  min-height: 11rem;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.fulfillment-edge-two {
+  grid-area: edge-two;
+}
+
+.fulfillment-success {
+  grid-area: success;
+}
+
+.fulfillment-trigger {
+  grid-area: trigger;
+  display: grid;
+  gap: 0.22rem;
+  justify-items: center;
+  padding: 0.45rem 0.35rem 0.25rem;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.59rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.fulfillment-trigger b {
+  color: var(--wine);
+  font-size: 1.25rem;
+}
+
+.fulfillment-episodes {
+  grid-area: episodes;
+}
+
+.fulfillment-episode-route {
+  grid-area: episode-route;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.fulfillment-route {
+  color: var(--teal);
+  font-family: var(--mono);
+  text-align: center;
+}
+
+.fulfillment-route small,
+.fulfillment-route span {
+  display: block;
+}
+
+.fulfillment-route small {
+  color: var(--muted);
+  font-size: 0.58rem;
+  line-height: 1.25;
+}
+
+.fulfillment-route span {
+  font-size: 1.25rem;
+}
+
+.attempt-meter {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.3rem;
+  margin-top: 0.7rem;
+}
+
+.attempt-meter i {
+  height: 0.32rem;
+  border-radius: 999px;
+  background: var(--teal);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--teal) 30%, transparent);
+}
+
+.fulfillment-recovery-ledger {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid var(--line);
+  background: var(--line);
+}
+
+.fulfillment-recovery-ledger div {
+  min-width: 0;
+  padding: 0.85rem 1rem;
+  background: var(--surface);
+}
+
+.fulfillment-recovery-ledger strong,
+.fulfillment-recovery-ledger span {
+  display: block;
+}
+
+.fulfillment-recovery-ledger strong {
+  color: var(--teal);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+
+.fulfillment-recovery-ledger span {
+  margin-top: 0.3rem;
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.4;
+}
+
+.fulfillment-recovery-ledger .fulfillment-blocked {
+  box-shadow: inset 3px 0 0 var(--wine);
+}
+
+.fulfillment-recovery-ledger .fulfillment-blocked strong {
+  color: var(--wine);
+}
+
 .capacity-simulator {
   display: grid;
   gap: 1.35rem;
@@ -3123,7 +3295,7 @@ pre {
 
 .er-canvas {
   display: grid;
-  grid-template-columns: minmax(120px, 0.75fr) auto minmax(140px, 0.85fr) auto minmax(155px, 1fr) auto minmax(155px, 1fr) auto minmax(155px, 1fr);
+  grid-template-columns: minmax(110px, 0.7fr) auto minmax(130px, 0.8fr) auto minmax(140px, 0.9fr) auto minmax(150px, 1fr) auto minmax(145px, 0.9fr) auto minmax(145px, 0.9fr);
   gap: 0.45rem;
   align-items: center;
 }
@@ -3228,7 +3400,7 @@ pre {
 .migration-timeline {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 0.75rem;
   padding: 2rem 0 0;
   margin: 0;
@@ -3842,6 +4014,42 @@ pre {
     grid-template-columns: 1fr;
   }
 
+  .fulfillment-map {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "intent"
+      "edge-one"
+      "pack"
+      "trigger"
+      "episodes"
+      "episode-route"
+      "coverage"
+      "edge-two"
+      "success";
+  }
+
+  .fulfillment-pack-route {
+    display: none;
+  }
+
+  .fulfillment-coverage {
+    min-height: 0;
+  }
+
+  .fulfillment-edge {
+    transform: rotate(90deg);
+  }
+
+  .fulfillment-episode-route span {
+    display: none;
+  }
+
+  .fulfillment-episode-route::after {
+    color: var(--teal);
+    font-size: 1.25rem;
+    content: "\2193";
+  }
+
   .state-edge {
     transform: rotate(90deg);
   }
@@ -3954,6 +4162,7 @@ pre {
   }
 
   .state-recovery,
+  .fulfillment-recovery-ledger,
   .capacity-controls,
   .capacity-key,
   .formula-grid {
@@ -4169,6 +4378,7 @@ pre {
   }
 
   .capacity-segment,
+  .attempt-meter i,
   .schema-segment,
   .timing-row i,
   .module-bar i,
@@ -4180,6 +4390,12 @@ pre {
 }
 
 @media print {
+  .js.reveal-ready [data-reveal],
+  .js.reveal-ready [data-reveal].is-visible {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
   .tech-figure,
   .table-wrap,
   .driver-grid article,

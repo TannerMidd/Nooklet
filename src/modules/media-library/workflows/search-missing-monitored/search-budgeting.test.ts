@@ -14,6 +14,12 @@ import {
 } from "./search-budgeting";
 
 const acquireMock = vi.mocked(acquireMediaRequestAttempt);
+const attemptLease = {
+  id: "lease-1",
+  userId: "user1",
+  requestKey: "auto-search:test",
+  expiresAt: new Date("2026-07-15T12:30:00Z"),
+};
 
 const movieCandidate: MissingContentCandidate = {
   kind: "movie",
@@ -41,7 +47,7 @@ describe("missingSearchAttemptKey", () => {
 
 describe("budgetMissingContentCandidates", () => {
   it("keeps only candidates whose backoff lock was acquired", async () => {
-    acquireMock.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    acquireMock.mockResolvedValueOnce(attemptLease).mockResolvedValueOnce(null);
 
     const budgeted = await budgetMissingContentCandidates("user1", [
       movieCandidate,

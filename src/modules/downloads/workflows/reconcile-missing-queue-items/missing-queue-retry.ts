@@ -3,6 +3,7 @@ import {
   type SabnzbdQueueSnapshot,
 } from "@/lib/integrations/sabnzbd";
 import {
+  findDownloadRequestById,
   incrementDownloadRequestMissingTickCount,
   incrementDownloadRequestRetryCount,
   listActiveDownloadRequestsForImport,
@@ -11,9 +12,24 @@ import {
   updateDownloadQueueItemStatus,
   updateDownloadRequestStatus,
 } from "@/modules/downloads/repositories/download-repository";
+import {
+  acquireDownloadRequestWorkLease,
+  releaseDownloadRequestWorkLease,
+} from "@/modules/downloads/workflows/download-request-work-lease";
 import { searchLibraryItemReleasesWorkflow } from "@/modules/media-library/workflows/search-library-item-releases";
 import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
+import {
+  attachDownloadRequestToFulfillment,
+  findDownloadFulfillmentById,
+} from "@/modules/downloads/repositories/season-fulfillment-repository";
+import {
+  attemptSeasonPack,
+  createSeasonFulfillment,
+  markFulfillmentEpisodeFailedAndRetry,
+} from "@/modules/downloads/workflows/season-fulfillment";
+import { findTvEpisodeByIdForUser } from "@/modules/media-library/repositories/media-library-repository";
 
+import { buildDownloadRequestReleaseSearchInput } from "../download-request-release-search-input";
 import { type ResolvedImportSabnzbdClient } from "../import-completed-downloads/client-resolution";
 
 type ActiveDownloadRequest = Awaited<ReturnType<typeof listActiveDownloadRequestsForImport>>[number];
@@ -71,6 +87,7 @@ export async function retryMissingSabnzbdQueueItems(
   const currentQueueIds = new Set(snapshot.items.map((item) => item.id));
   const historyQueueIds = new Set(history.items.map((item) => item.id));
   const retriedItemKeys = new Set<string>();
+  const fulfillmentById = new Map<string, Awaited<ReturnType<typeof findDownloadFulfillmentById>>>();
   const terminalFailures = new Map<string, {
     title: string;
     mediaType: "tv" | "movie";
@@ -87,6 +104,42 @@ export async function retryMissingSabnzbdQueueItems(
   for (const entry of activeRequests) {
     if (!isTrackedActiveDownload(entry)) {
       continue;
+    }
+
+    const requestWorkLease = entry.request.fulfillmentId
+      ? null
+      : await acquireDownloadRequestWorkLease(userId, entry.request.id);
+    if (!entry.request.fulfillmentId && !requestWorkLease) {
+      continue;
+    }
+
+    try {
+    if (requestWorkLease) {
+      const currentRequest = await findDownloadRequestById(userId, entry.request.id);
+      if (
+        !currentRequest
+        || currentRequest.cancellationRequestedAt
+        || (currentRequest.fulfillmentId ?? null) !== (entry.request.fulfillmentId ?? null)
+        || !isTrackedActiveDownload({ ...entry, request: currentRequest })
+      ) {
+        continue;
+      }
+    }
+
+    if (entry.request.fulfillmentId) {
+      let fulfillment = fulfillmentById.get(entry.request.fulfillmentId);
+      if (fulfillment === undefined) {
+        fulfillment = await findDownloadFulfillmentById(
+          userId,
+          entry.request.fulfillmentId,
+        );
+        fulfillmentById.set(entry.request.fulfillmentId, fulfillment);
+      }
+      if (fulfillment?.cancellationRequestedAt) {
+        // The cancellation reconciler owns this queue id. Missing-item
+        // recovery must not turn deliberate removal into a fresh download.
+        continue;
+      }
     }
 
     if (currentQueueIds.has(entry.queueItem.externalQueueId)) {
@@ -149,6 +202,82 @@ export async function retryMissingSabnzbdQueueItems(
       completedAt: new Date(),
     });
 
+    // Season fulfillments have their own durable attempt budget. A vanished
+    // pack advances to another pack and then episode fallback; a vanished
+    // episode child retries independently without producing a false terminal
+    // season notification.
+    if (
+      entry.request.mediaTitleId
+      && entry.request.seasonId
+      && (!entry.request.episodeId || entry.request.fulfillmentId)
+    ) {
+      const fulfillmentKey = retryKey(
+        entry.request.mediaTitleId,
+        entry.request.episodeId,
+        entry.request.seasonId,
+      )!;
+      if (retriedItemKeys.has(fulfillmentKey)) continue;
+      retriedItemKeys.add(fulfillmentKey);
+      attemptedCount += 1;
+      await incrementDownloadRequestRetryCount({ userId, requestId: entry.request.id });
+
+      try {
+        if (entry.request.episodeId && entry.request.fulfillmentId) {
+          const episode = await findTvEpisodeByIdForUser(userId, entry.request.episodeId);
+          const queued = episode
+            ? await markFulfillmentEpisodeFailedAndRetry({
+                userId,
+                fulfillmentId: entry.request.fulfillmentId,
+                episode: episode.episode,
+                failureMessage: missingQueueMessage,
+              })
+            : false;
+          if (queued) queuedCount += 1;
+          else failedCount += 1;
+          continue;
+        }
+
+        const existing = entry.request.fulfillmentId
+          ? await findDownloadFulfillmentById(userId, entry.request.fulfillmentId)
+          : null;
+        const fulfillment = existing ?? await createSeasonFulfillment({
+          userId,
+          mediaTitleId: entry.request.mediaTitleId,
+          seasonId: entry.request.seasonId,
+          requestedTitle: entry.request.requestedTitle,
+          targetLibraryPathId: entry.request.targetLibraryPathId,
+        });
+        if (!entry.request.fulfillmentId) {
+          await attachDownloadRequestToFulfillment({
+            userId,
+            fulfillmentId: fulfillment.id,
+            requestId: entry.request.id,
+            attemptStrategy: "season_pack",
+            attemptNumber: Math.max(1, fulfillment.packAttemptCount + 1),
+          });
+        }
+        const recovery = await attemptSeasonPack(userId, fulfillment.id);
+        const replacementQueued = recovery.releaseSearch?.queuedDownload.queued === true;
+        const fallbackQueued = recovery.fallback?.queuedCount ?? 0;
+        if (replacementQueued) queuedCount += 1;
+        else if (fallbackQueued > 0 || (recovery.fallback?.activeCount ?? 0) > 0) {
+          queuedCount += fallbackQueued;
+        } else {
+          failedCount += 1;
+          if (recovery.fulfillment.status === "blocked" || recovery.fulfillment.status === "failed") {
+            terminalFailures.set(fulfillmentKey, {
+              title: entry.request.requestedTitle,
+              mediaType: entry.request.mediaType,
+              message: recovery.fulfillment.statusMessage ?? missingQueueMessage,
+            });
+          }
+        }
+      } catch {
+        failedCount += 1;
+      }
+      continue;
+    }
+
     if (retriesExhausted) {
       terminalFailures.set(
         retryKey(entry.request.mediaTitleId, entry.request.episodeId, entry.request.seasonId)
@@ -189,14 +318,13 @@ export async function retryMissingSabnzbdQueueItems(
         episodeId: entry.request.episodeId,
         seasonId: entry.request.seasonId,
       });
-      const retry = await searchLibraryItemReleasesWorkflow(userId, {
-        titleId: mediaTitleId,
-        ...(entry.request.seasonId ? { seasonId: entry.request.seasonId } : {}),
-        episodeId: entry.request.episodeId ?? undefined,
-        targetLibraryPathId: entry.request.targetLibraryPathId ?? undefined,
-        excludedResultIds: exclusions.resultIds,
-        excludedReleaseKeys: exclusions.releaseKeys,
-      });
+      const retry = await searchLibraryItemReleasesWorkflow(
+        userId,
+        buildDownloadRequestReleaseSearchInput(
+          { ...entry.request, mediaTitleId },
+          exclusions,
+        ),
+      );
 
       if (retry.queuedDownload.queued) {
         queuedCount += 1;
@@ -215,6 +343,11 @@ export async function retryMissingSabnzbdQueueItems(
         mediaType: entry.request.mediaType,
         message: missingQueueMessage,
       });
+    }
+    } finally {
+      if (requestWorkLease) {
+        await releaseDownloadRequestWorkLease(requestWorkLease);
+      }
     }
   }
 

@@ -41,6 +41,9 @@ import {
   RequestTitleAlreadyInFlightError,
 } from "@/modules/media-library/workflows/request-title-with-release-search";
 import {
+  summarizeRequestSubmission,
+} from "@/modules/media-library/workflows/request-title-with-release-search/outcome-summary";
+import {
   deleteMediaTitleWithFilesWorkflow,
   DeleteMediaTitleWithFilesError,
 } from "@/modules/media-library/workflows/delete-media-title-with-files";
@@ -69,6 +72,11 @@ import {
   searchLibraryItemReleasesWorkflow,
   SearchLibraryItemReleasesWorkflowError,
 } from "@/modules/media-library/workflows/search-library-item-releases";
+import { findTvSeasonByIdForUser } from "@/modules/media-library/repositories/media-library-repository";
+import {
+  attemptSeasonPack,
+  createSeasonFulfillment,
+} from "@/modules/downloads/workflows/season-fulfillment";
 import {
   scanMediaLibraryInputSchema,
   scanMediaLibraryWorkflow,
@@ -335,6 +343,50 @@ export async function searchLibraryItemReleasesAction(
   }
 
   try {
+    if (parsed.data.seasonId && !parsed.data.episodeId) {
+      const season = await findTvSeasonByIdForUser(session.user.id, parsed.data.seasonId);
+      if (!season || season.title.id !== parsed.data.titleId) {
+        return {
+          ...initialLibraryItemSearchActionState,
+          status: "error",
+          message: "That season is no longer available in your library.",
+        };
+      }
+      const fulfillment = await createSeasonFulfillment({
+        userId: session.user.id,
+        mediaTitleId: season.title.id,
+        seasonId: season.season.id,
+        requestedTitle: `${season.title.title} S${String(season.season.seasonNumber).padStart(2, "0")}`,
+        targetLibraryPathId: parsed.data.targetLibraryPathId,
+      });
+      const recovery = await attemptSeasonPack(session.user.id, fulfillment.id);
+      revalidateMediaTitlePages(season.title.mediaType);
+      revalidatePath("/in-progress");
+
+      if (recovery.releaseSearch?.queuedDownload.queued) {
+        return {
+          status: "success",
+          message: "Queued a matching season pack for download.",
+          downloadRequestId: recovery.releaseSearch.queuedDownload.download.downloadRequest.id,
+        };
+      }
+      if (recovery.fallback) {
+        const active = recovery.fallback.queuedCount + recovery.fallback.activeCount;
+        return {
+          status: active > 0 ? "success" : "warning",
+          message: active > 0
+            ? `No usable season pack was found, so Nooklet switched to individual episodes. ${recovery.fallback.message}`
+            : recovery.fallback.message,
+          downloadRequestId: null,
+        };
+      }
+      return {
+        ...initialLibraryItemSearchActionState,
+        status: recovery.fulfillment.status === "blocked" ? "error" : "warning",
+        message: recovery.fulfillment.statusMessage ?? "Season recovery is waiting to retry automatically.",
+      };
+    }
+
     const result = await searchLibraryItemReleasesWorkflow(session.user.id, parsed.data);
     const title = result.item.title;
 
@@ -570,27 +622,22 @@ export async function requestExistingTitleContentAction(
 
     revalidateMediaTitlePages("tv");
 
-    const queuedCount = result.selections.filter((selection) => selection.queuedDownload.queued).length;
-    const totalCount = result.selections.length;
+    const summary = summarizeRequestSubmission({
+      title: result.title.title,
+      downloadNow,
+      qualityProfile: result.title.qualityProfile,
+      result,
+    });
 
-    if (queuedCount > 0) {
+    if (downloadNow) {
       revalidatePath("/in-progress");
     }
 
-    const status = !downloadNow || queuedCount === totalCount ? "success" : "warning";
-    const message = !downloadNow
-      ? `Added ${totalCount} selection${totalCount === 1 ? "" : "s"} to monitoring.`
-      : queuedCount === totalCount
-        ? `Queued all ${totalCount} selection${totalCount === 1 ? "" : "s"}.`
-        : queuedCount > 0
-          ? `Only ${queuedCount} of ${totalCount} selections queued. Review Activity for the queued downloads and try the remaining selections again.`
-        : `No selections were queued (${totalCount} attempted).`;
-
     return {
-      status,
-      message,
+      status: summary.status,
+      message: summary.message,
       titleId: result.title.id,
-      queuedCount,
+      queuedCount: summary.queuedCount,
     };
   } catch (error) {
     if (

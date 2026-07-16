@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/modules/media-library/repositories/media-library-repository", () => ({
+  listTvSeasonsForTitle: vi.fn(),
   upsertTvSeason: vi.fn(),
   upsertTvEpisode: vi.fn(),
 }));
 
 import {
+  listTvSeasonsForTitle,
   upsertTvEpisode,
   upsertTvSeason,
 } from "@/modules/media-library/repositories/media-library-repository";
@@ -16,6 +18,7 @@ import { type ReleaseSelectionTarget } from "./selection-targets";
 
 const upsertSeasonMock = vi.mocked(upsertTvSeason);
 const upsertEpisodeMock = vi.mocked(upsertTvEpisode);
+const listSeasonsMock = vi.mocked(listTvSeasonsForTitle);
 
 const baseRequest = {
   mediaType: "tv",
@@ -28,6 +31,7 @@ const baseRequest = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  listSeasonsMock.mockResolvedValue([]);
   upsertSeasonMock.mockImplementation(async ({ seasonNumber }) => ({
     id: `season-${seasonNumber}`,
   }) as never);
@@ -66,6 +70,27 @@ describe("persistRequestedTitleSelections", () => {
     });
   });
 
+  it("reuses known seasons when an entire-series metadata refresh is unavailable", async () => {
+    listSeasonsMock.mockResolvedValue([
+      { id: "specials", seasonNumber: 0 },
+      { id: "season-1", seasonNumber: 1 },
+      { id: "season-2", seasonNumber: 2 },
+    ] as never);
+
+    const result = await persistRequestedTitleSelections(
+      { ...baseRequest, selections: { mode: "all" } },
+      "title-1",
+      [{ kind: "all", mediaType: "tv" }],
+    );
+
+    expect(result.seasonIdByNumber).toEqual(new Map([
+      [0, "specials"],
+      [1, "season-1"],
+      [2, "season-2"],
+    ]));
+    expect(upsertSeasonMock).not.toHaveBeenCalled();
+  });
+
   it("does nothing for non-tv requests", async () => {
     await persistRequestedTitleSelections(
       { ...baseRequest, mediaType: "movie" } as RequestTitleWithReleaseSearchInput,
@@ -75,5 +100,6 @@ describe("persistRequestedTitleSelections", () => {
 
     expect(upsertSeasonMock).not.toHaveBeenCalled();
     expect(upsertEpisodeMock).not.toHaveBeenCalled();
+    expect(listSeasonsMock).not.toHaveBeenCalled();
   });
 });

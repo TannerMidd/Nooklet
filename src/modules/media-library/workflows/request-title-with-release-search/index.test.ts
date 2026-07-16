@@ -36,7 +36,17 @@ vi.mock("./episode-monitoring-apply", () => ({
 }));
 vi.mock("@/modules/media-library/repositories/media-request-attempts-repository", () => ({
   acquireMediaRequestAttempt: vi.fn(),
+  FULL_SEASON_REQUEST_ATTEMPT_TTL_MS: 7_200_000,
   releaseMediaRequestAttempt: vi.fn(),
+}));
+vi.mock("@/modules/downloads/workflows/season-fulfillment", () => ({
+  createSeasonFulfillment: vi.fn(),
+  queueMissingSeasonEpisodes: vi.fn(),
+  recordSeasonPackSubmissionOutcome: vi.fn(),
+}));
+vi.mock("@/modules/downloads/workflows/season-fulfillment-work-lease", () => ({
+  acquireSeasonFulfillmentWorkLease: vi.fn(),
+  releaseSeasonFulfillmentWorkLease: vi.fn(),
 }));
 
 import { queueRequestedTitleRelease } from "./release-queueing";
@@ -61,6 +71,14 @@ import {
   acquireMediaRequestAttempt,
   releaseMediaRequestAttempt,
 } from "@/modules/media-library/repositories/media-request-attempts-repository";
+import {
+  createSeasonFulfillment,
+  recordSeasonPackSubmissionOutcome,
+} from "@/modules/downloads/workflows/season-fulfillment";
+import {
+  acquireSeasonFulfillmentWorkLease,
+  releaseSeasonFulfillmentWorkLease,
+} from "@/modules/downloads/workflows/season-fulfillment-work-lease";
 
 const validateMock = vi.mocked(validateRequestTitleWithReleaseSearchRequest);
 const titleRequestMock = vi.mocked(requestWorkflowMediaTitle);
@@ -72,13 +90,38 @@ const resolveEpisodeIdMock = vi.mocked(resolveEpisodeIdForTarget);
 const applyMonitoringMock = vi.mocked(applyRequestedTitleMonitoring);
 const acquireAttemptMock = vi.mocked(acquireMediaRequestAttempt);
 const releaseAttemptMock = vi.mocked(releaseMediaRequestAttempt);
+const attemptLease = {
+  id: "lease-1",
+  userId: "u1",
+  requestKey: "request-title:test",
+  expiresAt: new Date("2026-07-15T12:30:00Z"),
+};
 const validateExistingMock = vi.mocked(validateRequestExistingTitleContentRequest);
 const loadExistingMock = vi.mocked(loadExistingTitleRequest);
+const createSeasonFulfillmentMock = vi.mocked(createSeasonFulfillment);
+const recordSeasonOutcomeMock = vi.mocked(recordSeasonPackSubmissionOutcome);
+const acquireSeasonWorkMock = vi.mocked(acquireSeasonFulfillmentWorkLease);
+const releaseSeasonWorkMock = vi.mocked(releaseSeasonFulfillmentWorkLease);
+const seasonWorkLease = {
+  id: "season-work-lease",
+  userId: "u1",
+  requestKey: "season-fulfillment:fulfillment-1:work",
+  expiresAt: new Date("2026-07-15T12:30:00Z"),
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
-  acquireAttemptMock.mockResolvedValue(true);
-  releaseAttemptMock.mockResolvedValue(undefined);
+  acquireAttemptMock.mockResolvedValue(attemptLease);
+  releaseAttemptMock.mockResolvedValue(true);
+  createSeasonFulfillmentMock.mockResolvedValue({
+    id: "fulfillment-1",
+    strategy: "season_pack",
+    packAttemptCount: 0,
+    packAttemptLimit: 3,
+  } as never);
+  recordSeasonOutcomeMock.mockResolvedValue(null);
+  acquireSeasonWorkMock.mockResolvedValue(seasonWorkLease);
+  releaseSeasonWorkMock.mockResolvedValue(true);
 });
 
 describe("requestTitleWithReleaseSearchWorkflow", () => {
@@ -146,6 +189,211 @@ describe("requestTitleWithReleaseSearchWorkflow", () => {
     });
   });
 
+  it("turns an entire-series download into one durable recovery plan per known season", async () => {
+    const request = {
+      mediaType: "tv",
+      tmdbId: 95396,
+      title: "Severance",
+      year: 2022,
+      monitored: true,
+      qualityProfile: "hd-1080p",
+      downloadNow: true,
+      selections: { mode: "all" },
+      targetLibraryPathId: "path-1",
+    } as const;
+    const title = { id: "title-1", title: "Severance" };
+    const releaseSearch = { searched: true, searchRun: { id: "run-1" }, results: [] };
+    const queuedDownload = {
+      queued: true,
+      reason: "queued",
+      failureKind: null,
+      message: null,
+      selectedResultId: "result-1",
+      rejectedResultIds: [],
+      download: { id: "download-1" },
+    };
+
+    validateMock.mockReturnValue(request as never);
+    titleRequestMock.mockResolvedValue(title as never);
+    persistSelectionsMock.mockResolvedValue({
+      seasonIdByNumber: new Map([
+        [0, "specials-id"],
+        [2, "season-2-id"],
+        [1, "season-1-id"],
+      ]),
+      episodeIdByNumber: new Map(),
+    } as never);
+    resolveSeasonIdMock.mockImplementation((target) => (
+      target.kind === "season" ? `season-${target.season}-id` : null
+    ));
+    resolveEpisodeIdMock.mockReturnValue(null);
+    releaseSearchMock.mockResolvedValue(releaseSearch as never);
+    releaseQueueMock.mockResolvedValue(queuedDownload as never);
+
+    const result = await requestTitleWithReleaseSearchWorkflow("u1", request);
+
+    expect(persistSelectionsMock).toHaveBeenCalledWith(
+      "u1",
+      request,
+      title.id,
+      [{ kind: "all", mediaType: "tv" }],
+    );
+    expect(applyMonitoringMock).toHaveBeenCalledWith(
+      "u1",
+      [{ kind: "all", mediaType: "tv" }],
+      expect.any(Object),
+    );
+    expect(createSeasonFulfillmentMock).toHaveBeenNthCalledWith(1, {
+      userId: "u1",
+      mediaTitleId: "title-1",
+      seasonId: "season-1-id",
+      requestedTitle: "Severance S01",
+      targetLibraryPathId: "path-1",
+    });
+    expect(createSeasonFulfillmentMock).toHaveBeenNthCalledWith(2, {
+      userId: "u1",
+      mediaTitleId: "title-1",
+      seasonId: "season-2-id",
+      requestedTitle: "Severance S02",
+      targetLibraryPathId: "path-1",
+    });
+    expect(releaseSearchMock).toHaveBeenNthCalledWith(
+      1,
+      "u1",
+      request,
+      { kind: "season", season: 1 },
+    );
+    expect(releaseSearchMock).toHaveBeenNthCalledWith(
+      2,
+      "u1",
+      request,
+      { kind: "season", season: 2 },
+    );
+    expect(result.selections.map((selection) => selection.target)).toEqual([
+      { kind: "season", season: 1 },
+      { kind: "season", season: 2 },
+    ]);
+  });
+
+  it("does not bypass season recovery when entire-series metadata is unavailable", async () => {
+    const request = {
+      mediaType: "tv",
+      tmdbId: 95396,
+      title: "Severance",
+      year: 2022,
+      monitored: true,
+      qualityProfile: "hd-1080p",
+      downloadNow: true,
+      selections: { mode: "all" },
+    } as const;
+    const title = { id: "title-1", title: "Severance" };
+
+    validateMock.mockReturnValue(request as never);
+    titleRequestMock.mockResolvedValue(title as never);
+    persistSelectionsMock.mockResolvedValue({
+      seasonIdByNumber: new Map(),
+      episodeIdByNumber: new Map(),
+    } as never);
+
+    const result = await requestTitleWithReleaseSearchWorkflow("u1", request);
+
+    expect(createSeasonFulfillmentMock).not.toHaveBeenCalled();
+    expect(releaseSearchMock).not.toHaveBeenCalled();
+    expect(releaseQueueMock).not.toHaveBeenCalled();
+    expect(result.selections).toEqual([
+      expect.objectContaining({
+        target: { kind: "all", mediaType: "tv" },
+        queuedDownload: expect.objectContaining({
+          queued: false,
+          reason: "search_not_run",
+          failureKind: "infrastructure",
+          message: expect.stringMatching(/season metadata/i),
+        }),
+      }),
+    ]);
+  });
+
+  it("creates every season plan before external work and isolates a failed middle season", async () => {
+    const request = {
+      mediaType: "tv",
+      tmdbId: 95396,
+      title: "Severance",
+      year: 2022,
+      monitored: true,
+      qualityProfile: "hd-1080p",
+      downloadNow: true,
+      selections: { mode: "all" },
+      targetLibraryPathId: "path-1",
+    } as const;
+    const title = { id: "title-1", title: "Severance" };
+    const releaseSearch = { searched: true, searchRun: { id: "run-1" }, results: [] };
+    const queuedDownload = {
+      queued: true,
+      reason: "queued",
+      message: null,
+      selectedResultId: "result-1",
+      rejectedResultIds: [],
+      download: { id: "download-1" },
+    };
+
+    validateMock.mockReturnValue(request as never);
+    titleRequestMock.mockResolvedValue(title as never);
+    persistSelectionsMock.mockResolvedValue({
+      seasonIdByNumber: new Map([
+        [1, "season-1-id"],
+        [2, "season-2-id"],
+        [3, "season-3-id"],
+      ]),
+      episodeIdByNumber: new Map(),
+    } as never);
+    resolveSeasonIdMock.mockImplementation((target) => (
+      target.kind === "season" ? `season-${target.season}-id` : null
+    ));
+    resolveEpisodeIdMock.mockReturnValue(null);
+    createSeasonFulfillmentMock.mockImplementation(async (input) => ({
+      id: `fulfillment-${input.seasonId}`,
+      strategy: "season_pack",
+      packAttemptCount: 0,
+      packAttemptLimit: 3,
+    }) as never);
+    releaseSearchMock.mockImplementation(async (_userId, _request, target) => {
+      if (target.kind === "season" && target.season === 2) {
+        throw new Error("Indexer timed out.");
+      }
+      return releaseSearch as never;
+    });
+    releaseQueueMock.mockResolvedValue(queuedDownload as never);
+
+    const result = await requestTitleWithReleaseSearchWorkflow("u1", request);
+
+    expect(createSeasonFulfillmentMock).toHaveBeenCalledTimes(3);
+    expect(createSeasonFulfillmentMock.mock.invocationCallOrder[2])
+      .toBeLessThan(releaseSearchMock.mock.invocationCallOrder[0]);
+    expect(releaseSearchMock).toHaveBeenCalledTimes(3);
+    expect(releaseQueueMock).toHaveBeenCalledTimes(2);
+    expect(result.selections).toHaveLength(3);
+    expect(result.selections[0]).toMatchObject({
+      target: { kind: "season", season: 1 },
+      queuedDownload: { queued: true },
+    });
+    expect(result.selections[1]).toMatchObject({
+      target: { kind: "season", season: 2 },
+      queuedDownload: {
+        queued: false,
+        reason: "search_failed",
+        message: expect.stringContaining("Indexer timed out"),
+      },
+    });
+    expect(result.selections[2]).toMatchObject({
+      target: { kind: "season", season: 3 },
+      queuedDownload: { queued: true },
+    });
+    expect(recordSeasonOutcomeMock).toHaveBeenCalledWith(expect.objectContaining({
+      fulfillmentId: "fulfillment-season-2-id",
+      outcome: expect.objectContaining({ reason: "search_failed" }),
+    }));
+  });
+
   it("throws RequestTitleAlreadyInFlightError when the idempotency lock cannot be acquired", async () => {
     const { RequestTitleAlreadyInFlightError } = await import("./index");
     const request = {
@@ -158,7 +406,7 @@ describe("requestTitleWithReleaseSearchWorkflow", () => {
     } as const;
 
     validateMock.mockReturnValue(request as never);
-    acquireAttemptMock.mockResolvedValueOnce(false);
+    acquireAttemptMock.mockResolvedValueOnce(null);
 
     await expect(requestTitleWithReleaseSearchWorkflow("u1", request)).rejects.toBeInstanceOf(
       RequestTitleAlreadyInFlightError,
@@ -210,6 +458,7 @@ describe("requestExistingTitleContentWorkflow", () => {
     expect(acquireAttemptMock).toHaveBeenCalledWith(
       "u1",
       `tv|titleId:${parsedInput.titleId}|tv:seasons:1,2`,
+      7_200_000,
     );
     expect(persistSelectionsMock).toHaveBeenCalledWith("u1", existingRequest, title.id, [
       { kind: "season", season: 1 },
@@ -220,11 +469,21 @@ describe("requestExistingTitleContentWorkflow", () => {
       seasonId: "season-1-id",
       episodeId: null,
       target: { kind: "season", season: 1 },
+      fulfillmentId: "fulfillment-1",
+      attemptStrategy: "season_pack",
+      attemptNumber: 1,
+      maxCandidateAttempts: 3,
+      workLease: seasonWorkLease,
     });
     expect(releaseQueueMock).toHaveBeenNthCalledWith(2, "u1", existingRequest, title, releaseSearch, {
       seasonId: "season-2-id",
       episodeId: null,
       target: { kind: "season", season: 2 },
+      fulfillmentId: "fulfillment-1",
+      attemptStrategy: "season_pack",
+      attemptNumber: 1,
+      maxCandidateAttempts: 3,
+      workLease: seasonWorkLease,
     });
     expect(releaseAttemptMock).toHaveBeenCalledTimes(1);
     expect(result.selections).toHaveLength(2);
@@ -241,7 +500,7 @@ describe("requestExistingTitleContentWorkflow", () => {
 
     validateExistingMock.mockReturnValue(parsedInput as never);
     loadExistingMock.mockResolvedValue({ title, request: existingRequest } as never);
-    acquireAttemptMock.mockResolvedValueOnce(false);
+    acquireAttemptMock.mockResolvedValueOnce(null);
 
     await expect(requestExistingTitleContentWorkflow("u1", parsedInput as never)).rejects.toBeInstanceOf(
       RequestTitleAlreadyInFlightError,

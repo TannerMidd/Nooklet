@@ -4,7 +4,9 @@ import path from "node:path";
 
 import { env } from "@/lib/env";
 import { parseApprovedMediaRoots } from "@/lib/security/filesystem-policy";
-import { getActiveEngineDownloadRemainingBytes } from "@/modules/download-engine/queue/engine-repository";
+import {
+  getActiveEngineDownloadCapacityUsage,
+} from "@/modules/download-engine/queue/engine-repository";
 import {
   getLibraryDriveOverview,
   type LibraryDriveEntry,
@@ -62,8 +64,10 @@ async function nearestExistingDirectory(candidate: string) {
 
 async function inspectDownloadWorkspace(): Promise<DownloadWorkspaceOverview> {
   const effectivePath = path.resolve(env.DOWNLOAD_ENGINE_DIR);
-  const activeDownloadBytes = await getActiveEngineDownloadRemainingBytes();
-  const processingReservationBytes = minimumFreeSpaceReserveBytes + (activeDownloadBytes * 2);
+  const capacityUsage = await getActiveEngineDownloadCapacityUsage();
+  const activeDownloadBytes = capacityUsage.activeRemainingBytes;
+  const processingReservationBytes =
+    minimumFreeSpaceReserveBytes + capacityUsage.activeWorkspaceBytes;
   let exists = false;
   let inspectionPath = effectivePath;
 
