@@ -1,29 +1,21 @@
 import type { Metadata } from "next";
-import { z } from "zod";
 
+import {
+  parseLibraryBrowseSearchParams,
+  type LibraryBrowseSearchParamsInput,
+} from "@/app/(workspace)/library/library-browse-search-params";
 import { LibraryTitlePage } from "@/app/(workspace)/library/library-title-page";
 
 export const dynamic = "force-dynamic";
 
-const searchParamsSchema = z.object({
-  q: z.string().trim().max(120).optional(),
-  page: z.coerce.number().int().min(1).catch(1),
-  details: z.string().uuid().optional(),
-  status: z.enum(["available", "requested", "missing"]).optional(),
-  monitored: z.enum(["yes", "no"]).optional(),
-  library: z.union([z.string().uuid(), z.literal("unassigned")]).optional(),
-  sort: z.enum(["title", "recent", "year", "status"]).catch("title"),
-  view: z.enum(["list", "grid"]).catch("list"),
-});
-
 type LibraryTvPageProps = {
-  searchParams?: Promise<Record<string, string | undefined>>;
+  searchParams?: Promise<LibraryBrowseSearchParamsInput>;
 };
 
 export const metadata: Metadata = { title: "TV library" };
 
 export default async function LibraryTvPage({ searchParams }: LibraryTvPageProps) {
-  const resolvedSearchParams = searchParamsSchema.parse(await searchParams ?? {});
+  const resolvedSearchParams = parseLibraryBrowseSearchParams(await searchParams);
 
   return (
     <LibraryTitlePage
