@@ -128,9 +128,14 @@ function buildTraktHeaders(credentials: TraktCredentials) {
 }
 
 async function fetchTraktJson<T>(credentials: TraktCredentials, path: string) {
+  // Trakt is the only user-scoped connection: any signed-in user may set its
+  // base URL. Never extend the operator's private-host allowances to it, or a
+  // non-admin could aim requests at internal services (Trakt is public SaaS —
+  // a private address is never a legitimate target).
   const response = await fetchWithTimeout(buildTraktUrl(credentials.baseUrl, path), {
     headers: buildTraktHeaders(credentials),
     cache: "no-store",
+    allowPrivateHosts: false,
   }, credentials.timeoutMs ?? 10_000);
 
   if (!response.ok) {

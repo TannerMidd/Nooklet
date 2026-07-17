@@ -1,4 +1,4 @@
-import { safeFetch } from "@/lib/security/safe-fetch";
+import { safeFetch, type SafeFetchOptions } from "@/lib/security/safe-fetch";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -20,7 +20,7 @@ export function trimTrailingSlash(value: string) {
  */
 export async function fetchWithTimeout(
   input: RequestInfo | URL,
-  init?: RequestInit,
+  init?: Omit<SafeFetchOptions, "timeoutMs">,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ) {
   const target = typeof input === "string" || input instanceof URL ? input : input.url;
@@ -34,7 +34,7 @@ export async function fetchWithTimeout(
  */
 export async function fetchJsonWithTimeout<T>(
   input: RequestInfo | URL,
-  init?: RequestInit,
+  init?: Omit<SafeFetchOptions, "timeoutMs">,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ) {
   const response = await fetchWithTimeout(input, init, timeoutMs);

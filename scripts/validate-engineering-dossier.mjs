@@ -19,17 +19,32 @@ function displayPath(relativePath) {
   return relativePath || ".";
 }
 
+const namedEntities = new Map([
+  ["amp", "&"],
+  ["quot", '"'],
+  ["apos", "'"],
+  ["lt", "<"],
+  ["gt", ">"],
+]);
+
+// A single pass over one combined pattern: the output of a replacement is
+// never rescanned, so `&amp;quot;` decodes to the literal `&quot;` instead of
+// being double-decoded to `"`.
 function decodeHtmlAttribute(value) {
-  return value
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&#x([0-9a-f]+);/gi, (_match, codePoint) =>
-      String.fromCodePoint(Number.parseInt(codePoint, 16)),
-    )
-    .replace(/&#([0-9]+);/g, (_match, codePoint) =>
-      String.fromCodePoint(Number.parseInt(codePoint, 10)),
-    );
+  return value.replace(
+    /&(?:([a-z]+)|#x([0-9a-f]+)|#([0-9]+));/gi,
+    (match, name, hexCode, decimalCode) => {
+      if (name !== undefined) {
+        return namedEntities.get(name.toLocaleLowerCase()) ?? match;
+      }
+
+      const codePoint = Number.parseInt(hexCode ?? decimalCode, hexCode !== undefined ? 16 : 10);
+
+      return Number.isInteger(codePoint) && codePoint <= 0x10ffff
+        ? String.fromCodePoint(codePoint)
+        : match;
+    },
+  );
 }
 
 function parseAttributes(tag) {
@@ -47,8 +62,30 @@ function parseAttributes(tag) {
   return attributes;
 }
 
+// Left-to-right scan matching the HTML tokenizer's comment handling: a
+// comment runs from `<!--` to the first `-->` (or EOF). Each comment becomes
+// a single space so removal can never splice surrounding text into a new
+// apparent comment or tag.
 function withoutComments(source) {
-  return source.replace(/<!--[\s\S]*?-->/g, "");
+  let result = "";
+  let index = 0;
+
+  for (;;) {
+    const start = source.indexOf("<!--", index);
+
+    if (start === -1) {
+      return result + source.slice(index);
+    }
+
+    result += `${source.slice(index, start)} `;
+    const end = source.indexOf("-->", start + 4);
+
+    if (end === -1) {
+      return result;
+    }
+
+    index = end + 3;
+  }
 }
 
 function collectDocumentFacts(source) {
