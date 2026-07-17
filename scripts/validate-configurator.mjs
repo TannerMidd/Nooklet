@@ -61,7 +61,9 @@ assert.ok(!windowsSetup.command.includes("--wait-timeout"));
 assert.match(windowsSetup.command, /docker compose ps/);
 assert.match(windowsSetup.command, /BOOTSTRAP_TOKEN/);
 assert.match(windowsSetup.command, /Reusing matching/);
-assert.match(windowsSetup.command, /Refusing to overwrite/);
+assert.match(windowsSetup.command, /Keeping the existing \.env/);
+assert.match(windowsSetup.command, /Replaced the \.env left behind/);
+assert.match(windowsSetup.command, /Refusing to replace/);
 assert.match(windowsSetup.command, /restart Docker Desktop/);
 assert.match(windowsSetup.command, /Test-NookletRepository/);
 assert.match(windowsSetup.command, /Test-NookletDockerArtifacts/);
@@ -77,7 +79,7 @@ assert.ok(
     ),
 );
 assert.ok(
-  windowsSetup.command.indexOf("Set-NookletGeneratedFile -Path '.env'") <
+  windowsSetup.command.indexOf("Write-NookletGeneratedFile -Path '.env'") <
     windowsSetup.command.indexOf("docker compose build app"),
 );
 assert.ok(
@@ -143,9 +145,9 @@ const linuxSetup = createSetupCommand(
 assert.match(linuxSetup.command, /base64 --decode/);
 assert.match(linuxSetup.command, /^\(\s/m);
 assert.match(linuxSetup.command, /umask 077/);
-assert.match(linuxSetup.command, /nooklet_verify_generated_file/);
+assert.match(linuxSetup.command, /nooklet_file_state/);
 assert.match(linuxSetup.command, /nooklet_has_existing_artifacts/);
-assert.match(linuxSetup.command, /ln "\$generated_temporary" "\$generated_path"/);
+assert.match(linuxSetup.command, /mv -f "\$generated_temporary" "\$generated_path"/);
 assert.match(linuxSetup.command, /mktemp "\$path\/\.nooklet-write-test\.XXXXXX"/);
 assert.match(
   linuxSetup.command,
@@ -313,7 +315,7 @@ exit 0
           },
         },
       );
-      const replacementRefusal = spawnSync(
+      const replacementRun = spawnSync(
         "sh",
         ["-c", replacementSetup.command],
         {
@@ -322,12 +324,26 @@ exit 0
           encoding: "utf8",
         },
       );
-      assert.notEqual(replacementRefusal.status, 0);
+      assert.notEqual(replacementRun.status, 0);
       assert.match(
-        replacementRefusal.stderr,
-        /belongs to an existing or different setup/,
+        replacementRun.stdout,
+        /Replaced the \.env left behind by an earlier incomplete setup/,
       );
-      assert.match(replacementRefusal.stderr, /docker compose up -d --build/);
+      assert.match(replacementRun.stderr, /non-root container user/);
+      const replacedEnv = await readFile(join(fixtureRoot, ".env"), "utf8");
+
+      const keepRun = spawnSync("sh", ["-c", runtimeSetup.command], {
+        cwd: fixtureRoot,
+        env: { ...runtimeEnvironment, FAKE_EXISTING_NOOKLET: "1" },
+        encoding: "utf8",
+      });
+      assert.notEqual(keepRun.status, 0);
+      assert.match(keepRun.stdout, /Keeping the existing \.env/);
+      assert.match(keepRun.stderr, /non-root container user/);
+      assert.equal(
+        await readFile(join(fixtureRoot, ".env"), "utf8"),
+        replacedEnv,
+      );
 
       await rm(join(fixtureRoot, ".env"));
       await rm(join(fixtureRoot, "docker-compose.override.yml"));
@@ -339,8 +355,9 @@ exit 0
       assert.notEqual(artifactRefusal.status, 0);
       assert.match(
         artifactRefusal.stderr,
-        /existing Nooklet container or data volume/,
+        /container or data volume already exists/,
       );
+      assert.match(artifactRefusal.stderr, /docker volume rm nooklet_nooklet-data/);
       await assert.rejects(readFile(join(fixtureRoot, ".env")));
       await assert.rejects(
         readFile(join(fixtureRoot, "docker-compose.override.yml")),

@@ -447,8 +447,9 @@ docker compose ps</code></pre>
                     <h3 id="quick-command-title" tabindex="-1">Paste this command. Nooklet verifies the result.</h3>
                     <p>
                       Open PowerShell on Windows or Terminal on Linux/macOS in the parent folder where you want
-                      Nooklet installed. If Docker restarts, disconnects, or reports EOF, wait for its engine and paste
-                      this same command again. Matching setup files are reused; changed files are never overwritten.
+                      Nooklet installed. Safe to re-run: if a setup attempt fails partway, paste this command (or a
+                      freshly generated one) again and it picks up where things left off. An existing install's
+                      secrets are always kept, never overwritten.
                     </p>
                   </div>
                   <button class="button button-primary" type="button" data-copy-command>Copy setup command</button>

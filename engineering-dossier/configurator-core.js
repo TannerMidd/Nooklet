@@ -316,46 +316,30 @@ function buildPowerShellCommand(environment, override, configuration) {
     )
   }
 
-  function Confirm-NookletGeneratedFile {
+  function Get-NookletFileState {
     param(
       [Parameter(Mandatory = $true)][string]$Path,
       [Parameter(Mandatory = $true)][string]$Base64
     )
-    if (-not (Test-Path -LiteralPath $Path)) { return }
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-      throw "$Path exists but is not a regular file. Refusing to replace it."
-    }
+    if (-not (Test-Path -LiteralPath $Path)) { return 'missing' }
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return 'blocked' }
     $Existing = [Convert]::ToBase64String(
       [IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $Path).Path)
     )
-    if ($Existing -cne $Base64) {
-      throw "$Path belongs to an existing or different setup. To recreate that container, stop this generated command and run docker compose up -d --build from its Nooklet folder. Refusing to overwrite the file."
-    }
+    if ($Existing -cne $Base64) { return 'different' }
+    return 'matching'
   }
 
-  function Set-NookletGeneratedFile {
+  function Write-NookletGeneratedFile {
     param(
       [Parameter(Mandatory = $true)][string]$Path,
       [Parameter(Mandatory = $true)][string]$Base64
     )
-    if (Test-Path -LiteralPath $Path) {
-      Write-Host "Reusing matching $Path."
-      return
-    }
     $Destination = Join-Path (Get-Location).Path $Path
     $Temporary = "$Destination.nooklet-$PID.tmp"
     try {
       [IO.File]::WriteAllBytes($Temporary, [Convert]::FromBase64String($Base64))
-      try {
-        [IO.File]::Move($Temporary, $Destination)
-      } catch {
-        if (Test-Path -LiteralPath $Path) {
-          Confirm-NookletGeneratedFile -Path $Path -Base64 $Base64
-          Write-Host "Reusing matching $Path."
-          return
-        }
-        throw
-      }
+      [IO.File]::Copy($Temporary, $Destination, $true)
     } finally {
       if (Test-Path -LiteralPath $Temporary) {
         Remove-Item -LiteralPath $Temporary -Force
@@ -390,6 +374,12 @@ function buildPowerShellCommand(environment, override, configuration) {
       throw 'Git was not found. Install Git, then paste this same command again. No Nooklet files were created.'
     }
 
+    if (
+      (Test-Path -LiteralPath '.\\Nooklet' -PathType Container) -and
+      (@(Get-ChildItem -LiteralPath '.\\Nooklet' -Force).Count -eq 0)
+    ) {
+      Remove-Item -LiteralPath '.\\Nooklet' -Force
+    }
     if (Test-NookletRepository -Path (Get-Location).Path) {
       Write-Host 'Using the current Nooklet repository.'
     } elseif (Test-Path -LiteralPath '.\\Nooklet') {
@@ -415,17 +405,36 @@ function buildPowerShellCommand(environment, override, configuration) {
       }
     }
 
-    Confirm-NookletGeneratedFile -Path '.env' -Base64 $GeneratedEnv
-    Confirm-NookletGeneratedFile -Path 'docker-compose.override.yml' -Base64 $GeneratedOverride
-    $IsExactRetry = (
-      (Test-Path -LiteralPath '.env' -PathType Leaf) -and
-      (Test-Path -LiteralPath 'docker-compose.override.yml' -PathType Leaf)
-    )
-    if (-not $IsExactRetry -and (Test-NookletDockerArtifacts)) {
-      throw 'An existing Nooklet container or data volume was found. Do not replace it with newly generated secrets. Return to its Nooklet folder and run docker compose up -d --build, or follow the recovery guide.'
+    $EnvState = Get-NookletFileState -Path '.env' -Base64 $GeneratedEnv
+    $OverrideState = Get-NookletFileState -Path 'docker-compose.override.yml' -Base64 $GeneratedOverride
+    if ($EnvState -eq 'blocked') {
+      throw '.env exists but is not a regular file. Refusing to replace it.'
     }
-    Set-NookletGeneratedFile -Path '.env' -Base64 $GeneratedEnv
-    Set-NookletGeneratedFile -Path 'docker-compose.override.yml' -Base64 $GeneratedOverride
+    if ($OverrideState -eq 'blocked') {
+      throw 'docker-compose.override.yml exists but is not a regular file. Refusing to replace it.'
+    }
+    $HasArtifacts = Test-NookletDockerArtifacts
+    if ($EnvState -eq 'missing' -and $HasArtifacts) {
+      throw 'A Nooklet container or data volume already exists, but this folder has no .env holding its secrets. Starting over with new secrets would make that data unreadable. If nothing in it matters, run docker rm -f nooklet and docker volume rm nooklet_nooklet-data, then paste this same command again.'
+    }
+    if ($EnvState -eq 'matching') {
+      Write-Host 'Reusing matching .env.'
+    } elseif ($EnvState -eq 'different' -and $HasArtifacts) {
+      Write-Host 'Keeping the existing .env because it belongs to your current Nooklet container or data volume.'
+    } else {
+      Write-NookletGeneratedFile -Path '.env' -Base64 $GeneratedEnv
+      if ($EnvState -eq 'different') {
+        Write-Host 'Replaced the .env left behind by an earlier incomplete setup.'
+      } else {
+        Write-Host 'Created .env.'
+      }
+    }
+    if ($OverrideState -eq 'matching') {
+      Write-Host 'Reusing matching docker-compose.override.yml.'
+    } else {
+      Write-NookletGeneratedFile -Path 'docker-compose.override.yml' -Base64 $GeneratedOverride
+      Write-Host 'Wrote docker-compose.override.yml for your selected folders.'
+    }
 
     docker compose config --quiet
     if ($LASTEXITCODE -ne 0) {
@@ -471,8 +480,13 @@ function buildPowerShellCommand(environment, override, configuration) {
       throw 'Nooklet started but did not become healthy within two minutes. Run docker compose logs --tail=200 app, correct the reported issue, then paste this same command again.'
     }
     docker compose ps
+    $AppPort = '42021'
+    $AppPortLine = @(Select-String -Path '.env' -Pattern '^APP_PORT=([0-9]+)')
+    if ($AppPortLine.Count -gt 0) {
+      $AppPort = $AppPortLine[0].Matches[0].Groups[1].Value
+    }
     Write-Host ''
-    Write-Host 'Nooklet is healthy: http://localhost:42021'
+    Write-Host "Nooklet is healthy: http://localhost:$AppPort"
     Select-String -Path '.env' -Pattern '^BOOTSTRAP_TOKEN='
   } finally {
     Set-Location -LiteralPath $OriginalLocation
@@ -547,44 +561,32 @@ function buildPosixCommand(environment, override, configuration) {
     esac
   }
 
-  nooklet_verify_generated_file() {
-    generated_path=$1
-    generated_payload=$2
-    if [ -e "$generated_path" ]; then
-      if [ ! -f "$generated_path" ]; then
-        printf '%s exists but is not a regular file. Refusing to replace it.\\n' "$generated_path" >&2
-        exit 1
-      fi
-      existing_payload=$(base64 < "$generated_path" | tr -d '\\r\\n')
-      if [ "$existing_payload" != "$generated_payload" ]; then
-        printf '%s belongs to an existing or different setup. To recreate that container, stop this generated command and run docker compose up -d --build from its Nooklet folder. Refusing to overwrite the file.\\n' "$generated_path" >&2
-        exit 1
-      fi
+  nooklet_file_state() {
+    state_path=$1
+    state_payload=$2
+    if [ ! -e "$state_path" ]; then
+      printf 'missing'
+      return
+    fi
+    if [ ! -f "$state_path" ]; then
+      printf 'blocked'
+      return
+    fi
+    existing_payload=$(base64 < "$state_path" | tr -d '\\r\\n')
+    if [ "$existing_payload" = "$state_payload" ]; then
+      printf 'matching'
+    else
+      printf 'different'
     fi
   }
 
   nooklet_write_generated_file() {
     generated_path=$1
     generated_payload=$2
-    if [ -e "$generated_path" ]; then
-      printf 'Reusing matching %s.\\n' "$generated_path"
-      return
-    fi
     generated_temporary="$generated_path.nooklet.$$.tmp"
     nooklet_decode "$generated_payload" > "$generated_temporary"
     chmod 600 "$generated_temporary"
-    if ln "$generated_temporary" "$generated_path" 2>/dev/null; then
-      rm -f "$generated_temporary"
-      return
-    fi
-    rm -f "$generated_temporary"
-    if [ -e "$generated_path" ]; then
-      nooklet_verify_generated_file "$generated_path" "$generated_payload"
-      printf 'Reusing matching %s.\\n' "$generated_path"
-      return
-    fi
-    printf 'Could not create %s safely.\\n' "$generated_path" >&2
-    exit 1
+    mv -f "$generated_temporary" "$generated_path"
   }
 
   trap 'rm -f .env.nooklet.$$.tmp docker-compose.override.yml.nooklet.$$.tmp' EXIT HUP INT TERM
@@ -612,6 +614,10 @@ ${hostChecks}
     exit 1
   fi
 
+  if [ -d ./Nooklet ] && [ -z "$(ls -A ./Nooklet 2>/dev/null)" ]; then
+    rmdir ./Nooklet 2>/dev/null || true
+  fi
+
   if nooklet_is_repository .; then
     printf 'Using the current Nooklet repository.\\n'
   elif [ -e ./Nooklet ]; then
@@ -636,18 +642,42 @@ ${hostChecks}
     fi
   fi
 
-  nooklet_verify_generated_file .env "$generated_env"
-  nooklet_verify_generated_file docker-compose.override.yml "$generated_override"
-  exact_retry=false
-  if [ -f .env ] && [ -f docker-compose.override.yml ]; then
-    exact_retry=true
-  fi
-  if [ "$exact_retry" = false ] && nooklet_has_existing_artifacts; then
-    printf 'An existing Nooklet container or data volume was found. Do not replace it with newly generated secrets. Return to its Nooklet folder and run docker compose up -d --build, or follow the recovery guide.\\n' >&2
+  env_state=$(nooklet_file_state .env "$generated_env")
+  override_state=$(nooklet_file_state docker-compose.override.yml "$generated_override")
+  if [ "$env_state" = 'blocked' ]; then
+    printf '.env exists but is not a regular file. Refusing to replace it.\\n' >&2
     exit 1
   fi
-  nooklet_write_generated_file .env "$generated_env"
-  nooklet_write_generated_file docker-compose.override.yml "$generated_override"
+  if [ "$override_state" = 'blocked' ]; then
+    printf 'docker-compose.override.yml exists but is not a regular file. Refusing to replace it.\\n' >&2
+    exit 1
+  fi
+  has_artifacts=false
+  if nooklet_has_existing_artifacts; then
+    has_artifacts=true
+  fi
+  if [ "$env_state" = 'missing' ] && [ "$has_artifacts" = true ]; then
+    printf 'A Nooklet container or data volume already exists, but this folder has no .env holding its secrets. Starting over with new secrets would make that data unreadable. If nothing in it matters, run docker rm -f nooklet and docker volume rm nooklet_nooklet-data, then paste this same command again.\\n' >&2
+    exit 1
+  fi
+  if [ "$env_state" = 'matching' ]; then
+    printf 'Reusing matching .env.\\n'
+  elif [ "$env_state" = 'different' ] && [ "$has_artifacts" = true ]; then
+    printf 'Keeping the existing .env because it belongs to your current Nooklet container or data volume.\\n'
+  else
+    nooklet_write_generated_file .env "$generated_env"
+    if [ "$env_state" = 'different' ]; then
+      printf 'Replaced the .env left behind by an earlier incomplete setup.\\n'
+    else
+      printf 'Created .env.\\n'
+    fi
+  fi
+  if [ "$override_state" = 'matching' ]; then
+    printf 'Reusing matching docker-compose.override.yml.\\n'
+  else
+    nooklet_write_generated_file docker-compose.override.yml "$generated_override"
+    printf 'Wrote docker-compose.override.yml for your selected folders.\\n'
+  fi
   chmod 600 .env docker-compose.override.yml
 
   if ! docker compose config --quiet; then
@@ -698,7 +728,9 @@ ${hostChecks}
     exit 1
   fi
   docker compose ps
-  printf '\\nNooklet is healthy: http://localhost:42021\\n'
+  app_port=$(sed -n 's/^APP_PORT=\\([0-9]*\\).*$/\\1/p' .env | head -n 1)
+  if [ -z "$app_port" ]; then app_port=42021; fi
+  printf '\\nNooklet is healthy: http://localhost:%s\\n' "$app_port"
   grep '^BOOTSTRAP_TOKEN=' .env
 )`;
 }
