@@ -13,6 +13,7 @@ import {
   buildMultiPartArticles,
   buildSinglePartArticle,
 } from "@/modules/download-engine/testing/yenc-encode";
+import { tlsTestCertificate } from "@/modules/download-engine/testing/tls-test-certificate";
 
 let server: FakeNntpServer | null = null;
 let workDir: string | null = null;
@@ -72,7 +73,7 @@ describe("downloadNzb", () => {
       server: {
         host: "127.0.0.1",
         port: server.port,
-        tls: false,
+        trustedRootCertificates: [tlsTestCertificate],
         username: "user",
         password: "pass",
         connections: 3,
@@ -124,7 +125,7 @@ describe("downloadNzb", () => {
 
     const result = await downloadNzb({
       nzb,
-      server: { host: "127.0.0.1", port: server.port, tls: false, connections: 2, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      server: { host: "127.0.0.1", port: server.port, trustedRootCertificates: [tlsTestCertificate], connections: 2, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
       workDir,
     });
 
@@ -147,7 +148,7 @@ describe("downloadNzb", () => {
 
     const result = await downloadNzb({
       nzb: parseNzb(nzbXml([{ subject: '"unreachable.mkv"', segmentIds: ["segment@test"] }])),
-      server: { host: "news.invalid", port: 563, tls: true, connections: 1 },
+      server: { host: "news.invalid", port: 563, connections: 1 },
       workDir,
       maxRetriesPerSegment: 0,
       clientFactory: () => ({
@@ -170,7 +171,7 @@ describe("downloadNzb", () => {
 
     await expect(downloadNzb({
       nzb: parseNzb(nzbXml([{ subject: '"private.mkv"', segmentIds: ["segment@test"] }])),
-      server: { host: "news.invalid", port: 563, tls: true, connections: 1 },
+      server: { host: "news.invalid", port: 563, connections: 1 },
       workDir,
       clientFactory: () => ({
         connect: async () => {
@@ -205,7 +206,7 @@ describe("downloadNzb", () => {
     let fetched = 0;
     const result = await downloadNzb({
       nzb,
-      server: { host: "127.0.0.1", port: server.port, tls: false, connections: 1, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      server: { host: "127.0.0.1", port: server.port, trustedRootCertificates: [tlsTestCertificate], connections: 1, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
       workDir,
       onProgress: () => {
         fetched += 1;
@@ -234,7 +235,7 @@ describe("downloadNzb", () => {
         { subject: '"first.mkv"', segmentIds: ["first@test"] },
         { subject: '"second.mkv"', segmentIds: ["second@test"] },
       ])),
-      server: { host: "127.0.0.1", port: server.port, tls: false, connections: 2, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      server: { host: "127.0.0.1", port: server.port, trustedRootCertificates: [tlsTestCertificate], connections: 2, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
       workDir,
     });
 
@@ -258,7 +259,7 @@ describe("downloadNzb", () => {
 
     const result = await downloadNzb({
       nzb: parseNzb(nzbXml([{ subject: '"partial.mkv"', segmentIds: ["part-1@test", "part-3@test"] }])),
-      server: { host: "127.0.0.1", port: server.port, tls: false, connections: 2, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      server: { host: "127.0.0.1", port: server.port, trustedRootCertificates: [tlsTestCertificate], connections: 2, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
       workDir,
     });
 
@@ -279,7 +280,7 @@ describe("downloadNzb", () => {
     );
     const result = await downloadNzb({
       nzb,
-      server: { host: "127.0.0.1", port: server.port, tls: false, connections: 1, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      server: { host: "127.0.0.1", port: server.port, trustedRootCertificates: [tlsTestCertificate], connections: 1, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
       workDir,
     });
 

@@ -1,7 +1,10 @@
+import net from "node:net";
+
 import { afterEach, describe, expect, it } from "vitest";
 
 import { startFakeNntpServer, type FakeNntpServer } from "@/modules/download-engine/nntp/fake-nntp-server";
 import { NntpClient, NntpError } from "@/modules/download-engine/nntp/nntp-client";
+import { tlsTestCertificate } from "@/modules/download-engine/testing/tls-test-certificate";
 
 let server: FakeNntpServer | null = null;
 
@@ -14,8 +17,8 @@ function client(port: number, overrides: Partial<ConstructorParameters<typeof Nn
   return new NntpClient({
     host: "127.0.0.1",
     port,
-    tls: false,
     timeoutMs: 3_000,
+    trustedRootCertificates: [tlsTestCertificate],
     resolvedAddresses: [{ address: "127.0.0.1", family: 4 }],
     ...overrides,
   });
@@ -27,14 +30,53 @@ describe("NntpClient", () => {
     const nntp = new NntpClient({
       host: "dns-rebind.invalid",
       port: server.port,
-      tls: false,
       timeoutMs: 3_000,
+      trustedRootCertificates: [tlsTestCertificate],
       resolvedAddresses: [{ address: "127.0.0.1", family: 4 }],
     });
 
     await nntp.connect();
     expect(await nntp.date()).toBe("20260711000000");
     await nntp.quit();
+  });
+
+  it("never speaks to a plaintext NNTP endpoint", async () => {
+    // A plaintext server that greets immediately; the TLS handshake must fail
+    // before any NNTP command or credential can cross the wire.
+    let receivedBytes = 0;
+    const plaintextServer = net.createServer((socket) => {
+      socket.on("data", (chunk) => {
+        receivedBytes += chunk.length;
+      });
+      socket.write("200 plaintext ready\r\n");
+    });
+    await new Promise<void>((resolve) => plaintextServer.listen(0, "127.0.0.1", resolve));
+    const address = plaintextServer.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+
+    try {
+      const nntp = client(port, { timeoutMs: 1_000 });
+
+      await expect(nntp.connect()).rejects.toMatchObject({ name: "NntpError" });
+      // The TLS ClientHello may land on the socket, but nothing NNTP-shaped
+      // (AUTHINFO, BODY) can: the client never reached the protocol layer.
+      expect(receivedBytes).toBeLessThan(4096);
+    } finally {
+      await new Promise<void>((resolve) => plaintextServer.close(() => resolve()));
+    }
+  });
+
+  it("rejects servers whose certificate is not trusted", async () => {
+    server = await startFakeNntpServer({ articles: new Map() });
+
+    // Without the test root injected, the fake server's self-signed
+    // certificate must fail verification — there is no way to opt out.
+    const nntp = client(server.port, { trustedRootCertificates: undefined });
+
+    await expect(nntp.connect()).rejects.toMatchObject({
+      name: "NntpError",
+      kind: "connect-failed",
+    });
   });
 
   it("connects, runs DATE, fetches a body, and quits", async () => {

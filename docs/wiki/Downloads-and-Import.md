@@ -185,7 +185,7 @@ Use `SABNZBD_PATH_MAPPINGS` only when the path SAB reports cannot be resolved by
 | Capability | Built-in engine | SABnzbd |
 | --- | --- | --- |
 | Queue source of truth | Nooklet SQLite | SAB API snapshot/history |
-| Transfer transport | Direct NNTP | SAB-managed |
+| Transfer transport | Direct NNTP, always TLS | SAB-managed |
 | Repair/extraction | Nooklet container tools | SAB-managed |
 | Completion import | Nooklet worker | Nooklet worker |
 | Missing/duplicate reconciliation | Not required | Required |

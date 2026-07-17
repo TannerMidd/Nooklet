@@ -8,7 +8,7 @@ Service connections live under **Settings -> Connections**. Configure only the i
 | --- | --- | --- | --- |
 | TMDB | Required for core discovery and setup completion | `https://api.themoviedb.org/3` | API key or read token |
 | TVDB | Optional TV identity and episode metadata | `https://api4.thetvdb.com/v4` | API key |
-| Usenet server | Preferred built-in download transport | Provider-specific NNTP/NNTP-TLS host | Username and password, when required |
+| Usenet server | Preferred built-in download transport | Provider-specific NNTP host, always TLS (usually port 563) | Username and password, when required |
 | SABnzbd | Legacy downloader alternative | `http://localhost:8080` placeholder | API key |
 | AI provider | Optional recommendations | `https://api.openai.com/v1` | API key when required, plus model ID |
 | Plex | Optional direct watch-history import | `http://localhost:32400` placeholder | X-Plex-Token |
@@ -47,12 +47,11 @@ TVDB may add TV metadata but does not replace the TMDB readiness requirement.
 The preferred downloader connects directly to the news provider. The form accepts:
 
 - server hostname;
-- port from 1 through 65535;
-- TLS, recommended when available;
+- port from 1 through 65535 (use the provider's TLS port, usually 563);
 - 1 through 20 connections;
 - username and password.
 
-Verification performs a TCP/TLS connection, authenticates when credentials are present, and issues an NNTP `DATE` round trip. Keep the connection count at or below the provider's account limit.
+Every connection uses TLS with certificate verification; plaintext NNTP is not supported, so article data and credentials are never readable on the network. Verification performs a TLS connection, authenticates when credentials are present, and issues an NNTP `DATE` round trip. Keep the connection count at or below the provider's account limit.
 
 The built-in engine also needs [download staging storage](Storage-and-Path-Mapping) and a verified [Newznab indexer](Indexers).
 

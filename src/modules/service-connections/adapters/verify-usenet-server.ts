@@ -13,8 +13,8 @@ import type {
 import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 
 /**
- * Verifies a usenet server by dialing it: TCP/TLS connect, AUTHINFO when
- * credentials are present, and a DATE round-trip.
+ * Verifies a usenet server by dialing it: TLS connect (the only transport the
+ * engine speaks), AUTHINFO when credentials are present, and a DATE round-trip.
  */
 export async function verifyUsenetServer(
   input: VerifyServiceConnectionInput,
@@ -29,7 +29,6 @@ export async function verifyUsenetServer(
     client = new NntpClient({
       host: server.host,
       port: server.port,
-      tls: server.tls,
       username: credentials.username,
       password: credentials.password,
       timeoutMs: SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
@@ -42,11 +41,11 @@ export async function verifyUsenetServer(
 
     return {
       ok: true,
-      message: `Connected to ${server.host}:${server.port} (${server.tls ? "TLS" : "plaintext"}, ${server.connections} connections)${credentials.username ? " and authenticated" : ""}.`,
+      message: `Connected to ${server.host}:${server.port} (TLS, ${server.connections} connections)${credentials.username ? " and authenticated" : ""}.`,
       metadata: {
         host: server.host,
         port: server.port,
-        tls: server.tls,
+        tls: true,
         connections: server.connections,
         authenticated: Boolean(credentials.username),
       },

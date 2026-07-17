@@ -11,7 +11,6 @@ describe("prepareConnectionFormValues", () => {
     form.set("usenetHost", "news.example.test");
     form.set("usenetPort", "563");
     form.set("usenetConnections", "12");
-    form.set("usenetTls", "on");
     form.set("usenetUsername", "reader");
     form.set("usenetPassword", "secret");
 
@@ -22,17 +21,32 @@ describe("prepareConnectionFormValues", () => {
     });
   });
 
-  it("keeps an existing structured credential when both replacement fields are blank", () => {
+  it("always produces a TLS URL — no form input can select plaintext", () => {
     const form = new FormData();
     form.set("usenetHost", "news.example.test");
     form.set("usenetPort", "119");
+    form.set("usenetConnections", "8");
+    form.set("usenetTls", "off");
+    form.set("usenetUsername", "");
+    form.set("usenetPassword", "");
+
+    expect(prepareConnectionFormValues("usenet-server", form)).toMatchObject({
+      success: true,
+      baseUrl: "nntps://news.example.test:119?connections=8",
+    });
+  });
+
+  it("keeps an existing structured credential when both replacement fields are blank", () => {
+    const form = new FormData();
+    form.set("usenetHost", "news.example.test");
+    form.set("usenetPort", "563");
     form.set("usenetConnections", "8");
     form.set("usenetUsername", "");
     form.set("usenetPassword", "");
 
     expect(prepareConnectionFormValues("usenet-server", form)).toMatchObject({
       success: true,
-      baseUrl: "nntp://news.example.test:119?connections=8",
+      baseUrl: "nntps://news.example.test:563?connections=8",
       apiKey: "",
     });
   });
@@ -89,8 +103,15 @@ describe("getUsenetFormDefaults", () => {
     expect(getUsenetFormDefaults("nntps://news.example.test:563?connections=14")).toEqual({
       host: "news.example.test",
       port: 563,
-      tls: true,
       connections: 14,
+    });
+  });
+
+  it("hydrates a legacy plaintext URL to the TLS port so saving migrates it", () => {
+    expect(getUsenetFormDefaults("nntp://news.example.test:119?connections=8")).toEqual({
+      host: "news.example.test",
+      port: 563,
+      connections: 8,
     });
   });
 });

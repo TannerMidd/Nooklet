@@ -79,7 +79,6 @@ describe("submitConnectionAction", () => {
     form.set("usenetHost", "news.example.test");
     form.set("usenetPort", "563");
     form.set("usenetConnections", "8");
-    form.set("usenetTls", "on");
     form.set("usenetUsername", "reader");
     form.set("usenetPassword", "secret");
 

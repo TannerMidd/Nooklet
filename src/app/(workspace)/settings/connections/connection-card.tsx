@@ -255,12 +255,11 @@ function UsenetFields({
         </label>
       </div>
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px]">
-        <label className="flex min-h-11 items-center gap-3 rounded-lg border border-control bg-cream/[0.03] px-3.5 text-sm text-foreground">
-          <input name="usenetTls" type="checkbox" defaultChecked={defaults.tls} className="h-4 w-4 accent-accent" />
+        <div className="flex min-h-11 items-center rounded-lg border border-control bg-cream/[0.03] px-3.5 text-sm text-foreground">
           <span>
-            Use TLS <span className="text-muted">(recommended)</span>
+            Encrypted with TLS <span className="text-muted">(always on)</span>
           </span>
-        </label>
+        </div>
         <label className="space-y-2">
           <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">Connections</span>
           <Input
@@ -301,7 +300,8 @@ function UsenetFields({
         </label>
       </div>
       <p className="text-[13px] leading-5 text-muted">
-        Nooklet stores these fields securely. You no longer need to assemble an NNTP URL or combine credentials yourself.
+        Nooklet stores these fields securely and only connects over TLS, so downloads and credentials are never
+        readable on the network. Use your provider&apos;s TLS port (usually 563).
       </p>
     </div>
   );

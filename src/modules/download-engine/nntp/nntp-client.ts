@@ -12,18 +12,24 @@ import {
  * One instance owns one server connection; the scheduler runs a pool of them.
  * Only the commands the engine needs are implemented: greeting, AUTHINFO,
  * BODY by message-id, DATE (used as a liveness/verify probe), and QUIT.
+ *
+ * Every connection is TLS with certificate verification. There is no
+ * plaintext mode: article bodies and AUTHINFO credentials must never be
+ * readable on the wire.
  */
 
 export type NntpServerOptions = {
   host: string;
   port: number;
-  tls: boolean;
   username?: string | null;
   password?: string | null;
   /** Per-operation timeout (connect, command round-trip). */
   timeoutMs?: number;
-  /** Skip TLS certificate validation — off unless a user opts in. */
-  allowInvalidCertificates?: boolean;
+  /**
+   * Replaces the trusted roots for this connection (private provider CAs,
+   * tests). Certificate verification itself can never be turned off.
+   */
+  trustedRootCertificates?: readonly string[];
   /** Maximum raw bytes accepted for one article body. */
   maxArticleBytes?: number;
   /** DNS addresses vetted by the outbound-host policy and pinned for this run. */
@@ -67,7 +73,7 @@ type StatusLine = {
 
 export class NntpClient {
   private readonly options: NntpServerOptions;
-  private socket: net.Socket | null = null;
+  private socket: tls.TLSSocket | null = null;
   // A sliding, exponentially grown buffer avoids Buffer.concat's quadratic
   // copying cost when a multi-megabyte article arrives in small TCP chunks.
   private buffer: Buffer = Buffer.allocUnsafe(initialReadBufferBytes);
@@ -299,7 +305,7 @@ export class NntpClient {
       ?? await assertOutboundHostAllowed(this.options.host);
     const pinnedLookup = createPinnedLookup(resolvedAddresses);
 
-    const socket = await new Promise<net.Socket>((resolve, reject) => {
+    const socket = await new Promise<tls.TLSSocket>((resolve, reject) => {
       const timer = setTimeout(() => {
         candidate.destroy();
         reject(new NntpError("timeout", `Timed out connecting to ${this.options.host}:${this.options.port}.`));
@@ -310,30 +316,25 @@ export class NntpClient {
         reject(new NntpError("connect-failed", `Could not connect to ${this.options.host}:${this.options.port}: ${error.message}`));
       };
 
-      const candidate = this.options.tls
-        ? tls.connect(
-            {
-              host: this.options.host,
-              port: this.options.port,
-              servername: this.options.host,
-              rejectUnauthorized: !this.options.allowInvalidCertificates,
-              lookup: pinnedLookup,
-            },
-            () => {
-              clearTimeout(timer);
-              candidate.off("error", onError);
-              resolve(candidate);
-            },
-          )
-        : net.connect({
-            host: this.options.host,
-            port: this.options.port,
-            lookup: pinnedLookup,
-          }, () => {
-            clearTimeout(timer);
-            candidate.off("error", onError);
-            resolve(candidate);
-          });
+      const candidate = tls.connect(
+        {
+          host: this.options.host,
+          port: this.options.port,
+          // RFC 6066 forbids IP literals in SNI; for IP hosts the certificate
+          // is still verified against its IP subjectAltName entries.
+          servername: net.isIP(this.options.host) === 0 ? this.options.host : undefined,
+          rejectUnauthorized: true,
+          ca: this.options.trustedRootCertificates
+            ? [...this.options.trustedRootCertificates]
+            : undefined,
+          lookup: pinnedLookup,
+        },
+        () => {
+          clearTimeout(timer);
+          candidate.off("error", onError);
+          resolve(candidate);
+        },
+      );
 
       candidate.once("error", onError);
     });

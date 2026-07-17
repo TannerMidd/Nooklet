@@ -5,10 +5,14 @@ import { findServiceConnectionByType } from "@/modules/service-connections/queri
 
 /**
  * The usenet server is stored as a service connection:
- * - base URL `nntps://news.example.com:563` (or `nntp://` for plaintext),
- *   with an optional `?connections=N` to size the pool, and
+ * - base URL `nntps://news.example.com:563`, with an optional
+ *   `?connections=N` to size the pool, and
  * - the secret `username::password` (double-colon separator, matching the
  *   Trakt convention; a single `:` also works when the username has none).
+ *
+ * Only TLS (`nntps://`) is representable. Plaintext NNTP would expose
+ * article data and AUTHINFO credentials on the wire, so it is rejected here
+ * before a socket can ever be dialed.
  */
 
 export class UsenetServerConfigError extends Error {
@@ -24,7 +28,6 @@ const maxConnections = 20;
 export function parseUsenetServerUrl(rawUrl: string): {
   host: string;
   port: number;
-  tls: boolean;
   connections: number;
 } {
   let url: URL;
@@ -33,13 +36,19 @@ export function parseUsenetServerUrl(rawUrl: string): {
     url = new URL(rawUrl.trim());
   } catch {
     throw new UsenetServerConfigError(
-      "Enter the news server as nntps://host:port (TLS) or nntp://host:port.",
+      "Enter the news server as nntps://host:port.",
     );
   }
 
-  if (url.protocol !== "nntps:" && url.protocol !== "nntp:") {
+  if (url.protocol === "nntp:") {
     throw new UsenetServerConfigError(
-      "The news server URL must start with nntps:// (TLS) or nntp://.",
+      "Plaintext nntp:// is no longer supported because it exposes downloads and credentials on the network. Update the Usenet connection under Settings → Connections to use your provider's TLS port (usually 563).",
+    );
+  }
+
+  if (url.protocol !== "nntps:") {
+    throw new UsenetServerConfigError(
+      "The news server URL must start with nntps:// (TLS).",
     );
   }
 
@@ -53,8 +62,7 @@ export function parseUsenetServerUrl(rawUrl: string): {
     );
   }
 
-  const tls = url.protocol === "nntps:";
-  const port = url.port ? Number.parseInt(url.port, 10) : tls ? 563 : 119;
+  const port = url.port ? Number.parseInt(url.port, 10) : 563;
 
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new UsenetServerConfigError("The news server port is invalid.");
@@ -66,7 +74,7 @@ export function parseUsenetServerUrl(rawUrl: string): {
     ? Math.min(Math.max(parsedConnections, 1), maxConnections)
     : defaultConnections;
 
-  return { host: url.hostname, port, tls, connections };
+  return { host: url.hostname, port, connections };
 }
 
 export function parseUsenetCredentials(secret: string): {

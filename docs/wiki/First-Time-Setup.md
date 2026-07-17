@@ -52,7 +52,7 @@ TMDB is required for reliable identity, browsing, artwork, genres, trailers, and
 Configure **Usenet server** under **Settings -> Connections**:
 
 1. Enter the news server hostname and port supplied by the provider.
-2. Keep TLS enabled when the provider supports it.
+2. Use the provider's TLS port (usually 563); connections are always encrypted.
 3. Choose between 1 and 20 connections within the provider's account limit.
 4. Enter the provider username and password.
 5. Select **Test & save** and confirm **Verified**.

@@ -1,9 +1,16 @@
-import net from "node:net";
+import tls from "node:tls";
+
+import {
+  tlsTestCertificate,
+  tlsTestPrivateKey,
+} from "@/modules/download-engine/testing/tls-test-certificate";
 
 /**
  * Scripted in-process NNTP server for engine tests. Speaks just enough of the
  * protocol to exercise the client and scheduler: greeting, AUTHINFO, BODY by
  * message-id, DATE, QUIT. Articles are served from a map; unknown ids get 430.
+ * Listens over TLS with the shared test certificate, matching the TLS-only
+ * production client.
  */
 
 export type FakeNntpServerOptions = {
@@ -24,7 +31,9 @@ export type FakeNntpServer = {
 export async function startFakeNntpServer(options: FakeNntpServerOptions): Promise<FakeNntpServer> {
   let connections = 0;
 
-  const server = net.createServer((socket) => {
+  const server = tls.createServer(
+    { cert: tlsTestCertificate, key: tlsTestPrivateKey },
+    (socket) => {
     connections += 1;
     let authenticatedUser: string | null = null;
     let pendingUser: string | null = null;
@@ -116,7 +125,8 @@ export async function startFakeNntpServer(options: FakeNntpServerOptions): Promi
         }
       }
     });
-  });
+    },
+  );
 
   await new Promise<void>((resolve) => {
     server.listen(0, "127.0.0.1", resolve);

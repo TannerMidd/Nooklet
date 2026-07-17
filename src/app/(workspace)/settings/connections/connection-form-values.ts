@@ -87,14 +87,14 @@ export function prepareConnectionFormValues(
       return { success: false, fieldErrors: firstFieldErrors(parsed.error.issues) };
     }
 
-    const scheme = formData.get("usenetTls") === "on" ? "nntps" : "nntp";
     const credentials = parsed.data.usenetUsername && parsed.data.usenetPassword
       ? `${parsed.data.usenetUsername}::${parsed.data.usenetPassword}`
       : "";
 
+    // TLS is not a choice: the engine refuses plaintext NNTP outright.
     return {
       success: true,
-      baseUrl: `${scheme}://${parsed.data.usenetHost}:${parsed.data.usenetPort}?connections=${parsed.data.usenetConnections}`,
+      baseUrl: `nntps://${parsed.data.usenetHost}:${parsed.data.usenetPort}?connections=${parsed.data.usenetConnections}`,
       apiKey: credentials,
     };
   }
@@ -132,23 +132,26 @@ export function prepareConnectionFormValues(
 export type UsenetFormDefaults = {
   host: string;
   port: number;
-  tls: boolean;
   connections: number;
 };
 
 export function getUsenetFormDefaults(baseUrl: string): UsenetFormDefaults {
   try {
     const url = new URL(baseUrl);
-    const tls = url.protocol === "nntps:";
     const connections = Number.parseInt(url.searchParams.get("connections") ?? "8", 10);
+    // Legacy plaintext URLs hydrate to the TLS port: their saved port (119)
+    // will not complete a TLS handshake, and saving the form migrates the
+    // connection to nntps://.
+    const port = url.protocol === "nntps:" && url.port
+      ? Number.parseInt(url.port, 10)
+      : 563;
 
     return {
       host: url.hostname || "news.example.com",
-      port: url.port ? Number.parseInt(url.port, 10) : tls ? 563 : 119,
-      tls,
+      port,
       connections: Number.isInteger(connections) ? Math.min(Math.max(connections, 1), 20) : 8,
     };
   } catch {
-    return { host: "news.example.com", port: 563, tls: true, connections: 8 };
+    return { host: "news.example.com", port: 563, connections: 8 };
   }
 }

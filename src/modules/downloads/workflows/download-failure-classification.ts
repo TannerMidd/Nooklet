@@ -12,6 +12,7 @@ const infrastructureFailurePatterns = [
   "connection timed out",
   "certificate",
   "tls ",
+  "plaintext nntp",
   "dns",
   "enospc",
   "disk space",
