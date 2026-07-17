@@ -307,6 +307,8 @@ async function enforceBodySizeLimit(response: Response, maxBytes: number): Promi
  * - Resolves the hostname and rejects link-local, CGNAT, multicast, broadcast, and (by default)
  *   private RFC1918/loopback ranges. Private ranges may be allowed via env or per-call override
  *   for self-hosted LAN service connections.
+ * - Requires https for hosts on the public internet; plain http stays available only for
+ *   private/LAN services, so indexer queries and NZB fetches are never readable in transit.
  * - Refuses to follow redirects automatically (would otherwise sidestep the host check).
  * - Caps response body size and request duration.
  */
@@ -348,6 +350,21 @@ export async function safeFetch(
     timeoutMs,
     signal: callerSignal ?? undefined,
   });
+
+  if (url.protocol === "http:") {
+    const publicAddress = addresses.find(
+      (entry) => classifyAddress(entry.address) === "public",
+    );
+
+    if (publicAddress) {
+      throw new SsrfBlockedError(
+        `Host ${url.hostname} is on the public internet (${publicAddress.address}), ` +
+          `so plain http:// would expose this traffic in transit. Use https:// — ` +
+          `http is only allowed for private/LAN services.`,
+      );
+    }
+  }
+
   const remainingTimeoutMs = timeoutMs - (Date.now() - startedAt);
   if (remainingTimeoutMs <= 0) {
     throw new SafeFetchAbortError(

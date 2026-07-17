@@ -12,6 +12,14 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # The image is immutable at runtime: all persistent state lives in the
+    # data volume, and scratch space is tmpfs. Next.js needs a writable image
+    # cache; extraction tools use /tmp.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    pids_limit: 512
     ports:
       - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-42021}:42021"
     env_file:

@@ -9,9 +9,11 @@ const maxFileNameLength = 200;
 
 export function sanitizeDownloadFileName(rawName: string, fallback = "download.bin"): string {
   const baseName = rawName.split(/[/\\]/).pop() ?? "";
+  // Leading dashes go too: bare file names are passed as CLI arguments to
+  // repair/extract tools, where `-name` would parse as an option.
   const cleaned = baseName
     .replace(unsafeCharacters, "_")
-    .replace(/^\.+/, "")
+    .replace(/^[.-]+/, "")
     .trim();
 
   if (!cleaned || cleaned === "." || cleaned === "..") {

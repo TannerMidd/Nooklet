@@ -101,6 +101,14 @@ describe("safeFetch host classification", () => {
       safeFetch("http://nonexistent.invalid/", { allowPrivateHosts: false }),
     ).rejects.toBeInstanceOf(Error);
   });
+
+  it("rejects plain http to public-internet hosts", async () => {
+    await expect(safeFetch("http://8.8.8.8/api?t=get&id=nzb")).rejects.toThrow(
+      /http is only allowed for private\/LAN services/,
+    );
+
+    await expect(safeFetch("http://8.8.8.8/")).rejects.toBeInstanceOf(SsrfBlockedError);
+  });
 });
 
 describe("safeFetch abort translation", () => {

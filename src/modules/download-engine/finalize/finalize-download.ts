@@ -693,7 +693,9 @@ async function runPar2(workDir: string, warnings: string[]): Promise<{ ran: bool
   try {
     await execFileAsync(
       "par2",
-      ["repair", "-q", ...par2Files.map((file) => file.name)],
+      // `./` keeps a file name that begins with `-` from being parsed as an
+      // option by par2.
+      ["repair", "-q", ...par2Files.map((file) => `./${file.name}`)],
       { cwd: workDir, timeout: 60 * 60_000, maxBuffer: 32 * 1024 * 1024 },
     );
     return { ran: true, ok: true };
