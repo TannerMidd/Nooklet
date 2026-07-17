@@ -267,16 +267,35 @@ function buildPowerShellCommand(environment, override, configuration) {
     return [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Value))
   }
 
+  function Invoke-NookletNative {
+    param([Parameter(Mandatory = $true)][string[]]$CommandLine)
+    $Executable = $CommandLine[0]
+    $Arguments = @()
+    if ($CommandLine.Count -gt 1) {
+      $Arguments = $CommandLine[1..($CommandLine.Count - 1)]
+    }
+    $Preference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+      $Output = @(& $Executable @Arguments 2>$null)
+      $ExitCode = $LASTEXITCODE
+    } finally {
+      $ErrorActionPreference = $Preference
+    }
+    $FirstLine = ''
+    if ($Output.Count -gt 0) { $FirstLine = ([string]$Output[0]).Trim() }
+    return [pscustomobject]@{ ExitCode = $ExitCode; FirstLine = $FirstLine }
+  }
+
   function Test-NookletDockerEngine {
-    docker info --format '{{.OSType}}' *> $null
-    return $LASTEXITCODE -eq 0
+    return (Invoke-NookletNative -CommandLine @('docker', 'info', '--format', '{{.OSType}}')).ExitCode -eq 0
   }
 
   function Test-NookletDockerArtifacts {
-    docker container inspect nooklet *> $null
-    if ($LASTEXITCODE -eq 0) { return $true }
-    docker volume inspect nooklet_nooklet-data *> $null
-    return $LASTEXITCODE -eq 0
+    if ((Invoke-NookletNative -CommandLine @('docker', 'container', 'inspect', 'nooklet')).ExitCode -eq 0) {
+      return $true
+    }
+    return (Invoke-NookletNative -CommandLine @('docker', 'volume', 'inspect', 'nooklet_nooklet-data')).ExitCode -eq 0
   }
 
   function Test-NookletRepository {
@@ -288,9 +307,9 @@ function buildPowerShellCommand(environment, override, configuration) {
     ) {
       return $false
     }
-    $Remote = (& git -C $Path remote get-url origin 2>$null | Select-Object -First 1)
-    if ($LASTEXITCODE -ne 0) { return $false }
-    return ([string]$Remote).Trim() -in @(
+    $Remote = Invoke-NookletNative -CommandLine @('git', '-C', $Path, 'remote', 'get-url', 'origin')
+    if ($Remote.ExitCode -ne 0) { return $false }
+    return $Remote.FirstLine -in @(
       'https://github.com/TannerMidd/Nooklet',
       'https://github.com/TannerMidd/Nooklet.git',
       'git@github.com:TannerMidd/Nooklet.git'
@@ -357,15 +376,14 @@ function buildPowerShellCommand(environment, override, configuration) {
     if (-not (Get-Command -Name docker -ErrorAction SilentlyContinue)) {
       throw 'Docker was not found. Install Docker Desktop, open it, then paste this same command again. No Nooklet files were created.'
     }
-    docker compose version *> $null
-    if ($LASTEXITCODE -ne 0) {
+    if ((Invoke-NookletNative -CommandLine @('docker', 'compose', 'version')).ExitCode -ne 0) {
       throw 'Docker Compose v2 is unavailable. Update Docker Desktop, then paste this same command again. No Nooklet files were created.'
     }
-    $DockerOS = (& docker info --format '{{.OSType}}' 2>$null | Select-Object -First 1)
-    if ($LASTEXITCODE -ne 0) {
+    $DockerInfo = Invoke-NookletNative -CommandLine @('docker', 'info', '--format', '{{.OSType}}')
+    if ($DockerInfo.ExitCode -ne 0) {
       throw 'Docker is installed, but its engine is not responding. Open or restart Docker Desktop, wait until the engine is running, then paste this same command again. No Nooklet files were created.'
     }
-    if (([string]$DockerOS).Trim() -ne 'linux') {
+    if ($DockerInfo.FirstLine -ne 'linux') {
       throw 'Docker Desktop is using Windows containers. Switch to Linux containers, wait for the engine, then paste this same command again. No Nooklet files were created.'
     }
     if (-not (Get-Command -Name git -ErrorAction SilentlyContinue)) {
@@ -436,16 +454,16 @@ function buildPowerShellCommand(environment, override, configuration) {
     }
     $ContainerHealth = ''
     for ($Attempt = 0; $Attempt -lt 60; $Attempt += 1) {
-      $ContainerHealth = (
-        & docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' nooklet 2>$null |
-          Select-Object -First 1
+      $HealthProbe = Invoke-NookletNative -CommandLine @(
+        'docker', 'inspect', '--format',
+        '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}',
+        'nooklet'
       )
-      if ($LASTEXITCODE -eq 0 -and ([string]$ContainerHealth).Trim() -eq 'healthy') {
-        break
-      }
+      if ($HealthProbe.ExitCode -eq 0) { $ContainerHealth = $HealthProbe.FirstLine }
+      if ($ContainerHealth -eq 'healthy') { break }
       Start-Sleep -Seconds 2
     }
-    if (([string]$ContainerHealth).Trim() -ne 'healthy') {
+    if ($ContainerHealth -ne 'healthy') {
       if (-not (Test-NookletDockerEngine)) {
         throw 'Docker Desktop disconnected while Nooklet was starting. Restart Docker Desktop, wait for its Linux engine, then paste this same command again.'
       }

@@ -45,8 +45,11 @@ const windowsSetup = createSetupCommand(windowsInput, randomSource);
 assert.equal(windowsSetup.errors.length, 0);
 assert.equal(randomSource.calls, 3);
 assert.match(windowsSetup.command, /git clone https:\/\/github\.com\/TannerMidd\/Nooklet\.git/);
-assert.match(windowsSetup.command, /docker compose version/);
-assert.match(windowsSetup.command, /docker info --format '\{\{\.OSType\}\}'/);
+assert.match(windowsSetup.command, /@\('docker', 'compose', 'version'\)/);
+assert.match(windowsSetup.command, /@\('docker', 'info', '--format', '\{\{\.OSType\}\}'\)/);
+assert.match(windowsSetup.command, /Invoke-NookletNative/);
+assert.ok(!windowsSetup.command.includes("Select-Object -First 1"));
+assert.ok(!windowsSetup.command.includes("*> $null"));
 assert.match(windowsSetup.command, /docker compose config --quiet/);
 assert.match(windowsSetup.command, /docker compose build app/);
 assert.match(
@@ -68,7 +71,7 @@ assert.ok(!windowsSetup.command.includes("down -v"));
 assert.ok(!windowsSetup.command.includes("D:/Media/Movies"));
 assert.ok(!windowsSetup.command.includes("F:/Nooklet/Downloads"));
 assert.ok(
-  windowsSetup.command.indexOf("docker compose version *> $null") <
+  windowsSetup.command.indexOf("@('docker', 'compose', 'version')") <
     windowsSetup.command.indexOf(
       "git clone https://github.com/TannerMidd/Nooklet.git Nooklet",
     ),
