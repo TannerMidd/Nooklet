@@ -340,11 +340,18 @@ docker compose ps</code></pre>
               <p>
                 Pick the operating system that runs Docker, add your movie and TV folders, and choose download
                 staging. Nooklet generates everything needed for a new install: the repository, private environment,
-                drive mounts, container build, startup, and status check.
+                drive mounts, container build, writable-mount check, startup, and health check.
               </p>
             </div>
 
             <div class="quick-configurator" data-configurator>
+              <div class="guide-callout guide-callout-neutral">
+                <strong>Start Docker first</strong>
+                <p>
+                  On Windows or macOS, open Docker Desktop and wait for its Linux engine; on Linux, start the Docker
+                  daemon. The generated command checks Docker and your host folders before cloning or creating files.
+                </p>
+              </div>
               <form data-configurator-form autocomplete="off" novalidate>
                 <fieldset class="quick-platform" id="platform">
                   <legend>Docker host</legend>
@@ -437,10 +444,11 @@ docker compose ps</code></pre>
                 <div class="quick-command-heading">
                   <div>
                     <p class="card-kicker">Ready to install</p>
-                    <h3 id="quick-command-title" tabindex="-1">Paste this once. Nooklet does the rest.</h3>
+                    <h3 id="quick-command-title" tabindex="-1">Paste this command. Nooklet verifies the result.</h3>
                     <p>
                       Open PowerShell on Windows or Terminal on Linux/macOS in the parent folder where you want
-                      Nooklet installed. The command also works from an already-cloned Nooklet repository.
+                      Nooklet installed. If Docker restarts, disconnects, or reports EOF, wait for its engine and paste
+                      this same command again. Matching setup files are reused; changed files are never overwritten.
                     </p>
                   </div>
                   <button class="button button-primary" type="button" data-copy-command>Copy setup command</button>
@@ -452,9 +460,10 @@ docker compose ps</code></pre>
                 <div class="quick-command-note">
                   <strong>Keep this command private.</strong>
                   <p>
-                    It contains newly generated secrets. The terminal prints your one-time bootstrap token after
-                    startup. Create the first administrator, clear <code>BOOTSTRAP_TOKEN</code> from
-                    <code>.env</code>, then run <code>docker compose up -d --force-recreate</code>.
+                    It contains newly generated secrets and may remain in your clipboard and shell history. The
+                    terminal prints your one-time bootstrap token after startup. Create the first administrator,
+                    clear <code>BOOTSTRAP_TOKEN</code> from <code>.env</code>, then run
+                    <code>docker compose up -d --force-recreate</code>.
                   </p>
                 </div>
               </section>

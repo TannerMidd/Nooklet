@@ -227,7 +227,8 @@ if (root) {
       commandOutput.textContent = setup.command;
       renderMappings(setup.mappings);
       result.hidden = false;
-      status.textContent = "Complete setup command generated locally.";
+      status.textContent =
+        "Complete setup command generated locally. Keep this exact command until Nooklet starts.";
       resultTitle.focus({ preventScroll: true });
       result.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
@@ -284,7 +285,8 @@ if (root) {
     try {
       await copyText(generatedCommand);
       copyButton.textContent = "Copied";
-      status.textContent = "Setup command copied. Paste it into your terminal.";
+      status.textContent =
+        "Setup command copied. If Docker restarts, disconnects, or reports EOF, wait for its engine and paste this same command again.";
       if (copyStatus) copyStatus.textContent = "Complete Docker setup command copied.";
     } catch {
       copyButton.textContent = "Select command";
