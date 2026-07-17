@@ -1190,6 +1190,330 @@
   gap: 0.65rem 1.25rem;
 }
 
+.quick-configurator {
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  box-shadow: var(--shadow);
+}
+
+.quick-configurator [hidden] {
+  display: none;
+}
+
+.quick-configurator > form {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1.1rem, 3vw, 1.75rem);
+}
+
+.quick-platform {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.quick-platform legend {
+  width: 100%;
+  margin-bottom: 0.25rem;
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.quick-platform label {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.quick-platform label:has(input:checked) {
+  border-color: color-mix(in srgb, var(--amber) 58%, var(--line));
+  background: color-mix(in srgb, var(--amber) 10%, var(--surface));
+  color: var(--text);
+}
+
+.quick-platform input {
+  accent-color: var(--amber);
+}
+
+.quick-drive-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--line);
+}
+
+.quick-drive-heading h3 {
+  margin: 1rem 0 0.15rem;
+  font-family: var(--display);
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.quick-drive-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.quick-drive-heading button,
+.quick-drive-row > button {
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--amber-strong);
+  font-size: 0.66rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.quick-drive-heading button:hover,
+.quick-drive-row > button:hover {
+  color: var(--text);
+}
+
+.quick-drive-heading button span {
+  margin-right: 0.25rem;
+}
+
+.quick-drive-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.quick-drive-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.25fr) minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: end;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+
+.quick-drive-row label > span,
+.quick-download-field > span {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: var(--text);
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+
+.quick-drive-row select,
+.quick-drive-row input,
+.quick-download-field input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.6rem;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.72rem;
+}
+
+.quick-drive-row input,
+.quick-download-field input {
+  font-family: var(--mono);
+}
+
+.quick-drive-row input::placeholder,
+.quick-download-field input::placeholder {
+  color: color-mix(in srgb, var(--muted) 72%, transparent);
+}
+
+.quick-drive-row input[aria-invalid="true"],
+.quick-download-field input[aria-invalid="true"] {
+  border-color: var(--wine);
+}
+
+.quick-drive-row > p {
+  grid-column: 2 / -1;
+  margin: -0.2rem 0 0;
+  color: var(--wine);
+  font-size: 0.63rem;
+  font-weight: 750;
+}
+
+.quick-download-field {
+  display: block;
+}
+
+.quick-download-field small,
+.quick-download-field strong {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.64rem;
+}
+
+.quick-download-field small {
+  color: var(--muted);
+}
+
+.quick-download-field strong {
+  color: var(--wine);
+}
+
+.quick-generate-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem 1rem;
+  padding-top: 0.25rem;
+}
+
+.quick-generate-row .button {
+  flex: 0 0 auto;
+  border: 0;
+  cursor: pointer;
+}
+
+.quick-generate-row p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+
+.quick-command-result {
+  scroll-margin-top: 7rem;
+  padding: clamp(1.1rem, 3vw, 1.75rem);
+  border-top: 1px solid color-mix(in srgb, var(--teal) 44%, var(--line));
+  background:
+    radial-gradient(circle at 95% 0, color-mix(in srgb, var(--teal) 11%, transparent), transparent 24rem),
+    color-mix(in srgb, var(--teal) 5%, var(--bg));
+}
+
+.quick-command-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: end;
+}
+
+.quick-command-heading h3 {
+  margin-bottom: 0.55rem;
+  font-family: var(--display);
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.quick-command-heading p:last-child {
+  max-width: 70ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.quick-command-heading .button {
+  border: 0;
+  cursor: pointer;
+}
+
+.quick-mapping-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  padding: 0;
+  margin: 1rem 0;
+  list-style: none;
+}
+
+.quick-mapping-summary li {
+  min-width: 0;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+}
+
+.quick-mapping-summary span,
+.quick-mapping-summary strong,
+.quick-mapping-summary code {
+  display: block;
+}
+
+.quick-mapping-summary span {
+  color: var(--amber-strong);
+  font-size: 0.55rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.quick-mapping-summary strong,
+.quick-mapping-summary code {
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+}
+
+.quick-mapping-summary strong {
+  margin-block: 0.25rem;
+  color: var(--text);
+}
+
+.quick-mapping-summary code {
+  color: var(--teal);
+}
+
+.quick-command-output {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.quick-command-output pre {
+  max-height: 420px;
+  padding: 1rem;
+  margin: 0;
+  overflow: auto;
+  color: var(--amber-strong);
+  font-size: 0.64rem;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.quick-command-note {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.22fr) minmax(0, 1fr);
+  gap: 1rem;
+  margin-top: 0.8rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--wine) 36%, var(--line));
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--wine) 5%, transparent);
+}
+
+.quick-command-note strong {
+  color: var(--wine);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.quick-command-note p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.67rem;
+}
+
 .setup-sequence {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1690,6 +2014,35 @@
     grid-template-columns: 1fr;
   }
 
+  .quick-drive-row,
+  .quick-command-heading,
+  .quick-command-note {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-mapping-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-drive-row > p {
+    grid-column: 1;
+  }
+
+  .quick-drive-row > button {
+    justify-self: start;
+    min-height: 36px;
+    padding: 0;
+  }
+
+  .quick-generate-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .quick-command-heading {
+    align-items: start;
+  }
+
   .product-proof-strip div,
   .product-proof-strip div:nth-child(2) {
     border-right: 0;
@@ -1767,6 +2120,18 @@
     grid-column: 1 / -1;
   }
 
+  .quick-generate-row .button,
+  .quick-command-heading .button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .quick-drive-heading {
+    align-items: start;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
   .capability-card,
   .fit-card {
     padding-inline: 1.1rem;
@@ -1781,7 +2146,10 @@
 
   .status-badge,
   .requirement,
-  .first-request-steps li > span {
+  .first-request-steps li > span,
+  .quick-platform label,
+  .quick-drive-row,
+  .quick-configurator {
     border: 1px solid CanvasText;
   }
 }
@@ -1812,7 +2180,10 @@
   .documentation-map,
   .showcase-frame,
   .library-guide-figure,
-  .guide-search {
+  .guide-search,
+  .quick-configurator > form,
+  .quick-command-heading .button,
+  .quick-command-note {
     display: none !important;
   }
 
@@ -1839,6 +2210,12 @@
   .guide-details > .details-copy,
   .guide-details > .code-block {
     display: block !important;
+  }
+
+  .quick-command-result {
+    padding: 0;
+    border: 0;
+    background: none;
   }
 
   .guide-section {

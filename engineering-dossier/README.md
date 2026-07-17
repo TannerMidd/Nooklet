@@ -10,8 +10,9 @@ repository's GitHub Pages project path.
 - `features/index.html` is the product capability and fit guide.
 - `guide/index.html` is the curated, task-oriented user guide.
 
-The user guide orients readers and links to the GitHub Wiki for canonical,
-platform-specific runbooks. It does not duplicate the full operator handbook.
+The user guide includes a local-only, one-paste Docker setup generator and links
+to the GitHub Wiki for canonical, platform-specific runbooks. It does not
+duplicate the full operator handbook.
 
 The document is an implementation-backed architecture baseline rather than a
 product overview. Its figures cover system context, dependency direction,
@@ -33,9 +34,9 @@ Serve `engineering-dossier` as the web root and open `/`, `/features/`, or
 no runtime third-party requests, and does not require a build step.
 
 Run `npm run docs:dossier:check` from the repository root before publication.
-The dependency-free validator checks required pages, local files and fragments,
-document metadata, heading structure, duplicate IDs, symlinks, and sensitive
-artifact types.
+The dependency-free validators check required pages, local files and fragments,
+document metadata, heading structure, duplicate IDs, symlinks, sensitive
+artifact types, path safety, secret generation, and generated setup commands.
 
 ## Publication
 

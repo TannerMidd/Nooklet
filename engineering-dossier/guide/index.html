@@ -6,15 +6,19 @@
     <meta name="color-scheme" content="dark light" />
     <meta
       name="description"
-      content="A clean, task-oriented Nooklet user guide for installation, first-time setup, requesting movies and seasons, understanding Activity, storage troubleshooting, backup, and recovery."
+      content="A task-oriented Nooklet user guide with a one-paste Docker setup generator, first-request walkthroughs, season recovery, storage troubleshooting, backup, and recovery."
     />
     <meta name="theme-color" content="#0f0e0d" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
     <link rel="canonical" href="https://tannermidd.github.io/Nooklet/guide/" />
     <meta property="og:type" content="article" />
     <meta property="og:title" content="Nooklet User Guide" />
     <meta
       property="og:description"
-      content="From an empty host to a verified first request—and the exact next step when something needs attention."
+      content="Choose your storage, generate a complete one-paste Docker setup, and follow Nooklet from first request through everyday use and recovery."
     />
     <meta property="og:url" content="https://tannermidd.github.io/Nooklet/guide/" />
     <meta property="og:image" content="https://tannermidd.github.io/Nooklet/assets/showcase.webp" />
@@ -34,6 +38,7 @@
     <link rel="stylesheet" href="../styles.css" />
     <link rel="stylesheet" href="../pages.css" />
     <script src="../app.js" defer></script>
+    <script src="../configurator.js" type="module"></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to the user guide</a>
@@ -89,7 +94,7 @@
             one click away in the Wiki.
           </p>
           <div class="hero-actions">
-            <a class="button button-primary" href="#first-request">Reach your first request</a>
+            <a class="button button-primary" href="#docker-configurator">Configure Docker</a>
             <a class="button button-secondary" href="#fix-a-problem">Fix a problem</a>
           </div>
         </div>
@@ -97,7 +102,7 @@
         <aside class="guide-start-card" aria-labelledby="choose-path-title" data-reveal>
           <p class="card-kicker">Choose your path</p>
           <h2 id="choose-path-title">What are you here to do?</h2>
-          <a href="#first-request"><span>New administrator</span><strong>Install and verify the request path</strong></a>
+          <a href="#docker-configurator"><span>New administrator</span><strong>Map drives and generate the Docker setup</strong></a>
           <a href="#find-and-request"><span>Everyday user</span><strong>Find, request, and follow a title</strong></a>
           <a href="#fix-a-problem"><span>Something failed</span><strong>Start with the symptom, not guesswork</strong></a>
         </aside>
@@ -135,8 +140,8 @@
             <section class="guide-topic-group" data-guide-group aria-labelledby="start-topics-title">
               <h3 id="start-topics-title">Start</h3>
               <div class="guide-topic-grid">
-                <a class="guide-topic-card" href="#install" data-guide-item data-search="install docker compose clone environment secrets prerequisites windows linux mac nas">
-                  <span>01 · Install</span><strong>Run Nooklet with Docker</strong><p>Clone, create secrets, mount storage, and start the app.</p>
+                <a class="guide-topic-card" href="#docker-configurator" data-guide-item data-search="install configure docker compose drive mount path command environment secrets windows linux mac nas">
+                  <span>01 · Install</span><strong>Configure and run Docker</strong><p>Map your drives, generate private files, and copy the exact build commands.</p>
                 </a>
                 <a class="guide-topic-card" href="#setup-center" data-guide-item data-search="setup first admin bootstrap tmdb usenet sab newznab indexer storage readiness worker">
                   <span>02 · Configure</span><strong>Complete Setup Center</strong><p>Verify one complete movie or TV request path.</p>
@@ -194,6 +199,7 @@
           <nav data-section-nav>
             <a href="#first-request">First request</a>
             <a href="#install">Install</a>
+            <a href="#docker-configurator">Docker setup</a>
             <a href="#setup-center">Setup Center</a>
             <a href="#find-and-request">Find + request</a>
             <a href="#season-requests">TV seasons</a>
@@ -217,7 +223,7 @@
             </div>
 
             <ol class="first-request-steps">
-              <li data-reveal><span>01</span><div><strong>Install</strong><p>Start the Docker Compose deployment with explicit media and staging mounts.</p></div></li>
+              <li data-reveal><span>01</span><div><strong>Install</strong><p>Use the Docker setup builder to map media and staging drives, then start Compose.</p></div></li>
               <li data-reveal><span>02</span><div><strong>Create the administrator</strong><p>Use the one-time bootstrap token, then remove it and recreate the container.</p></div></li>
               <li data-reveal><span>03</span><div><strong>Verify metadata + acquisition</strong><p>Test TMDB, one Newznab indexer, and either native Usenet or SABnzbd.</p></div></li>
               <li data-reveal><span>04</span><div><strong>Attach storage</strong><p>Use container-visible paths for a writable destination and, for native Usenet, staging.</p></div></li>
@@ -324,6 +330,144 @@ docker compose ps</code></pre>
             <div class="guide-links" data-reveal>
               <a href="https://github.com/TannerMidd/Nooklet/wiki/Docker-Installation">Full Docker installation runbook <span aria-hidden="true">→</span></a>
               <a href="https://github.com/TannerMidd/Nooklet/wiki/Storage-and-Path-Mapping">Storage and path mapping <span aria-hidden="true">→</span></a>
+            </div>
+          </section>
+
+          <section class="guide-section" id="docker-configurator" aria-labelledby="docker-configurator-title">
+            <div class="guide-section-heading" data-reveal>
+              <p class="eyebrow">One-paste Docker setup</p>
+              <h2 id="docker-configurator-title">Choose your folders. Paste one command.</h2>
+              <p>
+                Pick the operating system that runs Docker, add your movie and TV folders, and choose download
+                staging. Nooklet generates everything needed for a new install: the repository, private environment,
+                drive mounts, container build, startup, and status check.
+              </p>
+            </div>
+
+            <div class="quick-configurator" data-configurator>
+              <form data-configurator-form autocomplete="off" novalidate>
+                <fieldset class="quick-platform" id="platform">
+                  <legend>Docker host</legend>
+                  <label><input type="radio" name="platform" value="windows" checked /> Windows</label>
+                  <label><input type="radio" name="platform" value="linux" /> Linux</label>
+                  <label><input type="radio" name="platform" value="macos" /> macOS</label>
+                </fieldset>
+
+                <div class="quick-drive-heading">
+                  <div>
+                    <h3>Media folders</h3>
+                    <p>Add every existing final library folder Nooklet should be able to use.</p>
+                  </div>
+                  <button type="button" data-add-drive><span aria-hidden="true">+</span> Add folder</button>
+                </div>
+
+                <div class="quick-drive-list" data-drive-list>
+                  <div class="quick-drive-row" data-drive-row>
+                    <label>
+                      <span>Library</span>
+                      <select data-drive-type aria-label="Library type for folder 1">
+                        <option value="movies">Movies</option>
+                        <option value="tv">TV</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Host folder</span>
+                      <input
+                        id="drive-path-1"
+                        type="text"
+                        placeholder="D:/Media/Movies"
+                        autocomplete="off"
+                        spellcheck="false"
+                        data-drive-path
+                      />
+                    </label>
+                    <button type="button" data-remove-drive aria-label="Remove folder 1">Remove</button>
+                    <p data-drive-error hidden></p>
+                  </div>
+                  <div class="quick-drive-row" data-drive-row>
+                    <label>
+                      <span>Library</span>
+                      <select data-drive-type aria-label="Library type for folder 2">
+                        <option value="movies">Movies</option>
+                        <option value="tv" selected>TV</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Host folder</span>
+                      <input
+                        id="drive-path-2"
+                        type="text"
+                        placeholder="D:/Media/TV"
+                        autocomplete="off"
+                        spellcheck="false"
+                        data-drive-path
+                      />
+                    </label>
+                    <button type="button" data-remove-drive aria-label="Remove folder 2">Remove</button>
+                    <p data-drive-error hidden></p>
+                  </div>
+                </div>
+
+                <label class="quick-download-field">
+                  <span>Downloads / staging folder</span>
+                  <input
+                    id="quick-download-path"
+                    type="text"
+                    placeholder="F:/Nooklet/Downloads"
+                    autocomplete="off"
+                    spellcheck="false"
+                    aria-describedby="quick-download-help quick-download-error"
+                  />
+                  <small id="quick-download-help">
+                    Choose an existing folder. Nooklet checks free space here and needs room for both the download
+                    and extraction.
+                  </small>
+                  <strong id="quick-download-error" data-download-error hidden></strong>
+                </label>
+
+                <div class="quick-generate-row">
+                  <button class="button button-primary" type="submit">Generate complete setup command</button>
+                  <p data-configurator-status aria-live="polite">
+                    Runs locally in your browser. Your paths and generated secrets are never sent anywhere.
+                  </p>
+                </div>
+              </form>
+
+              <section class="quick-command-result" data-command-result aria-labelledby="quick-command-title" hidden>
+                <div class="quick-command-heading">
+                  <div>
+                    <p class="card-kicker">Ready to install</p>
+                    <h3 id="quick-command-title" tabindex="-1">Paste this once. Nooklet does the rest.</h3>
+                    <p>
+                      Open PowerShell on Windows or Terminal on Linux/macOS in the parent folder where you want
+                      Nooklet installed. The command also works from an already-cloned Nooklet repository.
+                    </p>
+                  </div>
+                  <button class="button button-primary" type="button" data-copy-command>Copy setup command</button>
+                </div>
+                <ul class="quick-mapping-summary" data-mapping-summary></ul>
+                <div class="code-block quick-command-output">
+                  <pre><code data-command-output></code></pre>
+                </div>
+                <div class="quick-command-note">
+                  <strong>Keep this command private.</strong>
+                  <p>
+                    It contains newly generated secrets. The terminal prints your one-time bootstrap token after
+                    startup. Create the first administrator, clear <code>BOOTSTRAP_TOKEN</code> from
+                    <code>.env</code>, then run <code>docker compose up -d --force-recreate</code>.
+                  </p>
+                </div>
+              </section>
+
+              <noscript>
+                <div class="guide-callout guide-callout-warning">
+                  <strong>JavaScript required</strong>
+                  <p>
+                    Use the <a href="https://github.com/TannerMidd/Nooklet/wiki/Docker-Installation">manual Docker
+                    installation guide</a> when JavaScript is unavailable.
+                  </p>
+                </div>
+              </noscript>
             </div>
           </section>
 
