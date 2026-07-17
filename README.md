@@ -7,11 +7,11 @@
 Native Usenet downloading, intelligent recommendations, and clear operational status—without requiring a separate media manager.
 
 [![CI](https://github.com/TannerMidd/Nooklet/actions/workflows/ci.yml/badge.svg)](https://github.com/TannerMidd/Nooklet/actions/workflows/ci.yml)
-[![Engineering dossier](https://github.com/TannerMidd/Nooklet/actions/workflows/engineering-dossier-pages.yml/badge.svg)](https://tannermidd.github.io/Nooklet/)
+[![Product and engineering site](https://github.com/TannerMidd/Nooklet/actions/workflows/engineering-dossier-pages.yml/badge.svg)](https://tannermidd.github.io/Nooklet/)
 ![Node.js 24](https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/License-MIT-4d7c6a.svg)](LICENSE)
 
-[Get started](#run-nooklet) · [Read the Wiki](https://github.com/TannerMidd/Nooklet/wiki) · [Explore the architecture](https://tannermidd.github.io/Nooklet/) · [Report an issue](https://github.com/TannerMidd/Nooklet/issues)
+[Explore features](https://tannermidd.github.io/Nooklet/features/) · [Open the user guide](https://tannermidd.github.io/Nooklet/guide/) · [Read the Wiki](https://github.com/TannerMidd/Nooklet/wiki) · [Explore the architecture](https://tannermidd.github.io/Nooklet/) · [Report an issue](https://github.com/TannerMidd/Nooklet/issues)
 
 <img src="docs/assets/readme/showcase.webp" alt="Nooklet Discover and Library showcase" width="100%">
 
@@ -97,6 +97,8 @@ See [Storage and path mapping](https://github.com/TannerMidd/Nooklet/wiki/Storag
 
 ## Documentation and architecture
 
+- **[Feature guide](https://tannermidd.github.io/Nooklet/features/)** — a visual tour of discovery, requests, resilient seasons, native downloads, Library, and operations.
+- **[User guide](https://tannermidd.github.io/Nooklet/guide/)** — the clean path from installation to a first request, daily use, and symptom-first recovery.
 - **[Wiki](https://github.com/TannerMidd/Nooklet/wiki)** — task-oriented installation, setup, operation, backup, upgrade, and troubleshooting guides.
 - **[Engineering dossier](https://tannermidd.github.io/Nooklet/)** — source-backed architecture diagrams, capacity charts, trust boundaries, and release evidence.
 - **[Architecture](https://github.com/TannerMidd/Nooklet/wiki/Architecture)** — runtime structure, domain boundaries, persistence, jobs, and integrations.

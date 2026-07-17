@@ -31,6 +31,7 @@
       }
     </script>
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./pages.css" />
     <script src="./app.js" defer></script>
   </head>
   <body>
@@ -39,10 +40,10 @@
 
     <header class="site-header" data-header>
       <div class="header-inner">
-        <a class="brand" href="#top" aria-label="Nooklet technical architecture home">
+        <a class="brand" href="./" aria-label="Nooklet documentation home">
           <span class="brand-dot" aria-hidden="true"></span>
           <span class="brand-name">Nooklet</span>
-          <span class="brand-context">Technical architecture</span>
+          <span class="brand-context">Product &amp; engineering</span>
         </a>
 
         <button
@@ -58,13 +59,12 @@
           <span aria-hidden="true"></span>
         </button>
 
-        <nav class="site-nav technical-nav" id="site-nav" aria-label="Technical dossier sections">
-          <a href="#architecture">Architecture</a>
+        <nav class="site-nav technical-nav product-nav" id="site-nav" aria-label="Nooklet documentation">
+          <a href="./" aria-current="page">Engineering</a>
+          <a href="./features/">Features</a>
+          <a href="./guide/">User guide</a>
           <a href="#request-flow">Request flow</a>
-          <a href="#data">Data</a>
           <a href="#reliability">Reliability</a>
-          <a href="#security">Security</a>
-          <a href="#operations">Operations</a>
           <a href="#evidence">Evidence</a>
         </nav>
 
@@ -90,7 +90,8 @@
           </p>
           <div class="hero-actions">
             <a class="button button-primary" href="#architecture">Read the architecture</a>
-            <a class="button button-secondary" href="https://github.com/TannerMidd/Nooklet/tree/main">Inspect source</a>
+            <a class="button button-secondary" href="./features/">Explore the product</a>
+            <a class="button button-secondary" href="./guide/">Open the user guide</a>
           </div>
           <ul class="stack-list" aria-label="Core technology">
             <li>Next.js 16</li>
@@ -112,7 +113,7 @@
             <div><dt>Architecture</dt><dd>Modular monolith</dd></div>
             <div><dt>Runtime</dt><dd>Single Node 24 process</dd></div>
             <div><dt>Persistence</dt><dd>SQLite in WAL mode</dd></div>
-            <div><dt>Validation date</dt><dd>16 July 2026</dd></div>
+            <div><dt>Validation date</dt><dd>17 July 2026</dd></div>
           </dl>
           <div class="commit-stamp">
             <span>Source snapshot</span>
@@ -127,7 +128,37 @@
           <div><strong>17</strong><span>domain modules</span></div>
           <div><strong>42</strong><span>normalized tables</span></div>
           <div><strong>40</strong><span>SQL migrations</span></div>
-          <div><strong>199</strong><span>test files</span></div>
+          <div><strong>201</strong><span>test files</span></div>
+        </div>
+      </section>
+
+      <section class="documentation-map shell" aria-labelledby="documentation-map-title">
+        <div class="documentation-map-heading" data-reveal>
+          <div>
+            <p class="eyebrow">Nooklet documentation</p>
+            <h2 id="documentation-map-title">Choose the level you need.</h2>
+          </div>
+          <p>Move from product outcomes to daily operation to implementation evidence without losing context.</p>
+        </div>
+        <div class="documentation-map-grid">
+          <a href="./features/" data-reveal>
+            <span>01 · Product</span>
+            <h3>Features</h3>
+            <p>See what Nooklet does, how the complete media journey feels, and where its boundaries are.</p>
+            <strong>Explore capabilities <b aria-hidden="true">→</b></strong>
+          </a>
+          <a href="./guide/" data-reveal>
+            <span>02 · Use</span>
+            <h3>User guide</h3>
+            <p>Install, reach a first request, understand season recovery, and resolve common problems.</p>
+            <strong>Follow a task <b aria-hidden="true">→</b></strong>
+          </a>
+          <a href="#architecture" aria-current="location" data-reveal>
+            <span>03 · Engineer</span>
+            <h3>Architecture dossier</h3>
+            <p>Trace runtime boundaries, workflows, persistence, reliability, security, and release evidence.</p>
+            <strong>Inspect the system <b aria-hidden="true">↓</b></strong>
+          </a>
         </div>
       </section>
 
@@ -1373,7 +1404,7 @@ npm run account:recover -- admin@example.com</code></pre>
             <figcaption>
               <span>Chart 3.</span> The 17 domain directories contain 487 TypeScript/TSX files: 324 production and 163
               test files. The root module registry adds one production file outside those directories. The complete
-              <code>src</code> tree contains 735 TypeScript/TSX files, including 199 test files.
+              <code>src</code> tree contains 738 TypeScript/TSX files, including 201 test files.
             </figcaption>
           </figure>
 
@@ -1388,7 +1419,7 @@ npm run account:recover -- admin@example.com</code></pre>
               <ol>
                 <li><span>01</span><strong>Lint</strong><p>Is source quality structurally clean?</p><b>Passed</b></li>
                 <li><span>02</span><strong>Typecheck</strong><p>Do TypeScript contracts compose?</p><b>Passed</b></li>
-                <li><span>03</span><strong>Vitest</strong><p>Do workflow and policy behaviors hold?</p><b>1,148 collected / 199 files</b></li>
+                <li><span>03</span><strong>Vitest</strong><p>Do workflow and policy behaviors hold?</p><b>1,155 passed / 201 files</b></li>
                 <li><span>04</span><strong>Production build</strong><p>Can the standalone artifact be assembled and sanitized?</p><b>Passed</b></li>
                 <li><span>05</span><strong>Docker smoke</strong><p>Does the hardened runtime start and report healthy?</p><b>Passed</b></li>
                 <li><span>06</span><strong>Signed-in browser QA</strong><p>Can key workflows be understood and operated responsively?</p><b>Desktop + mobile</b></li>
@@ -1401,7 +1432,7 @@ npm run account:recover -- admin@example.com</code></pre>
           </figure>
 
           <div class="evidence-ledger" data-reveal>
-            <div><span>Repository</span><strong>737 files under <code>src</code></strong><small>735 TypeScript/TSX &middot; 536 production &middot; 199 test</small></div>
+            <div><span>Repository</span><strong>740 files under <code>src</code></strong><small>738 TypeScript/TSX &middot; 537 production &middot; 201 test</small></div>
             <div><span>Application surface</span><strong>27 pages &middot; 13 action files &middot; 3 API route files</strong><small>Most mutations remain server-action shaped.</small></div>
             <div><span>Workflow layer</span><strong>157 production workflow files</strong><small>95 colocated workflow test files.</small></div>
             <div><span>Historical overhaul</span><strong><a href="https://github.com/TannerMidd/Nooklet/commit/49432fb1aabd0afc34e00c374ebe8e9507c42776">362 files in commit <code>49432fb</code></a></strong><small>20,879 additions &middot; 7,178 deletions.</small></div>
@@ -1536,7 +1567,8 @@ npm run account:recover -- admin@example.com</code></pre>
         </p>
         <div class="hero-actions">
           <a class="button button-primary" href="https://github.com/TannerMidd/Nooklet">Explore the repository</a>
-          <a class="button button-secondary" href="https://github.com/TannerMidd/Nooklet/blob/main/README.md">Read the operating guide</a>
+          <a class="button button-secondary" href="./guide/">Read the user guide</a>
+          <a class="button button-secondary" href="./features/">Review product features</a>
         </div>
       </section>
     </main>
@@ -1544,17 +1576,19 @@ npm run account:recover -- admin@example.com</code></pre>
     <footer class="site-footer">
       <div class="shell footer-grid">
         <div>
-          <a class="brand footer-brand" href="#top"><span class="brand-dot" aria-hidden="true"></span><span class="brand-name">Nooklet</span></a>
+          <a class="brand footer-brand" href="./"><span class="brand-dot" aria-hidden="true"></span><span class="brand-name">Nooklet</span></a>
           <p>Technical architecture, operational constraints, and release evidence.</p>
         </div>
         <nav aria-label="Dossier resources">
+          <a href="./features/">Features</a>
+          <a href="./guide/">User guide</a>
+          <a href="https://github.com/TannerMidd/Nooklet/wiki">Wiki</a>
           <a href="https://github.com/TannerMidd/Nooklet">Repository</a>
-          <a href="https://github.com/TannerMidd/Nooklet/blob/main/README.md">README</a>
           <a href="https://github.com/TannerMidd/Nooklet/tree/main/docs/adr">ADRs</a>
           <a href="https://github.com/TannerMidd/Nooklet/security/advisories/new">Security advisory</a>
           <a href="https://github.com/TannerMidd/Nooklet/blob/main/LICENSE">MIT license</a>
         </nav>
-        <p class="revision">Source snapshot <code>current main &middot; release candidate</code><br />Technical dossier revised July 16, 2026</p>
+        <p class="revision">Source snapshot <code>current main &middot; release candidate</code><br />Technical dossier revised July 17, 2026</p>
       </div>
     </footer>
 

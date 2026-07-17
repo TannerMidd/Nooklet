@@ -71,7 +71,7 @@
     if (!navToggle || !siteNav) return;
     siteNav.classList.remove("is-open");
     navToggle.setAttribute("aria-expanded", "false");
-    navToggle.querySelector(".sr-only").textContent = "Open section navigation";
+    navToggle.querySelector(".sr-only").textContent = "Open site navigation";
     if (restoreFocus) navToggle.focus();
   }
 
@@ -79,13 +79,13 @@
     const opening = navToggle.getAttribute("aria-expanded") !== "true";
     navToggle.setAttribute("aria-expanded", String(opening));
     navToggle.querySelector(".sr-only").textContent = opening
-      ? "Close section navigation"
-      : "Open section navigation";
+      ? "Close site navigation"
+      : "Open site navigation";
     siteNav?.classList.toggle("is-open", opening);
   });
 
   siteNav?.addEventListener("click", (event) => {
-    if (event.target instanceof HTMLAnchorElement) closeNavigation();
+    if (event.target instanceof Element && event.target.closest("a")) closeNavigation();
   });
 
   document.addEventListener("keydown", (event) => {
@@ -140,12 +140,15 @@
     }
   }
 
-  const sectionLinks = Array.from(siteNav?.querySelectorAll('a[href^="#"]') ?? []);
-  const observedSections = sectionLinks
-    .map((link) => document.querySelector(link.getAttribute("href")))
-    .filter((section) => section instanceof HTMLElement);
+  function observeSectionNavigation(navigation) {
+    if (!(navigation instanceof Element)) return;
+    const sectionLinks = Array.from(navigation.querySelectorAll('a[href^="#"]'));
+    const observedSections = sectionLinks
+      .map((link) => document.querySelector(link.getAttribute("href")))
+      .filter((section) => section instanceof HTMLElement);
 
-  if ("IntersectionObserver" in window && observedSections.length > 0) {
+    if (!("IntersectionObserver" in window) || observedSections.length === 0) return;
+
     const sectionObserver = new IntersectionObserver((entries) => {
       const visible = entries
         .filter((entry) => entry.isIntersecting)
@@ -160,6 +163,72 @@
       });
     }, { rootMargin: "-25% 0px -58%", threshold: [0.05, 0.2, 0.5] });
     observedSections.forEach((section) => sectionObserver.observe(section));
+  }
+
+  observeSectionNavigation(siteNav);
+  document.querySelectorAll("[data-section-nav]").forEach(observeSectionNavigation);
+
+  const guideSearch = document.querySelector("[data-guide-search]");
+
+  if (guideSearch) {
+    const searchInput = guideSearch.querySelector('input[type="search"]');
+    const clearButton = guideSearch.querySelector("[data-guide-search-clear]");
+    const status = guideSearch.querySelector("#guide-search-status");
+    const items = Array.from(document.querySelectorAll("[data-guide-item]"));
+    const groups = Array.from(document.querySelectorAll("[data-guide-group]"));
+    const noResults = document.querySelector("[data-guide-no-results]");
+
+    function searchableText(item) {
+      return `${item.textContent} ${item.getAttribute("data-search") ?? ""}`
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .toLocaleLowerCase();
+    }
+
+    const indexedItems = items.map((item) => ({ item, text: searchableText(item) }));
+
+    function updateGuideResults() {
+      const query = searchInput?.value
+        .trim()
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .toLocaleLowerCase() ?? "";
+      const terms = query.split(/\s+/).filter(Boolean);
+      let visibleCount = 0;
+
+      indexedItems.forEach(({ item, text }) => {
+        const matches = terms.every((term) => text.includes(term));
+        item.hidden = !matches;
+        if (matches) visibleCount += 1;
+      });
+
+      groups.forEach((group) => {
+        group.hidden = !group.querySelector("[data-guide-item]:not([hidden])");
+      });
+
+      if (noResults) noResults.hidden = visibleCount !== 0;
+      if (status) {
+        if (!query) {
+          status.textContent = `Showing all ${items.length} guide topics.`;
+        } else if (visibleCount === 1) {
+          status.textContent = `One guide topic matches “${searchInput.value.trim()}”.`;
+        } else {
+          status.textContent = `${visibleCount} guide topics match “${searchInput.value.trim()}”.`;
+        }
+      }
+    }
+
+    searchInput?.addEventListener("input", updateGuideResults);
+    clearButton?.addEventListener("click", () => {
+      if (!searchInput) return;
+      searchInput.value = "";
+      updateGuideResults();
+      searchInput.focus();
+    });
+
+    guideSearch.addEventListener("submit", (event) => event.preventDefault());
+    guideSearch.classList.add("is-ready");
+    updateGuideResults();
   }
 
   const capacityModel = document.querySelector("#capacity-model");
@@ -290,5 +359,22 @@
         button.textContent = originalLabel;
       }, 1800);
     });
+  });
+
+  const printableDetails = Array.from(document.querySelectorAll("details"));
+  const printDetailState = new Map();
+
+  window.addEventListener("beforeprint", () => {
+    printableDetails.forEach((details) => {
+      printDetailState.set(details, details.open);
+      details.open = true;
+    });
+  });
+
+  window.addEventListener("afterprint", () => {
+    printableDetails.forEach((details) => {
+      details.open = printDetailState.get(details) ?? false;
+    });
+    printDetailState.clear();
   });
 })();

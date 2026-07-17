@@ -4,10 +4,14 @@ Nooklet is a self-hosted workspace for discovering, recommending, requesting, do
 
 > **New installation?** Follow [Getting started](Getting-Started), then complete [First-time setup](First-Time-Setup). Docker Compose is the recommended deployment.
 
+Prefer a visual introduction? Start with the public [Feature guide](https://tannermidd.github.io/Nooklet/features/). For a clean, curated route through setup, daily use, and common recovery, open the [User guide](https://tannermidd.github.io/Nooklet/guide/). This Wiki remains the canonical source for detailed operator runbooks.
+
 ## Choose your path
 
 | I want to… | Start here |
 | --- | --- |
+| Understand what Nooklet can do | [Feature guide](https://tannermidd.github.io/Nooklet/features/) |
+| Follow the clean path from setup through daily use | [User guide](https://tannermidd.github.io/Nooklet/guide/) |
 | Install Nooklet with Docker | [Docker installation](Docker-Installation) |
 | Reach the first successful request | [First-time setup](First-Time-Setup) |
 | Fix an “insufficient disk space” message | [Storage and path mapping](Storage-and-Path-Mapping#download-capacity-policy) |
@@ -78,4 +82,4 @@ Nooklet is an actively developed, single-instance application built around one N
 
 ---
 
-Documentation last reviewed against `main`: **July 15, 2026**.
+Documentation last reviewed against `main`: **July 17, 2026**.

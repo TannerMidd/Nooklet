@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <meta
+      name="description"
+      content="A clean, task-oriented Nooklet user guide for installation, first-time setup, requesting movies and seasons, understanding Activity, storage troubleshooting, backup, and recovery."
+    />
+    <meta name="theme-color" content="#0f0e0d" />
+    <link rel="canonical" href="https://tannermidd.github.io/Nooklet/guide/" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Nooklet User Guide" />
+    <meta
+      property="og:description"
+      content="From an empty host to a verified first request—and the exact next step when something needs attention."
+    />
+    <meta property="og:url" content="https://tannermidd.github.io/Nooklet/guide/" />
+    <meta property="og:image" content="https://tannermidd.github.io/Nooklet/assets/showcase.webp" />
+    <link rel="icon" href="data:," />
+    <title>Nooklet User Guide</title>
+    <script>
+      document.documentElement.classList.add("js");
+      try {
+        const savedTheme = localStorage.getItem("nooklet-dossier-theme");
+        if (savedTheme === "dark" || savedTheme === "light") {
+          document.documentElement.dataset.theme = savedTheme;
+        }
+      } catch {
+        // The system theme remains the safe default when storage is unavailable.
+      }
+    </script>
+    <link rel="stylesheet" href="../styles.css" />
+    <link rel="stylesheet" href="../pages.css" />
+    <script src="../app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to the user guide</a>
+    <div class="reading-progress" aria-hidden="true"><span id="reading-progress-bar"></span></div>
+
+    <header class="site-header" data-header>
+      <div class="header-inner">
+        <a class="brand" href="../" aria-label="Nooklet documentation home">
+          <span class="brand-dot" aria-hidden="true"></span>
+          <span class="brand-name">Nooklet</span>
+          <span class="brand-context">Product &amp; engineering</span>
+        </a>
+
+        <button
+          class="nav-toggle"
+          id="nav-toggle"
+          type="button"
+          aria-controls="site-nav"
+          aria-expanded="false"
+        >
+          <span class="sr-only">Open site navigation</span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+        </button>
+
+        <nav class="site-nav product-nav" id="site-nav" aria-label="Nooklet documentation">
+          <a href="../">Overview</a>
+          <a href="../features/">Features</a>
+          <a href="./" aria-current="page">User guide</a>
+          <a href="../#architecture">Architecture</a>
+          <a href="../#reliability">Reliability</a>
+        </nav>
+
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Change color theme">
+            <span class="theme-mark" aria-hidden="true"></span>
+            <span id="theme-label">System</span>
+          </button>
+          <a class="source-link" href="https://github.com/TannerMidd/Nooklet/wiki">Wiki</a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="guide-hero shell" id="top" aria-labelledby="hero-title">
+        <div class="guide-hero-copy" data-reveal>
+          <p class="eyebrow">User guide <span>Start · use · recover</span></p>
+          <h1 id="hero-title">Know the next step.<br /><em>Every time.</em></h1>
+          <p class="hero-lede">
+            This guide takes a new administrator from an empty host to a verified first request, then gives every
+            user a clear map for discovery, seasons, Activity, Library, and common recovery. Detailed runbooks remain
+            one click away in the Wiki.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#first-request">Reach your first request</a>
+            <a class="button button-secondary" href="#fix-a-problem">Fix a problem</a>
+          </div>
+        </div>
+
+        <aside class="guide-start-card" aria-labelledby="choose-path-title" data-reveal>
+          <p class="card-kicker">Choose your path</p>
+          <h2 id="choose-path-title">What are you here to do?</h2>
+          <a href="#first-request"><span>New administrator</span><strong>Install and verify the request path</strong></a>
+          <a href="#find-and-request"><span>Everyday user</span><strong>Find, request, and follow a title</strong></a>
+          <a href="#fix-a-problem"><span>Something failed</span><strong>Start with the symptom, not guesswork</strong></a>
+        </aside>
+      </section>
+
+      <section class="guide-finder-section section-tinted" aria-labelledby="guide-finder-title">
+        <div class="shell">
+          <div class="guide-finder-heading" data-reveal>
+            <div>
+              <p class="eyebrow">Task finder</p>
+              <h2 id="guide-finder-title">Jump straight to what you need.</h2>
+            </div>
+            <p>The full guide always remains visible when JavaScript or search is unavailable.</p>
+          </div>
+
+          <form class="guide-search" role="search" data-guide-search>
+            <label for="guide-search-input">Find a task or symptom</label>
+            <div class="guide-search-control">
+              <span aria-hidden="true">⌕</span>
+              <input
+                id="guide-search-input"
+                type="search"
+                placeholder="Try “disk space”, “season”, “indexer”, or “backup”"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button type="button" data-guide-search-clear>Clear</button>
+            </div>
+            <p id="guide-search-status" class="guide-search-status" aria-live="polite">
+              Showing all guide topics.
+            </p>
+          </form>
+
+          <div class="guide-topic-groups" data-guide-results>
+            <section class="guide-topic-group" data-guide-group aria-labelledby="start-topics-title">
+              <h3 id="start-topics-title">Start</h3>
+              <div class="guide-topic-grid">
+                <a class="guide-topic-card" href="#install" data-guide-item data-search="install docker compose clone environment secrets prerequisites windows linux mac nas">
+                  <span>01 · Install</span><strong>Run Nooklet with Docker</strong><p>Clone, create secrets, mount storage, and start the app.</p>
+                </a>
+                <a class="guide-topic-card" href="#setup-center" data-guide-item data-search="setup first admin bootstrap tmdb usenet sab newznab indexer storage readiness worker">
+                  <span>02 · Configure</span><strong>Complete Setup Center</strong><p>Verify one complete movie or TV request path.</p>
+                </a>
+                <a class="guide-topic-card" href="#first-request-checklist" data-guide-item data-search="first test request controlled movie tv import success">
+                  <span>03 · Verify</span><strong>Make a controlled first request</strong><p>Prove search, download, processing, and import end to end.</p>
+                </a>
+              </div>
+            </section>
+
+            <section class="guide-topic-group" data-guide-group aria-labelledby="use-topics-title">
+              <h3 id="use-topics-title">Use Nooklet</h3>
+              <div class="guide-topic-grid">
+                <a class="guide-topic-card" href="#find-and-request" data-guide-item data-search="discover search movie request title destination release">
+                  <span>04 · Discover</span><strong>Find and request a title</strong><p>Choose the right scope and destination, then submit.</p>
+                </a>
+                <a class="guide-topic-card" href="#season-requests" data-guide-item data-search="tv show season pack episode fallback retry recovering blocked resume">
+                  <span>05 · TV</span><strong>Understand season recovery</strong><p>Know when Nooklet retries, falls back, waits, or needs repair.</p>
+                </a>
+                <a class="guide-topic-card" href="#activity" data-guide-item data-search="activity active needs attention completed progress queue pause resume cancel history">
+                  <span>06 · Follow</span><strong>Read Activity correctly</strong><p>Separate active recovery from work that needs intervention.</p>
+                </a>
+                <a class="guide-topic-card" href="#library" data-guide-item data-search="library scan rescan monitor quality owned available files external move">
+                  <span>07 · Organize</span><strong>Keep Library accurate</strong><p>Scan destinations, filter titles, and reconcile external changes.</p>
+                </a>
+              </div>
+            </section>
+
+            <section class="guide-topic-group" data-guide-group aria-labelledby="operate-topics-title">
+              <h3 id="operate-topics-title">Operate and recover</h3>
+              <div class="guide-topic-grid">
+                <a class="guide-topic-card" href="#disk-space" data-guide-item data-search="not enough disk space full drive capacity staging download_engine_dir f drive mount free">
+                  <span>08 · Storage</span><strong>Fix a disk-space warning</strong><p>Check the staging filesystem—not only the final media drive.</p>
+                </a>
+                <a class="guide-topic-card" href="#fix-a-problem" data-guide-item data-search="error broken could not load page health 503 degraded logs troubleshoot import connection sign in">
+                  <span>09 · Diagnose</span><strong>Triage a failure safely</strong><p>Use the symptom matrix and preserve useful evidence.</p>
+                </a>
+                <a class="guide-topic-card" href="#routine-operations" data-guide-item data-search="backup restore update upgrade recreate security reverse proxy account admin">
+                  <span>10 · Maintain</span><strong>Back up and update safely</strong><p>Protect SQLite state before changing the runtime.</p>
+                </a>
+              </div>
+            </section>
+
+            <p class="guide-no-results" data-guide-no-results hidden>
+              No guide topic matches that search. Try a shorter symptom or open the
+              <a href="https://github.com/TannerMidd/Nooklet/wiki/Troubleshooting">complete troubleshooting guide</a>.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div class="guide-layout shell">
+        <aside class="guide-rail" aria-label="On this page">
+          <p>On this page</p>
+          <nav data-section-nav>
+            <a href="#first-request">First request</a>
+            <a href="#install">Install</a>
+            <a href="#setup-center">Setup Center</a>
+            <a href="#find-and-request">Find + request</a>
+            <a href="#season-requests">TV seasons</a>
+            <a href="#activity">Activity</a>
+            <a href="#library">Library</a>
+            <a href="#disk-space">Disk space</a>
+            <a href="#fix-a-problem">Troubleshooting</a>
+            <a href="#routine-operations">Maintenance</a>
+          </nav>
+        </aside>
+
+        <div class="guide-document">
+          <section class="guide-section" id="first-request" aria-labelledby="first-request-title">
+            <div class="guide-section-heading" data-reveal>
+              <p class="eyebrow">Administrator path</p>
+              <h2 id="first-request-title">The shortest safe path to a first request.</h2>
+              <p>
+                Configure one complete movie <strong>or</strong> TV path first. Recommendations, watch history,
+                notifications, and the other media type can wait.
+              </p>
+            </div>
+
+            <ol class="first-request-steps">
+              <li data-reveal><span>01</span><div><strong>Install</strong><p>Start the Docker Compose deployment with explicit media and staging mounts.</p></div></li>
+              <li data-reveal><span>02</span><div><strong>Create the administrator</strong><p>Use the one-time bootstrap token, then remove it and recreate the container.</p></div></li>
+              <li data-reveal><span>03</span><div><strong>Verify metadata + acquisition</strong><p>Test TMDB, one Newznab indexer, and either native Usenet or SABnzbd.</p></div></li>
+              <li data-reveal><span>04</span><div><strong>Attach storage</strong><p>Use container-visible paths for a writable destination and, for native Usenet, staging.</p></div></li>
+              <li data-reveal><span>05</span><div><strong>Confirm readiness</strong><p>Setup Center must show the intended media path and background worker as ready.</p></div></li>
+              <li data-reveal><span>06</span><div><strong>Request something small</strong><p>Follow it through Activity until the final file is visible in Library.</p></div></li>
+            </ol>
+
+            <div class="readiness-panel" id="first-request-checklist" data-reveal>
+              <div>
+                <p class="card-kicker">Ready means verified, not merely saved</p>
+                <h3>One complete request path needs all six checks.</h3>
+              </div>
+              <ul>
+                <li><span aria-hidden="true">✓</span> TMDB is verified.</li>
+                <li><span aria-hidden="true">✓</span> Native Usenet or SABnzbd is verified.</li>
+                <li><span aria-hidden="true">✓</span> An enabled, verified Newznab indexer covers the media type.</li>
+                <li><span aria-hidden="true">✓</span> The final destination is reachable and writable.</li>
+                <li><span aria-hidden="true">✓</span> Native staging is writable with positive capacity when used.</li>
+                <li><span aria-hidden="true">✓</span> The background worker is responsive and not degraded.</li>
+              </ul>
+            </div>
+          </section>
+
+          <section class="guide-section" id="install" aria-labelledby="install-title">
+            <div class="guide-section-heading" data-reveal>
+              <p class="eyebrow">Step 1</p>
+              <h2 id="install-title">Install with Docker Compose.</h2>
+              <p>
+                Docker is the recommended route. It supplies Node.js, the worker, SQLite, the native downloader,
+                PAR2, UnRAR, and 7-Zip as one reproducible deployment.
+              </p>
+            </div>
+
+            <div class="guide-callout guide-callout-neutral" data-reveal>
+              <strong>Before you begin</strong>
+              <p>
+                Have Docker Compose v2, Git, a media folder, a separate staging folder for native downloads, TMDB
+                credentials, a Newznab account, and either Usenet credentials or an existing SABnzbd instance.
+              </p>
+            </div>
+
+            <div class="guide-command-grid">
+              <article class="guide-command-card" data-reveal>
+                <p class="card-kicker">Clone + environment</p>
+                <h3>Prepare the project.</h3>
+                <div class="code-block">
+                  <button type="button" data-copy-target="clone-command">Copy</button>
+                  <pre id="clone-command"><code>git clone https://github.com/TannerMidd/Nooklet.git
+cd Nooklet
+cp .env.example .env</code></pre>
+                </div>
+                <p>On Windows PowerShell, replace the final command with <code>Copy-Item .env.example .env</code>.</p>
+              </article>
+
+              <article class="guide-command-card" data-reveal>
+                <p class="card-kicker">Start + verify</p>
+                <h3>Build the runtime.</h3>
+                <div class="code-block">
+                  <button type="button" data-copy-target="start-command">Copy</button>
+                  <pre id="start-command"><code>docker compose config --quiet
+docker compose up -d --build
+docker compose ps</code></pre>
+                </div>
+                <p>Open <code>http://localhost:42021</code> after the service is healthy.</p>
+              </article>
+            </div>
+
+            <div class="mount-model" data-reveal>
+              <div class="mount-copy">
+                <p class="card-kicker">The path rule that prevents most confusion</p>
+                <h3>Configure the path on the right side of each mount.</h3>
+                <p>
+                  Nooklet runs inside the container. It cannot use <code>F:\…</code> directly. If the host staging
+                  folder is mounted at <code>/downloads</code>, set <code>DOWNLOAD_ENGINE_DIR</code> beneath
+                  <code>/downloads</code>.
+                </p>
+              </div>
+              <div class="mount-diagram" role="img" aria-label="Host F drive Nooklet Downloads folder mounted into the container at slash downloads, which contains the Nooklet engine staging directory">
+                <div><span>Host</span><strong>F:/Nooklet/Downloads</strong></div>
+                <b aria-hidden="true">→ bind mount →</b>
+                <div><span>Container</span><strong>/downloads</strong></div>
+                <b aria-hidden="true">→ configure →</b>
+                <div><span>Nooklet</span><strong>/downloads/nooklet-engine</strong></div>
+              </div>
+            </div>
+
+            <details class="guide-details" data-reveal>
+              <summary>Example Docker storage override</summary>
+              <div class="code-block">
+                <button type="button" data-copy-target="mount-command">Copy</button>
+                <pre id="mount-command"><code>services:
+  app:
+    volumes:
+      - "D:/Media/Movies:/media/movies"
+      - "D:/Media/TV:/media/tv"
+      - "F:/Nooklet/Downloads:/downloads"</code></pre>
+              </div>
+              <div class="details-copy">
+                <p>Then use these container-side environment values:</p>
+                <p><code>APPROVED_MEDIA_ROOTS=/media</code><br /><code>APPROVED_DOWNLOAD_ROOTS=/downloads</code><br /><code>DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine</code></p>
+              </div>
+            </details>
+
+            <div class="guide-links" data-reveal>
+              <a href="https://github.com/TannerMidd/Nooklet/wiki/Docker-Installation">Full Docker installation runbook <span aria-hidden="true">→</span></a>
+              <a href="https://github.com/TannerMidd/Nooklet/wiki/Storage-and-Path-Mapping">Storage and path mapping <span aria-hidden="true">→</span></a>
+            </div>
+          </section>
+
+          <section class="guide-section" id="setup-center" aria-labelledby="setup-title">
+            <div class="guide-section-heading" data-reveal>
+              <p class="eyebrow">Step 2</p>
+              <h2 id="setup-title">Let Setup Center prove the complete path.</h2>
+              <p>
+                Saving a credential or folder is not the same as being ready. Return to Setup Center after each
+                configuration step and look for a verified, writable, capacity-aware path.
+              </p>
+            </div>
+
+            <div class="setup-sequence">
+              <article data-reveal><span>01</span><h3>Create the first administrator</h3><p>Enter the exact one-time bootstrap token, a valid email, display name, and strong password.</p></article>
+              <article data-reveal><span>02</span><h3>Remove bootstrap access</h3><p>Clear <code>BOOTSTRAP_TOKEN</code> in <code>.env</code>, then recreate the container so the route closes.</p></article>
+              <article data-reveal><span>03</span><h3>Verify TMDB</h3><p>Open <strong>Settings → Connections</strong>, test the credential, and confirm <strong>Verified</strong>.</p></article>
+              <article data-reveal><span>04</span><h3>Choose a downloader</h3><p>Verify native Usenet (preferred) or SABnzbd. Only one is required.</p></article>
+              <article data-reveal><span>05</span><h3>Add Newznab</h3><p>Enable the provider, select Movies and/or TV categories, then use <strong>Test &amp; add</strong>.</p></article>
+              <article data-reveal><span>06</span><h3>Attach a destination</h3><p>In <strong>Settings → Storage</strong>, choose a container path inside an approved root and verify write access.</p></article>
+              <article data-reveal><span>07</span><h3>Check the worker</h3><p>Open <strong>Health &amp; readiness</strong>. The background worker must be responsive and non-degraded.</p></article>
+            </div>
+
+            <div class="guide-callout guide-callout-warning" data-reveal>
+              <strong>Newznab only</strong>
+              <p>
+                Automatic acquisition does not support Torznab or torrent transport. If no compatible Newznab
+                source is enabled, Nooklet stops with a setup action instead of choosing an unusable release.
+              </p>
+            </div>
+
+            <div class="guide-links" data-reveal>
+              <a href="https://github.com/TannerMidd/Nooklet/wiki/First-Time-Setup">Full first-time setup guide <span aria-hidden="true">→</span></a>
+              <a href="https://github.com/TannerMidd/Nooklet/wiki/Service-Connections">Service connection reference <span aria-hidden="true">→</span></a>
+              <a href="https://github.com/TannerMidd/Nooklet/wiki/Indexers">Indexer setup <span aria-hidden="true">→</span></a>
+            </div>
+          </section>
+
+          <section class="guide-section" id="find-and-request" aria-labelledby="request-title">
+            <div class="guide-section-heading" data-reveal>
+              <p class="eyebrow">Daily use</p>
+              <h2 id="request-title">Find a title, choose the scope, follow the outcome.</h2>
+              <p>
+                Search and Discover enter the same request workflow. Recommendations are another doorway—not a
+                different acquisition system.
+              </p>
+            </div>
+
+            <div class="task-lanes">
+              <article data-reveal>
+                <p class="card-kicker">Movie</p>
+                <h3>Request one title.</h3>
+                <ol>
+                  <li>Open <strong>Search</strong> or <strong>Discover</strong>.</li>
+                  <li>Open the movie and confirm the identity.</li>
+                  <li>Choose the final movie destination.</li>
+                  <li>Review the matching release and submit.</li>
+                  <li>Open <strong>Activity</strong> and wait for import.</li>
+                </ol>
+              </article>
+              <article data-reveal>
+                <p class="card-kicker">TV</p>
+                <h3>Choose season or episodes.</h3>
+                <ol>
+                  <li>Open the series and select the intended season.</li>
+                  <li>Keep the full season or narrow to episodes.</li>
+                  <li>Confirm the TV destination and request.</li>
+                  <li>Follow the grouped season plan in <strong>Activity</strong>.</li>
+                  <li>Confirm imported episodes in <strong>Library</strong>.</li>
+                </ol>
+              </article>
+            </div>
+
+            <div class="guide-callout guide-callout-success" data-reveal>
+              <strong>Availability means imported</strong>
+              <p>
+                An NZB in a queue is active work, not an available title. Nooklet confirms availability after
+                processing, safe import, and library observation of the final media file.
+              </p>
+            </div>
+
+            <details class="guide-details" data-reveal>
+              <summary>Using personal recommendations</summary>
+              <div class="details-copy">
+                <p>
+                  After an administrator verifies an OpenAI-compatible provider, open <strong>Movie ideas</strong> or
+                  <strong>TV ideas</strong>. Add a prompt or genres, optionally use watch-history context, and like,
+                  dislike, or open a suggestion. <strong>Past picks</strong> keeps generated batches;
+                  <strong>Your taste</strong> shows the signals shaping later ideas.
+                </p>
+                <p>
+                  AI is optional. You can always search and request a known title without it.
+                </p>
+              </div>
+            </details>
+          </section>
+
+          <section class="guide-section" id="season-requests" aria-labelledby="season-title">
+            <div class="guide-section-heading" data-reveal>
+              <p class="eyebrow">TV request resilience</p>
+              <h2 id="season-title">A failed pack does not mean a failed season.</h2>
+              <p>
+                The season plan is the durable outcome. Pack and episode downloads are inspectable attempts inside
+                it.
+              </p>
+            </div>
+
+            <div class="season-status-grid">
+              <article data-reveal>
+                <span class="status-badge status-recovering">Recovering</span>
+                <h3>Automatic work remains.</h3>
+                <p>
+                  Nooklet may be trying another compatible pack, waiting for active capacity, switching to missing
+                  aired episodes, or rechecking an unavailable episode. No manual retry is needed.
+                </p>
+              </article>
+              <article data-reveal>
+                <span class="status-badge status-blocked">Blocked</span>
+                <h3>A shared boundary needs repair.</h3>
+                <p>
+                  Follow the displayed storage, destination, downloader, credential, or indexer action. Fix that
+                  condition, then choose <strong>Resume season recovery</strong>.
+                </p>
+              </article>
+              <article data-reveal>
+                <span class="status-badge status-complete">Completed</span>
+                <h3>Required coverage is present.</h3>
+                <p>
+                  Eligible monitored episodes are now represented in the library. Future or unmonitored episodes can
+                  remain outside this plan.
+                </p>
+              </article>
+            </div>
+
+            <ol class="season-flow-list" data-reveal>
+              <li><span>1</span><div><strong>Complete-season pack first</strong><p>Search and try a matching release.</p></div></li>
+              <li><span>2</span><div><strong>Alternate compatible packs</strong><p>Eligible content failures advance through at most three physical pack attempts.</p></div></li>
+              <li><span>3</span><div><strong>Individual-episode fallback</strong><p>No usable pack, exhausted packs, or incomplete imported coverage moves to missing aired episodes automatically.</p></div></li>
+              <li><span>4</span><div><strong>Preserve progress</strong><p>Owned files and compatible active work are reused; unavailable episodes keep their own retry schedule.</p></div></li>
+            </ol>
+
+            <div class="guide-callout guide-callout-neutral" data-reveal>
+              <strong>Restart behavior</strong>
+              <p>
+                The season plan, queue intent, attempts, and retry timing survive a process restart. An interrupted
+                native transfer currently restarts from the stored NZB; byte-level transfer resume is not
+                implemented.
+              </p>
+            </div>
+
+            <div class="guide-links" data-reveal>
+              <a href="https://github.com/TannerMidd/Nooklet/wiki/Library-and-Requests">Library and request behavior <span aria-hidden="true">→</span></a>
+              <a href="https://github.com/TannerMidd/Nooklet/wiki/Downloads-and-Import">Download and recovery details <span aria-hidden="true">→</span></a>
+            </div>
+          </section>
+
+          <section class="guide-section" id="activity" aria-labelledby="activity-title">
+            <div class="guide-section-heading" data-reveal>
+              <p class="eyebrow">Follow the work</p>
+              <h2 id="activity-title">Use Activity as the source of truth.</h2>
+              <p>
+                Start with the group status and message before acting on a child attempt. A red child release inside
+                a Recovering season can simply be evidence that the coordinator already moved on.
+              </p>
+            </div>
+
+            <div class="activity-map">
+              <article data-reveal><span>Active</span><h3>Work is moving or waiting normally.</h3><p>Search, queue, transfer, processing, import, or automatic recovery is still eligible.</p></article>
+              <article data-reveal><span>Needs attention</span><h3>The next action belongs to you.</h3><p>Read the bounded failure message, repair the named boundary, and use the offered retry or resume action.</p></article>
+              <article data-reveal><span>Completed</span><h3>The request reached a terminal outcome.</h3><p>Search history to confirm success, cancellation, or a final failure and its recorded reason.</p></article>
+            </div>
+
+            <ul class="guide-rules" data-reveal>
+              <li>Refresh Activity before retrying a queue-control conflict; the item may have entered repair or extraction.</li>
+              <li>Pause is observed between segment operations, not midway through a filesystem write.</li>
+              <li>Repair and extraction cannot be safely cancelled after they begin.</li>
+              <li>One native release runs globally at a time; segments inside that release can transfer concurrently.</li>
+            </ul>
+          </section>
+
+          <section class="guide-section" id="library" aria-labelledby="library-title">
+            <div class="guide-section-heading" data-reveal>
+              <p class="eyebrow">Organize and reconcile</p>
+              <h2 id="library-title">Keep Library grounded in real files.</h2>
+              <p>
+                Library folders, title records, requests, and media files are separate on purpose. Scans reconcile
+                the configured filesystem with Nooklet’s understanding of what is actually available.
+              </p>
+            </div>
+
+            <figure class="library-guide-figure" data-reveal>
+              <img
+                src="../assets/library.webp"
+                width="1600"
+                height="900"
+                alt="Nooklet Library overview showing library, title, media file, and monitoring statistics"
+                loading="lazy"
+              />
+              <figcaption>
+                Browse Movies or TV, search titles, filter monitoring and availability, and open a title to request
+                more or adjust its monitoring behavior.
+              </figcaption>
+            </figure>
+
+            <div class="guide-callout guide-callout-neutral" data-reveal>
+              <strong>After an external move</strong>
+              <p>
+                Run a library scan after another tool moves files. Confirm that the destination still resolves
+                inside Nooklet and remains readable; imports additionally require write access.
+              </p>
+            </div>
+          </section>
+
+          <section class="guide-section" id="roles" aria-labelledby="roles-title">
+            <div class="guide-section-heading" data-reveal>
+              <p class="eyebrow">Shared instance map</p>
+              <h2 id="roles-title">Personal choices stay personal. Infrastructure stays administered.</h2>
+            </div>
+            <div class="role-grid">
+              <article data-reveal>
+                <p class="card-kicker">Every user</p>
+                <h3>Personal experience</h3>
+                <p>Account, preferences, request history, recommendation feedback, personal history sources, and personal notification preferences where shown.</p>
+              </article>
+              <article data-reveal>
+                <p class="card-kicker">Administrator</p>
+                <h3>Instance infrastructure</h3>
+                <p>Connections, indexers, storage, downloader, automation, Health &amp; readiness, and managed user access.</p>
+              </article>
+            </div>
+          </section>
+
+          <section class="guide-section disk-space-section" id="disk-space" aria-labelledby="disk-space-title">
+            <div class="guide-section-heading" data-reveal>
+              <p class="eyebrow">The most common storage surprise</p>
+              <h2 id="disk-space-title">“My media drive has room. Why does Nooklet say it doesn’t?”</h2>
+              <p>
+                The built-in engine checks the filesystem containing <code>DOWNLOAD_ENGINE_DIR</code>. That is the
+                staging workspace for download, repair, and extraction—not the final movie or TV destination.
+              </p>
+            </div>
+
+            <div class="disk-diagnosis" data-reveal>
+              <div>
+                <span>Check this first</span>
+                <strong>Settings → Storage → Download workspace</strong>
+                <p>Read the configured path, effective path, underlying filesystem, active reservation, and estimated capacity for new work.</p>
+              </div>
+              <ol>
+                <li>Confirm the effective path is beneath the intended container mount, such as <code>/downloads/nooklet-engine</code>.</li>
+                <li>Confirm the spacious host folder is actually bound to <code>/downloads</code>.</li>
+                <li>Review active downloads, because they reserve transfer and post-processing capacity.</li>
+                <li>Confirm the container user can write to staging.</li>
+                <li>If an environment or mount value changed, recreate the container and recheck Storage.</li>
+              </ol>
+            </div>
+
+            <div class="guide-command-card recreate-card" data-reveal>
+              <p class="card-kicker">Apply mount or environment changes</p>
+              <div class="code-block">
+                <button type="button" data-copy-target="recreate-command">Copy</button>
+                <pre id="recreate-command"><code>docker compose up -d --build --force-recreate
+docker compose ps</code></pre>
+              </div>
+              <p>A plain restart reuses the previous environment and mount specification.</p>
+            </div>
+
+            <div class="guide-callout guide-callout-warning" data-reveal>
+              <strong>Do not move or delete data blindly</strong>
+              <p>
+                Never use <code>docker compose down -v</code> as a troubleshooting step. It deletes the persistent
+                database volume. Do not delete SQLite, WAL, or SHM files while the app is running.
+              </p>
+            </div>
+          </section>
+
+          <section class="guide-section" id="fix-a-problem" aria-labelledby="problems-title">
+            <div class="guide-section-heading" data-reveal>
+              <p class="eyebrow">Symptom-first troubleshooting</p>
+              <h2 id="problems-title">Start at the boundary that actually failed.</h2>
+              <p>
+                Try a failed page once more, then use Health, Activity, Storage, and bounded logs to identify the
+                failing layer. Keep any displayed reference number with your reproduction notes.
+              </p>
+            </div>
+
+            <div class="problem-list">
+              <details data-reveal>
+                <summary><span>Page</span>Nooklet could not load this page</summary>
+                <div><p>Try again once. If it repeats, open <strong>Health &amp; readiness</strong>, keep the displayed reference, and inspect a bounded app-log window.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/Health-and-Diagnostics">Health and diagnostics →</a></div>
+              </details>
+              <details data-reveal>
+                <summary><span>Discover</span>Search or discovery is empty</summary>
+                <div><p>Confirm TMDB is <strong>Verified</strong> and reachable from the Nooklet runtime. AI is unrelated to known-title search.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/Discover-and-Recommendations">Discovery guide →</a></div>
+              </details>
+              <details data-reveal>
+                <summary><span>Readiness</span>A title is visible but cannot be requested</summary>
+                <div><p>Open Setup Center and inspect readiness for that media type: indexer category, downloader, destination, native staging, and worker.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/First-Time-Setup">Readiness rules →</a></div>
+              </details>
+              <details data-reveal>
+                <summary><span>Indexer</span>No releases are found</summary>
+                <div><p>Confirm an enabled, <strong>Verified</strong> Newznab source includes Movies or TV categories. Torznab results cannot be acquired.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/Indexers">Indexer guide →</a></div>
+              </details>
+              <details data-reveal>
+                <summary><span>Import</span>A download completed but did not reach Library</summary>
+                <div><p>Inspect Activity, worker health, the writable approved destination, archive tooling, and—when using SABnzbd—the reported completion-path mapping.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/Downloads-and-Import">Downloads and import →</a></div>
+              </details>
+              <details data-reveal>
+                <summary><span>Season</span>A season child attempt failed</summary>
+                <div><p>If the group says <strong>Recovering</strong>, wait; Nooklet already moved on. If it says <strong>Blocked</strong>, repair the named boundary and choose <strong>Resume season recovery</strong>.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/Library-and-Requests">Season behavior →</a></div>
+              </details>
+              <details data-reveal>
+                <summary><span>Connection</span>Plex, Tautulli, SAB, or local AI cannot connect</summary>
+                <div><p>Address the service from inside Docker—container <code>localhost</code> is not the host. Allowlist the exact private hostname or IP, then recreate when environment values changed.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/Service-Connections">Service networking →</a></div>
+              </details>
+              <details data-reveal>
+                <summary><span>Health</span>The health probe says degraded or returns 503</summary>
+                <div><p>HTTP 200 with <code>degraded</code> means the worker is responsive but its latest maintenance pass recorded an error. HTTP 503 means the database is unavailable or the worker is stale.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/Health-and-Diagnostics">Interpret health →</a></div>
+              </details>
+              <details data-reveal>
+                <summary><span>Sign in</span>An account cannot sign in</summary>
+                <div><p>Stop burst retries during the five-minute window. A disabled user needs another administrator; a temporary password must be replaced from Account.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/Account-and-User-Administration">Account recovery →</a></div>
+              </details>
+              <details data-reveal>
+                <summary><span>Container</span>The app will not start</summary>
+                <div><p>Run quiet Compose validation, inspect the earliest bounded log error, and check port or container-name collisions before rebuilding repeatedly.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/Troubleshooting">Container troubleshooting →</a></div>
+              </details>
+            </div>
+          </section>
+
+          <section class="guide-section" id="routine-operations" aria-labelledby="operations-title">
+            <div class="guide-section-heading" data-reveal>
+              <p class="eyebrow">Routine operations</p>
+              <h2 id="operations-title">Protect state before changing the runtime.</h2>
+              <p>
+                Nooklet’s SQLite database contains users, settings, requests, history, jobs, and audit events.
+                Application updates and database state must be treated as one recovery pair.
+              </p>
+            </div>
+
+            <div class="operations-checklist">
+              <article data-reveal><span>Before an update</span><h3>Verify health and create an off-host backup.</h3><p>Record the current Git revision, create a verified database copy, and move it off the Docker volume.</p></article>
+              <article data-reveal><span>Apply the update</span><h3>Pull forward and rebuild deliberately.</h3><p>Use a fast-forward-only pull, rebuild Compose, then read startup and migration logs.</p></article>
+              <article data-reveal><span>After an update</span><h3>Verify more than process startup.</h3><p>Check <code>/api/health</code>, sign in, inspect representative state, and exercise one workflow.</p></article>
+            </div>
+
+            <div class="guide-links guide-links-wide" data-reveal>
+              <a href="https://github.com/TannerMidd/Nooklet/wiki/Backup-Restore-and-Upgrades">Backup, restore, and upgrade runbook <span aria-hidden="true">→</span></a>
+              <a href="https://github.com/TannerMidd/Nooklet/wiki/Reverse-Proxy-and-LAN-Access">Reverse proxy and LAN access <span aria-hidden="true">→</span></a>
+              <a href="https://github.com/TannerMidd/Nooklet/wiki/Security-Model">Security model <span aria-hidden="true">→</span></a>
+              <a href="https://github.com/TannerMidd/Nooklet/wiki/Automation-and-Notifications">Automation and notifications <span aria-hidden="true">→</span></a>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <section class="closing shell guide-closing" aria-labelledby="closing-title" data-reveal>
+        <p class="eyebrow">Need the deeper runbook?</p>
+        <h2 id="closing-title">The guide gets you oriented. The Wiki carries the operational detail.</h2>
+        <p>
+          Use the full Wiki for platform-specific installation, every configuration field, restore rehearsal,
+          account recovery, advanced networking, API contracts, and contributor documentation.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://github.com/TannerMidd/Nooklet/wiki">Open the complete Wiki</a>
+          <a class="button button-secondary" href="../features/">Review Nooklet features</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-grid">
+        <div>
+          <a class="brand footer-brand" href="../"><span class="brand-dot" aria-hidden="true"></span><span class="brand-name">Nooklet</span></a>
+          <p>A clear route from setup through everyday use and recovery.</p>
+        </div>
+        <nav aria-label="Nooklet resources">
+          <a href="../features/">Features</a>
+          <a href="../">Architecture</a>
+          <a href="https://github.com/TannerMidd/Nooklet/wiki">Wiki</a>
+          <a href="https://github.com/TannerMidd/Nooklet/issues">Support</a>
+          <a href="https://github.com/TannerMidd/Nooklet/security/advisories/new">Security</a>
+        </nav>
+        <p class="revision">User guide<br />Reviewed July 17, 2026</p>
+      </div>
+    </footer>
+
+    <p class="sr-only" id="copy-status" aria-live="polite"></p>
+  </body>
+</html>

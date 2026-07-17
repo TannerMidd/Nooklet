@@ -2,6 +2,8 @@
 
 - [Home](Home)
 - [Documentation map](Documentation-Map)
+- [Feature guide](https://tannermidd.github.io/Nooklet/features/)
+- [User guide](https://tannermidd.github.io/Nooklet/guide/)
 - [Engineering dossier](https://tannermidd.github.io/Nooklet/)
 
 **Start here**

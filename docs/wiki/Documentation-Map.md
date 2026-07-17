@@ -6,6 +6,8 @@ Use this page to find the right level of detail and to understand which artifact
 
 | Task | Primary guide | Follow-up |
 | --- | --- | --- |
+| See what Nooklet does | [Feature guide](https://tannermidd.github.io/Nooklet/features/) | [Engineering dossier](https://tannermidd.github.io/Nooklet/) |
+| Follow a curated setup and usage path | [User guide](https://tannermidd.github.io/Nooklet/guide/) | [Getting started](Getting-Started) |
 | New Docker installation | [Getting started](Getting-Started) | [First-time setup](First-Time-Setup) |
 | Fix storage or path errors | [Storage and path mapping](Storage-and-Path-Mapping) | [Troubleshooting](Troubleshooting) |
 | Add or verify integrations | [Service connections](Service-Connections) | [Indexers](Indexers) |
@@ -26,7 +28,7 @@ When two documents conflict, use this order:
 6. The Wiki translates current behavior into operator and contributor procedures.
 7. The README is a concise entry point, not a complete reference.
 
-The [engineering dossier](https://tannermidd.github.io/Nooklet/) adds source-backed charts and architectural explanations. It does not replace operational runbooks.
+The public Pages site adds a visual [Feature guide](https://tannermidd.github.io/Nooklet/features/), a curated [User guide](https://tannermidd.github.io/Nooklet/guide/), and a source-backed [engineering dossier](https://tannermidd.github.io/Nooklet/). These entry points do not replace the Wiki’s detailed operational runbooks.
 
 ## Maintenance standard
 
@@ -34,4 +36,4 @@ Every operational change should update the code, tests, `.env.example` when rele
 
 ---
 
-Last reviewed: **July 15, 2026**.
+Last reviewed: **July 17, 2026**.

@@ -6,6 +6,8 @@ on:
     paths:
       - "engineering-dossier/**"
       - ".github/workflows/engineering-dossier-pages.yml"
+      - "package.json"
+      - "scripts/validate-engineering-dossier.mjs"
   workflow_dispatch:
 
 permissions: {}
@@ -25,41 +27,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
       - name: Validate static dossier
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-
-          if [[ ! -f engineering-dossier/index.html ]]; then
-            echo "engineering-dossier/index.html is required."
-            exit 1
-          fi
-
-          symlink="$(find engineering-dossier -type l -print -quit)"
-          if [[ -n "$symlink" ]]; then
-            echo "Symlinks are not permitted in the Pages artifact: $symlink"
-            exit 1
-          fi
-
-          sensitive_file="$(find engineering-dossier -type f \( \
-            -iname '.env' -o \
-            -iname '.env.*' -o \
-            -iname '*.db' -o \
-            -iname '*.db-wal' -o \
-            -iname '*.db-shm' -o \
-            -iname '*.sqlite' -o \
-            -iname '*.sqlite3' -o \
-            -iname '*.pem' -o \
-            -iname '*.key' -o \
-            -iname '*.p12' -o \
-            -iname '*.pfx' -o \
-            -iname '*.log' -o \
-            -iname '*.bak' \
-          \) -print -quit)"
-          if [[ -n "$sensitive_file" ]]; then
-            echo "Sensitive file type is not permitted in the Pages artifact: $sensitive_file"
-            exit 1
-          fi
+        run: npm run docs:dossier:check
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
