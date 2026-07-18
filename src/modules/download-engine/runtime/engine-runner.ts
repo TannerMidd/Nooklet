@@ -266,6 +266,18 @@ async function processEngineDownload(download: EngineDownloadRecord) {
       return;
     }
 
+    if (result.unrecoverable) {
+      const failureKind = classifyEngineNntpFailureKinds(result.failureKinds);
+      await setEngineDownloadState(download.id, "failed", {
+        failureKind,
+        errorMessage: failureKind === "infrastructure"
+          ? "The transfer stopped early because the news server kept failing mid-download. Check the Usenet connection, then resume this download."
+          : "The transfer stopped early: more articles are missing or damaged than the release's PAR2 recovery set can repair, so it can never assemble completely.",
+        completedAt: new Date(),
+      });
+      return;
+    }
+
     const lateSignal = runtime.controls!.get(download.id);
     if (lateSignal) {
       runtime.controls!.delete(download.id);

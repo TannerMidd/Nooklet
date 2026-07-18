@@ -53,6 +53,12 @@ export type DownloadNzbResult = {
   failedSegments: number;
   totalSegments: number;
   aborted: boolean;
+  /**
+   * True when the transfer stopped early because more data was lost than any
+   * PAR2 recovery set in this NZB could repair — the release is a write-off
+   * and the caller should move on instead of fetching the remainder.
+   */
+  unrecoverable: boolean;
   failureKinds: NntpErrorKind[];
   /** True when every file completed with zero failed segments. */
   ok: boolean;
@@ -108,6 +114,11 @@ function fallbackFileName(subject: string, fileIndex: number) {
   return sanitizeDownloadFileName(quoted ?? subject, `file-${fileIndex + 1}.bin`);
 }
 
+/** PAR2 recovery volumes are identifiable from the NZB subject line. */
+function isPar2Subject(subject: string) {
+  return /\.par2\b/i.test(subject);
+}
+
 export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbResult> {
   const clientFactory = input.clientFactory ?? defaultClientFactory;
   const maxRetries = input.maxRetriesPerSegment ?? 2;
@@ -144,6 +155,29 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     completedSegments: 0,
     failedSegments: 0,
   };
+
+  // Unrecoverable-release detection. NZB segment sizes are yEnc-encoded for
+  // payload and PAR2 volumes alike, so once the encoded bytes lost from data
+  // files exceed the encoded bytes of the still-fetchable recovery set, no
+  // PAR2 repair can succeed and fetching the remainder is pure waste. PAR2
+  // block granularity only ever lowers real capacity below this byte-level
+  // estimate, so the abandon decision cannot fire on a repairable release.
+  // When no PAR2 set is visible (fully obfuscated posts can hide one), a 10%
+  // allowance stands in for the largest plausible hidden recovery set.
+  const par2FileIndexes = new Set(
+    input.nzb.files.flatMap((file, index) => (isPar2Subject(file.subject) ? [index] : [])),
+  );
+  const par2DeclaredBytes = input.nzb.files.reduce(
+    (total, file, index) => (par2FileIndexes.has(index) ? total + file.declaredBytes : total),
+    0,
+  );
+  const hiddenRecoveryAllowance = par2DeclaredBytes > 0
+    ? 0
+    : Math.floor(input.nzb.declaredBytes * 0.1);
+  let failedDataBytes = 0;
+  let lostPar2Bytes = 0;
+  let unrecoverable = false;
+
   let nextTaskIndex = 0;
   let aborted = false;
   let fatalError: Error | null = null;
@@ -344,6 +378,10 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
         break;
       }
 
+      if (unrecoverable) {
+        break;
+      }
+
       const taskIndex = nextTaskIndex;
 
       if (taskIndex >= tasks.length) {
@@ -390,6 +428,12 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
           if (permanent || attempt === maxRetries) {
             break;
           }
+
+          // Another worker may have proven the release unrepairable while
+          // this attempt was in flight; further retries cannot change that.
+          if (unrecoverable) {
+            break;
+          }
         }
       }
 
@@ -397,6 +441,16 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
         if (terminalFailureKind) failureKinds.add(terminalFailureKind);
         state.failedSegments += 1;
         totals.failedSegments += 1;
+
+        if (par2FileIndexes.has(task.fileIndex)) {
+          lostPar2Bytes += task.declaredBytes;
+        } else {
+          failedDataBytes += task.declaredBytes;
+        }
+
+        if (failedDataBytes > Math.max(0, par2DeclaredBytes - lostPar2Bytes) + hiddenRecoveryAllowance) {
+          unrecoverable = true;
+        }
       } else {
         state.completedSegments += 1;
         totals.completedSegments += 1;
@@ -463,6 +517,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     failedSegments: totals.failedSegments,
     totalSegments: tasks.length,
     aborted,
+    unrecoverable,
     failureKinds: [...failureKinds],
     ok: !aborted && files.every((file) => file.ok),
   };

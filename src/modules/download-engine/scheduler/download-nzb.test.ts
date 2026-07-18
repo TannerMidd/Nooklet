@@ -143,6 +143,97 @@ describe("downloadNzb", () => {
     expect(partialFile?.failedSegments).toBe(1);
   });
 
+  it("abandons the release once lost data exceeds its PAR2 recovery capacity", async () => {
+    // Every declared segment is 10 MB. One 10 MB PAR2 volume can repair at
+    // most one lost data segment; the second loss proves the release dead.
+    server = await startFakeNntpServer({ articles: new Map() });
+    workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+    const nzb = parseNzb(nzbXml([
+      {
+        subject: '"movie.mkv" yEnc (1/10)',
+        segmentIds: Array.from({ length: 10 }, (_, index) => `movie-${index + 1}@test`),
+      },
+      { subject: '"movie.vol000+01.par2" yEnc (1/1)', segmentIds: ["par2-1@test"] },
+    ]));
+
+    const result = await downloadNzb({
+      nzb,
+      server: { host: "127.0.0.1", port: server.port, trustedRootCertificates: [tlsTestCertificate], connections: 1, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      workDir,
+    });
+
+    expect(result.unrecoverable).toBe(true);
+    expect(result.aborted).toBe(false);
+    expect(result.ok).toBe(false);
+    expect(result.failedSegments).toBe(2);
+    expect(result.completedSegments).toBe(0);
+    expect(result.failureKinds).toEqual(["article-not-found"]);
+  });
+
+  it("keeps downloading while a PAR2 recovery set can still repair the damage", async () => {
+    const dataPayload = buildDeterministicPayload(4_000, 2);
+    const dataArticles = buildMultiPartArticles(dataPayload, "movie.mkv", 2);
+    const par2Payload = buildDeterministicPayload(2_000, 6);
+
+    server = await startFakeNntpServer({
+      articles: new Map([
+        ["movie-1@test", dataArticles[0]],
+        // movie-2@test intentionally missing → one 10 MB declared loss.
+        ["par2-1@test", buildSinglePartArticle(par2Payload, "movie.vol000+01.par2")],
+        ["par2-2@test", buildSinglePartArticle(par2Payload, "movie.vol001+02.par2")],
+      ]),
+    });
+    workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+    const nzb = parseNzb(nzbXml([
+      { subject: '"movie.mkv" yEnc (1/2)', segmentIds: ["movie-1@test", "movie-2@test"] },
+      { subject: '"movie.vol000+01.par2" yEnc (1/1)', segmentIds: ["par2-1@test"] },
+      { subject: '"movie.vol001+02.par2" yEnc (1/1)', segmentIds: ["par2-2@test"] },
+    ]));
+
+    const result = await downloadNzb({
+      nzb,
+      server: { host: "127.0.0.1", port: server.port, trustedRootCertificates: [tlsTestCertificate], connections: 1, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      workDir,
+    });
+
+    // 10 MB lost vs 20 MB of declared recovery volumes: still repairable, so
+    // every remaining segment must have been attempted.
+    expect(result.unrecoverable).toBe(false);
+    expect(result.failedSegments).toBe(1);
+    expect(result.completedSegments).toBe(3);
+  });
+
+  it("abandons a release without visible PAR2 once losses pass the hidden-recovery allowance", async () => {
+    const payload = buildDeterministicPayload(1_000, 8);
+    const articles = new Map<string, string>();
+
+    // 12 single-segment files → 120 MB declared, 12 MB hidden allowance.
+    // The first two files are missing; their 20 MB loss crosses the line.
+    for (let index = 2; index < 12; index += 1) {
+      articles.set(`obf-${index}@test`, buildSinglePartArticle(payload, `obf-${index}.bin`));
+    }
+
+    server = await startFakeNntpServer({ articles });
+    workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+    const nzb = parseNzb(nzbXml(Array.from({ length: 12 }, (_, index) => ({
+      subject: `"obf-${index}.bin"`,
+      segmentIds: [`obf-${index}@test`],
+    }))));
+
+    const result = await downloadNzb({
+      nzb,
+      server: { host: "127.0.0.1", port: server.port, trustedRootCertificates: [tlsTestCertificate], connections: 1, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      workDir,
+    });
+
+    expect(result.unrecoverable).toBe(true);
+    expect(result.failedSegments).toBe(2);
+    expect(result.completedSegments).toBe(0);
+  });
+
   it("preserves an exhausted connection failure for the engine classifier", async () => {
     workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
 
