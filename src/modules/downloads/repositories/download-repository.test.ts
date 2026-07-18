@@ -1100,6 +1100,60 @@ describe("download-repository", () => {
     expect(page.rows.every((row) => row.fulfillment?.id === fulfillmentId)).toBe(true);
   });
 
+  it("hides internal attempt fragments after their library title and plan are removed", async () => {
+    const database = ensureDatabaseReady();
+    const userId = await seedUser();
+    const { episodeTitleId, seasonId, episodeId } = seedTitleAndEpisode(userId);
+    const fulfillmentId = randomUUID();
+
+    database.insert(downloadFulfillments).values({
+      id: fulfillmentId,
+      userId,
+      mediaTitleId: episodeTitleId,
+      seasonId,
+      requestedTitle: "Severance Season 1",
+      strategy: "episodes",
+      status: "cancelled",
+    }).run();
+    const attempt = await createDownloadRequest({
+      userId,
+      mediaType: "tv",
+      mediaTitleId: episodeTitleId,
+      seasonId,
+      episodeId,
+      requestedTitle: "Severance S01E02",
+      fulfillmentId,
+      attemptStrategy: "episode",
+      attemptNumber: 1,
+      status: "cancelled",
+    });
+    const standalone = await createDownloadRequest({
+      userId,
+      mediaType: "movie",
+      requestedTitle: "Standalone Movie",
+      status: "cancelled",
+    });
+
+    database.delete(mediaTitles).where(eq(mediaTitles.id, episodeTitleId)).run();
+
+    const storedAttempt = await findDownloadRequestById(userId, attempt.id);
+    const rows = await listRecentDownloadRequestsWithQueueItems(userId, 10);
+    const attentionCount = await countDownloadRequestHistory({
+      userId,
+      statuses: ["failed", "cancelled"],
+    });
+
+    expect(storedAttempt).toMatchObject({
+      fulfillmentId: null,
+      mediaTitleId: null,
+      seasonId: null,
+      episodeId: null,
+      attemptStrategy: "episode",
+    });
+    expect(rows.map((row) => row.request?.id)).toEqual([standalone.id]);
+    expect(attentionCount).toBe(1);
+  });
+
   it("counts and pages season fulfillments before any physical request exists", async () => {
     const database = ensureDatabaseReady();
     const userId = await seedUser();

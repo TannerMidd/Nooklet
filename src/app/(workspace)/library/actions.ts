@@ -488,7 +488,12 @@ export async function removeMediaTitleAction(
     return { status: failedCount > 0 ? "warning" : "success", message };
   } catch (error) {
     if (error instanceof DeleteMediaTitleWithFilesError) {
-      return { ...initialRemoveMediaTitleActionState, status: "error", message: error.message };
+      return {
+        ...initialRemoveMediaTitleActionState,
+        status: "error",
+        message: error.message,
+        action: error.code === "active_download" ? "open_activity" : undefined,
+      };
     }
 
     return {

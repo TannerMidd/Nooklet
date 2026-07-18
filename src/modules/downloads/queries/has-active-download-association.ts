@@ -3,6 +3,7 @@ import { and, eq, inArray, or } from "drizzle-orm";
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
   activeDownloadRequestStatuses,
+  downloadFulfillments,
   downloadImportRuns,
   downloadQueueItems,
   downloadRequests,
@@ -19,17 +20,32 @@ const activeEngineDownloadStates = [
   "paused",
 ] as const;
 const activeImportRunStatuses = ["pending", "running"] as const;
+const openFulfillmentStatuses = ["active", "retry_wait", "partial"] as const;
 
 /**
- * A title cannot be removed while any part of its download lifecycle is live.
- * Looking at every persisted phase also protects against a stale request status
- * paired with a still-active downloader or import record.
+ * A title cannot be removed while a durable season plan or any physical part
+ * of its download lifecycle is live. Looking at every persisted phase also
+ * protects against a stale request status paired with a still-active
+ * downloader or import record.
  */
 export async function hasActiveDownloadAssociationForTitle(
   userId: string,
   titleId: string,
 ) {
   const database = ensureDatabaseReady();
+
+  const openFulfillment = database
+    .select({ id: downloadFulfillments.id })
+    .from(downloadFulfillments)
+    .where(and(
+      eq(downloadFulfillments.userId, userId),
+      eq(downloadFulfillments.mediaTitleId, titleId),
+      inArray(downloadFulfillments.status, [...openFulfillmentStatuses]),
+    ))
+    .limit(1)
+    .get();
+
+  if (openFulfillment) return true;
 
   return Boolean(database
     .select({ id: downloadRequests.id })

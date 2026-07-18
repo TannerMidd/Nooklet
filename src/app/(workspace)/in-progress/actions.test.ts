@@ -12,6 +12,13 @@ vi.mock("@/modules/downloads/workflows/import-completed-downloads", () => ({
 vi.mock("@/modules/downloads/workflows/import-completed-engine-downloads", () => ({
   importCompletedEngineDownloadsWorkflow: vi.fn(),
 }));
+vi.mock("@/modules/downloads/workflows/cancel-season-fulfillment", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/downloads/workflows/cancel-season-fulfillment")>();
+  return {
+    ...actual,
+    cancelSeasonFulfillmentWorkflow: vi.fn(),
+  };
+});
 vi.mock("@/modules/downloads/workflows/retry-download-request", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/downloads/workflows/retry-download-request")>();
   return {
@@ -24,6 +31,10 @@ vi.mock("@/modules/downloads/workflows/retry-download-request", async (importOri
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
+import {
+  cancelSeasonFulfillmentWorkflow,
+  CancelSeasonFulfillmentWorkflowError,
+} from "@/modules/downloads/workflows/cancel-season-fulfillment";
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
 import { importCompletedEngineDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-engine-downloads";
 import {
@@ -34,6 +45,7 @@ import {
 
 import { initialDownloadActivityActionState } from "./action-state";
 import {
+  cancelSeasonFulfillmentAction,
   resumeSeasonFulfillmentAction,
   retryCompletedDownloadImportAction,
   retryDownloadRequestAction,
@@ -41,6 +53,7 @@ import {
 } from "./actions";
 
 const authMock = vi.mocked(auth);
+const cancelFulfillmentMock = vi.mocked(cancelSeasonFulfillmentWorkflow);
 const retryWorkflowMock = vi.mocked(retryDownloadRequestWorkflow);
 const resumeFulfillmentMock = vi.mocked(resumeSeasonFulfillmentWorkflow);
 const importWorkflowMock = vi.mocked(importCompletedDownloadsWorkflow);
@@ -163,6 +176,51 @@ describe("resumeSeasonFulfillmentAction", () => {
       status: "error",
       message: "The download path is still unavailable.",
     });
+  });
+});
+
+describe("cancelSeasonFulfillmentAction", () => {
+  it("cancels the logical plan and revalidates Activity and Library", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    cancelFulfillmentMock.mockResolvedValue({
+      cancelled: true,
+      cancellationPending: false,
+      message: "Season recovery cancelled.",
+    });
+
+    const result = await cancelSeasonFulfillmentAction(
+      initialDownloadActivityActionState,
+      resumeForm(),
+    );
+
+    expect(cancelFulfillmentMock).toHaveBeenCalledWith("u1", requestId);
+    expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
+    expect(revalidateMock).toHaveBeenCalledWith("/library");
+    expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
+    expect(result).toEqual({
+      status: "success",
+      message: "Season recovery cancelled.",
+    });
+  });
+
+  it("validates ownership errors without exposing internal failures", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    cancelFulfillmentMock.mockRejectedValue(
+      new CancelSeasonFulfillmentWorkflowError(
+        "fulfillment_not_found",
+        "That season recovery plan is no longer available.",
+      ),
+    );
+
+    await expect(cancelSeasonFulfillmentAction(
+      initialDownloadActivityActionState,
+      resumeForm(),
+    )).resolves.toEqual({
+      status: "error",
+      message: "That season recovery plan is no longer available.",
+    });
+
+    expect(revalidateMock).not.toHaveBeenCalled();
   });
 });
 

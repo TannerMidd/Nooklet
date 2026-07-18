@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/modules/downloads/repositories/season-fulfillment-repository", () => ({
+  findDownloadFulfillmentById: vi.fn(),
   updateDownloadFulfillment: vi.fn(),
 }));
 vi.mock("@/modules/downloads/workflows/season-fulfillment-adoption", () => ({
@@ -11,7 +12,10 @@ vi.mock("@/modules/downloads/workflows/season-fulfillment-work-lease", () => ({
   renewSeasonFulfillmentWorkLease: vi.fn(),
 }));
 
-import { updateDownloadFulfillment } from "@/modules/downloads/repositories/season-fulfillment-repository";
+import {
+  findDownloadFulfillmentById,
+  updateDownloadFulfillment,
+} from "@/modules/downloads/repositories/season-fulfillment-repository";
 import { ensureSeasonFulfillmentForRequest } from "@/modules/downloads/workflows/season-fulfillment-adoption";
 import {
   isSeasonFulfillmentWorkLease,
@@ -19,11 +23,13 @@ import {
 } from "@/modules/downloads/workflows/season-fulfillment-work-lease";
 
 import {
+  checkpointExistingSeasonFulfillmentCancellation,
   checkpointSeasonFulfillmentCancellation,
   rollbackSeasonFulfillmentCancellation,
 } from "./season-fulfillment-cancellation";
 
 const ensureMock = vi.mocked(ensureSeasonFulfillmentForRequest);
+const findFulfillmentMock = vi.mocked(findDownloadFulfillmentById);
 const updateMock = vi.mocked(updateDownloadFulfillment);
 const ownsLeaseMock = vi.mocked(isSeasonFulfillmentWorkLease);
 const renewLeaseMock = vi.mocked(renewSeasonFulfillmentWorkLease);
@@ -57,6 +63,14 @@ beforeEach(() => {
     statusMessage: "Season pack active.",
     completedAt: null,
   } as never);
+  findFulfillmentMock.mockResolvedValue({
+    id: "fulfillment-1",
+    status: "active",
+    nextAttemptAt: new Date("2026-07-16T18:15:00.000Z"),
+    cancellationRequestedAt: null,
+    statusMessage: "Season pack active.",
+    completedAt: null,
+  } as never);
   updateMock.mockResolvedValue({ id: "fulfillment-1", status: "retry_wait" } as never);
 });
 
@@ -80,7 +94,7 @@ describe("season fulfillment cancellation checkpoint", () => {
       status: "retry_wait",
       nextAttemptAt: new Date("2026-07-16T18:00:00.000Z"),
       cancellationRequestedAt: new Date("2026-07-16T18:00:00.000Z"),
-      statusMessage: "Cancellation requested; Nooklet is removing the active download.",
+      statusMessage: "Cancellation requested; Nooklet is removing active downloads.",
       completedAt: null,
     });
     expect(checkpoint).toEqual({
@@ -94,6 +108,23 @@ describe("season fulfillment cancellation checkpoint", () => {
         completedAt: null,
       },
     });
+  });
+
+  it("checkpoints a plan directly when it has no physical request", async () => {
+    const checkpoint = await checkpointExistingSeasonFulfillmentCancellation(
+      "user-1",
+      "fulfillment-1",
+      workLease,
+    );
+
+    expect(findFulfillmentMock).toHaveBeenCalledWith("user-1", "fulfillment-1");
+    expect(ensureMock).not.toHaveBeenCalled();
+    expect(checkpoint?.fulfillmentId).toBe("fulfillment-1");
+    expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({
+      fulfillmentId: "fulfillment-1",
+      status: "retry_wait",
+      cancellationRequestedAt: new Date("2026-07-16T18:00:00.000Z"),
+    }));
   });
 
   it("refuses to checkpoint after lease ownership is lost", async () => {

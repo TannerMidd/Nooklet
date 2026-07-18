@@ -53,6 +53,7 @@ export const initialLibraryItemSearchActionState: LibraryItemSearchActionState =
 export type RemoveMediaTitleActionState = {
   status: "idle" | "success" | "warning" | "error";
   message: string | null;
+  action?: "open_activity";
 };
 
 export const initialRemoveMediaTitleActionState: RemoveMediaTitleActionState = {

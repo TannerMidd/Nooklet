@@ -10,6 +10,10 @@ import {
   recordDownloadQueueItem,
 } from "@/modules/downloads/repositories/download-repository";
 import {
+  createOrGetOpenSeasonFulfillment,
+  updateDownloadFulfillment,
+} from "@/modules/downloads/repositories/season-fulfillment-repository";
+import {
   createMediaLibrary,
   createTvEpisode,
   createTvSeason,
@@ -167,5 +171,45 @@ describe("removeMediaTitleCommand", () => {
       .from(mediaTitles)
       .where(eq(mediaTitles.id, title.id))
       .get()?.id).toBe(title.id);
+  });
+
+  it("requires an open season plan to be cancelled before title removal", async () => {
+    const userId = await seedUser();
+    const library = await createMediaLibrary({ userId, mediaType: "tv", name: "TV Shows", isDefault: true });
+    const title = await upsertMediaTitle({
+      userId,
+      libraryId: library.id,
+      mediaType: "tv",
+      title: "Severance",
+      sortTitle: "severance",
+      normalizedKey: "severance::open-plan",
+      year: 2022,
+    });
+
+    if (!title) throw new Error("title missing");
+
+    const season = await createTvSeason({ titleId: title.id, seasonNumber: 1 });
+    const fulfillment = await createOrGetOpenSeasonFulfillment({
+      userId,
+      mediaTitleId: title.id,
+      seasonId: season.id,
+      requestedTitle: "Severance S01",
+      status: "partial",
+      nextAttemptAt: new Date("2026-07-18T18:00:00.000Z"),
+    });
+
+    await expect(removeMediaTitleCommand(userId, { titleId: title.id }))
+      .rejects.toMatchObject({ code: "active_download" });
+
+    await updateDownloadFulfillment({
+      userId,
+      fulfillmentId: fulfillment.id,
+      status: "cancelled",
+      nextAttemptAt: null,
+      completedAt: new Date("2026-07-18T17:00:00.000Z"),
+    });
+
+    await expect(removeMediaTitleCommand(userId, { titleId: title.id }))
+      .resolves.toMatchObject({ id: title.id });
   });
 });

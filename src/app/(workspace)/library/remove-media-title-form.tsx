@@ -1,6 +1,7 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 
 import { removeMediaTitleAction } from "@/app/(workspace)/library/actions";
@@ -54,6 +55,14 @@ export function RemoveMediaTitleForm({ titleId, title }: RemoveMediaTitleFormPro
             className="py-1.5 text-xs"
           >
             {state.message}
+            {state.action === "open_activity" ? (
+              <>
+                {" "}
+                <Link href="/in-progress" className="font-semibold text-accent underline underline-offset-2">
+                  Open Activity
+                </Link>
+              </>
+            ) : null}
           </InlineAlert>
         ) : null}
       </form>
@@ -63,10 +72,10 @@ export function RemoveMediaTitleForm({ titleId, title }: RemoveMediaTitleFormPro
         title={deleteFiles ? `Delete ${title}?` : `Remove ${title}?`}
         description={deleteFiles ? (
           <>
-            Nooklet will remove this title and permanently delete its recorded media files from disk. <strong className="text-foreground">This cannot be undone.</strong> Active downloads or imports must finish first.
+            Nooklet will remove this title and permanently delete its recorded media files from disk. <strong className="text-foreground">This cannot be undone.</strong> Active season recovery, downloads, or imports must be stopped first.
           </>
         ) : (
-          <>Nooklet will remove this title from your library records. Files on disk will be kept, and active downloads or imports must finish first.</>
+          <>Nooklet will remove this title from your library records. Files on disk will be kept, and active season recovery, downloads, or imports must be stopped first.</>
         )}
         confirmLabel={deleteFiles ? "Delete title and files" : "Remove from Nooklet"}
         pending={pending}

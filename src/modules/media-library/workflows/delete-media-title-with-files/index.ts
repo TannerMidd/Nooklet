@@ -41,7 +41,7 @@ export async function deleteMediaTitleWithFilesWorkflow(
 
   if (await hasActiveDownloadAssociationForTitle(userId, request.titleId)) {
     throw new DeleteMediaTitleWithFilesError(
-      "This title has an active download or import. Let it finish or cancel it in Activity before removing the title.",
+      "This title still has an active season plan, download, or import. Stop it in Activity before removing the title.",
       "active_download",
     );
   }

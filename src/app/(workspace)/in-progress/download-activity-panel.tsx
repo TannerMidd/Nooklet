@@ -1,12 +1,13 @@
 "use client";
 
-import { AlertCircle, DownloadCloud, RefreshCw, RotateCcw, Settings } from "lucide-react";
+import { AlertCircle, DownloadCloud, RefreshCw, RotateCcw, Settings, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
+  cancelSeasonFulfillmentAction,
   resumeSeasonFulfillmentAction,
   retryCompletedDownloadImportAction,
   retryDownloadRequestAction,
@@ -16,6 +17,7 @@ import {
   initialDownloadActivityActionState,
   type DownloadActivityActionState,
 } from "@/app/(workspace)/in-progress/action-state";
+import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -223,6 +225,58 @@ function ResumeSeasonFulfillmentForm({
   );
 }
 
+function CancelSeasonFulfillmentForm({
+  fulfillmentId,
+  requestedTitle,
+}: {
+  fulfillmentId: string;
+  requestedTitle: string;
+}) {
+  const [state, formAction, pending] = useActionState(
+    cancelSeasonFulfillmentAction,
+    initialDownloadActivityActionState,
+  );
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
+
+  return (
+    <>
+      <form ref={formRef} action={formAction} className="flex flex-col items-end gap-1">
+        <input type="hidden" name="fulfillmentId" value={fulfillmentId} />
+        <Button
+          type="button"
+          variant="danger"
+          size="sm"
+          disabled={pending}
+          onClick={() => setConfirmationOpen(true)}
+        >
+          <XCircle aria-hidden="true" size={14} />
+          {pending ? "Cancelling..." : "Stop season recovery"}
+        </Button>
+        <ActionMessage state={state} />
+      </form>
+
+      <AlertDialog
+        open={confirmationOpen}
+        title={`Stop recovery for ${requestedTitle}?`}
+        description={(
+          <>
+            Nooklet will stop future searches for this season and remove any active downloads owned by this plan. Media files already imported into your library will be kept.
+          </>
+        )}
+        confirmLabel="Cancel season plan"
+        pending={pending}
+        tone="danger"
+        onClose={() => setConfirmationOpen(false)}
+        onConfirm={() => {
+          formRef.current?.requestSubmit();
+          setConfirmationOpen(false);
+        }}
+      />
+    </>
+  );
+}
+
 function ImportNowSubmitButton() {
   const { pending } = useFormStatus();
 
@@ -419,6 +473,16 @@ export function DownloadActivityPanel({ entries }: { entries: DownloadActivityEn
                   cancellationPending={entry.cancellationPending}
                 />
               ) : null}
+              {entry.fulfillmentId
+                && !entry.cancellationPending
+                && entry.retryAction !== "resume_season_recovery"
+                && entry.status !== "succeeded"
+                && entry.status !== "cancelled" ? (
+                  <CancelSeasonFulfillmentForm
+                    fulfillmentId={entry.fulfillmentId}
+                    requestedTitle={entry.requestedTitle}
+                  />
+                ) : null}
             </div>
           </div>
         </li>

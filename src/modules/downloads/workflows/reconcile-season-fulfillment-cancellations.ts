@@ -4,6 +4,7 @@ import { activeDownloadRequestStatuses } from "@/lib/database/schema";
 import { decryptSecret } from "@/lib/security/secret-box";
 import {
   findDownloadClientById,
+  listDownloadRequestsForFulfillment,
   listRequestsForFulfillment,
   updateDownloadQueueItemStatus,
   updateDownloadRequestStatus,
@@ -34,6 +35,7 @@ import {
 import { removeAndVerifySabnzbdItems } from "@/modules/downloads/workflows/verified-sabnzbd-removal";
 
 const openFulfillmentStatuses = ["active", "retry_wait", "partial"] as const;
+const activeQueueItemStatuses = ["queued", "downloading", "paused"] as const;
 const cancellationRetryDelayMs = 5 * 60_000;
 const engineIdPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -172,7 +174,10 @@ async function deferCancellation(input: {
   });
 }
 
-async function reconcileFulfillmentCancellation(userId: string, fulfillmentId: string) {
+export async function reconcileSeasonFulfillmentCancellation(
+  userId: string,
+  fulfillmentId: string,
+) {
   const lease = await acquireSeasonFulfillmentWorkLease(userId, fulfillmentId);
   if (!lease) return "busy" as const;
   let workLease: SeasonFulfillmentWorkLease = lease;
@@ -197,7 +202,10 @@ async function reconcileFulfillmentCancellation(userId: string, fulfillmentId: s
     }
 
     const requestedAt = fulfillment.cancellationRequestedAt;
-    const entries = await listRequestsForFulfillment(userId, fulfillmentId);
+    const [entries, requests] = await Promise.all([
+      listRequestsForFulfillment(userId, fulfillmentId),
+      listDownloadRequestsForFulfillment(userId, fulfillmentId),
+    ]);
     const engineEntries: FulfillmentQueueEntry[] = [];
     const sabEntries: FulfillmentQueueEntry[] = [];
 
@@ -245,24 +253,35 @@ async function reconcileFulfillmentCancellation(userId: string, fulfillmentId: s
 
     await renewOwnedLease();
     const completedAt = new Date();
-    const activeEntries = entries.filter((entry) => (
-      activeDownloadRequestStatuses.includes(
-        entry.request.status as (typeof activeDownloadRequestStatuses)[number],
+    const activeQueueEntries = entries.filter((entry) => (
+      activeQueueItemStatuses.includes(
+        entry.queueItem.status as (typeof activeQueueItemStatuses)[number],
       )
     ));
-    for (const entry of activeEntries) {
+    for (const entry of activeQueueEntries) {
       await updateDownloadQueueItemStatus({
         userId,
         queueItemId: entry.queueItem.id,
         status: "failed",
         completedAt,
       });
+    }
+
+    const activeRequests = requests.filter((request) => (
+      activeDownloadRequestStatuses.includes(
+        request.status as (typeof activeDownloadRequestStatuses)[number],
+      )
+    ));
+    for (const request of activeRequests) {
+      const queueEntry = entries.find((entry) => entry.request.id === request.id);
       await updateDownloadRequestStatus({
         userId,
-        requestId: entry.request.id,
+        requestId: request.id,
         status: "cancelled",
-        externalJobId: entry.queueItem.externalQueueId,
-        statusMessage: "Removed from the download queue.",
+        externalJobId: queueEntry?.queueItem.externalQueueId ?? request.externalJobId,
+        statusMessage: queueEntry
+          ? "Removed from the download queue."
+          : "Season recovery was cancelled before a download was queued.",
         completedAt,
       });
     }
@@ -311,7 +330,7 @@ export async function reconcilePendingSeasonFulfillmentCancellations() {
 
   for (const fulfillment of due) {
     attemptedCount += 1;
-    const result = await reconcileFulfillmentCancellation(
+    const result = await reconcileSeasonFulfillmentCancellation(
       fulfillment.userId,
       fulfillment.id,
     );

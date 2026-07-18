@@ -645,6 +645,28 @@ export async function listRequestsForFulfillment(userId: string, fulfillmentId: 
     .all();
 }
 
+/**
+ * Returns every physical request owned by a durable season fulfillment,
+ * including reservations that never reached a downloader queue. Cancellation
+ * must close those queue-less rows too or they continue blocking title removal.
+ */
+export async function listDownloadRequestsForFulfillment(
+  userId: string,
+  fulfillmentId: string,
+) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(downloadRequests)
+    .where(and(
+      eq(downloadRequests.userId, userId),
+      eq(downloadRequests.fulfillmentId, fulfillmentId),
+    ))
+    .orderBy(asc(downloadRequests.createdAt), asc(downloadRequests.id))
+    .all();
+}
+
 export async function listDownloadRequestsByStatus(userId: string, status: DownloadRequestStatus) {
   const database = ensureDatabaseReady();
 
@@ -701,9 +723,14 @@ function standaloneDownloadRequestHistoryFilters(input: {
   statuses?: DownloadRequestStatus[];
   query?: string;
 }) {
+  // Internal pack/episode attempts are only meaningful inside their durable
+  // plan. A removed library title cascades the fulfillment and nulls the
+  // request FK; attemptStrategy keeps those detached fragments out of the
+  // standalone Activity history without deleting their diagnostic evidence.
   const filters: SQL[] = [
     eq(downloadRequests.userId, input.userId),
     isNull(downloadRequests.fulfillmentId),
+    isNull(downloadRequests.attemptStrategy),
   ];
   if (input.statuses?.length) filters.push(inArray(downloadRequests.status, input.statuses));
   const pattern = escapedActivitySearchPattern(input.query);

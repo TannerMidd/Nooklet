@@ -93,6 +93,8 @@ Retry timing is persisted:
 
 The 15-second worker pass resumes due plans after a process restart. Activity groups all physical attempts into one season plan and shows **Recovering** until the plan succeeds, becomes blocked, or otherwise reaches a terminal state. Notifications are suppressed while the plan is still recovering.
 
+Use **Stop season recovery** in Activity when you no longer want an open plan to keep searching. Nooklet checkpoints the cancellation, removes and verifies any downloader jobs owned by the plan, closes queue-less pending attempts, and keeps media files that were already imported. After cancellation finishes, a zero-file duplicate title can be removed from the Library without leaving its internal attempts behind as standalone Activity items.
+
 Source: [season fulfillment workflow](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/season-fulfillment.ts), [fulfillment repository](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/repositories/season-fulfillment-repository.ts), and [ADR-0003](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0003-durable-season-fulfillment.md).
 
 ## Staging capacity policy

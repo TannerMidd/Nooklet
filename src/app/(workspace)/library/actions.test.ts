@@ -945,6 +945,24 @@ describe("removeMediaTitleAction", () => {
     expect(result).toEqual({ status: "error", message: "Library title was not found." });
   });
 
+  it("points blocked removal to the new Activity cancellation control", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    removeMediaTitleMock.mockRejectedValue(
+      new DeleteMediaTitleWithFilesError(
+        "This title still has an active season plan, download, or import.",
+        "active_download",
+      ),
+    );
+
+    const result = await removeMediaTitleAction(initialRemoveMediaTitleActionState, validForm());
+
+    expect(result).toEqual({
+      status: "error",
+      message: "This title still has an active season plan, download, or import.",
+      action: "open_activity",
+    });
+  });
+
   it("removes a title and revalidates the matching library pages", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
     removeMediaTitleMock.mockResolvedValue({

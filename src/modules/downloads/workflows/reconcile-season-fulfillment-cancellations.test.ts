@@ -10,6 +10,7 @@ vi.mock("@/lib/security/secret-box", () => ({
 }));
 vi.mock("@/modules/downloads/repositories/download-repository", () => ({
   findDownloadClientById: vi.fn(),
+  listDownloadRequestsForFulfillment: vi.fn(),
   listRequestsForFulfillment: vi.fn(),
   updateDownloadQueueItemStatus: vi.fn(),
   updateDownloadRequestStatus: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock("@/modules/downloads/workflows/verified-sabnzbd-removal", () => ({
 
 import {
   findDownloadClientById,
+  listDownloadRequestsForFulfillment,
   listRequestsForFulfillment,
   updateDownloadQueueItemStatus,
   updateDownloadRequestStatus,
@@ -77,6 +79,7 @@ const rmMock = vi.mocked(rm);
 const findFulfillmentMock = vi.mocked(findDownloadFulfillmentById);
 const updateFulfillmentMock = vi.mocked(updateDownloadFulfillment);
 const listEntriesMock = vi.mocked(listRequestsForFulfillment);
+const listRequestsMock = vi.mocked(listDownloadRequestsForFulfillment);
 const findClientMock = vi.mocked(findDownloadClientById);
 const updateQueueMock = vi.mocked(updateDownloadQueueItemStatus);
 const updateRequestMock = vi.mocked(updateDownloadRequestStatus);
@@ -114,6 +117,7 @@ const entry = {
     id: "queue-1",
     clientId: "client-1",
     externalQueueId: "engine-1",
+    status: "queued",
   },
 };
 
@@ -124,6 +128,7 @@ beforeEach(() => {
   findFulfillmentMock.mockResolvedValue(fulfillment as never);
   updateFulfillmentMock.mockResolvedValue(fulfillment as never);
   listEntriesMock.mockResolvedValue([entry] as never);
+  listRequestsMock.mockResolvedValue([entry.request] as never);
   findClientMock.mockResolvedValue({ id: "client-1", clientType: "nooklet" } as never);
   findEngineMock.mockResolvedValue({ id: "engine-1", state: "queued" } as never);
   deleteEngineMock.mockResolvedValue(true);
@@ -216,6 +221,7 @@ describe("reconcilePendingSeasonFulfillmentCancellations", () => {
         ...entry.queueItem,
         id: "queue-failed",
         externalQueueId: "sab-failed-history",
+        status: "failed",
       },
     };
     const succeededEntry = {
@@ -228,8 +234,14 @@ describe("reconcilePendingSeasonFulfillmentCancellations", () => {
         ...entry.queueItem,
         id: "queue-succeeded",
         externalQueueId: "sab-succeeded-history",
+        status: "completed",
       },
     };
+    listRequestsMock.mockResolvedValue([
+      failedEntry.request,
+      activeEntry.request,
+      succeededEntry.request,
+    ] as never);
     listEntriesMock.mockResolvedValue([
       failedEntry,
       activeEntry,
@@ -257,6 +269,53 @@ describe("reconcilePendingSeasonFulfillmentCancellations", () => {
       queueItemId: "queue-1",
       status: "failed",
     }));
+  });
+
+  it("closes a pending reservation even when no downloader row was created", async () => {
+    listEntriesMock.mockResolvedValue([]);
+    listRequestsMock.mockResolvedValue([{
+      ...entry.request,
+      externalJobId: null,
+      status: "pending",
+    }] as never);
+
+    const result = await reconcilePendingSeasonFulfillmentCancellations();
+
+    expect(result.cancelledCount).toBe(1);
+    expect(updateQueueMock).not.toHaveBeenCalled();
+    expect(updateRequestMock).toHaveBeenCalledWith(expect.objectContaining({
+      requestId: "request-1",
+      status: "cancelled",
+      externalJobId: null,
+      statusMessage: expect.stringContaining("before a download was queued"),
+    }));
+    expect(updateFulfillmentMock).toHaveBeenCalledWith(expect.objectContaining({
+      status: "cancelled",
+    }));
+  });
+
+  it("terminalizes a stale active queue row without rewriting its failed request", async () => {
+    const staleEntry = {
+      request: {
+        ...entry.request,
+        status: "failed",
+      },
+      queueItem: {
+        ...entry.queueItem,
+        status: "queued",
+      },
+    };
+    listEntriesMock.mockResolvedValue([staleEntry] as never);
+    listRequestsMock.mockResolvedValue([staleEntry.request] as never);
+
+    const result = await reconcilePendingSeasonFulfillmentCancellations();
+
+    expect(result.cancelledCount).toBe(1);
+    expect(updateQueueMock).toHaveBeenCalledWith(expect.objectContaining({
+      queueItemId: "queue-1",
+      status: "failed",
+    }));
+    expect(updateRequestMock).not.toHaveBeenCalled();
   });
 
   it("keeps cancellation durable while SAB still reports the job as active", async () => {

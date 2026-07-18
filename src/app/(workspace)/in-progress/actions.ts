@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { auth } from "@/auth";
+import {
+  cancelSeasonFulfillmentWorkflow,
+  CancelSeasonFulfillmentWorkflowError,
+} from "@/modules/downloads/workflows/cancel-season-fulfillment";
 import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
 import { ImportCompletedDownloadsWorkflowError } from "@/modules/downloads/workflows/import-completed-downloads/errors";
 import { importCompletedEngineDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-engine-downloads";
@@ -21,6 +25,42 @@ const retryDownloadRequestInputSchema = z.object({
 const resumeSeasonFulfillmentInputSchema = z.object({
   fulfillmentId: z.string().uuid("Choose a season recovery plan."),
 });
+
+export async function cancelSeasonFulfillmentAction(
+  _previous: DownloadActivityActionState,
+  formData: FormData,
+): Promise<DownloadActivityActionState> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { status: "error", message: "You need to sign in again." };
+  }
+
+  const parsed = resumeSeasonFulfillmentInputSchema.safeParse({
+    fulfillmentId: formData.get("fulfillmentId"),
+  });
+  if (!parsed.success) {
+    return { status: "error", message: "Choose a season recovery plan to cancel." };
+  }
+
+  try {
+    const result = await cancelSeasonFulfillmentWorkflow(
+      session.user.id,
+      parsed.data.fulfillmentId,
+    );
+    revalidatePath("/in-progress");
+    revalidatePath("/library");
+    revalidatePath("/library/tv");
+    return {
+      status: "success",
+      message: result.message,
+    };
+  } catch (error) {
+    if (error instanceof CancelSeasonFulfillmentWorkflowError) {
+      return { status: "error", message: error.message };
+    }
+    return { status: "error", message: "Nooklet could not cancel that season recovery plan." };
+  }
+}
 
 export async function resumeSeasonFulfillmentAction(
   _previous: DownloadActivityActionState,
