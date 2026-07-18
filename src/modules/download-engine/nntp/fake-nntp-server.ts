@@ -7,8 +7,9 @@ import {
 
 /**
  * Scripted in-process NNTP server for engine tests. Speaks just enough of the
- * protocol to exercise the client and scheduler: greeting, AUTHINFO, BODY by
- * message-id, DATE, QUIT. Articles are served from a map; unknown ids get 430.
+ * protocol to exercise the client and scheduler: greeting, AUTHINFO, BODY and
+ * STAT by message-id, DATE, QUIT. Articles are served from a map; unknown ids
+ * get 430.
  * Listens over TLS with the shared test certificate, matching the TLS-only
  * production client.
  */
@@ -108,6 +109,21 @@ export async function startFakeNntpServer(options: FakeNntpServerOptions): Promi
 
             send(`222 0 <${messageId}> body`);
             sendBody(Buffer.isBuffer(article) ? article : Buffer.from(article, "latin1"));
+            break;
+          }
+          case "STAT": {
+            if (options.credentials && !authenticatedUser) {
+              send("480 authentication required");
+              break;
+            }
+
+            const messageId = rest.join(" ").replace(/^<|>$/g, "");
+
+            send(
+              options.articles.has(messageId)
+                ? `223 0 <${messageId}> article exists`
+                : "430 no such article",
+            );
             break;
           }
           case "DATE": {

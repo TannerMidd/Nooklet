@@ -254,6 +254,18 @@ async function processEngineDownload(download: EngineDownloadRecord) {
       return;
     }
 
+    if (result.unrecoverable) {
+      const failureKind = classifyEngineNntpFailureKinds(result.failureKinds);
+      await setEngineDownloadState(download.id, "failed", {
+        failureKind,
+        errorMessage: failureKind === "infrastructure"
+          ? "The transfer stopped early because the news server kept failing mid-download. Check the Usenet connection, then resume this download."
+          : "The transfer stopped early: more of the release's articles are missing or damaged than its PAR2 recovery set can repair, so it can never assemble completely.",
+        completedAt: new Date(),
+      });
+      return;
+    }
+
     if (result.completedSegments === 0) {
       const failureKind = classifyEngineNntpFailureKinds(result.failureKinds);
       await setEngineDownloadState(download.id, "failed", {
@@ -261,18 +273,6 @@ async function processEngineDownload(download: EngineDownloadRecord) {
         errorMessage: failureKind === "infrastructure"
           ? "The built-in downloader could not reach or authenticate with the news server. Check the Usenet connection, then resume this download."
           : "No article could be fetched from the news server — the post may have been removed.",
-        completedAt: new Date(),
-      });
-      return;
-    }
-
-    if (result.unrecoverable) {
-      const failureKind = classifyEngineNntpFailureKinds(result.failureKinds);
-      await setEngineDownloadState(download.id, "failed", {
-        failureKind,
-        errorMessage: failureKind === "infrastructure"
-          ? "The transfer stopped early because the news server kept failing mid-download. Check the Usenet connection, then resume this download."
-          : "The transfer stopped early: more articles are missing or damaged than the release's PAR2 recovery set can repair, so it can never assemble completely.",
         completedAt: new Date(),
       });
       return;

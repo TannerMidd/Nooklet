@@ -143,6 +143,57 @@ describe("downloadNzb", () => {
     expect(partialFile?.failedSegments).toBe(1);
   });
 
+  it("abandons a mass-removed release from the availability probe before fetching bodies", async () => {
+    // 60 data segments, none available: the STAT sample proves the release
+    // unrepairable without transferring a single article body.
+    server = await startFakeNntpServer({ articles: new Map() });
+    workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+    const nzb = parseNzb(nzbXml(Array.from({ length: 60 }, (_, index) => ({
+      subject: `"probe-${index}.bin"`,
+      segmentIds: [`probe-${index}@test`],
+    }))));
+
+    const result = await downloadNzb({
+      nzb,
+      server: { host: "127.0.0.1", port: server.port, trustedRootCertificates: [tlsTestCertificate], connections: 4, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      workDir,
+    });
+
+    expect(result.unrecoverable).toBe(true);
+    expect(result.aborted).toBe(false);
+    expect(result.ok).toBe(false);
+    expect(result.downloadedBytes).toBe(0);
+    expect(result.completedSegments).toBe(0);
+    expect(result.failedSegments).toBe(0);
+    expect(result.failureKinds).toEqual(["article-not-found"]);
+  });
+
+  it("lets a fully available release pass the probe and download normally", async () => {
+    const payload = buildDeterministicPayload(500, 4);
+    const articles = new Map<string, string>();
+    const files: Array<{ subject: string; segmentIds: string[] }> = [];
+
+    for (let index = 0; index < 60; index += 1) {
+      const id = `healthy-${index}@test`;
+      articles.set(id, buildSinglePartArticle(payload, `healthy-${index}.bin`));
+      files.push({ subject: `"healthy-${index}.bin"`, segmentIds: [id] });
+    }
+
+    server = await startFakeNntpServer({ articles });
+    workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+    const result = await downloadNzb({
+      nzb: parseNzb(nzbXml(files)),
+      server: { host: "127.0.0.1", port: server.port, trustedRootCertificates: [tlsTestCertificate], connections: 4, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      workDir,
+    });
+
+    expect(result.unrecoverable).toBe(false);
+    expect(result.ok).toBe(true);
+    expect(result.completedSegments).toBe(60);
+  });
+
   it("abandons the release once lost data exceeds its PAR2 recovery capacity", async () => {
     // Every declared segment is 10 MB. One 10 MB PAR2 volume can repair at
     // most one lost data segment; the second loss proves the release dead.
@@ -247,6 +298,7 @@ describe("downloadNzb", () => {
           throw new NntpError("connect-failed", "Connection refused.");
         },
         body: async () => Buffer.alloc(0),
+        stat: async () => true,
         quit: async () => undefined,
         destroy: () => undefined,
       }),
@@ -269,6 +321,7 @@ describe("downloadNzb", () => {
           throw new NntpError("auth-failed", "Authentication rejected.", true);
         },
         body: async () => Buffer.alloc(0),
+        stat: async () => true,
         quit: async () => undefined,
         destroy: () => undefined,
       }),

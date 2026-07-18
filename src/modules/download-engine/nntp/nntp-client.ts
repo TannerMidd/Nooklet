@@ -11,7 +11,8 @@ import {
  * Minimal NNTP client for the built-in download engine (ADR-0002 slice 2).
  * One instance owns one server connection; the scheduler runs a pool of them.
  * Only the commands the engine needs are implemented: greeting, AUTHINFO,
- * BODY by message-id, DATE (used as a liveness/verify probe), and QUIT.
+ * BODY and STAT by message-id, DATE (used as a liveness/verify probe), and
+ * QUIT.
  *
  * Every connection is TLS with certificate verification. There is no
  * plaintext mode: article bodies and AUTHINFO credentials must never be
@@ -409,6 +410,36 @@ export class NntpClient {
     throw new NntpError(
       "protocol-error",
       `BODY <${messageId}> failed: ${response.code} ${response.text}`,
+    );
+  }
+
+  /**
+   * Checks article availability by message-id without transferring the body.
+   * Returns false for the permanent "not on this server" responses.
+   */
+  async stat(messageId: string): Promise<boolean> {
+    if (
+      messageId.length === 0
+      || messageId.length > 998
+      || !/^[\x21-\x3b\x3d\x3f-\x7e]+$/.test(messageId)
+    ) {
+      throw new NntpError("protocol-error", "Refused an invalid NNTP message id.", true);
+    }
+
+    await this.sendCommand(`STAT <${messageId}>`);
+    const response = await this.readStatusLine();
+
+    if (response.code === 223) {
+      return true;
+    }
+
+    if (response.code === 430 || response.code === 423 || response.code === 420) {
+      return false;
+    }
+
+    throw new NntpError(
+      "protocol-error",
+      `STAT <${messageId}> failed: ${response.code} ${response.text}`,
     );
   }
 

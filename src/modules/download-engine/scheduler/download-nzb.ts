@@ -54,9 +54,10 @@ export type DownloadNzbResult = {
   totalSegments: number;
   aborted: boolean;
   /**
-   * True when the transfer stopped early because more data was lost than any
-   * PAR2 recovery set in this NZB could repair — the release is a write-off
-   * and the caller should move on instead of fetching the remainder.
+   * True when the run stopped early because more data is missing or lost than
+   * any PAR2 recovery set in this NZB could repair — whether detected by the
+   * pre-transfer availability probe or by mid-transfer loss accounting. The
+   * release is a write-off and the caller should move on.
    */
   unrecoverable: boolean;
   failureKinds: NntpErrorKind[];
@@ -64,7 +65,7 @@ export type DownloadNzbResult = {
   ok: boolean;
 };
 
-export type NntpClientLike = Pick<NntpClient, "connect" | "body" | "quit" | "destroy">;
+export type NntpClientLike = Pick<NntpClient, "connect" | "body" | "stat" | "quit" | "destroy">;
 
 export type DownloadNzbInput = {
   nzb: ParsedNzb;
@@ -117,6 +118,23 @@ function fallbackFileName(subject: string, fileIndex: number) {
 /** PAR2 recovery volumes are identifiable from the NZB subject line. */
 function isPar2Subject(subject: string) {
   return /\.par2\b/i.test(subject);
+}
+
+/** Releases below this many data segments skip the availability probe. */
+const probeMinDataSegments = 40;
+const probeSampleSize = 120;
+
+/** Uniform sample without replacement (partial Fisher–Yates). */
+function sampleSegmentTasks<T>(source: readonly T[], count: number): T[] {
+  const pool = [...source];
+  const size = Math.min(count, pool.length);
+
+  for (let index = 0; index < size; index += 1) {
+    const pick = index + Math.floor(Math.random() * (pool.length - index));
+    [pool[index], pool[pick]] = [pool[pick], pool[index]];
+  }
+
+  return pool.slice(0, size);
 }
 
 export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbResult> {
@@ -464,10 +482,78 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     }
   }
 
+  /**
+   * Availability probe: STAT a random sample of data segments before fetching
+   * any bodies. A mass-removed release announces itself in the first hundred
+   * round trips, so it can be abandoned in seconds instead of after gigabytes
+   * of doomed transfers. Only a statistically decisive result abandons the
+   * release: the projected loss must exceed the recovery budget even at the
+   * bottom of a 3-sigma confidence bound. Anything less — including servers
+   * that reject STAT and any connection trouble — falls through to the normal
+   * transfer path, where the byte-accounting backstop still applies.
+   */
+  async function probeShowsUnrecoverable(): Promise<boolean> {
+    const dataTasks = tasks.filter((task) => !par2FileIndexes.has(task.fileIndex));
+
+    if (dataTasks.length < probeMinDataSegments) {
+      return false;
+    }
+
+    const sample = sampleSegmentTasks(dataTasks, probeSampleSize);
+    const dataDeclaredBytes = dataTasks.reduce((total, task) => total + task.declaredBytes, 0);
+    const client = clientFactory(input.server);
+    let sampledBytes = 0;
+    let missingBytes = 0;
+    let missingCount = 0;
+
+    try {
+      await client.connect();
+
+      for (const task of sample) {
+        if (aborted || input.shouldAbort?.()) {
+          return false;
+        }
+
+        sampledBytes += task.declaredBytes;
+
+        if (!(await client.stat(task.messageId))) {
+          missingBytes += task.declaredBytes;
+          missingCount += 1;
+        }
+      }
+    } catch (error) {
+      if (error instanceof NntpError && error.kind === "auth-failed") {
+        throw error;
+      }
+
+      // Probe trouble must never fail a downloadable release; the transfer
+      // path re-encounters and classifies any real problem.
+      return false;
+    } finally {
+      await client.quit().catch(() => client.destroy());
+    }
+
+    if (sampledBytes === 0) {
+      return false;
+    }
+
+    const missingRatio = missingBytes / sampledBytes;
+    const countRatio = missingCount / sample.length;
+    const sigma = Math.sqrt((countRatio * (1 - countRatio)) / sample.length);
+    const lowerBoundRatio = Math.max(0, missingRatio - 3 * sigma);
+
+    return lowerBoundRatio * dataDeclaredBytes > par2DeclaredBytes + hiddenRecoveryAllowance;
+  }
+
   const workerCount = Math.max(1, Math.min(input.server.connections, tasks.length));
 
   try {
-    await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+    if (await probeShowsUnrecoverable()) {
+      unrecoverable = true;
+      failureKinds.add("article-not-found");
+    } else {
+      await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+    }
   } finally {
     for (const state of fileStates) {
       await state.handle?.close().catch(() => undefined);
