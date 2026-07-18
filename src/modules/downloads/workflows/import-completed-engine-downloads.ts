@@ -137,6 +137,7 @@ async function runImportCompletedEngineDownloadsWorkflow(
         ? record.errorMessage ?? "The download failed."
         : null,
       failureKind: record.failureKind,
+      downloadedBytes: record.downloadedBytes,
       sizeLabel: null,
       totalMb: record.totalBytes > 0 ? record.totalBytes / (1024 * 1024) : null,
       statusKind: record.state === "failed" ? "failed" : "completed",

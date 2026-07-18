@@ -1,4 +1,5 @@
 import {
+  countBudgetConsumingReleaseAttemptsForItem,
   listDownloadRequestReleaseExclusionsForItem,
   updateDownloadRequestStatus,
 } from "@/modules/downloads/repositories/download-repository";
@@ -27,7 +28,11 @@ export type CompletedDownloadRetryResult = {
   failedCount: number;
 };
 
-/** Maximum immediate alternatives before a bounded/cooldown recovery path. */
+/**
+ * Maximum budget-consuming alternatives before a bounded/cooldown recovery
+ * path. Zero-transfer failures are free (see attempt-cost.ts), so dead posts
+ * cycle through candidates without exhausting this budget.
+ */
 export const maxAutoRetriesPerItem = 3;
 
 function retryableFailureMatch(download: OrganizedCompletedDownload): MatchedCompletedDownload | null {
@@ -121,6 +126,11 @@ export async function retryFailedCompletedDownloads(
       const failureMessage = match.historyItem.failMessage
         ?? (download.kind === "failed" ? download.message : null)
         ?? "The download failed.";
+      // Zero-transfer failures (dead posts the engine abandoned before any
+      // download) are budget-free: the release stays excluded, but the
+      // attempt does not count against the bounded auto-retry budget.
+      const attemptWasFree = match.historyItem.statusKind === "failed"
+        && match.historyItem.downloadedBytes === 0;
       const fulfillment = await ensureSeasonFulfillmentForRequest(userId, match.request);
 
       if (fulfillment && match.request.episodeId) {
@@ -135,6 +145,7 @@ export async function retryFailedCompletedDownloads(
           fulfillmentId: fulfillment.id,
           episode: episode.episode,
           failureMessage,
+          attemptWasFree,
         });
         await updateDownloadRequestStatus({
           userId,
@@ -179,13 +190,18 @@ export async function retryFailedCompletedDownloads(
         episodeId: match.request.episodeId,
         seasonId: match.request.seasonId,
       });
-      const attemptedReleaseCount = new Set(exclusions.resultIds).size;
-      if (attemptedReleaseCount >= maxAutoRetriesPerItem) {
+      const consumedAttemptCount = await countBudgetConsumingReleaseAttemptsForItem({
+        userId,
+        mediaTitleId,
+        episodeId: match.request.episodeId,
+        seasonId: match.request.seasonId,
+      });
+      if (consumedAttemptCount >= maxAutoRetriesPerItem) {
         await updateDownloadRequestStatus({
           userId,
           requestId: match.request.id,
           status: "failed",
-          statusMessage: `${failureMessage} Auto-retry stopped after ${attemptedReleaseCount} failed releases for this item — fix the cause, then retry manually.`,
+          statusMessage: `${failureMessage} Auto-retry stopped after ${consumedAttemptCount} failed download attempts for this item — fix the cause, then retry manually.`,
         });
         continue;
       }

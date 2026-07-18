@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import {
   and,
   asc,
-  count,
   desc,
   eq,
   inArray,
@@ -15,11 +14,14 @@ import {
 } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
+import { isBudgetFreeDownloadAttempt } from "@/modules/downloads/attempt-cost";
 import {
   activeDownloadRequestStatuses,
   downloadFulfillmentEpisodes,
   downloadFulfillments,
+  downloadQueueItems,
   downloadRequests,
+  engineDownloads,
   indexerSearchResults,
   mediaLibraryPaths,
   mediaTitles,
@@ -597,23 +599,69 @@ export async function listFulfillmentReleaseExclusions(input: {
   };
 }
 
+/**
+ * Counts the fulfillment's attempts that consumed the bounded auto-retry
+ * budget. Zero-transfer engine failures (dead posts abandoned by the
+ * availability probe) do not count, so pack and episode recovery keep
+ * cycling through candidates instead of exhausting the budget on releases
+ * that cost nothing to reject.
+ */
 export async function countDownloadFulfillmentAttempts(input: {
   userId: string;
   fulfillmentId: string;
 } & FulfillmentAttemptScope) {
   const database = ensureDatabaseReady();
 
-  return database
-    .select({ value: count(downloadRequests.id) })
+  const rows = database
+    .select({
+      requestId: downloadRequests.id,
+      queueItemId: downloadQueueItems.id,
+      engineState: engineDownloads.state,
+      engineFailureKind: engineDownloads.failureKind,
+      engineDownloadedBytes: engineDownloads.downloadedBytes,
+    })
     .from(downloadRequests)
     .innerJoin(downloadFulfillments, eq(downloadFulfillments.id, downloadRequests.fulfillmentId))
+    .leftJoin(downloadQueueItems, eq(downloadQueueItems.requestId, downloadRequests.id))
+    .leftJoin(engineDownloads, and(
+      eq(engineDownloads.id, downloadQueueItems.externalQueueId),
+      eq(engineDownloads.userId, downloadRequests.userId),
+    ))
     .where(and(
       eq(downloadFulfillments.userId, input.userId),
       eq(downloadFulfillments.id, input.fulfillmentId),
       eq(downloadRequests.userId, input.userId),
       ...attemptScopePredicates(input),
     ))
-    .get()?.value ?? 0;
+    .all();
+
+  // A request consumes budget unless every one of its queue items is a
+  // provably budget-free engine failure; requests without engine telemetry
+  // count conservatively.
+  const consumingByRequest = new Map<string, boolean>();
+
+  for (const row of rows) {
+    const budgetFree = row.queueItemId !== null && isBudgetFreeDownloadAttempt({
+      state: row.engineState,
+      failureKind: row.engineFailureKind,
+      downloadedBytes: row.engineDownloadedBytes,
+    });
+
+    consumingByRequest.set(
+      row.requestId,
+      (consumingByRequest.get(row.requestId) ?? false) || !budgetFree,
+    );
+  }
+
+  let consumed = 0;
+
+  for (const consuming of consumingByRequest.values()) {
+    if (consuming) {
+      consumed += 1;
+    }
+  }
+
+  return consumed;
 }
 
 export async function findActiveDownloadRequestForFulfillment(input: {

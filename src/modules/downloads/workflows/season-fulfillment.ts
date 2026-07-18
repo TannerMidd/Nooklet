@@ -1436,6 +1436,8 @@ export async function markFulfillmentEpisodeFailedAndRetry(input: {
   fulfillmentId: string;
   episode: TvEpisodeRecord;
   failureMessage: string;
+  /** True when the failed attempt transferred nothing (see attempt-cost.ts). */
+  attemptWasFree?: boolean;
   workLease?: SeasonFulfillmentWorkLease;
 }) {
   const fulfillment = await findDownloadFulfillmentById(input.userId, input.fulfillmentId);
@@ -1449,11 +1451,27 @@ export async function markFulfillmentEpisodeFailedAndRetry(input: {
   if (!workClaim) return false;
 
   try {
-  const existing = (await listDownloadFulfillmentEpisodes({
+  const stored = (await listDownloadFulfillmentEpisodes({
     userId: input.userId,
     fulfillmentId: input.fulfillmentId,
   })).find((state) => state.episodeId === input.episode.id) ?? null;
-  const cycleAttemptCount = existing?.attemptCount ?? 0;
+  // A zero-transfer failure refunds the budget slot its queueing consumed,
+  // so cheap rejections keep cycling through candidates. Persisted before
+  // the retry because attemptEpisode re-reads the stored state.
+  const cycleAttemptCount = input.attemptWasFree
+    ? Math.max(0, (stored?.attemptCount ?? 0) - 1)
+    : stored?.attemptCount ?? 0;
+  let existing = stored;
+
+  if (stored && stored.attemptCount !== cycleAttemptCount) {
+    existing = await upsertDownloadFulfillmentEpisode({
+      userId: input.userId,
+      fulfillmentId: input.fulfillmentId,
+      episodeId: input.episode.id,
+      status: stored.status,
+      attemptCount: cycleAttemptCount,
+    }) ?? { ...stored, attemptCount: cycleAttemptCount };
+  }
 
   if (cycleAttemptCount >= maxAutomaticReleaseAttempts) {
     await upsertDownloadFulfillmentEpisode({

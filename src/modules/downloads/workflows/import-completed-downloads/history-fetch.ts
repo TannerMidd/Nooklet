@@ -11,6 +11,11 @@ import { type ImportCompletedDownloadsRequest } from "./request-validation";
 export type FinishedSabnzbdHistoryItem = SabnzbdHistoryItem & {
   statusKind: "completed" | "failed";
   failureKind?: DownloadFailureKind | null;
+  /**
+   * Bytes the transfer actually moved; only the built-in engine reports this.
+   * Zero-byte content failures are budget-free for auto-retry (attempt-cost.ts).
+   */
+  downloadedBytes?: number | null;
 };
 
 export type FinishedSabnzbdHistory = {

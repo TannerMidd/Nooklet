@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
+  engineDownloads,
   indexerSearchResults,
   indexerSearchRuns,
   mediaLibraries,
@@ -14,7 +15,7 @@ import {
   users,
 } from "@/lib/database/schema";
 
-import { createDownloadRequest } from "./download-repository";
+import { createDownloadRequest, recordDownloadQueueItem } from "./download-repository";
 import {
   attachDownloadRequestToFulfillment,
   countDownloadFulfillmentAttempts,
@@ -310,6 +311,80 @@ describe("season-fulfillment-repository", () => {
       attemptStrategy: "episode",
       episodeId: owner.secondEpisodeId,
     })).toMatchObject({ id: secondEpisodeRequest.id });
+  });
+
+  it("excludes zero-transfer engine failures from the fulfillment attempt budget", async () => {
+    const database = ensureDatabaseReady();
+    const owner = seedUserWithTv();
+    const fulfillment = await createOrGetOpenSeasonFulfillment({
+      userId: owner.userId,
+      mediaTitleId: owner.mediaTitleId,
+      seasonId: owner.seasonId,
+      requestedTitle: "Severance Season 1",
+    });
+
+    const seedPackAttempt = async (options: {
+      guid: string;
+      attemptNumber: number;
+      engine: { downloadedBytes: number; failureKind: "content" | "infrastructure" } | null;
+    }) => {
+      const request = await createDownloadRequest({
+        userId: owner.userId,
+        mediaType: "tv",
+        requestedTitle: "Severance Season 1",
+        mediaTitleId: owner.mediaTitleId,
+        seasonId: owner.seasonId,
+        searchResultId: seedSearchResult(owner.userId, `Severance S01 ${options.guid}`, options.guid),
+        status: "failed",
+      });
+
+      await attachDownloadRequestToFulfillment({
+        userId: owner.userId,
+        fulfillmentId: fulfillment.id,
+        requestId: request.id,
+        attemptStrategy: "season_pack",
+        attemptNumber: options.attemptNumber,
+      });
+
+      if (options.engine) {
+        const engineId = randomUUID();
+
+        database.insert(engineDownloads).values({
+          id: engineId,
+          userId: owner.userId,
+          name: `Severance S01 ${options.guid}`,
+          nzbXml: "<nzb />",
+          state: "failed",
+          failureKind: options.engine.failureKind,
+          downloadedBytes: options.engine.downloadedBytes,
+        }).run();
+        await recordDownloadQueueItem({
+          requestId: request.id,
+          userId: owner.userId,
+          externalQueueId: engineId,
+          status: "failed",
+        });
+      }
+    };
+
+    // Dead post, zero bytes: budget-free.
+    await seedPackAttempt({ guid: "pack-dead", attemptNumber: 1, engine: { downloadedBytes: 0, failureKind: "content" } });
+    // Partial transfer: consumes budget.
+    await seedPackAttempt({ guid: "pack-partial", attemptNumber: 2, engine: { downloadedBytes: 1024, failureKind: "content" } });
+    // No engine telemetry: consumes budget conservatively.
+    await seedPackAttempt({ guid: "pack-sab", attemptNumber: 3, engine: null });
+
+    expect(await countDownloadFulfillmentAttempts({
+      userId: owner.userId,
+      fulfillmentId: fulfillment.id,
+      attemptStrategy: "season_pack",
+    })).toBe(2);
+    // The dead post still stays excluded from future release searches.
+    expect((await listFulfillmentReleaseExclusions({
+      userId: owner.userId,
+      fulfillmentId: fulfillment.id,
+      attemptStrategy: "season_pack",
+    })).releaseKeys).toEqual(expect.arrayContaining(["guid:pack-dead"]));
   });
 
   it("updates due fulfillment and episode state without crossing tenants or seasons", async () => {

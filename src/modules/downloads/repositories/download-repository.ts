@@ -4,6 +4,7 @@ import { and, asc, count, desc, eq, exists, inArray, isNotNull, isNull, lte, not
 import { unionAll } from "drizzle-orm/sqlite-core";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
+import { isBudgetFreeDownloadAttempt } from "@/modules/downloads/attempt-cost";
 import {
   activeDownloadRequestStatuses,
   downloadClients,
@@ -12,6 +13,7 @@ import {
   downloadFulfillments,
   downloadQueueItems,
   downloadRequests,
+  engineDownloads,
   indexerSearchResults,
   type DownloadClientStatus,
   type DownloadClientType,
@@ -1073,6 +1075,80 @@ export async function listDownloadRequestReleaseExclusionsForItem(input: {
       row.normalizedTitle ? `title:${row.normalizedTitle}` : null,
     ].filter((key): key is string => key !== null)))),
   };
+}
+
+/**
+ * Counts the distinct releases already attempted for an item that actually
+ * consumed the bounded auto-retry budget. Zero-transfer engine failures
+ * (dead posts abandoned by the availability probe) stay excluded from
+ * future searches via {@link listDownloadRequestReleaseExclusionsForItem}
+ * but cost nothing here, so auto-retry keeps walking the candidate list
+ * until it finds a live release.
+ */
+export async function countBudgetConsumingReleaseAttemptsForItem(input: {
+  userId: string;
+  mediaTitleId: string;
+  episodeId?: string | null;
+  seasonId?: string | null;
+}) {
+  const database = ensureDatabaseReady();
+  const rows = database
+    .select({
+      searchResultId: downloadRequests.searchResultId,
+      queueItemId: downloadQueueItems.id,
+      engineState: engineDownloads.state,
+      engineFailureKind: engineDownloads.failureKind,
+      engineDownloadedBytes: engineDownloads.downloadedBytes,
+    })
+    .from(downloadRequests)
+    .leftJoin(downloadQueueItems, eq(downloadQueueItems.requestId, downloadRequests.id))
+    .leftJoin(engineDownloads, and(
+      eq(engineDownloads.id, downloadQueueItems.externalQueueId),
+      eq(engineDownloads.userId, downloadRequests.userId),
+    ))
+    .where(and(
+      eq(downloadRequests.userId, input.userId),
+      eq(downloadRequests.mediaTitleId, input.mediaTitleId),
+      input.episodeId
+        ? eq(downloadRequests.episodeId, input.episodeId)
+        : isNull(downloadRequests.episodeId),
+      input.seasonId
+        ? eq(downloadRequests.seasonId, input.seasonId)
+        : isNull(downloadRequests.seasonId),
+      isNotNull(downloadRequests.searchResultId),
+    ))
+    .all();
+
+  // A release consumes budget unless every one of its attempts is provably
+  // budget-free; attempts without a queue item or engine row count.
+  const consumingByRelease = new Map<string, boolean>();
+
+  for (const row of rows) {
+    if (!row.searchResultId) {
+      continue;
+    }
+
+    const budgetFree = row.queueItemId !== null && isBudgetFreeDownloadAttempt({
+      state: row.engineState,
+      failureKind: row.engineFailureKind,
+      downloadedBytes: row.engineDownloadedBytes,
+    });
+
+    consumingByRelease.set(
+      row.searchResultId,
+      (consumingByRelease.get(row.searchResultId) ?? false) || !budgetFree,
+    );
+  }
+
+  let consumed = 0;
+
+  for (const consuming of consumingByRelease.values()) {
+    if (consuming) {
+      consumed += 1;
+    }
+  }
+
+  return consumed;
 }
 
 export async function createDownloadImportRun(input: {

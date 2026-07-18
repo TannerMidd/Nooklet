@@ -9,6 +9,7 @@ import {
   downloadFulfillments,
   downloadQueueItems,
   downloadRequests,
+  engineDownloads,
   indexerSearchResults,
   indexerSearchRuns,
   mediaFiles,
@@ -23,6 +24,7 @@ import {
 
 import {
   completeDownloadImportRun,
+  countBudgetConsumingReleaseAttemptsForItem,
   createDownloadClient,
   createDownloadImportRun,
   createDownloadRequest,
@@ -720,6 +722,93 @@ describe("download-repository", () => {
       "guid:indexer1:severance-s01e02-1080p",
       "title:severance s01e02 1080p",
     ]));
+  });
+
+  it("counts only budget-consuming release attempts for auto-retry", async () => {
+    const database = ensureDatabaseReady();
+    const userId = await seedUser();
+    const { movieTitleId } = seedTitleAndEpisode(userId);
+
+    const seedAttempt = async (options: {
+      title: string;
+      guid: string;
+      engine: { state: "failed" | "completed"; failureKind: "content" | "infrastructure" | null; downloadedBytes: number } | null;
+    }) => {
+      const request = await createDownloadRequest({
+        userId,
+        mediaType: "movie",
+        requestedTitle: "Arrival",
+        mediaTitleId: movieTitleId,
+        searchResultId: seedSearchResult({
+          userId,
+          mediaType: "movie",
+          title: options.title,
+          indexerGuid: options.guid,
+        }),
+        status: "failed",
+      });
+
+      if (options.engine) {
+        const engineId = randomUUID();
+
+        database
+          .insert(engineDownloads)
+          .values({
+            id: engineId,
+            userId,
+            name: options.title,
+            nzbXml: "<nzb />",
+            state: options.engine.state,
+            failureKind: options.engine.failureKind,
+            downloadedBytes: options.engine.downloadedBytes,
+          })
+          .run();
+        await recordDownloadQueueItem({
+          requestId: request.id,
+          userId,
+          externalQueueId: engineId,
+          status: "failed",
+        });
+      } else {
+        await recordDownloadQueueItem({
+          requestId: request.id,
+          userId,
+          externalQueueId: `sab-${randomUUID()}`,
+          status: "failed",
+        });
+      }
+    };
+
+    // Zero-transfer content failure: excluded from search, but budget-free.
+    await seedAttempt({
+      title: "Arrival 2016 1080p DEAD",
+      guid: "indexer1:arrival-dead",
+      engine: { state: "failed", failureKind: "content", downloadedBytes: 0 },
+    });
+    // Partial transfer before failing: consumes budget.
+    await seedAttempt({
+      title: "Arrival 2016 1080p PARTIAL",
+      guid: "indexer1:arrival-partial",
+      engine: { state: "failed", failureKind: "content", downloadedBytes: 512 * 1024 * 1024 },
+    });
+    // External client attempt without engine telemetry: consumes budget.
+    await seedAttempt({
+      title: "Arrival 2016 1080p SAB",
+      guid: "indexer1:arrival-sab",
+      engine: null,
+    });
+
+    const consumed = await countBudgetConsumingReleaseAttemptsForItem({
+      userId,
+      mediaTitleId: movieTitleId,
+    });
+    const exclusions = await listDownloadRequestReleaseExclusionsForItem({
+      userId,
+      mediaTitleId: movieTitleId,
+    });
+
+    expect(consumed).toBe(2);
+    expect(exclusions.resultIds).toHaveLength(3);
   });
 
   it("persists a download import run and imported files", async () => {

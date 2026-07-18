@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/modules/downloads/repositories/download-repository", () => ({
+  countBudgetConsumingReleaseAttemptsForItem: vi.fn(),
   listDownloadRequestReleaseExclusionsForItem: vi.fn(),
   updateDownloadRequestStatus: vi.fn(),
 }));
@@ -23,7 +24,11 @@ vi.mock("@/modules/media-library/workflows/search-library-item-releases", () => 
   searchLibraryItemReleasesWorkflow: vi.fn(),
 }));
 
-import { listDownloadRequestReleaseExclusionsForItem } from "@/modules/downloads/repositories/download-repository";
+import {
+  countBudgetConsumingReleaseAttemptsForItem,
+  listDownloadRequestReleaseExclusionsForItem,
+  updateDownloadRequestStatus,
+} from "@/modules/downloads/repositories/download-repository";
 import {
   attachDownloadRequestToFulfillment,
   findDownloadFulfillmentById,
@@ -43,6 +48,8 @@ import {
 import { retryFailedCompletedDownloads } from "./retry-handling";
 
 const listAttemptedReleasesMock = vi.mocked(listDownloadRequestReleaseExclusionsForItem);
+const countConsumingAttemptsMock = vi.mocked(countBudgetConsumingReleaseAttemptsForItem);
+const updateRequestStatusMock = vi.mocked(updateDownloadRequestStatus);
 const attachToFulfillmentMock = vi.mocked(attachDownloadRequestToFulfillment);
 const findFulfillmentMock = vi.mocked(findDownloadFulfillmentById);
 const updateFulfillmentMock = vi.mocked(updateDownloadFulfillment);
@@ -57,6 +64,7 @@ beforeEach(() => {
     resultIds: ["cbd43b73-6987-4652-91df-e8aa2bfa5761"],
     releaseKeys: ["title:star trek 2009 1080p bdrip aac 7 1 x265 10bit markii"],
   });
+  countConsumingAttemptsMock.mockResolvedValue(1);
   searchLibraryItemReleasesMock.mockResolvedValue({
     queuedDownload: { queued: true },
   } as never);
@@ -129,6 +137,77 @@ describe("retryFailedCompletedDownloads", () => {
 
     expect(result).toEqual({ attemptedCount: 1, queuedCount: 1, failedCount: 0 });
     expect(searchLibraryItemReleasesMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops auto-retry once budget-consuming attempts reach the cap", async () => {
+    countConsumingAttemptsMock.mockResolvedValue(3);
+
+    const result = await retryFailedCompletedDownloads("user1", [
+      {
+        kind: "failed",
+        message: "The download failed.",
+        source: {
+          kind: "failed",
+          message: "The download failed.",
+          source: {
+            kind: "failed",
+            match: {
+              request: {
+                id: "req-1",
+                mediaTitleId: "b411e2d6-3a82-4d8a-bb18-053bb6e44b29",
+                episodeId: null,
+                targetLibraryPathId: "f8496196-4656-48f5-bc51-90a544c89e2a",
+              },
+              historyItem: { statusKind: "failed", downloadedBytes: 1024 },
+            },
+          },
+        },
+      } as never,
+    ]);
+
+    expect(result).toEqual({ attemptedCount: 0, queuedCount: 0, failedCount: 0 });
+    expect(searchLibraryItemReleasesMock).not.toHaveBeenCalled();
+    expect(updateRequestStatusMock).toHaveBeenCalledWith(expect.objectContaining({
+      statusMessage: expect.stringContaining("Auto-retry stopped after 3 failed download attempts"),
+    }));
+  });
+
+  it("keeps cycling to new releases when prior attempts were zero-transfer abandons", async () => {
+    // Five releases already excluded, but none consumed the budget: every
+    // attempt was a dead post the engine rejected before downloading.
+    countConsumingAttemptsMock.mockResolvedValue(0);
+    listAttemptedReleasesMock.mockResolvedValue({
+      resultIds: ["r1", "r2", "r3", "r4", "r5"],
+      releaseKeys: [],
+    });
+
+    const result = await retryFailedCompletedDownloads("user1", [
+      {
+        kind: "failed",
+        message: "The download failed.",
+        source: {
+          kind: "failed",
+          message: "The download failed.",
+          source: {
+            kind: "failed",
+            match: {
+              request: {
+                id: "req-1",
+                mediaTitleId: "b411e2d6-3a82-4d8a-bb18-053bb6e44b29",
+                episodeId: null,
+                targetLibraryPathId: "f8496196-4656-48f5-bc51-90a544c89e2a",
+              },
+              historyItem: { statusKind: "failed", downloadedBytes: 0 },
+            },
+          },
+        },
+      } as never,
+    ]);
+
+    expect(result).toEqual({ attemptedCount: 1, queuedCount: 1, failedCount: 0 });
+    expect(searchLibraryItemReleasesMock).toHaveBeenCalledWith("user1", expect.objectContaining({
+      excludedResultIds: ["r1", "r2", "r3", "r4", "r5"],
+    }));
   });
 
   it("does not retry a failed duplicate when the same item imported successfully", async () => {

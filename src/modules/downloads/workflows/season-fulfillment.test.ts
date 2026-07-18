@@ -59,6 +59,7 @@ import {
 import {
   attemptSeasonPack,
   createSeasonFulfillment,
+  markFulfillmentEpisodeFailedAndRetry,
   queueMissingSeasonEpisodes,
   reconcileSeasonCoverage,
   recordSeasonPackSubmissionOutcome,
@@ -312,6 +313,59 @@ afterEach(() => {
 });
 
 describe("season fulfillment recovery", () => {
+  it("refunds the episode attempt slot when the failed attempt transferred nothing", async () => {
+    fulfillment = makeFulfillment({ strategy: "episodes" });
+    episodeStates.push({
+      fulfillmentId: fulfillment.id,
+      episodeId: "episode-1",
+      status: "active",
+      // The budget looks exhausted, but the last slot was consumed by a
+      // zero-transfer abandon that is now being refunded.
+      attemptCount: 3,
+      nextAttemptAt: null,
+      statusMessage: null,
+      createdAt: fixedNow,
+      updatedAt: fixedNow,
+    });
+
+    const queued = await markFulfillmentEpisodeFailedAndRetry({
+      userId: "user-1",
+      fulfillmentId: "fulfillment-1",
+      episode: makeEpisode("episode-1", 1) as never,
+      failureMessage: "The transfer stopped early: the release cannot assemble completely.",
+      attemptWasFree: true,
+    });
+
+    expect(queued).toBe(true);
+    expect(searchMock).toHaveBeenCalled();
+    expect(episodeStates[0].status).not.toBe("unavailable");
+  });
+
+  it("keeps the episode exhaustion stop when the failed attempt consumed budget", async () => {
+    fulfillment = makeFulfillment({ strategy: "episodes" });
+    episodeStates.push({
+      fulfillmentId: fulfillment.id,
+      episodeId: "episode-1",
+      status: "active",
+      attemptCount: 3,
+      nextAttemptAt: null,
+      statusMessage: null,
+      createdAt: fixedNow,
+      updatedAt: fixedNow,
+    });
+
+    const queued = await markFulfillmentEpisodeFailedAndRetry({
+      userId: "user-1",
+      fulfillmentId: "fulfillment-1",
+      episode: makeEpisode("episode-1", 1) as never,
+      failureMessage: "PAR2 repair failed after the transfer completed.",
+    });
+
+    expect(queued).toBe(false);
+    expect(searchMock).not.toHaveBeenCalled();
+    expect(episodeStates[0].status).toBe("unavailable");
+  });
+
   it("creates a restart-safe checkpoint before the initial pack search", async () => {
     createFulfillmentMock.mockResolvedValue(fulfillment as never);
 
