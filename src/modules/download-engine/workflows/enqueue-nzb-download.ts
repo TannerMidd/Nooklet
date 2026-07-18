@@ -48,11 +48,24 @@ function formatCapacity(bytes: number) {
 }
 
 async function readDownloadCapacity() {
+  // In-flight downloads assemble and unpack under DOWNLOAD_ENGINE_WORK_DIR;
+  // the finalized output then lands under DOWNLOAD_ENGINE_DIR. The two may be
+  // different filesystems, and a release must fit on both, so the tighter of
+  // the two governs admission.
+  await mkdir(env.DOWNLOAD_ENGINE_WORK_DIR, { recursive: true });
   await mkdir(env.DOWNLOAD_ENGINE_DIR, { recursive: true });
-  const filesystem = await statfs(env.DOWNLOAD_ENGINE_DIR);
+  const workFilesystem = await statfs(env.DOWNLOAD_ENGINE_WORK_DIR);
+  const outputFilesystem = await statfs(env.DOWNLOAD_ENGINE_DIR);
+  const workAvailable = workFilesystem.bavail * workFilesystem.bsize;
+  const outputAvailable = outputFilesystem.bavail * outputFilesystem.bsize;
+  const constrained = workAvailable <= outputAvailable
+    ? { filesystem: workFilesystem, directory: env.DOWNLOAD_ENGINE_WORK_DIR }
+    : { filesystem: outputFilesystem, directory: env.DOWNLOAD_ENGINE_DIR };
+
   return {
-    availableBytes: filesystem.bavail * filesystem.bsize,
-    filesystemCapacityBytes: filesystem.blocks * filesystem.bsize,
+    availableBytes: constrained.filesystem.bavail * constrained.filesystem.bsize,
+    filesystemCapacityBytes: constrained.filesystem.blocks * constrained.filesystem.bsize,
+    constrainedDirectory: constrained.directory,
   };
 }
 
@@ -83,6 +96,7 @@ export async function enqueueNzbDownloadWorkflow(userId: string, input: {
   const {
     availableBytes,
     filesystemCapacityBytes,
+    constrainedDirectory,
   } = await readDownloadCapacity();
   const reservation = await createEngineDownloadWithCapacityReservation(
     {
@@ -105,7 +119,7 @@ export async function enqueueNzbDownloadWorkflow(userId: string, input: {
     throw new EnqueueNzbDownloadError(
       "insufficient_space",
       `There is not enough free disk space in the built-in downloader directory `
-      + `"${env.DOWNLOAD_ENGINE_DIR}" (${formatCapacity(availableBytes)} available; `
+      + `"${constrainedDirectory}" (${formatCapacity(availableBytes)} available; `
       + `${Number.isSafeInteger(reservation.requiredBytes)
         ? formatCapacity(reservation.requiredBytes)
         : "an invalid amount"} required for queued downloads, unpacking, and the safety reserve; `

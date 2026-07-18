@@ -1,7 +1,7 @@
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { lstat, mkdir, mkdtemp, readdir, realpath, rename, rm, stat } from "node:fs/promises";
+import { copyFile, lstat, mkdir, mkdtemp, readdir, realpath, rename, rm, stat } from "node:fs/promises";
 
 import { sanitizeDownloadFileName } from "@/modules/download-engine/assembly/sanitize-file-name";
 import { deobfuscateDownloadFiles } from "@/modules/download-engine/finalize/deobfuscate-files";
@@ -471,15 +471,64 @@ export async function withArchiveStaging<T>(
   }
 }
 
+function hasErrorCode(error: unknown, code: string) {
+  return error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === code;
+}
+
 async function pathStatsOrNull(filePath: string) {
   try {
     return await lstat(filePath);
   } catch (error) {
-    if (error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
+    if (hasErrorCode(error, "ENOENT")) {
       return null;
     }
 
     throw error;
+  }
+}
+
+async function copyDirectoryTree(sourceDir: string, targetDir: string): Promise<void> {
+  await mkdir(targetDir, { recursive: true });
+
+  for (const entry of await readdir(sourceDir, { withFileTypes: true })) {
+    const sourcePath = path.join(sourceDir, entry.name);
+    const targetPath = path.join(targetDir, entry.name);
+
+    if (entry.isDirectory()) {
+      await copyDirectoryTree(sourcePath, targetPath);
+    } else {
+      await copyFile(sourcePath, targetPath);
+    }
+  }
+}
+
+/**
+ * Moves the finished download into its output location. The work directory
+ * lives on a Linux-native filesystem while the output directory may sit on a
+ * host bind mount (a different filesystem), so a cross-device rename falls
+ * back to copying the tree one file at a time — sequential streaming is the
+ * one access pattern Docker Desktop file shares handle reliably.
+ */
+export async function moveDownloadToOutput(workDir: string, outputDir: string): Promise<void> {
+  await mkdir(path.dirname(outputDir), { recursive: true });
+  await rm(outputDir, { recursive: true, force: true });
+
+  try {
+    await rename(workDir, outputDir);
+  } catch (error) {
+    if (!hasErrorCode(error, "EXDEV")) {
+      throw error;
+    }
+
+    try {
+      await copyDirectoryTree(workDir, outputDir);
+    } catch (copyError) {
+      // Never leave a half-copied output tree for the import pass to find.
+      await rm(outputDir, { recursive: true, force: true }).catch(() => undefined);
+      throw copyError;
+    }
+
+    await rm(workDir, { recursive: true, force: true });
   }
 }
 
@@ -864,9 +913,7 @@ export async function finalizeDownload(input: {
   // PAR2 volumes have served their purpose once media is secured.
   await removeArtifacts(input.workDir, { archives: false, par2: true });
 
-  await mkdir(path.dirname(input.outputDir), { recursive: true });
-  await rm(input.outputDir, { recursive: true, force: true });
-  await rename(input.workDir, input.outputDir);
+  await moveDownloadToOutput(input.workDir, input.outputDir);
 
   return {
     outputPath: input.outputDir,

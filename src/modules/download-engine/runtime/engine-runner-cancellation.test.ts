@@ -21,6 +21,7 @@ vi.mock("node:fs/promises", () => ({
 vi.mock("@/lib/env", () => ({
   env: {
     DOWNLOAD_ENGINE_DIR: "C:\\nooklet-engine-test",
+    DOWNLOAD_ENGINE_WORK_DIR: "C:\\nooklet-engine-test-work",
   },
 }));
 

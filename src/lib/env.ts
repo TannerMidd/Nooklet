@@ -42,10 +42,16 @@ const envSchema = z.object({
   PRIVATE_SERVICE_HOST_ALLOWLIST: z.string().default(""),
   ALLOW_PRIVATE_SERVICE_HOSTS: booleanFromEnv.default(false),
   SABNZBD_PATH_MAPPINGS: z.string().default(""),
-  // Working/output directory for the built-in usenet download engine
-  // (ADR-0002). Lives inside the data volume by default so incomplete and
-  // completed downloads survive container restarts.
+  // Output directory for the built-in usenet download engine (ADR-0002).
+  // Completed downloads land here; it may live on a host bind mount.
   DOWNLOAD_ENGINE_DIR: z.string().default("./data/downloads"),
+  // Scratch directory where in-flight downloads assemble, repair, and
+  // extract. This I/O is many parallel random-offset writes plus tool-driven
+  // rewrites, which wedges Docker Desktop's gRPC-FUSE/9p file sharing when it
+  // targets a Windows bind mount — so it defaults into the data volume
+  // (Linux-native filesystem) and only the finalized output crosses onto
+  // DOWNLOAD_ENGINE_DIR with a single sequential copy.
+  DOWNLOAD_ENGINE_WORK_DIR: z.string().default("./data/engine-work"),
   // Maximum time to wait for an AI provider to return a recommendation batch.
   // Slow local models (LM Studio / Ollama) and large reasoning models routinely
   // exceed several minutes; recommendation runs already execute on the
@@ -113,5 +119,6 @@ export const env = envSchema.parse({
   ALLOW_PRIVATE_SERVICE_HOSTS: process.env.ALLOW_PRIVATE_SERVICE_HOSTS,
   SABNZBD_PATH_MAPPINGS: process.env.SABNZBD_PATH_MAPPINGS,
   DOWNLOAD_ENGINE_DIR: process.env.DOWNLOAD_ENGINE_DIR,
+  DOWNLOAD_ENGINE_WORK_DIR: process.env.DOWNLOAD_ENGINE_WORK_DIR,
   AI_RECOMMENDATIONS_TIMEOUT_MS: process.env.AI_RECOMMENDATIONS_TIMEOUT_MS,
 });

@@ -72,7 +72,7 @@ describe("enqueueNzbDownloadWorkflow", () => {
     await expect(enqueue).rejects.toMatchObject({
       code: "insufficient_space",
       message: expect.stringMatching(
-        /not enough free disk space.*data[\\/]downloads.*available.*required/i,
+        /not enough free disk space.*data[\\/]engine-work.*available.*required/i,
       ),
       capacity: {
         availableBytes: 100 * 1024,
@@ -98,7 +98,9 @@ describe("enqueueNzbDownloadWorkflow", () => {
       category: "movies",
       nzbXml,
     })).resolves.toMatchObject({ id: "engine-1" });
+    expect(mkdir).toHaveBeenCalledWith(env.DOWNLOAD_ENGINE_WORK_DIR, { recursive: true });
     expect(mkdir).toHaveBeenCalledWith(env.DOWNLOAD_ENGINE_DIR, { recursive: true });
+    expect(statfs).toHaveBeenCalledWith(env.DOWNLOAD_ENGINE_WORK_DIR);
     expect(statfs).toHaveBeenCalledWith(env.DOWNLOAD_ENGINE_DIR);
     expect(createEngineDownloadWithCapacityReservation).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -112,6 +114,36 @@ describe("enqueueNzbDownloadWorkflow", () => {
       },
     );
     expect(ensureEngineRunnerStarted).toHaveBeenCalled();
+  });
+
+  it("admits against the tighter of the work and output filesystems", async () => {
+    // Output filesystem is roomy; the work filesystem is nearly full and must
+    // be the one that rejects the download.
+    vi.mocked(statfs).mockImplementation(async (target) => (
+      target === env.DOWNLOAD_ENGINE_WORK_DIR
+        ? { bavail: 100, bsize: 1024, blocks: 2 * 1024 * 1024 }
+        : { bavail: 500 * 1024 * 1024, bsize: 1024, blocks: 1024 * 1024 * 1024 }
+    ) as never);
+    vi.mocked(createEngineDownloadWithCapacityReservation).mockResolvedValue({
+      created: false,
+      activeRemainingBytes: 0,
+      activeWorkspaceBytes: 0,
+      requiredBytes: (512 * 1024 * 1024) + 2_000,
+    });
+
+    await expect(enqueueNzbDownloadWorkflow("user-1", {
+      name: "Movie",
+      category: "movies",
+      nzbXml,
+    })).rejects.toMatchObject({
+      code: "insufficient_space",
+      message: expect.stringMatching(/data[\\/]engine-work/i),
+      capacity: expect.objectContaining({ availableBytes: 100 * 1024 }),
+    });
+    expect(createEngineDownloadWithCapacityReservation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ availableBytes: 100 * 1024 }),
+    );
   });
 
   it("reports the exact transaction-time capacity requirement", async () => {

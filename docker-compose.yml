@@ -20,6 +20,15 @@ services:
       - /tmp
       - /app/.next/cache
     pids_limit: 512
+    # Cap the container so download bursts can never starve the Docker VM's
+    # own daemon; the cgroup limit also bounds the page cache the container's
+    # writes accumulate, forcing earlier writeback under heavy transfers.
+    mem_limit: 3g
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-42021}:42021"
     env_file:

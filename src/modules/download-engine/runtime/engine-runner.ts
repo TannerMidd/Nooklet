@@ -116,7 +116,7 @@ export function classifyEngineRuntimeError(
 }
 
 export function engineIncompleteDir(downloadId: string) {
-  return path.join(env.DOWNLOAD_ENGINE_DIR, "incomplete", downloadId);
+  return path.join(env.DOWNLOAD_ENGINE_WORK_DIR, "incomplete", downloadId);
 }
 
 export function engineCompleteDir(downloadId: string) {
