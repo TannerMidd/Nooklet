@@ -1,11 +1,12 @@
 # Storage and path mapping
 
-Nooklet uses two distinct storage stages:
+Nooklet uses three distinct storage stages:
 
-1. **Download staging** holds incomplete articles, assembled files, repairs, and extracted content.
-2. **Final library destinations** hold imported movies and TV episodes.
+1. **Download work** holds incomplete articles, assembled files, repairs, and extraction under `DOWNLOAD_ENGINE_WORK_DIR`.
+2. **Completed-download staging** holds finalized output under `DOWNLOAD_ENGINE_DIR` until import succeeds.
+3. **Final library destinations** hold imported movies and TV episodes.
 
-Free space on a media drive does not satisfy a staging-space check when `DOWNLOAD_ENGINE_DIR` points to another filesystem.
+The image defaults in-flight work to `/app/data/engine-work` on Docker's Linux-native named volume. This avoids high-concurrency random I/O on a Windows bind mount. A finalized result may still cross to `DOWNLOAD_ENGINE_DIR`, and import then crosses to its selected media destination.
 
 ## The Docker path model
 
@@ -15,7 +16,8 @@ flowchart LR
     H2["Host: F:/Nooklet/Downloads"] -->|"bind mount"| C2["Container: /downloads"]
     C1 --> UI["Nooklet storage settings"]
     C2 --> ENV["DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine"]
-    ENV --> PRE["Staging capacity preflight"]
+    WORK["DOWNLOAD_ENGINE_WORK_DIR\n/app/data/engine-work"] --> PRE["Cached admission + worker preflight"]
+    ENV --> PRE
     PRE --> IMP["Repair, extract, and import"]
     IMP --> C1
 ```
@@ -57,7 +59,7 @@ docker compose up -d --force-recreate
 
 ## Download capacity policy
 
-Before the built-in engine accepts an NZB, it reads free space on the filesystem containing `DOWNLOAD_ENGINE_DIR` and reserves capacity for active work, extraction, and a safety floor.
+Before the built-in engine accepts an NZB, it uses the latest fresh isolated-worker snapshot for the work and completed-output filesystems and reserves capacity for active work, extraction, and a safety floor. The web request never probes a mount directly. The worker checks operational state again before physical work.
 
 ```text
 required free bytes
@@ -74,7 +76,7 @@ Queue-time failures are classified before recovery acts:
 - a release larger than the entire staging filesystem is skipped in favor of another candidate;
 - current non-active free-space pressure or a wrong/small volume mapping blocks with a storage repair action without excluding the release.
 
-**Settings -> Storage** shows:
+**Settings -> Storage** shows cached observations from the isolated storage probe:
 
 - the configured and effective staging path;
 - reachability and write access;
@@ -82,12 +84,15 @@ Queue-time failures are classified before recovery acts:
 - active-download reservation;
 - capacity available for new downloads;
 - the approximate maximum size of one additional download.
+- snapshot freshness and the last completed check.
+
+The probe normally runs every 60 seconds in a disposable process. If a mount call does not return within 30 seconds, the supervisor kills or abandons only that probe. The page retains the last successful capacity as stale instead of joining the blocked filesystem call.
 
 Readiness requires the built-in workspace to be reachable, writable, and to have a positive amount available for new downloads. At queue time, the exact declared NZB size must also pass the formula.
 
 ## Diagnose “not enough free disk space”
 
-1. Open **Settings -> Storage**.
+1. Open **Settings -> Storage** and check whether the reading is fresh, stale, or unavailable.
 2. Read the exact **download workspace** path; do not assume it is the final media folder.
 3. Confirm `DOWNLOAD_ENGINE_DIR` uses the intended container mount, such as `/downloads/nooklet-engine`.
 4. Confirm the host staging folder is actually bound to `/downloads`.
@@ -96,7 +101,7 @@ Readiness requires the built-in workspace to be reachable, writable, and to have
 7. Recreate the container if `.env` or the Compose override changed.
 8. Recheck Storage and retry the request.
 
-If `DOWNLOAD_ENGINE_DIR` is left at the image default `/app/data/downloads`, the capacity check uses the Docker named-volume filesystem rather than an `F:` or other host media drive. Mounting a large staging drive is not sufficient until the environment variable points beneath that mount.
+If `DOWNLOAD_ENGINE_DIR` is left at the image default `/app/data/downloads`, completed-download staging uses the Docker named-volume filesystem rather than an `F:` or other host media drive. `DOWNLOAD_ENGINE_WORK_DIR` should normally remain under `/app/data`; moving high-concurrency work to a Docker Desktop Windows bind mount can reintroduce host file-sharing pressure.
 
 ## Approved media roots
 
@@ -123,7 +128,7 @@ Removing a folder configuration does not delete its existing media files. File d
 
 ## Permissions
 
-The Docker image runs as its non-root `node` user. On Linux hosts, make the bind-mounted directories readable and writable by the effective container user without granting unnecessary access to the entire filesystem. Diagnose with host ownership/ACL tools and the live status shown in **Settings -> Storage**.
+The Docker image runs as its non-root `node` user. On Linux hosts, make the bind-mounted directories readable and writable by the effective container user without granting unnecessary access to the entire filesystem. Diagnose with host ownership/ACL tools and the latest snapshot shown in **Settings -> Storage**.
 
 Avoid solving a permissions error by making the whole media tree world-writable. Grant the narrow service identity access required for staging and import.
 
@@ -166,7 +171,8 @@ Do not run `docker compose down -v` unless intentionally deleting the persistent
 ## Implementation references
 
 - [Compose volume model](https://github.com/TannerMidd/Nooklet/blob/main/docker-compose.yml)
-- [Live storage overview](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/storage/queries/get-storage-overview.ts)
+- [Request-safe storage overview](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/storage/queries/get-storage-overview.ts)
+- [Isolated storage refresh](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/storage/workflows/refresh-storage-snapshots.ts)
 - [Queue-time capacity preflight](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/download-engine/workflows/enqueue-nzb-download.ts)
 - [Media-root policy](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/security/filesystem-policy.ts)
 - [SAB path translation and containment](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/import-completed-downloads/source-path-mapping.ts)

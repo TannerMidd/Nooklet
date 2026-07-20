@@ -1,4 +1,5 @@
 import { getBackgroundWorkerReadiness } from "@/lib/jobs/worker-readiness";
+import { getDownloadEngineHealth } from "@/modules/download-engine/queries/get-download-engine-health";
 import { listIndexerSettings } from "@/modules/indexers/queries/list-indexer-settings";
 import { listNotificationChannels } from "@/modules/notifications/queries/list-notification-channels";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
@@ -16,6 +17,7 @@ export async function getReadiness(userId: string) {
     listNotificationChannels(userId),
   ]);
   const worker = getBackgroundWorkerReadiness();
+  const downloadEngine = getDownloadEngineHealth(userId);
 
   const evaluation = evaluateReadiness({
     services: services.map(({ serviceType, status }) => ({ serviceType, status })),
@@ -56,5 +58,6 @@ export async function getReadiness(userId: string) {
     watchHistory,
     notifications,
     worker,
+    downloadEngine,
   };
 }

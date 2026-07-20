@@ -40,6 +40,34 @@ export const auditEvents = sqliteTable("audit_events", {
     .default(sql`(unixepoch() * 1000)`),
 });
 
+export const storageSnapshotKinds = ["download-workspace", "library-destination"] as const;
+
+/**
+ * Last completed storage probe results. Filesystem probes run outside the web
+ * request process; pages consume these durable rows so an unhealthy bind mount
+ * cannot consume the web server's libuv worker pool.
+ */
+export const storageSnapshots = sqliteTable(
+  "storage_snapshots",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind", { enum: storageSnapshotKinds }).notNull(),
+    path: text("path").notNull(),
+    exists: integer("exists", { mode: "boolean" }).notNull().default(false),
+    reachable: integer("reachable", { mode: "boolean" }).notNull().default(false),
+    readable: integer("readable", { mode: "boolean" }).notNull().default(false),
+    writable: integer("writable", { mode: "boolean" }).notNull().default(false),
+    freeSpaceBytes: integer("free_space_bytes"),
+    totalSpaceBytes: integer("total_space_bytes"),
+    errorMessage: text("error_message"),
+    checkedAt: integer("checked_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [index("storage_snapshots_kind_idx").on(table.kind)],
+);
+
 export const preferenceMediaModes = ["tv", "movies", "both"] as const;
 export const preferenceLanguageCodes = [
   "any",
@@ -210,6 +238,7 @@ export const engineDownloadStates = [
   "failed",
   "paused",
 ] as const;
+export const engineDownloadControlIntents = ["pause", "cancel"] as const;
 export const engineDownloadCategories = ["tv", "movies"] as const;
 export const engineDownloadFailureKinds = ["content", "infrastructure", "cancelled", "unknown"] as const;
 
@@ -928,11 +957,13 @@ export const engineDownloads = sqliteTable(
     name: text("name").notNull(),
     category: text("category", { enum: engineDownloadCategories }).notNull().default("movies"),
     state: text("state", { enum: engineDownloadStates }).notNull().default("queued"),
+    controlIntent: text("control_intent", { enum: engineDownloadControlIntents }),
     priority: integer("priority").notNull().default(0),
     nzbXml: text("nzb_xml").notNull(),
     password: text("password"),
     totalBytes: integer("total_bytes").notNull().default(0),
     downloadedBytes: integer("downloaded_bytes").notNull().default(0),
+    bytesPerSecond: integer("bytes_per_second"),
     totalSegments: integer("total_segments").notNull().default(0),
     completedSegments: integer("completed_segments").notNull().default(0),
     failedSegments: integer("failed_segments").notNull().default(0),
@@ -966,6 +997,8 @@ export const jobTypes = [
   "media-library-scan",
   "missing-content-search",
   "metadata-refresh",
+  "download-import",
+  "media-title-delete",
 ] as const;
 export const jobStatuses = ["idle", "running", "succeeded", "failed"] as const;
 
@@ -1337,6 +1370,7 @@ export type DownloadAttemptStrategy = (typeof downloadAttemptStrategies)[number]
 export type DownloadRequestStatus = (typeof downloadRequestStatuses)[number];
 export type DownloadQueueItemStatus = (typeof downloadQueueItemStatuses)[number];
 export type EngineDownloadState = (typeof engineDownloadStates)[number];
+export type EngineDownloadControlIntent = (typeof engineDownloadControlIntents)[number];
 export type EngineDownloadCategory = (typeof engineDownloadCategories)[number];
 export type EngineDownloadFailureKind = (typeof engineDownloadFailureKinds)[number];
 export type DownloadImportRunStatus = (typeof downloadImportRunStatuses)[number];

@@ -313,6 +313,28 @@ describe("queueReleaseCandidates", () => {
     });
   });
 
+  it("does not reject or consume a candidate when storage telemetry is unavailable", async () => {
+    queueMock.mockRejectedValueOnce(new QueueIndexerResultWorkflowError(
+      "download_capacity_exceeded",
+      "The latest work storage check is stale.",
+      null,
+    ));
+
+    const outcome = await queueReleaseCandidates(
+      "u1",
+      [{ id: "first" }, { id: "second" }],
+      { ...context, maxCandidateAttempts: 1 },
+    );
+
+    expect(queueMock).toHaveBeenCalledTimes(1);
+    expect(outcome).toMatchObject({
+      queued: false,
+      failureKind: "infrastructure",
+      rejectedResultIds: [],
+      capacity: null,
+    });
+  });
+
   it("reports the last error when every candidate fails a retryable check", async () => {
     queueMock.mockRejectedValue(
       new QueueIndexerResultWorkflowError("result_not_found", "Search result expired."),

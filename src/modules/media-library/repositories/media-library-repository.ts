@@ -185,6 +185,12 @@ export async function updateMediaLibraryPath(input: {
 }) {
   const database = ensureDatabaseReady();
   const updatedAt = new Date();
+  const existing = database
+    .select({ path: mediaLibraryPaths.path })
+    .from(mediaLibraryPaths)
+    .where(and(eq(mediaLibraryPaths.id, input.id), eq(mediaLibraryPaths.userId, input.userId)))
+    .get();
+  const pathChanged = existing?.path !== input.path;
 
   database
     .update(mediaLibraryPaths)
@@ -193,6 +199,7 @@ export async function updateMediaLibraryPath(input: {
       path: input.path,
       label: input.label,
       status: input.status,
+      ...(pathChanged ? { freeSpaceBytes: null, totalSpaceBytes: null } : {}),
       updatedAt,
     })
     .where(and(eq(mediaLibraryPaths.id, input.id), eq(mediaLibraryPaths.userId, input.userId)))

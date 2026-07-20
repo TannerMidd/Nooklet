@@ -24,7 +24,7 @@ Sessions use JWT strategy with a 24-hour maximum age. Disabled accounts and pass
 
 | Route | Methods | Authentication | Purpose |
 | --- | --- | --- | --- |
-| `/api/health` | `GET` | None | Database and worker readiness |
+| `/api/health` | `GET` | None | Database, worker, and built-in engine readiness |
 | `/api/auth/[...nextauth]` | `GET`, `POST` | Auth.js-managed | Login, logout, CSRF, providers, and session protocol |
 | `/api/service-connections/sabnzbd/queue` | `GET`, `POST` | Required | Source-aware built-in and legacy queue read/control |
 
@@ -45,7 +45,7 @@ Do not depend on internal exception text. Auth.js endpoints use Auth.js protocol
 
 ## `GET /api/health`
 
-This public readiness probe applies migrations/database compatibility checks and evaluates worker recency. It does not expose internal exception messages.
+This public readiness probe applies migrations/database compatibility checks, evaluates worker recency, and reads durable built-in-engine progress. It does not expose internal exception messages.
 
 Response statuses:
 
@@ -61,7 +61,8 @@ Example responsive body:
   "status": "ok",
   "checks": {
     "database": "ok",
-    "backgroundWorker": "ok"
+    "backgroundWorker": "ok",
+    "downloadEngine": "idle"
   },
   "worker": {
     "started": true,
@@ -70,11 +71,19 @@ Example responsive body:
     "lastSuccessAt": "2026-07-15T18:30:00.000Z",
     "hasError": false
   },
+  "downloadEngine": {
+    "activeCount": 0,
+    "stalledCount": 0,
+    "failedCount": 0,
+    "activeStage": null,
+    "lastProgressAt": null,
+    "hasLoopError": false
+  },
   "timestamp": "2026-07-15T18:30:01.000Z"
 }
 ```
 
-`status: "degraded"` with HTTP 200 means the worker has ticked recently but its latest pass recorded an error. Docker intentionally treats that as responsive. Use the authenticated `/health` page for capability remediation and technical job details.
+`checks.downloadEngine` is `idle`, `ok`, or `degraded`. A stalled/failed engine changes the overall status to `degraded` but remains HTTP 200 while the scheduler is responsive; this diagnostic never terminates legitimate repair or extraction work. Docker intentionally treats that as responsive. Use the authenticated `/health` page for technical details.
 
 ```bash
 curl --fail-with-body http://localhost:42021/api/health

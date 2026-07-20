@@ -1,14 +1,22 @@
-import { mkdir, statfs } from "node:fs/promises";
+import path from "node:path";
 
 import { env } from "@/lib/env";
 import { NzbParseError, parseNzb } from "@/modules/download-engine/nzb/parse-nzb";
 import {
   createEngineDownloadWithCapacityReservation,
 } from "@/modules/download-engine/queue/engine-repository";
-import { ensureEngineRunnerStarted } from "@/modules/download-engine/runtime/engine-runner";
 import { type EngineDownloadCategory } from "@/lib/database/schema";
+import {
+  downloadEngineWorkSnapshotId,
+  downloadWorkspaceSnapshotId,
+  findStorageSnapshot,
+} from "@/modules/storage/repositories/storage-snapshot-repository";
+import { getStorageSnapshotStatus } from "@/modules/storage/storage-snapshot-status";
 
-export type EnqueueNzbDownloadErrorCode = "invalid_nzb" | "insufficient_space";
+export type EnqueueNzbDownloadErrorCode =
+  | "invalid_nzb"
+  | "insufficient_space"
+  | "storage_unavailable";
 
 export type EnqueueNzbDownloadCapacity = {
   availableBytes: number;
@@ -48,23 +56,51 @@ function formatCapacity(bytes: number) {
 }
 
 async function readDownloadCapacity() {
-  // In-flight downloads assemble and unpack under DOWNLOAD_ENGINE_WORK_DIR;
-  // the finalized output then lands under DOWNLOAD_ENGINE_DIR. The two may be
-  // different filesystems, and a release must fit on both, so the tighter of
-  // the two governs admission.
-  await mkdir(env.DOWNLOAD_ENGINE_WORK_DIR, { recursive: true });
-  await mkdir(env.DOWNLOAD_ENGINE_DIR, { recursive: true });
-  const workFilesystem = await statfs(env.DOWNLOAD_ENGINE_WORK_DIR);
-  const outputFilesystem = await statfs(env.DOWNLOAD_ENGINE_DIR);
-  const workAvailable = workFilesystem.bavail * workFilesystem.bsize;
-  const outputAvailable = outputFilesystem.bavail * outputFilesystem.bsize;
-  const constrained = workAvailable <= outputAvailable
-    ? { filesystem: workFilesystem, directory: env.DOWNLOAD_ENGINE_WORK_DIR }
-    : { filesystem: outputFilesystem, directory: env.DOWNLOAD_ENGINE_DIR };
+  // Bind-mount probes run only in the isolated storage worker. The request
+  // path admits against its recent durable snapshot; the engine revalidates
+  // both work and output filesystems immediately before claiming work.
+  const workPath = path.resolve(env.DOWNLOAD_ENGINE_WORK_DIR);
+  const outputPath = path.resolve(env.DOWNLOAD_ENGINE_DIR);
+  const [workSnapshot, outputSnapshot] = await Promise.all([
+    findStorageSnapshot(downloadEngineWorkSnapshotId),
+    findStorageSnapshot(downloadWorkspaceSnapshotId),
+  ]);
+  const snapshots = [
+    { label: "work", path: workPath, snapshot: workSnapshot },
+    { label: "output", path: outputPath, snapshot: outputSnapshot },
+  ].map((entry) => ({
+    ...entry,
+    status: getStorageSnapshotStatus(entry.snapshot, entry.path),
+  }));
+  const unavailable = snapshots.find(({ snapshot, status }) => (
+    status !== "fresh"
+    || !snapshot?.reachable
+    || !snapshot.writable
+    || snapshot.freeSpaceBytes === null
+    || snapshot.totalSpaceBytes === null
+  ));
+
+  if (unavailable) {
+    const detail = unavailable.status === "stale"
+      ? `The latest ${unavailable.label} storage check is stale.`
+      : unavailable.status === "error"
+        ? `The ${unavailable.label} workspace is not reachable and writable.`
+        : `The ${unavailable.label} workspace has not been checked yet.`;
+    throw new EnqueueNzbDownloadError(
+      "storage_unavailable",
+      `${detail} Wait for the isolated storage check, then try again.`,
+    );
+  }
+
+  const work = workSnapshot!;
+  const output = outputSnapshot!;
+  const constrained = work.freeSpaceBytes! <= output.freeSpaceBytes!
+    ? { snapshot: work, directory: workPath }
+    : { snapshot: output, directory: outputPath };
 
   return {
-    availableBytes: constrained.filesystem.bavail * constrained.filesystem.bsize,
-    filesystemCapacityBytes: constrained.filesystem.blocks * constrained.filesystem.bsize,
+    availableBytes: constrained.snapshot.freeSpaceBytes!,
+    filesystemCapacityBytes: constrained.snapshot.totalSpaceBytes!,
     constrainedDirectory: constrained.directory,
   };
 }
@@ -140,8 +176,6 @@ export async function enqueueNzbDownloadWorkflow(userId: string, input: {
     );
   }
   const record = reservation.record;
-
-  await ensureEngineRunnerStarted();
 
   return {
     id: record.id,

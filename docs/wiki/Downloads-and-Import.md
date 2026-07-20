@@ -93,7 +93,7 @@ Retry timing is persisted:
 
 The 15-second worker pass resumes due plans after a process restart. Activity groups all physical attempts into one season plan and shows **Recovering** until the plan succeeds, becomes blocked, or otherwise reaches a terminal state. Notifications are suppressed while the plan is still recovering.
 
-Use **Stop season recovery** in Activity when you no longer want an open plan to keep searching. Nooklet checkpoints the cancellation, removes and verifies any downloader jobs owned by the plan, closes queue-less pending attempts, and keeps media files that were already imported. After cancellation finishes, a zero-file duplicate title can be removed from the Library without leaving its internal attempts behind as standalone Activity items.
+Use **Stop season recovery** in Activity when you no longer want an open plan to keep searching. Nooklet checkpoints the cancellation, removes and verifies any downloader jobs owned by the plan, closes queue-less pending attempts, and keeps media files that were already imported. For a zero-file duplicate, Library removal also offers an explicit **Stop active season plans and downloads first** option. That persists one safe-removal job, waits for the same verified cleanup, and removes only the library record; imported media files remain on disk.
 
 Source: [season fulfillment workflow](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/season-fulfillment.ts), [fulfillment repository](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/repositories/season-fulfillment-repository.ts), and [ADR-0003](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0003-durable-season-fulfillment.md).
 
@@ -146,8 +146,8 @@ On process startup, rows stranded in `fetching`, `assembling`, `repairing`, or `
 - The active transfer uses up to the configured NNTP connection count, currently limited to 20.
 - Pause is observed between segment operations; an active fetch is not terminated in the middle of a filesystem write.
 - Resume returns the item to `queued` and starts the runner.
-- Remove deletes engine staging/completion data and marks linked request state cancelled/failed.
-- Items in repair or extraction cannot be removed until post-processing finishes.
+- Remove persists cancellation, deletes engine staging/completion data in the isolated worker, and terminalizes linked request state after cleanup is verified.
+- Cancellation requested during repair or extraction waits for the current post-processing operation to return, then removes any finalized output instead of publishing it.
 - Queue-wide pause/resume and item reorder operations are source-local.
 
 The browser queue API combines built-in and SABnzbd snapshots for display while preserving `source: "engine" | "sabnzbd"` for correct controls. See [HTTP API](HTTP-API).
@@ -216,6 +216,6 @@ Use `SABNZBD_PATH_MAPPINGS` only when the path SAB reports cannot be resolved by
 - Per-segment restart resume is not implemented.
 - Torrent downloads are not implemented.
 - The staging formula uses NZB-declared size and a two-copy estimate; unusually expansive archives may need more room.
-- Post-processing is not safely cancellable once repair or extraction begins.
+- Post-processing cannot be interrupted mid-tool invocation; cancellation is durable and cleanup runs as soon as that invocation returns.
 
 Related: [Storage and Path Mapping](Storage-and-Path-Mapping) | [Health and Diagnostics](Health-and-Diagnostics) | [Troubleshooting](Troubleshooting)

@@ -3,9 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/modules/downloads/repositories/season-fulfillment-repository", () => ({
   findDownloadFulfillmentById: vi.fn(),
 }));
-vi.mock("@/modules/downloads/workflows/reconcile-season-fulfillment-cancellations", () => ({
-  reconcileSeasonFulfillmentCancellation: vi.fn(),
-}));
 vi.mock("@/modules/downloads/workflows/season-fulfillment-cancellation", () => ({
   checkpointExistingSeasonFulfillmentCancellation: vi.fn(),
 }));
@@ -17,9 +14,6 @@ vi.mock("@/modules/downloads/workflows/season-fulfillment-work-lease", () => ({
 import {
   findDownloadFulfillmentById,
 } from "@/modules/downloads/repositories/season-fulfillment-repository";
-import {
-  reconcileSeasonFulfillmentCancellation,
-} from "@/modules/downloads/workflows/reconcile-season-fulfillment-cancellations";
 import {
   checkpointExistingSeasonFulfillmentCancellation,
 } from "@/modules/downloads/workflows/season-fulfillment-cancellation";
@@ -34,7 +28,6 @@ import {
 } from "./cancel-season-fulfillment";
 
 const findFulfillmentMock = vi.mocked(findDownloadFulfillmentById);
-const reconcileMock = vi.mocked(reconcileSeasonFulfillmentCancellation);
 const checkpointMock = vi.mocked(checkpointExistingSeasonFulfillmentCancellation);
 const acquireLeaseMock = vi.mocked(acquireSeasonFulfillmentWorkLease);
 const releaseLeaseMock = vi.mocked(releaseSeasonFulfillmentWorkLease);
@@ -68,36 +61,33 @@ beforeEach(() => {
       completedAt: null,
     },
   });
-  reconcileMock.mockResolvedValue("cancelled");
 });
 
 describe("cancelSeasonFulfillmentWorkflow", () => {
-  it("checkpoints and immediately reconciles a plan-level cancellation", async () => {
+  it("checkpoints a plan-level cancellation for isolated worker reconciliation", async () => {
     const result = await cancelSeasonFulfillmentWorkflow("user-1", "fulfillment-1");
 
     expect(acquireLeaseMock).toHaveBeenCalledWith("user-1", "fulfillment-1");
     expect(checkpointMock).toHaveBeenCalledWith("user-1", "fulfillment-1", lease);
     expect(releaseLeaseMock).toHaveBeenCalledWith(lease);
-    expect(reconcileMock).toHaveBeenCalledWith("user-1", "fulfillment-1");
     expect(result).toEqual({
-      cancelled: true,
-      cancellationPending: false,
-      message: "Season recovery cancelled. Any queued downloads for this plan were removed.",
+      cancelled: false,
+      cancellationPending: true,
+      message: "Cancellation started. Nooklet will keep removing and verifying this plan's downloads automatically.",
     });
   });
 
-  it("keeps durable cancellation pending when downloader verification needs more time", async () => {
-    reconcileMock.mockResolvedValue("pending");
-    findFulfillmentMock
-      .mockResolvedValueOnce(activeFulfillment as never)
-      .mockResolvedValueOnce({
-        ...activeFulfillment,
-        status: "retry_wait",
-        cancellationRequestedAt: requestedAt,
-      } as never);
+  it("returns the existing durable cancellation without reacquiring a lease", async () => {
+    findFulfillmentMock.mockResolvedValue({
+      ...activeFulfillment,
+      status: "retry_wait",
+      cancellationRequestedAt: requestedAt,
+    } as never);
 
     const result = await cancelSeasonFulfillmentWorkflow("user-1", "fulfillment-1");
 
+    expect(acquireLeaseMock).not.toHaveBeenCalled();
+    expect(checkpointMock).not.toHaveBeenCalled();
     expect(result).toEqual({
       cancelled: false,
       cancellationPending: true,
@@ -115,7 +105,6 @@ describe("cancelSeasonFulfillmentWorkflow", () => {
 
     expect(result.cancelled).toBe(true);
     expect(acquireLeaseMock).not.toHaveBeenCalled();
-    expect(reconcileMock).not.toHaveBeenCalled();
   });
 
   it("rejects completed and unowned plans", async () => {
@@ -142,7 +131,6 @@ describe("cancelSeasonFulfillmentWorkflow", () => {
     ).rejects.toMatchObject({ code: "fulfillment_busy" });
 
     expect(checkpointMock).not.toHaveBeenCalled();
-    expect(reconcileMock).not.toHaveBeenCalled();
     expect(releaseLeaseMock).not.toHaveBeenCalled();
   });
 });

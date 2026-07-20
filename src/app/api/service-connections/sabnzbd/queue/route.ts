@@ -71,13 +71,23 @@ export async function POST(request: Request) {
   }
 
   try {
+    let outcome: Awaited<ReturnType<typeof applyEngineQueueAction>> | null = null;
     if (source.data === "engine") {
-      await applyEngineQueueAction(session.user.id, action.data);
+      outcome = await applyEngineQueueAction(session.user.id, action.data);
     } else {
       await applySabnzbdQueueAction(session.user.id, action.data);
     }
 
-    return NextResponse.json(await getActiveDownloadQueueView(session.user.id), { status: 200 });
+    const queueState = await getActiveDownloadQueueView(session.user.id);
+    return NextResponse.json({
+      ...queueState,
+      ...(outcome
+        ? {
+            action: outcome,
+            ...(outcome.status === "pending" ? { statusMessage: outcome.message } : {}),
+          }
+        : {}),
+    }, { status: 200 });
   } catch (error) {
     console.error(`[download-queue] ${source.data} action failed`, error);
 

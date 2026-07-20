@@ -475,7 +475,6 @@ export function DownloadActivityPanel({ entries }: { entries: DownloadActivityEn
               ) : null}
               {entry.fulfillmentId
                 && !entry.cancellationPending
-                && entry.retryAction !== "resume_season_recovery"
                 && entry.status !== "succeeded"
                 && entry.status !== "cancelled" ? (
                   <CancelSeasonFulfillmentForm

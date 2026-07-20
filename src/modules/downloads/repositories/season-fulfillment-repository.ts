@@ -169,6 +169,35 @@ export async function findOpenSeasonFulfillment(input: {
 }
 
 /**
+ * Returns every non-terminal season plan still owned by a title. Title
+ * retirement uses this list to checkpoint cancellation before the title's
+ * foreign-key cascade is allowed to remove the durable plan.
+ */
+export async function listCancellableSeasonFulfillmentsForTitle(
+  userId: string,
+  mediaTitleId: string,
+) {
+  const database = ensureDatabaseReady();
+
+  return database
+    .select()
+    .from(downloadFulfillments)
+    .where(and(
+      eq(downloadFulfillments.userId, userId),
+      eq(downloadFulfillments.mediaTitleId, mediaTitleId),
+      inArray(downloadFulfillments.status, [
+        "active",
+        "retry_wait",
+        "partial",
+        "blocked",
+        "failed",
+      ]),
+    ))
+    .orderBy(asc(downloadFulfillments.createdAt), asc(downloadFulfillments.id))
+    .all();
+}
+
+/**
  * Creates the durable season intent or returns the existing non-terminal one.
  * SQLite's partial unique index is the final concurrency guard; the follow-up
  * lookup makes concurrent callers converge on the same fulfillment.

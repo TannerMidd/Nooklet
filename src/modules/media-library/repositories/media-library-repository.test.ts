@@ -31,6 +31,7 @@ import {
   recordMediaFile,
   setMediaTitleExternalIds,
   setTvEpisodeHasFile,
+  updateMediaLibraryPath,
   upsertMediaFile,
   upsertMediaTitle,
   upsertTvEpisode,
@@ -529,5 +530,36 @@ describe("media-library-repository", () => {
     expect(candidates).toHaveLength(1);
     expect(candidates[0]?.title.id).toBe(monitoredTv.id);
     expect(candidates[0]?.tmdbId).toBe("95396");
+  });
+
+  it("clears persisted capacity when a library path is retargeted", async () => {
+    const userId = await seedUser();
+    const library = await createMediaLibrary({
+      userId,
+      mediaType: "movie",
+      name: `Movies ${randomUUID()}`,
+    });
+    const libraryPath = await addMediaLibraryPath({
+      libraryId: library.id,
+      userId,
+      path: `E:/Movies/${randomUUID()}`,
+      label: "Movies",
+      freeSpaceBytes: 400_000_000_000,
+      totalSpaceBytes: 1_000_000_000_000,
+    });
+
+    const updated = await updateMediaLibraryPath({
+      id: libraryPath.id,
+      userId,
+      libraryId: library.id,
+      path: `F:/Movies/${randomUUID()}`,
+      label: "Movies",
+      status: "active",
+    });
+
+    expect(updated).toMatchObject({
+      freeSpaceBytes: null,
+      totalSpaceBytes: null,
+    });
   });
 });

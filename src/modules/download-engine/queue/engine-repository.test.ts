@@ -10,12 +10,16 @@ import {
   claimNextQueuedEngineDownload,
   createEngineDownload,
   createEngineDownloadWithCapacityReservation,
+  deleteCancelledEngineDownload,
   deleteEngineDownload,
   findEngineDownloadById,
   listActiveEngineDownloads,
+  listEngineDownloadsWithControlIntent,
   listUnimportedFinishedEngineDownloads,
   markEngineDownloadImported,
   requeueStrandedEngineDownloads,
+  requestEngineDownloadControl,
+  resumePausedEngineDownload,
   resolveEngineDownloadPayload,
   setEngineDownloadPriority,
   setEngineDownloadState,
@@ -177,6 +181,88 @@ describe("engine repository", () => {
     expect(updated?.completedSegments).toBe(5);
     expect(updated?.state).toBe("completed");
     expect(updated?.outputPath).toBe("/data/downloads/complete/x");
+  });
+
+  it("persists queue speed telemetry and clears it when fetching stops", async () => {
+    const record = await createEngineDownload(baseInput());
+    await claimNextQueuedEngineDownload();
+
+    await updateEngineDownloadProgress(record.id, {
+      downloadedBytes: 500_000,
+      completedSegments: 5,
+      failedSegments: 0,
+      bytesPerSecond: 42_000,
+    });
+    expect(await findEngineDownloadById(userId, record.id)).toMatchObject({
+      state: "fetching",
+      bytesPerSecond: 42_000,
+    });
+
+    await setEngineDownloadState(record.id, "paused");
+    expect((await findEngineDownloadById(userId, record.id))?.bytesPerSecond).toBeNull();
+  });
+
+  it("persists pause across processes and recovers it to a resumable parked row", async () => {
+    const record = await createEngineDownload(baseInput());
+    await claimNextQueuedEngineDownload();
+
+    expect(await requestEngineDownloadControl(userId, record.id, "pause"))
+      .toMatchObject({ controlIntent: "pause" });
+    await requeueStrandedEngineDownloads();
+
+    expect(await findEngineDownloadById(userId, record.id)).toMatchObject({
+      state: "paused",
+      controlIntent: null,
+    });
+    expect(await resumePausedEngineDownload(userId, record.id)).toBe(true);
+    expect((await claimNextQueuedEngineDownload())?.id).toBe(record.id);
+  });
+
+  it("refuses a pause intent when post-processing wins the fetching race", async () => {
+    const record = await createEngineDownload(baseInput());
+    await claimNextQueuedEngineDownload();
+    expect(await transitionEngineDownloadState(
+      userId,
+      record.id,
+      ["fetching"],
+      "extracting",
+      { controlIntent: null },
+    )).toBe(true);
+
+    expect(await requestEngineDownloadControl(userId, record.id, "pause")).toBeNull();
+    expect(await findEngineDownloadById(userId, record.id)).toMatchObject({
+      state: "extracting",
+      controlIntent: null,
+    });
+  });
+
+  it("excludes cancellation-fenced rows from claims and deletes only through the fence", async () => {
+    const record = await createEngineDownload(baseInput());
+
+    expect(await requestEngineDownloadControl(userId, record.id, "cancel"))
+      .toMatchObject({ controlIntent: "cancel" });
+    expect(await claimNextQueuedEngineDownload()).toBeNull();
+    expect((await listEngineDownloadsWithControlIntent("cancel")).map((item) => item.id))
+      .toEqual([record.id]);
+    expect(await deleteCancelledEngineDownload(userId, record.id)).toBe(true);
+    expect(await findEngineDownloadById(userId, record.id)).toBeNull();
+  });
+
+  it("prevents completion when cancellation races with post-processing", async () => {
+    const record = await createEngineDownload(baseInput());
+    await setEngineDownloadState(record.id, "extracting");
+    await requestEngineDownloadControl(userId, record.id, "cancel");
+
+    expect(await setEngineDownloadState(
+      record.id,
+      "completed",
+      { completedAt: new Date() },
+      { expectedStates: ["extracting"], controlIntent: null },
+    )).toBe(false);
+    expect(await findEngineDownloadById(userId, record.id)).toMatchObject({
+      state: "extracting",
+      controlIntent: "cancel",
+    });
   });
 
   it("persists and clears a structured terminal failure kind", async () => {

@@ -1,21 +1,16 @@
 import {
   checkpointDownloadRequestCancellation,
-  finalizeDownloadRequestCancellation,
   listActiveRequestsForExternalQueueId,
-  listDownloadQueueItemsForRequest,
 } from "@/modules/downloads/repositories/download-repository";
 import {
   findEngineDownloadById,
   isEngineDownloadPostProcessing,
   listActiveEngineDownloads,
+  requestEngineDownloadControl,
+  resumePausedEngineDownload,
   setEngineDownloadPriority,
-  transitionEngineDownloadState,
+  setEngineDownloadState,
 } from "@/modules/download-engine/queue/engine-repository";
-import {
-  clearEngineDownloadSignal,
-  ensureEngineRunnerStarted,
-  signalEngineDownload,
-} from "@/modules/download-engine/runtime/engine-runner";
 import { type SabnzbdQueueActionInput } from "@/modules/service-connections/sabnzbd-queue-actions";
 import {
   checkpointSeasonFulfillmentCancellation,
@@ -25,22 +20,24 @@ import {
 import {
   acquireDownloadRequestWorkLease,
   releaseDownloadRequestWorkLease,
-  renewDownloadRequestWorkLease,
   type DownloadRequestWorkLease,
 } from "@/modules/downloads/workflows/download-request-work-lease";
 import {
   acquireSeasonFulfillmentWorkLease,
   releaseSeasonFulfillmentWorkLease,
-  renewSeasonFulfillmentWorkLease,
   type SeasonFulfillmentWorkLease,
 } from "@/modules/downloads/workflows/season-fulfillment-work-lease";
-import { removeAndVerifyEngineItems } from "@/modules/downloads/workflows/verified-engine-removal";
 
-/**
- * Queue controls for the built-in engine, accepting the same action shapes
- * the queue UI already sends. Reordering maps to the priority column; the
- * runner claims by ascending priority.
- */
+/** Queue mutations persist intent only; the isolated worker owns all I/O. */
+export type EngineQueueActionOutcome = {
+  status: "applied" | "pending";
+  message: string;
+};
+
+const appliedOutcome: EngineQueueActionOutcome = {
+  status: "applied",
+  message: "Download queue updated.",
+};
 
 export class EngineQueueActionError extends Error {
   constructor(message: string) {
@@ -49,66 +46,72 @@ export class EngineQueueActionError extends Error {
   }
 }
 
-async function pauseItem(userId: string, itemId: string) {
+async function pauseItem(userId: string, itemId: string): Promise<EngineQueueActionOutcome> {
   const record = await findEngineDownloadById(userId, itemId);
 
   if (!record) {
     throw new EngineQueueActionError("That download is no longer in the queue.");
   }
+  if (record.controlIntent === "cancel") {
+    throw new EngineQueueActionError("That download is already being cancelled.");
+  }
+  if (record.state === "paused") return appliedOutcome;
 
   if (record.state === "queued") {
-    await transitionEngineDownloadState(userId, itemId, ["queued"], "paused");
-    return;
+    const paused = await setEngineDownloadState(
+      itemId,
+      "paused",
+      {},
+      { expectedStates: ["queued"], controlIntent: null },
+    );
+    if (!paused) {
+      throw new EngineQueueActionError("The download changed before it could be paused.");
+    }
+    return appliedOutcome;
   }
 
   if (record.state === "fetching") {
-    // The runner notices the signal between segments and parks the row.
-    signalEngineDownload(itemId, "pause");
-  }
-}
-
-async function resumeItem(userId: string, itemId: string) {
-  clearEngineDownloadSignal(itemId);
-  await transitionEngineDownloadState(userId, itemId, ["paused"], "queued");
-  await ensureEngineRunnerStarted();
-}
-
-async function removeItem(userId: string, itemId: string) {
-  const record = await findEngineDownloadById(userId, itemId);
-
-  if (!record) {
-    return;
+    const requested = await requestEngineDownloadControl(userId, itemId, "pause");
+    if (!requested) {
+      throw new EngineQueueActionError("The download changed before it could be paused.");
+    }
+    return {
+      status: "pending",
+      message: "Pause requested. The downloader will stop safely between segments.",
+    };
   }
 
   if (isEngineDownloadPostProcessing(record.state)) {
     throw new EngineQueueActionError(
-      "This download is in post-processing. Wait for assembly, repair, or extraction to finish before removing it.",
+      "This download is finishing post-processing and cannot be paused right now.",
     );
   }
+
+  throw new EngineQueueActionError("That download is no longer active.");
+}
+
+async function resumeItem(userId: string, itemId: string): Promise<EngineQueueActionOutcome> {
+  const resumed = await resumePausedEngineDownload(userId, itemId);
+  if (resumed) return appliedOutcome;
+
+  const record = await findEngineDownloadById(userId, itemId);
+  if (record?.controlIntent === "cancel") {
+    throw new EngineQueueActionError("That download is already being cancelled.");
+  }
+  throw new EngineQueueActionError("That download is no longer paused.");
+}
+
+async function removeItem(userId: string, itemId: string): Promise<EngineQueueActionOutcome> {
+  const record = await findEngineDownloadById(userId, itemId);
+  if (!record) return appliedOutcome;
 
   const entries = await listActiveRequestsForExternalQueueId(userId, itemId);
   const workLeases = new Map<string, SeasonFulfillmentWorkLease>();
   const requestWorkLeases = new Map<string, DownloadRequestWorkLease>();
   const cancellationCheckpoints = new Map<string, SeasonFulfillmentCancellationCheckpoint>();
-  const requestCancellationCheckpoints = new Map<string, Date>();
-  const requestsWithSiblingQueueItems = new Set<string>();
-  let externalRemoved = false;
-  const renewOwnedLeases = async () => {
-    for (const [fulfillmentId, lease] of workLeases) {
-      const renewed = await renewSeasonFulfillmentWorkLease(lease);
-      if (!renewed) {
-        throw new Error("Season recovery changed while built-in cleanup was being verified.");
-      }
-      workLeases.set(fulfillmentId, renewed);
-    }
-    for (const [requestId, lease] of requestWorkLeases) {
-      const renewed = await renewDownloadRequestWorkLease(lease);
-      if (!renewed) {
-        throw new Error("The download changed while built-in cleanup was being verified.");
-      }
-      requestWorkLeases.set(requestId, renewed);
-    }
-  };
+  let requestCancellationCheckpointed = false;
+  let controlRequested = record.controlIntent === "cancel";
+
   try {
     for (const entry of entries) {
       const fulfillmentId = entry.request.fulfillmentId;
@@ -121,6 +124,7 @@ async function removeItem(userId: string, itemId: string) {
       }
       workLeases.set(fulfillmentId, lease);
     }
+
     for (const entry of entries) {
       if (entry.request.fulfillmentId || requestWorkLeases.has(entry.request.id)) continue;
       const lease = await acquireDownloadRequestWorkLease(userId, entry.request.id);
@@ -144,66 +148,33 @@ async function removeItem(userId: string, itemId: string) {
       );
       if (checkpoint) cancellationCheckpoints.set(fulfillmentId, checkpoint);
     }
+
     for (const entry of entries) {
-      if (entry.request.fulfillmentId || requestCancellationCheckpoints.has(entry.request.id)) {
-        continue;
-      }
+      if (entry.request.fulfillmentId) continue;
       const checkpoint = await checkpointDownloadRequestCancellation({
         userId,
         requestId: entry.request.id,
       });
-      if (checkpoint?.cancellationRequestedAt) {
-        requestCancellationCheckpoints.set(
-          checkpoint.id,
-          checkpoint.cancellationRequestedAt,
-        );
+      requestCancellationCheckpointed ||= Boolean(checkpoint?.cancellationRequestedAt);
+    }
+
+    const requested = await requestEngineDownloadControl(userId, itemId, "cancel");
+    if (!requested) {
+      const current = await findEngineDownloadById(userId, itemId);
+      if (current) {
+        throw new Error("The download changed before cancellation could be recorded.");
       }
+      return appliedOutcome;
     }
+    controlRequested = true;
 
-    for (const requestId of requestCancellationCheckpoints.keys()) {
-      const queueItems = await listDownloadQueueItemsForRequest(userId, requestId);
-      if (queueItems.some((queueItem) => queueItem.externalQueueId !== itemId)) {
-        requestsWithSiblingQueueItems.add(requestId);
-      }
-    }
-
-    // Retry attempts can span SABnzbd and the built-in engine. Only remove the
-    // selected engine item here; reconciliation classifies any sibling IDs and
-    // sends each one to the correct downloader before finalizing the request.
-    const removal = await removeAndVerifyEngineItems(
-      userId,
-      [itemId],
-      { beforeExternalPhase: renewOwnedLeases },
-    );
-    externalRemoved = [...removal.values()].some((result) => result.externalRemoved === true);
-    if (removal.get(itemId)?.removed !== true) {
-      throw new EngineQueueActionError(
-        removal.get(itemId)?.message
-          ?? "Built-in downloader cleanup could not be verified yet.",
-      );
-    }
-    externalRemoved = true;
-    await renewOwnedLeases();
-
-    // The linked library request must not stay "queued" forever once its
-    // download is gone — close it out with a visible reason.
-    for (const [requestId, requestedAt] of requestCancellationCheckpoints) {
-      if (requestsWithSiblingQueueItems.has(requestId)) continue;
-      const finalized = await finalizeDownloadRequestCancellation({
-        userId,
-        requestId,
-        requestedAt,
-      });
-      if (!finalized) {
-        throw new Error("The download changed before cancellation could be finalized.");
-      }
-    }
-
-    // Season checkpoints intentionally remain open here. The background
-    // reconciler removes any sibling episode jobs and only then terminalizes
-    // the durable plan, so a single manual removal cannot strand hidden work.
+    return {
+      status: "pending",
+      message:
+        "Cancellation requested. The isolated downloader is removing its files; the item will disappear after cleanup is verified.",
+    };
   } catch (error) {
-    if (!externalRemoved) {
+    if (!controlRequested) {
       await Promise.allSettled(
         [...cancellationCheckpoints.entries()].map(([fulfillmentId, checkpoint]) => {
           const workLease = workLeases.get(fulfillmentId);
@@ -213,7 +184,8 @@ async function removeItem(userId: string, itemId: string) {
         }),
       );
     }
-    if (requestCancellationCheckpoints.size > 0) {
+
+    if (controlRequested || requestCancellationCheckpointed) {
       const detail = error instanceof Error ? ` ${error.message}` : "";
       throw new EngineQueueActionError(
         `Built-in download cancellation remains pending.${detail} Nooklet will retry cleanup automatically.`,
@@ -237,10 +209,7 @@ async function moveItem(userId: string, itemId: string, direction: "up" | "down"
   }
 
   const targetIndex = direction === "up" ? index - 1 : index + 1;
-
-  if (targetIndex < 0 || targetIndex >= active.length) {
-    return;
-  }
+  if (targetIndex < 0 || targetIndex >= active.length) return;
 
   await reorderToIndex(userId, active.map((record) => record.id), index, targetIndex);
 }
@@ -250,44 +219,45 @@ async function reorderToIndex(userId: string, orderedIds: string[], fromIndex: n
   const [moved] = ids.splice(fromIndex, 1);
   ids.splice(toIndex, 0, moved);
 
-  // Reassign compact priorities matching the new visual order.
   for (let index = 0; index < ids.length; index += 1) {
     await setEngineDownloadPriority(userId, ids[index], index);
   }
 }
 
-export async function applyEngineQueueAction(userId: string, action: SabnzbdQueueActionInput) {
+export async function applyEngineQueueAction(
+  userId: string,
+  action: SabnzbdQueueActionInput,
+): Promise<EngineQueueActionOutcome> {
   switch (action.type) {
     case "pauseQueue": {
       const active = await listActiveEngineDownloads(userId);
-
+      let pending = false;
       for (const record of active) {
-        await pauseItem(userId, record.id);
+        const outcome = await pauseItem(userId, record.id);
+        pending ||= outcome.status === "pending";
       }
-      break;
+      return pending
+        ? { status: "pending", message: "Pause requested for active downloads." }
+        : appliedOutcome;
     }
     case "resumeQueue": {
       const active = await listActiveEngineDownloads(userId);
-
       for (const record of active) {
-        if (record.state === "paused") {
+        if (record.state === "paused" && record.controlIntent !== "cancel") {
           await resumeItem(userId, record.id);
         }
       }
-      break;
+      return appliedOutcome;
     }
     case "pause":
-      await pauseItem(userId, action.itemId);
-      break;
+      return pauseItem(userId, action.itemId);
     case "resume":
-      await resumeItem(userId, action.itemId);
-      break;
+      return resumeItem(userId, action.itemId);
     case "remove":
-      await removeItem(userId, action.itemId);
-      break;
+      return removeItem(userId, action.itemId);
     case "move":
       await moveItem(userId, action.itemId, action.direction);
-      break;
+      return appliedOutcome;
     case "moveToIndex": {
       const active = await listActiveEngineDownloads(userId);
       const index = active.findIndex((record) => record.id === action.itemId);
@@ -302,16 +272,13 @@ export async function applyEngineQueueAction(userId: string, action: SabnzbdQueu
         index,
         Math.min(action.targetIndex, active.length - 1),
       );
-      break;
+      return appliedOutcome;
     }
   }
 }
 
 /** True when the action's item id belongs to an engine download for the user. */
 export async function isEngineQueueItem(userId: string, action: SabnzbdQueueActionInput) {
-  if (action.type === "pauseQueue" || action.type === "resumeQueue") {
-    return false;
-  }
-
+  if (action.type === "pauseQueue" || action.type === "resumeQueue") return false;
   return Boolean(await findEngineDownloadById(userId, action.itemId));
 }

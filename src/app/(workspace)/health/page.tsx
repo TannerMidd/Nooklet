@@ -33,6 +33,8 @@ function jobLabel(jobType: string) {
     case "missing-content-search": return "Missing-content search";
     case "recommendation-run": return "Recommendation request";
     case "watch-history-sync": return "Watch-history sync";
+    case "download-import": return "Download import";
+    case "media-title-delete": return "Media title removal";
     default: return "Background task";
   }
 }
@@ -43,6 +45,10 @@ function jobRecovery(jobType: string) {
       return { href: "/settings/connections", label: "Review AI connection" };
     case "watch-history-sync":
       return { href: "/settings/history", label: "Review history source" };
+    case "download-import":
+      return { href: "/in-progress", label: "Open Activity" };
+    case "media-title-delete":
+      return { href: "/library", label: "Open library" };
     case "media-library-scan":
     case "metadata-refresh":
     case "missing-content-search":
@@ -50,6 +56,19 @@ function jobRecovery(jobType: string) {
     default:
       return { href: "/settings", label: "Open settings" };
   }
+}
+
+function jobFailureGuidance(jobType: string, scheduleMinutes: number) {
+  if (jobType === "download-import") {
+    return "Review the completed download and destination, then retry the import from Activity.";
+  }
+  if (jobType === "media-title-delete") {
+    return "Verify the library disk is available, then retry removal from the Library.";
+  }
+  if (scheduleMinutes === 0) {
+    return "Review the technical error, then retry the action.";
+  }
+  return "Review its configuration, then let the next schedule retry it.";
 }
 
 function ActionCapability({ capability }: { capability: ReadinessCapability }) {
@@ -95,7 +114,7 @@ export default async function HealthPage() {
     getReadiness(session.user.id),
     listUserJobs(session.user.id),
   ]);
-  const { evaluation, services, watchHistory, worker } = readiness;
+  const { evaluation, services, watchHistory, worker, downloadEngine } = readiness;
   const readyCapabilities = evaluation.capabilities.filter((entry) => entry.status === "ready");
   const attentionCapabilities = evaluation.capabilities.filter((entry) => entry.status === "needs-attention");
   const optionalCapabilities = evaluation.capabilities.filter((entry) => entry.status === "optional");
@@ -105,6 +124,11 @@ export default async function HealthPage() {
   const activeJobs = jobs.filter((job) => job.isEnabled || job.lastStatus === "running");
   const workerHealthy = worker.responsive && !worker.degraded;
   const workerLabel = workerHealthy ? "Healthy" : worker.responsive ? "Degraded" : "Unavailable";
+  const engineLabel = downloadEngine.status === "degraded"
+    ? "Needs attention"
+    : downloadEngine.status === "ok"
+      ? "Active"
+      : "Idle";
 
   return (
     <div className="nk-enter space-y-7">
@@ -164,6 +188,45 @@ export default async function HealthPage() {
               <p className="mt-2 break-words font-mono text-xs leading-5 text-muted">{worker.worker.lastError}</p>
             </details>
           ) : null}
+        </article>
+
+        <article className={`mt-3 rounded-xl border p-4 text-sm leading-6 ${statusTone(downloadEngine.status === "degraded" ? "failed" : downloadEngine.status === "ok" ? "running" : "verified")}`}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold text-foreground">Built-in download engine</p>
+              <p className="mt-1 text-muted">
+                {downloadEngine.status === "degraded"
+                  ? "A download stage stopped recording progress or the detached engine loop failed."
+                  : downloadEngine.status === "ok"
+                    ? `${downloadEngine.activeCount} active ${downloadEngine.activeCount === 1 ? "download" : "downloads"}; current stage: ${downloadEngine.activeStage ?? "queued"}.`
+                    : "No built-in downloads are running. Paused downloads do not count as a health failure."}
+              </p>
+            </div>
+            <Badge variant={downloadEngine.status === "degraded" ? "wine" : downloadEngine.status === "ok" ? "accent-cool" : "neutral"}>
+              {engineLabel}
+            </Badge>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted">
+            <span>Last persisted progress {formatDate(downloadEngine.lastProgressAt)}</span>
+            <span>{downloadEngine.stalledCount} stalled</span>
+            <span>{downloadEngine.failedCount} unresolved infrastructure {downloadEngine.failedCount === 1 ? "failure" : "failures"}</span>
+          </div>
+          {downloadEngine.issues.length > 0 ? (
+            <details className="mt-3 rounded-lg border border-cream/10 bg-black/10 px-3 py-2">
+              <summary className="cursor-pointer font-semibold text-foreground">Download engine diagnostics</summary>
+              <ul className="mt-2 space-y-2 text-xs leading-5 text-muted">
+                {downloadEngine.issues.map((issue) => (
+                  <li key={issue.id}>
+                    <span className="font-semibold text-foreground">{issue.name}</span>
+                    {` (${issue.state}, last progress ${formatDate(issue.lastProgressAt)}): ${issue.message}`}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+          <p className="mt-3 text-xs text-muted">
+            Engine degradation is diagnostic only: it keeps HTTP readiness at 200 while the web process and scheduler remain responsive, and never kills an active repair or extraction.
+          </p>
         </article>
       </Panel>
 
@@ -251,7 +314,7 @@ export default async function HealthPage() {
                       <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-accent-wine" />
                       <div>
                         <p className="font-semibold text-foreground">{jobLabel(job.jobType)} failed</p>
-                        <p className="mt-1 text-muted">Review its configuration, then let the next schedule retry it.</p>
+                        <p className="mt-1 text-muted">{jobFailureGuidance(job.jobType, job.scheduleMinutes)}</p>
                         <Link href={recovery.href} className="mt-2 inline-flex min-h-11 items-center font-semibold text-accent hover:text-accent-strong">
                           {recovery.label}
                           <ChevronRight aria-hidden="true" className="ml-1 h-4 w-4" />

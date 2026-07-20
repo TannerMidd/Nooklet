@@ -1,8 +1,8 @@
 # Architecture
 
-> Applies to the current `main` implementation. Last source review: 2026-07-16.
+> Applies to the current `main` implementation. Last source review: 2026-07-20.
 
-Nooklet is a single-process, single-container Next.js application. The same Node.js process serves the web application, runs workflow code, maintains the persisted job scheduler, and owns the built-in download-engine loop. SQLite is the durable system of record; media and download files remain on operator-controlled filesystems.
+Nooklet is a supervised, single-container application with separate Node.js processes for the Next.js web server and background worker. SQLite is the durable system of record and the cross-process coordination boundary; media and download files remain on operator-controlled filesystems. This separation keeps the UI available when an unhealthy Docker Desktop bind mount blocks a worker-side filesystem call.
 
 For repository metrics and deeper implementation evidence, see the [engineering dossier](https://tannermidd.github.io/Nooklet/). For the decisions that shaped this design, see [Architecture Decisions](Architecture-Decisions).
 
@@ -12,7 +12,8 @@ For repository metrics and deeper implementation evidence, see the [engineering 
 flowchart LR
   Person["User browser"]
   Proxy["TLS reverse proxy\noperator managed"]
-  App["Nooklet\nNext.js + in-process workers"]
+  App["Nooklet web\nNext.js request process"]
+  Worker["Nooklet worker\njobs + downloads + imports"]
   DB[("SQLite\n/app/data/nooklet.db")]
   Stage["Download staging\nDOWNLOAD_ENGINE_DIR"]
   Media["TV and movie libraries\napproved roots"]
@@ -26,15 +27,17 @@ flowchart LR
 
   Person --> Proxy --> App
   App <--> DB
-  App <--> Stage
-  App <--> Media
+  Worker <--> DB
+  Worker <--> Stage
+  Worker <--> Media
+  App --> Worker
   App --> AI
   App --> Metadata
   App --> History
   App --> Indexers
-  App --> News
-  App --> SAB
-  App --> Notify
+  Worker --> News
+  Worker --> SAB
+  Worker --> Notify
 ```
 
 The reverse proxy is not included in the shipped container. Operators exposing Nooklet beyond loopback are responsible for TLS, ingress restrictions, and correct proxy-header handling. See [Security Model](Security-Model).
@@ -121,9 +124,11 @@ This boundary keeps user intent separate from acquisition evidence and makes rec
 - Next.js App Router supplies React Server Components, server actions, and route handlers.
 - Auth.js uses a credentials provider and 24-hour JWT sessions.
 - Drizzle maps the normalized schema to SQLite. Migrations run during database readiness initialization.
-- The persisted job worker starts through Next.js instrumentation and polls every 15 seconds.
-- The built-in downloader uses a process-wide async runner and an NNTP connection pool for the active transfer.
-- `tini` is PID 1 in the Docker image and forwards termination signals to Node.
+- A Node supervisor runs database migration once, then starts distinct web and worker children. Next.js instrumentation deliberately does not load the worker graph in the production web child.
+- The persisted job worker polls every 15 seconds. Its pass state is written atomically beside SQLite so the web process can evaluate progress without importing worker code.
+- The built-in downloader uses a worker-process async runner and an NNTP connection pool for the active transfer. Control intent and speed are persisted because process-local signals cannot cross the web/worker boundary.
+- Storage capacity is sampled by a disposable probe child. Pages read SQLite snapshots and never probe bind mounts directly.
+- `tini` is PID 1 in the Docker image; the supervisor forwards termination and applies bounded child shutdown.
 
 Primary sources: [instrumentation](https://github.com/TannerMidd/Nooklet/blob/main/src/instrumentation.ts), [database client](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/client.ts), [job worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts), [engine runner](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/download-engine/runtime/engine-runner.ts), and [Dockerfile](https://github.com/TannerMidd/Nooklet/blob/main/Dockerfile).
 
@@ -147,7 +152,7 @@ The physical modules under [`src/modules`](https://github.com/TannerMidd/Nooklet
 | `readiness` | Capability-level setup and health evaluation |
 | `recommendations` | AI runs, enrichment, history, feedback, and analytics |
 | `service-connections` | External connection configuration, verification, secrets, and queue views |
-| `storage` | Live staging and destination capacity inspection |
+| `storage` | Persisted staging/destination snapshots and isolated capacity inspection |
 | `users` | Accounts, roles, password hashing, and recovery state |
 | `watch-history` | Manual, Plex, Tautulli, and Trakt history synchronization |
 
@@ -159,29 +164,34 @@ The physical modules under [`src/modules`](https://github.com/TannerMidd/Nooklet
 flowchart TB
   Host["Docker host"]
   subgraph Container["Nooklet container"]
-    Tini["tini"] --> Node["Node.js standalone server"]
-    Node --> Web["Web requests"]
-    Node --> Jobs["Persisted job worker"]
-    Node --> Engine["Download-engine runner"]
+    Tini["tini"] --> Supervisor["Node.js supervisor"]
+    Supervisor --> Web["Next.js web process"]
+    Supervisor --> Jobs["Background worker process"]
+    Supervisor --> Probe["Disposable storage probe"]
+    Jobs --> Engine["Download-engine runner"]
   end
   Volume[("nooklet-data volume")]
   DownloadMount["Host download folder"]
   MediaMount["Host media folders"]
 
   Host --> Container
-  Node <--> Volume
+  Web <--> Volume
+  Jobs <--> Volume
+  Probe <--> Volume
   Engine <--> DownloadMount
-  Node <--> MediaMount
+  Jobs <--> MediaMount
+  Probe <--> MediaMount
 ```
 
 The shipped Compose configuration persists `/app/data` in a named volume and publishes port 42021 on loopback by default. Media and download bind mounts are optional operator configuration. See [Storage and Path Mapping](Storage-and-Path-Mapping).
 
 ## Architectural constraints
 
-- One application process is the supported topology. Process-local runner state and import locks are not distributed coordination primitives.
-- SQLite and the in-process worker are deliberate single-container choices, not a horizontally scalable deployment design.
+- One supervised container is the supported topology. The web and worker are separate OS processes, not horizontally scalable replicas.
+- SQLite and durable control rows coordinate the two children. Process-local import locks remain worker-only implementation details and are not distributed coordination primitives.
 - A process restart reclaims persisted jobs through leases, but an interrupted native download restarts from its stored NZB rather than resuming individual segments.
-- Season recovery schedules and a renewable per-plan work lease survive restart in SQLite. The surrounding maintenance-loop mutex remains process-local and assumes the supported one-process topology.
+- Season recovery schedules and renewable per-plan work leases survive restart in SQLite. The maintenance loop is serialized inside the single supported worker process.
+- Media-mount failures are contained from ordinary web navigation, but Nooklet cannot repair a damaged host disk or cancel a filesystem syscall already in uninterruptible kernel sleep.
 - A single Usenet service connection is currently resolved. Multi-server priority and block-account scheduling described in ADR-0002 are not implemented.
 - Current authentication is local credentials only. Trakt accepts an OAuth access token as connection data, but Nooklet does not expose Trakt as an Auth.js sign-in provider.
 - Jellyfin is not a current service-connection or watch-history source despite references in older planning documents.
@@ -193,6 +203,7 @@ The shipped Compose configuration persists `/app/data` in a named volume and pub
 - [Database schema](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/schema.ts)
 - [Architecture principles](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0001-architecture-principles.md)
 - [Durable season fulfillment decision](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0003-durable-season-fulfillment.md)
+- [Filesystem isolation decision](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0004-isolate-filesystem-work-from-web-runtime.md)
 - [Project structure note](https://github.com/TannerMidd/Nooklet/blob/main/docs/architecture/project-structure.md)
 - [Engineering dossier](https://tannermidd.github.io/Nooklet/)
 

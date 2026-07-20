@@ -1,12 +1,17 @@
-import { constants } from "node:fs";
-import { access, statfs } from "node:fs/promises";
 import pathModule from "node:path";
 
+import { type RecommendationMediaType } from "@/lib/database/schema";
 import {
   listActiveMediaLibraryPaths,
-  updateMediaLibraryPathSpace,
 } from "@/modules/media-library/repositories/media-library-repository";
-import { type RecommendationMediaType } from "@/lib/database/schema";
+import {
+  libraryDestinationSnapshotId,
+  listStorageSnapshots,
+} from "@/modules/storage/repositories/storage-snapshot-repository";
+import {
+  getStorageSnapshotStatus,
+  type StorageSnapshotStatus,
+} from "@/modules/storage/storage-snapshot-status";
 
 export type LibraryDriveEntry = {
   pathId: string;
@@ -18,71 +23,105 @@ export type LibraryDriveEntry = {
   isDownloadDefault: boolean;
   freeSpaceBytes: number | null;
   totalSpaceBytes: number | null;
-  /** False when the folder could not be reached for a live space reading. */
+  /** True only when a recent background probe reached the folder. */
   live: boolean;
   readable: boolean;
   writable: boolean;
+  snapshotStatus: StorageSnapshotStatus;
+  lastCheckedAt: Date | null;
+  probeError: string | null;
   statusMessage: string;
 };
 
+function statusMessage(input: {
+  status: StorageSnapshotStatus;
+  readable: boolean;
+  writable: boolean;
+  probeError: string | null;
+  hasLegacyCapacity: boolean;
+}) {
+  if (input.status === "unavailable") {
+    return input.hasLegacyCapacity
+      ? "Showing a saved capacity reading. The background worker has not recorded reachability yet."
+      : "No background storage reading is available yet. Pages do not probe this folder directly."
+  }
+
+  if (input.status === "error") {
+    return input.probeError
+      ? `The latest background storage check failed: ${input.probeError}`
+      : "The latest background storage check could not reach this folder.";
+  }
+
+  if (input.status === "stale") {
+    return "Showing the last successful background reading; it is now stale.";
+  }
+
+  return !input.readable
+    ? "The latest background check could not read this folder."
+    : !input.writable
+      ? "The latest background check could read this folder but could not write to it."
+      : "The background worker recently confirmed this folder is reachable and writable.";
+}
+
 /**
- * Space overview for every active library folder. Reads the filesystem live
- * (each mapped drive reports its own volume) and falls back to the last
- * stored measurement when a folder is unreachable, e.g. a disconnected
- * network drive.
+ * Returns only database-backed storage observations. The web request process
+ * must never touch media bind mounts: a wedged Docker filesystem call cannot
+ * be timed out or cancelled and can starve every libuv worker thread.
  */
 export async function getLibraryDriveOverview(userId: string): Promise<LibraryDriveEntry[]> {
   const activePaths = await listActiveMediaLibraryPaths(userId);
-  const entries: LibraryDriveEntry[] = [];
+  const snapshots = await listStorageSnapshots(
+    activePaths.map(({ path }) => libraryDestinationSnapshotId(path.id)),
+  );
+  const snapshotsById = new Map(snapshots.map((snapshot) => [snapshot.id, snapshot]));
 
-  for (const { library, path } of activePaths) {
-    let freeSpaceBytes = path.freeSpaceBytes;
-    let totalSpaceBytes = path.totalSpaceBytes;
-    let live = false;
-    let readable = false;
-    let writable = false;
-    let statusMessage = "The folder is not reachable from Nooklet.";
+  const entries = activePaths.map(({ library, path }) => {
+    const effectivePath = pathModule.resolve(path.path);
+    const storedSnapshot = snapshotsById.get(libraryDestinationSnapshotId(path.id));
+    const snapshot = storedSnapshot?.path === effectivePath ? storedSnapshot : null;
+    const snapshotStatus = getStorageSnapshotStatus(snapshot, effectivePath);
+    const hasLegacyCapacity = !storedSnapshot
+      && path.freeSpaceBytes !== null
+      && path.totalSpaceBytes !== null;
+    const freeSpaceBytes = snapshot
+      ? snapshot.freeSpaceBytes ?? path.freeSpaceBytes
+      : storedSnapshot
+        ? null
+        : path.freeSpaceBytes;
+    const totalSpaceBytes = snapshot
+      ? snapshot.totalSpaceBytes ?? path.totalSpaceBytes
+      : storedSnapshot
+        ? null
+        : path.totalSpaceBytes;
+    const readable = snapshot?.readable ?? false;
+    const writable = snapshot?.writable ?? false;
+    const probeError = snapshot?.errorMessage ?? null;
 
-    try {
-      const [stats, readResult, writeResult] = await Promise.all([
-        statfs(path.path),
-        access(path.path, constants.R_OK).then(() => true, () => false),
-        access(path.path, constants.W_OK).then(() => true, () => false),
-      ]);
-      freeSpaceBytes = stats.bsize * stats.bavail;
-      totalSpaceBytes = stats.bsize * stats.blocks;
-      live = true;
-      readable = readResult;
-      writable = writeResult;
-      statusMessage = !readable
-        ? "Nooklet cannot read this folder."
-        : !writable
-          ? "Nooklet can read this folder but cannot import files into it."
-          : "Folder is reachable and writable.";
-
-      if (freeSpaceBytes !== path.freeSpaceBytes || totalSpaceBytes !== path.totalSpaceBytes) {
-        await updateMediaLibraryPathSpace({ pathId: path.id, freeSpaceBytes, totalSpaceBytes });
-      }
-    } catch {
-      // Keep the stored measurement; the UI marks the reading as stale.
-    }
-
-    entries.push({
+    return {
       pathId: path.id,
       label: path.label,
       path: path.path,
-      effectivePath: pathModule.resolve(path.path),
+      effectivePath,
       libraryName: library.name,
       mediaType: library.mediaType,
       isDownloadDefault: path.isDownloadDefault,
       freeSpaceBytes,
       totalSpaceBytes,
-      live,
+      live: snapshotStatus === "fresh" && snapshot?.reachable === true,
       readable,
       writable,
-      statusMessage,
-    });
-  }
+      snapshotStatus,
+      lastCheckedAt: snapshot?.checkedAt ?? null,
+      probeError,
+      statusMessage: statusMessage({
+        status: snapshotStatus,
+        readable,
+        writable,
+        probeError,
+        hasLegacyCapacity,
+      }),
+    };
+  });
 
   return entries.sort((left, right) => {
     if (left.mediaType !== right.mediaType) {

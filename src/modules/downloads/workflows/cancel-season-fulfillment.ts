@@ -2,9 +2,6 @@ import {
   findDownloadFulfillmentById,
 } from "@/modules/downloads/repositories/season-fulfillment-repository";
 import {
-  reconcileSeasonFulfillmentCancellation,
-} from "@/modules/downloads/workflows/reconcile-season-fulfillment-cancellations";
-import {
   checkpointExistingSeasonFulfillmentCancellation,
 } from "@/modules/downloads/workflows/season-fulfillment-cancellation";
 import {
@@ -51,10 +48,10 @@ function pendingResult(): CancelSeasonFulfillmentResult {
 }
 
 /**
- * Cancels the durable season intent itself, including plans that currently
- * have no physical queue row. The checkpoint fences automatic recovery before
- * the targeted reconciler removes downloader work and terminalizes every
- * linked active request.
+ * Records cancellation intent for a season plan, including plans that do not
+ * currently have a physical queue row. This web-safe phase only touches the
+ * database. The isolated background worker observes the checkpoint, removes
+ * downloader work, and terminalizes linked requests.
  */
 export async function cancelSeasonFulfillmentWorkflow(
   userId: string,
@@ -111,32 +108,5 @@ export async function cancelSeasonFulfillmentWorkflow(
     }
   }
 
-  const reconciliation = await reconcileSeasonFulfillmentCancellation(
-    userId,
-    fulfillmentId,
-  );
-  if (reconciliation === "cancelled") {
-    return cancelledResult();
-  }
-
-  const current = await findDownloadFulfillmentById(userId, fulfillmentId);
-  if (current?.status === "cancelled") {
-    return cancelledResult();
-  }
-  if (current?.cancellationRequestedAt) {
-    return pendingResult();
-  }
-  if (current?.status === "succeeded") {
-    throw new CancelSeasonFulfillmentWorkflowError(
-      "fulfillment_not_cancellable",
-      "That season recovery plan completed before it could be cancelled.",
-    );
-  }
-
-  throw new CancelSeasonFulfillmentWorkflowError(
-    "fulfillment_changed",
-    reconciliation === "busy"
-      ? "Season recovery is updating this plan. Wait a moment, then cancel it again."
-      : "Season recovery changed before cancellation could finish. Try again.",
-  );
+  return pendingResult();
 }

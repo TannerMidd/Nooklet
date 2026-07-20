@@ -1,5 +1,4 @@
-import { constants, existsSync } from "node:fs";
-import { access, stat, statfs } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { env } from "@/lib/env";
@@ -11,6 +10,15 @@ import {
   getLibraryDriveOverview,
   type LibraryDriveEntry,
 } from "@/modules/media-library/queries/get-library-drive-overview";
+import {
+  downloadEngineWorkSnapshotId,
+  downloadWorkspaceSnapshotId,
+  findStorageSnapshot,
+} from "@/modules/storage/repositories/storage-snapshot-repository";
+import {
+  getStorageSnapshotStatus,
+  type StorageSnapshotStatus,
+} from "@/modules/storage/storage-snapshot-status";
 
 const minimumFreeSpaceReserveBytes = 512 * 1024 * 1024;
 
@@ -26,7 +34,26 @@ export type DownloadWorkspaceOverview = {
   processingReservationBytes: number;
   availableForNewDownloadsBytes: number | null;
   maximumNewDownloadBytes: number | null;
+  snapshotStatus: StorageSnapshotStatus;
+  lastCheckedAt: Date | null;
+  probeError: string | null;
   statusMessage: string;
+  workLocation: DownloadWorkspaceLocationOverview;
+  outputLocation: DownloadWorkspaceLocationOverview;
+};
+
+export type DownloadWorkspaceLocationOverview = {
+  configuredPath: string;
+  effectivePath: string;
+  exists: boolean;
+  reachable: boolean;
+  readable: boolean;
+  writable: boolean;
+  freeSpaceBytes: number | null;
+  totalSpaceBytes: number | null;
+  snapshotStatus: StorageSnapshotStatus;
+  lastCheckedAt: Date | null;
+  probeError: string | null;
 };
 
 export type StorageOverview = {
@@ -37,128 +64,159 @@ export type StorageOverview = {
   libraryDestinations: LibraryDriveEntry[];
 };
 
-function isMissingPathError(error: unknown) {
-  return Boolean(error && typeof error === "object" && "code" in error && error.code === "ENOENT");
-}
-
-async function nearestExistingDirectory(candidate: string) {
-  let current = path.dirname(candidate);
-
-  while (true) {
-    try {
-      const currentStat = await stat(current);
-      if (currentStat.isDirectory()) {
-        return current;
-      }
-    } catch {
-      // Continue toward the filesystem root.
-    }
-
-    const parent = path.dirname(current);
-    if (parent === current) {
-      return null;
-    }
-    current = parent;
+function workspaceStatusMessage(input: {
+  status: StorageSnapshotStatus;
+  exists: boolean;
+  readable: boolean;
+  writable: boolean;
+  probeError: string | null;
+}) {
+  if (input.status === "unavailable") {
+    return "No background workspace reading is available yet. Pages do not probe this path directly.";
   }
+
+  if (input.status === "error") {
+    return input.probeError
+      ? `The latest background workspace check failed: ${input.probeError}`
+      : "The latest background workspace check could not reach this path.";
+  }
+
+  if (input.status === "stale") {
+    return "Showing the last successful background workspace reading; it is now stale.";
+  }
+
+  if (!input.readable) {
+    return "The latest background check could not read the download workspace.";
+  }
+
+  if (!input.writable) {
+    return "The latest background check could not write to the download workspace.";
+  }
+
+  return input.exists
+    ? "The background worker recently confirmed the download workspace is reachable and writable."
+    : "The background worker confirmed Nooklet can create the workspace when the first download starts.";
 }
 
-async function inspectDownloadWorkspace(): Promise<DownloadWorkspaceOverview> {
+async function getDownloadWorkspaceOverview(): Promise<DownloadWorkspaceOverview> {
   const effectivePath = path.resolve(env.DOWNLOAD_ENGINE_DIR);
-  const capacityUsage = await getActiveEngineDownloadCapacityUsage();
+  const effectiveWorkPath = path.resolve(env.DOWNLOAD_ENGINE_WORK_DIR);
+  const [capacityUsage, storedSnapshot, storedWorkSnapshot] = await Promise.all([
+    getActiveEngineDownloadCapacityUsage(),
+    findStorageSnapshot(downloadWorkspaceSnapshotId),
+    findStorageSnapshot(downloadEngineWorkSnapshotId),
+  ]);
+  const snapshot = storedSnapshot?.path === effectivePath ? storedSnapshot : null;
+  const workSnapshot = storedWorkSnapshot?.path === effectiveWorkPath
+    ? storedWorkSnapshot
+    : null;
+  const outputStatus = getStorageSnapshotStatus(snapshot, effectivePath);
+  const workStatus = getStorageSnapshotStatus(workSnapshot, effectiveWorkPath);
+  const statusRank: Record<StorageSnapshotStatus, number> = {
+    fresh: 0,
+    stale: 1,
+    error: 2,
+    unavailable: 3,
+  };
+  const snapshotStatus = statusRank[workStatus] >= statusRank[outputStatus]
+    ? workStatus
+    : outputStatus;
   const activeDownloadBytes = capacityUsage.activeRemainingBytes;
-  const processingReservationBytes =
-    minimumFreeSpaceReserveBytes + capacityUsage.activeWorkspaceBytes;
-  let exists = false;
-  let inspectionPath = effectivePath;
+  const processingReservationBytes = minimumFreeSpaceReserveBytes
+    + capacityUsage.activeWorkspaceBytes;
+  const constrainedSnapshot = snapshot?.freeSpaceBytes !== null
+    && snapshot?.freeSpaceBytes !== undefined
+    && workSnapshot?.freeSpaceBytes !== null
+    && workSnapshot?.freeSpaceBytes !== undefined
+    ? workSnapshot.freeSpaceBytes <= snapshot.freeSpaceBytes
+      ? workSnapshot
+      : snapshot
+    : null;
+  const freeSpaceBytes = constrainedSnapshot?.freeSpaceBytes ?? null;
+  const totalSpaceBytes = constrainedSnapshot?.totalSpaceBytes ?? null;
+  const availableForNewDownloadsBytes = freeSpaceBytes === null
+    ? null
+    : Math.max(0, freeSpaceBytes - processingReservationBytes);
+  const currentlyVerified = outputStatus === "fresh"
+    && workStatus === "fresh"
+    && snapshot?.reachable === true
+    && workSnapshot?.reachable === true;
+  const exists = (snapshot?.exists ?? false) && (workSnapshot?.exists ?? false);
+  const readable = (snapshot?.readable ?? false) && (workSnapshot?.readable ?? false);
+  const writable = (snapshot?.writable ?? false) && (workSnapshot?.writable ?? false);
+  const probeError = [
+    workSnapshot?.errorMessage ? `Work: ${workSnapshot.errorMessage}` : null,
+    snapshot?.errorMessage ? `Output: ${snapshot.errorMessage}` : null,
+  ].filter(Boolean).join(" ") || null;
+  const lastCheckedAt = snapshot?.checkedAt && workSnapshot?.checkedAt
+    ? new Date(Math.min(snapshot.checkedAt.getTime(), workSnapshot.checkedAt.getTime()))
+    : snapshot?.checkedAt ?? workSnapshot?.checkedAt ?? null;
+  const location = (
+    configuredPath: string,
+    resolvedPath: string,
+    stored: typeof snapshot,
+    status: StorageSnapshotStatus,
+  ): DownloadWorkspaceLocationOverview => ({
+    configuredPath,
+    effectivePath: resolvedPath,
+    exists: stored?.exists ?? false,
+    reachable: status === "fresh" && stored?.reachable === true,
+    readable: status === "fresh" && stored?.readable === true,
+    writable: status === "fresh" && stored?.writable === true,
+    freeSpaceBytes: stored?.freeSpaceBytes ?? null,
+    totalSpaceBytes: stored?.totalSpaceBytes ?? null,
+    snapshotStatus: status,
+    lastCheckedAt: stored?.checkedAt ?? null,
+    probeError: stored?.errorMessage ?? null,
+  });
 
-  try {
-    const workspaceStat = await stat(effectivePath);
-    if (!workspaceStat.isDirectory()) {
-      return {
-        configuredPath: env.DOWNLOAD_ENGINE_DIR,
-        effectivePath,
-        exists: true,
-        reachable: false,
-        writable: false,
-        freeSpaceBytes: null,
-        totalSpaceBytes: null,
-        activeDownloadBytes,
-        processingReservationBytes,
-        availableForNewDownloadsBytes: null,
-        maximumNewDownloadBytes: null,
-        statusMessage: "The configured download workspace is not a folder.",
-      };
-    }
-    exists = true;
-  } catch (error) {
-    if (!isMissingPathError(error)) {
-      return {
-        configuredPath: env.DOWNLOAD_ENGINE_DIR,
-        effectivePath,
-        exists: false,
-        reachable: false,
-        writable: false,
-        freeSpaceBytes: null,
-        totalSpaceBytes: null,
-        activeDownloadBytes,
-        processingReservationBytes,
-        availableForNewDownloadsBytes: null,
-        maximumNewDownloadBytes: null,
-        statusMessage: "Nooklet cannot inspect the configured download workspace.",
-      };
-    }
-
-    inspectionPath = await nearestExistingDirectory(effectivePath) ?? effectivePath;
-  }
-
-  try {
-    const [filesystem, writable] = await Promise.all([
-      statfs(inspectionPath),
-      access(inspectionPath, constants.R_OK | constants.W_OK).then(() => true, () => false),
-    ]);
-    const freeSpaceBytes = filesystem.bsize * filesystem.bavail;
-    const totalSpaceBytes = filesystem.bsize * filesystem.blocks;
-    const availableForNewDownloadsBytes = Math.max(0, freeSpaceBytes - processingReservationBytes);
-
-    return {
-      configuredPath: env.DOWNLOAD_ENGINE_DIR,
-      effectivePath,
+  return {
+    configuredPath: env.DOWNLOAD_ENGINE_DIR,
+    effectivePath,
+    exists,
+    reachable: currentlyVerified,
+    writable: currentlyVerified && writable,
+    freeSpaceBytes,
+    totalSpaceBytes,
+    activeDownloadBytes,
+    processingReservationBytes,
+    availableForNewDownloadsBytes,
+    maximumNewDownloadBytes: availableForNewDownloadsBytes === null
+      ? null
+      : Math.floor(availableForNewDownloadsBytes / 2),
+    snapshotStatus,
+    lastCheckedAt,
+    probeError,
+    statusMessage: workspaceStatusMessage({
+      status: snapshotStatus,
       exists,
-      reachable: true,
+      readable,
       writable,
-      freeSpaceBytes,
-      totalSpaceBytes,
-      activeDownloadBytes,
-      processingReservationBytes,
-      availableForNewDownloadsBytes,
-      maximumNewDownloadBytes: Math.floor(availableForNewDownloadsBytes / 2),
-      statusMessage: writable
-        ? exists
-          ? "Download workspace is reachable and writable."
-          : "Nooklet can create the download workspace when the first download starts."
-        : "Nooklet cannot write to the download workspace.",
-    };
-  } catch {
-    return {
-      configuredPath: env.DOWNLOAD_ENGINE_DIR,
+      probeError,
+    }),
+    workLocation: location(
+      env.DOWNLOAD_ENGINE_WORK_DIR,
+      effectiveWorkPath,
+      workSnapshot,
+      workStatus,
+    ),
+    outputLocation: location(
+      env.DOWNLOAD_ENGINE_DIR,
       effectivePath,
-      exists,
-      reachable: false,
-      writable: false,
-      freeSpaceBytes: null,
-      totalSpaceBytes: null,
-      activeDownloadBytes,
-      processingReservationBytes,
-      availableForNewDownloadsBytes: null,
-      maximumNewDownloadBytes: null,
-      statusMessage: "The filesystem containing the download workspace is not reachable.",
-    };
-  }
+      snapshot,
+      outputStatus,
+    ),
+  };
 }
 
+/**
+ * Request-safe storage status. All mount observations come from SQLite rows
+ * written by the isolated worker; rendering Home, Setup, or Settings performs
+ * no stat/statfs/access call against a download or media bind mount.
+ */
 export async function getStorageOverview(userId: string): Promise<StorageOverview> {
   const [downloadWorkspace, libraryDestinations] = await Promise.all([
-    inspectDownloadWorkspace(),
+    getDownloadWorkspaceOverview(),
     getLibraryDriveOverview(userId),
   ]);
   const isContainer = existsSync("/.dockerenv") || Boolean(process.env.CONTAINER);

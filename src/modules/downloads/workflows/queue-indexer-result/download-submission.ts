@@ -87,9 +87,9 @@ async function submitToEngine(
 
     if (error instanceof EnqueueNzbDownloadError) {
       throw new QueueIndexerResultWorkflowError(
-        error.code === "insufficient_space"
-          ? "download_capacity_exceeded"
-          : "release_unavailable",
+        error.code === "invalid_nzb"
+          ? "release_unavailable"
+          : "download_capacity_exceeded",
         error.message,
         error.capacity,
       );

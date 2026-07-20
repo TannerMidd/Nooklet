@@ -33,7 +33,7 @@ requests.
 
 | Route | Methods | Auth | Purpose | Source |
 | --- | --- | --- | --- | --- |
-| `/api/health` | `GET` | None | Readiness check for database migrations and the background worker. | `src/app/api/health/route.ts` |
+| `/api/health` | `GET` | None | Readiness check for database migrations, the background worker, and built-in engine progress. | `src/app/api/health/route.ts` |
 | `/api/auth/[...nextauth]` | `GET`, `POST` | Auth.js-managed | Credentials login, logout, session, CSRF, and provider endpoints. | `src/app/api/auth/[...nextauth]/route.ts` |
 | `/api/service-connections/sabnzbd/queue` | `GET`, `POST` | Required | Read and mutate source-aware built-in and legacy SABnzbd queues. | `src/app/api/service-connections/sabnzbd/queue/route.ts` |
 
@@ -52,10 +52,11 @@ application-owned endpoints below.
 
 ## `GET /api/health`
 
-Readiness probe for SQLite migrations and the in-process background worker. A
+Readiness probe for SQLite migrations, the isolated background worker, and
+durable built-in download-engine progress. A
 `200` response means the database is ready and the worker has ticked in the
 last 60 seconds. If an individual workload failed, the response stays `200`
-but reports `status: "degraded"` and `backgroundWorker: "degraded"`; this keeps
+but reports `status: "degraded"`; this keeps
 a bad optional integration from taking the whole container out of service. A
 stopped or stale worker, or a database failure, returns `503`. The public probe
 never exposes internal error messages; authenticated operators can see those
@@ -75,7 +76,8 @@ Content-Type: application/json
   "status": "ok",
   "checks": {
     "database": "ok",
-    "backgroundWorker": "ok"
+    "backgroundWorker": "ok",
+    "downloadEngine": "idle"
   },
   "worker": {
     "started": true,
@@ -83,6 +85,14 @@ Content-Type: application/json
     "lastTickAt": "2026-07-14T18:30:00.000Z",
     "lastSuccessAt": "2026-07-14T18:30:00.000Z",
     "hasError": false
+  },
+  "downloadEngine": {
+    "activeCount": 0,
+    "stalledCount": 0,
+    "failedCount": 0,
+    "activeStage": null,
+    "lastProgressAt": null,
+    "hasLoopError": false
   },
   "timestamp": "2026-07-14T18:30:01.000Z"
 }

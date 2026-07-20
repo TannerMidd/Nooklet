@@ -7,10 +7,12 @@
     "node": ">=24.11.0"
   },
   "scripts": {
-    "dev": "next dev -p 42021",
-    "build": "next build",
+    "dev": "node scripts/development-supervisor.mjs",
+    "build": "next build && node scripts/build-worker.mjs",
     "postbuild": "node scripts/sanitize-standalone.mjs",
-    "start": "next start",
+    "start": "node scripts/container-supervisor.mjs",
+    "start:web": "next start",
+    "start:worker": "node scripts/worker-supervisor.mjs",
     "test": "vitest run --environment node",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

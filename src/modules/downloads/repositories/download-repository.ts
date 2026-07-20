@@ -26,6 +26,21 @@ import {
 
 const localImportRetryCooldownMs = 60_000;
 export const DOWNLOAD_REQUEST_CANCELLATION_RETRY_DELAY_MS = 5 * 60_000;
+const titleRemovalActiveQueueStatuses = ["queued", "downloading", "paused"] as const;
+const titleRemovalActiveEngineStates = [
+  "queued",
+  "fetching",
+  "assembling",
+  "repairing",
+  "extracting",
+  "paused",
+] as const;
+const titleRemovalActiveImportStatuses = ["pending", "running"] as const;
+const requestCancellationStatuses: DownloadRequestStatus[] = [
+  ...activeDownloadRequestStatuses,
+  "succeeded",
+  "failed",
+];
 
 /**
  * A reservation exists only while Nooklet submits a release to the downloader.
@@ -445,6 +460,157 @@ export async function listActiveRequestsForExternalQueueId(userId: string, exter
     .all();
 }
 
+/** Lists every request whose persisted lifecycle still blocks title removal. */
+export async function listDownloadRequestsBlockingTitleRemoval(
+  userId: string,
+  mediaTitleId: string,
+) {
+  const database = ensureDatabaseReady();
+
+  const rows = database
+    .select({ request: downloadRequests })
+    .from(downloadRequests)
+    .leftJoin(downloadQueueItems, and(
+      eq(downloadQueueItems.requestId, downloadRequests.id),
+      eq(downloadQueueItems.userId, userId),
+    ))
+    .leftJoin(engineDownloads, and(
+      eq(engineDownloads.id, downloadQueueItems.externalQueueId),
+      eq(engineDownloads.userId, userId),
+    ))
+    .leftJoin(downloadImportRuns, and(
+      eq(downloadImportRuns.requestId, downloadRequests.id),
+      eq(downloadImportRuns.userId, userId),
+    ))
+    .where(and(
+      eq(downloadRequests.userId, userId),
+      eq(downloadRequests.mediaTitleId, mediaTitleId),
+      or(
+        inArray(downloadRequests.status, [...activeDownloadRequestStatuses]),
+        inArray(downloadQueueItems.status, [...titleRemovalActiveQueueStatuses]),
+        inArray(engineDownloads.state, [...titleRemovalActiveEngineStates]),
+        inArray(downloadImportRuns.status, [...titleRemovalActiveImportStatuses]),
+      ),
+    ))
+    .orderBy(asc(downloadRequests.createdAt), asc(downloadRequests.id))
+    .all();
+
+  return [...new Map(rows.map(({ request }) => [request.id, request])).values()];
+}
+
+/**
+ * Checkpoints a request for explicit title retirement. A request covered by a
+ * cancellable season plan remains attached so the plan reconciler owns it. If
+ * corrupt/legacy state left an active request attached to a terminal plan, it
+ * is detached and converted to the ordinary request-cancellation lifecycle;
+ * the request and queue history remain intact while cleanup is verified.
+ */
+export async function checkpointDownloadRequestCancellationForTitleRetirement(input: {
+  userId: string;
+  requestId: string;
+  mediaTitleId: string;
+  requestedAt?: Date;
+}) {
+  const database = ensureDatabaseReady();
+
+  return database.transaction((transaction) => {
+    const row = transaction
+      .select({ request: downloadRequests })
+      .from(downloadRequests)
+      .leftJoin(downloadQueueItems, and(
+        eq(downloadQueueItems.requestId, downloadRequests.id),
+        eq(downloadQueueItems.userId, input.userId),
+      ))
+      .leftJoin(engineDownloads, and(
+        eq(engineDownloads.id, downloadQueueItems.externalQueueId),
+        eq(engineDownloads.userId, input.userId),
+      ))
+      .leftJoin(downloadImportRuns, and(
+        eq(downloadImportRuns.requestId, downloadRequests.id),
+        eq(downloadImportRuns.userId, input.userId),
+      ))
+      .where(and(
+        eq(downloadRequests.userId, input.userId),
+        eq(downloadRequests.id, input.requestId),
+        eq(downloadRequests.mediaTitleId, input.mediaTitleId),
+        or(
+          inArray(downloadRequests.status, [...activeDownloadRequestStatuses]),
+          inArray(downloadQueueItems.status, [...titleRemovalActiveQueueStatuses]),
+          inArray(engineDownloads.state, [...titleRemovalActiveEngineStates]),
+          inArray(downloadImportRuns.status, [...titleRemovalActiveImportStatuses]),
+        ),
+      ))
+      .get();
+    const current = row?.request;
+
+    if (!current) return null;
+    if (!current.fulfillmentId && current.cancellationRequestedAt) return current;
+
+    const ownedCurrent = transaction
+      .select()
+      .from(downloadRequests)
+      .where(and(
+        eq(downloadRequests.userId, input.userId),
+        eq(downloadRequests.id, input.requestId),
+        eq(downloadRequests.mediaTitleId, input.mediaTitleId),
+        inArray(downloadRequests.status, requestCancellationStatuses),
+      ))
+      .get();
+    if (!ownedCurrent) return null;
+
+    if (current.fulfillmentId) {
+      const fulfillment = transaction
+        .select({ status: downloadFulfillments.status })
+        .from(downloadFulfillments)
+        .where(and(
+          eq(downloadFulfillments.userId, input.userId),
+          eq(downloadFulfillments.id, current.fulfillmentId),
+        ))
+        .get();
+      if (
+        fulfillment
+        && ["active", "retry_wait", "partial", "blocked", "failed"].includes(
+          fulfillment.status,
+        )
+      ) {
+        return current;
+      }
+    }
+
+    const requestedAt = current.cancellationRequestedAt ?? input.requestedAt ?? new Date();
+    const ownershipFence = current.fulfillmentId
+      ? eq(downloadRequests.fulfillmentId, current.fulfillmentId)
+      : isNull(downloadRequests.fulfillmentId);
+    const updated = transaction
+      .update(downloadRequests)
+      .set({
+        fulfillmentId: null,
+        cancellationRequestedAt: requestedAt,
+        statusMessage: "Title removal is pending while Nooklet verifies downloader cleanup.",
+        updatedAt: requestedAt,
+      })
+      .where(and(
+        eq(downloadRequests.userId, input.userId),
+        eq(downloadRequests.id, input.requestId),
+        eq(downloadRequests.mediaTitleId, input.mediaTitleId),
+        ownershipFence,
+        inArray(downloadRequests.status, requestCancellationStatuses),
+      ))
+      .run();
+
+    if (updated.changes !== 1) return null;
+
+    return transaction
+      .select()
+      .from(downloadRequests)
+      .where(and(
+        eq(downloadRequests.userId, input.userId),
+        eq(downloadRequests.id, input.requestId),
+      ))
+      .get() ?? null;
+  });
+}
+
 export async function checkpointDownloadRequestCancellation(input: {
   userId: string;
   requestId: string;
@@ -478,7 +644,7 @@ export async function checkpointDownloadRequestCancellation(input: {
       eq(downloadRequests.id, input.requestId),
       isNull(downloadRequests.fulfillmentId),
       isNull(downloadRequests.cancellationRequestedAt),
-      inArray(downloadRequests.status, [...activeDownloadRequestStatuses]),
+      inArray(downloadRequests.status, requestCancellationStatuses),
     ))
     .run();
 
@@ -503,7 +669,7 @@ export async function listPendingDownloadRequestCancellations(
     .where(and(
       isNull(downloadRequests.fulfillmentId),
       isNotNull(downloadRequests.cancellationRequestedAt),
-      inArray(downloadRequests.status, [...activeDownloadRequestStatuses]),
+      inArray(downloadRequests.status, requestCancellationStatuses),
       or(
         // A fresh checkpoint writes both timestamps to the same value so it is
         // due immediately. Deferral advances updatedAt and makes this row wait
@@ -562,7 +728,7 @@ export async function deferDownloadRequestCancellation(input: {
       eq(downloadRequests.id, input.requestId),
       isNull(downloadRequests.fulfillmentId),
       eq(downloadRequests.cancellationRequestedAt, input.requestedAt),
-      inArray(downloadRequests.status, [...activeDownloadRequestStatuses]),
+      inArray(downloadRequests.status, requestCancellationStatuses),
     ))
     .run();
 
@@ -594,7 +760,7 @@ export async function finalizeDownloadRequestCancellation(input: {
         eq(downloadRequests.id, input.requestId),
         isNull(downloadRequests.fulfillmentId),
         eq(downloadRequests.cancellationRequestedAt, input.requestedAt),
-        inArray(downloadRequests.status, [...activeDownloadRequestStatuses]),
+        inArray(downloadRequests.status, requestCancellationStatuses),
       ))
       .run();
     if (updated.changes !== 1) return;

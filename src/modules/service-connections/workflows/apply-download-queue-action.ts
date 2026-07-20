@@ -1,13 +1,17 @@
 import {
   applyEngineQueueAction,
+  type EngineQueueActionOutcome,
   isEngineQueueItem,
 } from "@/modules/download-engine/workflows/apply-engine-queue-action";
 import { findServiceConnectionByType } from "@/modules/service-connections/queries/find-service-connection-by-type";
 import { type SabnzbdQueueActionInput } from "@/modules/service-connections/sabnzbd-queue-actions";
 
 import { applySabnzbdQueueAction } from "./apply-sabnzbd-queue-action";
-import { getActiveDownloadQueue } from "./get-active-download-queue";
-import { type ActiveSabnzbdQueueState } from "./get-active-sabnzbd-queue";
+
+const appliedOutcome: EngineQueueActionOutcome = {
+  status: "applied",
+  message: "Download queue updated.",
+};
 
 /**
  * Routes queue actions to the owning downloader: engine item ids go to the
@@ -17,7 +21,7 @@ import { type ActiveSabnzbdQueueState } from "./get-active-sabnzbd-queue";
 export async function applyDownloadQueueAction(
   userId: string,
   action: SabnzbdQueueActionInput,
-): Promise<ActiveSabnzbdQueueState> {
+): Promise<EngineQueueActionOutcome> {
   const isQueueWide = action.type === "pauseQueue" || action.type === "resumeQueue";
   const [usenetServer, sabnzbd] = await Promise.all([
     findServiceConnectionByType(userId, "usenet-server"),
@@ -27,8 +31,9 @@ export async function applyDownloadQueueAction(
   const hasSabnzbd = Boolean(sabnzbd?.connection.baseUrl && sabnzbd.secret);
 
   if (isQueueWide) {
+    let engineOutcome = appliedOutcome;
     if (hasEngine) {
-      await applyEngineQueueAction(userId, action);
+      engineOutcome = await applyEngineQueueAction(userId, action);
     }
 
     if (hasSabnzbd) {
@@ -40,16 +45,13 @@ export async function applyDownloadQueueAction(
       }
     }
 
-    return getActiveDownloadQueue(userId);
+    return engineOutcome;
   }
 
   if (hasEngine && (await isEngineQueueItem(userId, action))) {
-    await applyEngineQueueAction(userId, action);
-
-    return getActiveDownloadQueue(userId);
+    return applyEngineQueueAction(userId, action);
   }
 
   await applySabnzbdQueueAction(userId, action);
-
-  return getActiveDownloadQueue(userId);
+  return appliedOutcome;
 }

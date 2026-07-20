@@ -49,7 +49,7 @@ A season request creates one durable plan in **Activity**. A release download is
 
 Activity groups the attempts under the season plan and labels it **Recovering** while automatic work remains. A failed child attempt does not mean the season request has failed. Manual retry is only offered after the plan is no longer recovering.
 
-To abandon an open plan, choose **Stop season recovery** in Activity. This stops future searches and safely removes the plan's active downloader work while retaining files that have already reached the library. Library title removal remains blocked until that cleanup is verified.
+To abandon an open plan, choose **Stop season recovery** in Activity. This stops future searches and safely removes the plan's active downloader work while retaining files that have already reached the library. When removing an empty duplicate title, you can instead explicitly select **Stop active season plans and downloads first** in the removal dialog. Nooklet keeps that removal intent queued until cleanup is verified, then removes the title record without deleting imported media files.
 
 Nooklet does not fan a configuration failure out into many episode requests. Capacity held by active downloads waits and retries automatically. A currently full or incorrectly mapped staging filesystem, destination problem, credential failure, missing Newznab source, or downloader failure blocks the plan with a corrective message without consuming the selected release. Fix that condition, then use **Resume season recovery** from Activity.
 

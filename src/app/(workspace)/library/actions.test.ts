@@ -47,20 +47,20 @@ vi.mock("@/modules/media-library/commands/remove-library-path", () => {
     RemoveLibraryPathCommandError,
   };
 });
-vi.mock("@/modules/media-library/workflows/delete-media-title-with-files", () => {
-  class DeleteMediaTitleWithFilesError extends Error {
+vi.mock("@/modules/media-library/commands/remove-media-title", () => {
+  class RemoveMediaTitleCommandError extends Error {
     constructor(
       message: string,
-      public readonly code: "title_not_found",
+      public readonly code: "title_not_found" | "active_download",
     ) {
       super(message);
-      this.name = "DeleteMediaTitleWithFilesError";
+      this.name = "RemoveMediaTitleCommandError";
     }
   }
 
   return {
-    deleteMediaTitleWithFilesWorkflow: vi.fn(),
-    DeleteMediaTitleWithFilesError,
+    removeMediaTitleCommand: vi.fn(),
+    RemoveMediaTitleCommandError,
   };
 });
 vi.mock("@/modules/media-library/commands/update-library-path", () => {
@@ -114,13 +114,9 @@ vi.mock("@/modules/media-library/commands/update-tv-episode-monitoring", () => {
     UpdateTvEpisodeMonitoringCommandError,
   };
 });
-vi.mock("@/modules/media-library/workflows/scan-library", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/modules/media-library/workflows/scan-library")>();
-  return {
-    ...actual,
-    scanMediaLibraryWorkflow: vi.fn(),
-  };
-});
+vi.mock("@/modules/jobs/repositories/job-repository", () => ({
+  createImmediateJob: vi.fn(),
+}));
 vi.mock("@/modules/media-library/workflows/configure-library-scan-schedule", () => ({
   configureLibraryScanSchedule: vi.fn(),
 }));
@@ -135,7 +131,11 @@ vi.mock("@/modules/media-library/workflows/search-library-item-releases", async 
   };
 });
 vi.mock("@/modules/media-library/repositories/media-library-repository", () => ({
+  findMediaTitleByIdForUser: vi.fn(),
   findTvSeasonByIdForUser: vi.fn(),
+}));
+vi.mock("@/modules/downloads/queries/has-active-download-association", () => ({
+  hasActiveDownloadAssociationForTitle: vi.fn(),
 }));
 vi.mock("@/modules/downloads/workflows/season-fulfillment", () => ({
   attemptSeasonPack: vi.fn(),
@@ -154,9 +154,9 @@ import {
   RemoveLibraryPathCommandError,
 } from "@/modules/media-library/commands/remove-library-path";
 import {
-  deleteMediaTitleWithFilesWorkflow,
-  DeleteMediaTitleWithFilesError,
-} from "@/modules/media-library/workflows/delete-media-title-with-files";
+  removeMediaTitleCommand,
+  RemoveMediaTitleCommandError,
+} from "@/modules/media-library/commands/remove-media-title";
 import {
   updateLibraryPathCommand,
   UpdateLibraryPathCommandError,
@@ -172,10 +172,7 @@ import {
   updateTvEpisodeMonitoringCommand,
   UpdateTvEpisodeMonitoringCommandError,
 } from "@/modules/media-library/commands/update-tv-episode-monitoring";
-import {
-  scanMediaLibraryWorkflow,
-  ScanMediaLibraryWorkflowError,
-} from "@/modules/media-library/workflows/scan-library";
+import { createImmediateJob } from "@/modules/jobs/repositories/job-repository";
 import {
   configureLibraryScanSchedule,
 } from "@/modules/media-library/workflows/configure-library-scan-schedule";
@@ -186,7 +183,11 @@ import {
   searchLibraryItemReleasesWorkflow,
   SearchLibraryItemReleasesWorkflowError,
 } from "@/modules/media-library/workflows/search-library-item-releases";
-import { findTvSeasonByIdForUser } from "@/modules/media-library/repositories/media-library-repository";
+import {
+  findMediaTitleByIdForUser,
+  findTvSeasonByIdForUser,
+} from "@/modules/media-library/repositories/media-library-repository";
+import { hasActiveDownloadAssociationForTitle } from "@/modules/downloads/queries/has-active-download-association";
 import {
   attemptSeasonPack,
   createSeasonFulfillment,
@@ -229,8 +230,10 @@ const updateLibraryMonitoringMock = vi.mocked(updateMediaLibraryMonitoringComman
 const updateMediaTitlePreferencesMock = vi.mocked(updateMediaTitlePreferencesCommand);
 const updateTvEpisodeMonitoringMock = vi.mocked(updateTvEpisodeMonitoringCommand);
 const removeLibraryPathMock = vi.mocked(removeLibraryPathCommand);
-const removeMediaTitleMock = vi.mocked(deleteMediaTitleWithFilesWorkflow);
-const scanLibraryMock = vi.mocked(scanMediaLibraryWorkflow);
+const removeMediaTitleMock = vi.mocked(removeMediaTitleCommand);
+const findMediaTitleMock = vi.mocked(findMediaTitleByIdForUser);
+const hasActiveTitleDownloadMock = vi.mocked(hasActiveDownloadAssociationForTitle);
+const createImmediateJobMock = vi.mocked(createImmediateJob);
 const configureLibraryScanScheduleMock = vi.mocked(configureLibraryScanSchedule);
 const configureMissingSearchScheduleMock = vi.mocked(configureMissingSearchSchedule);
 const searchLibraryItemMock = vi.mocked(searchLibraryItemReleasesWorkflow);
@@ -381,29 +384,35 @@ describe("scanLibraryAction", () => {
     const result = await scanLibraryAction();
 
     expect(result).toEqual({ status: "error", message: "You need to sign in again." });
-    expect(scanLibraryMock).not.toHaveBeenCalled();
+    expect(createImmediateJobMock).not.toHaveBeenCalled();
   });
 
-  it("maps scan workflow errors to friendly messages", async () => {
+  it("maps queue failures to a friendly message", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-    scanLibraryMock.mockRejectedValue(
-      new ScanMediaLibraryWorkflowError("no_paths", "Attach a library folder before scanning."),
-    );
+    createImmediateJobMock.mockRejectedValue(new Error("database unavailable"));
 
     const result = await scanLibraryAction();
 
-    expect(result).toEqual({ status: "error", message: "Attach a library folder before scanning." });
+    expect(result).toEqual({ status: "error", message: "Nooklet could not scan the library." });
   });
 
-  it("scans the library and revalidates the library page", async () => {
+  it("queues the scan for the isolated worker and revalidates the library page", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-    scanLibraryMock.mockResolvedValue({ discoveredFileCount: 2, matchedTitleCount: 1 } as never);
+    createImmediateJobMock.mockResolvedValue({ id: "job-1" } as never);
 
     const result = await scanLibraryAction();
 
-    expect(scanLibraryMock).toHaveBeenCalledWith("u1", {});
+    expect(createImmediateJobMock).toHaveBeenCalledWith({
+      userId: "u1",
+      jobType: "media-library-scan",
+      targetType: "media-library",
+      targetKey: "manual",
+    });
     expect(revalidateMock).toHaveBeenCalledWith("/library");
-    expect(result).toEqual({ status: "success", message: "Scan finished: 2 files, 1 title." });
+    expect(result).toEqual({
+      status: "success",
+      message: "Library scan queued. Nooklet will run it in the isolated background worker.",
+    });
   });
 });
 
@@ -908,9 +917,11 @@ describe("searchLibraryItemReleasesAction", () => {
 describe("removeMediaTitleAction", () => {
   const titleId = "f9cf3e46-c202-46f4-97aa-dd37be8f7766";
 
-  function validForm() {
+  function validForm(deleteFiles = false, retireActiveWork = false) {
     const form = new FormData();
     form.set("titleId", titleId);
+    if (deleteFiles) form.set("deleteFiles", "on");
+    if (retireActiveWork) form.set("retireActiveWork", "on");
     return form;
   }
 
@@ -937,7 +948,7 @@ describe("removeMediaTitleAction", () => {
   it("maps command errors to friendly messages", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
     removeMediaTitleMock.mockRejectedValue(
-      new DeleteMediaTitleWithFilesError("Library title was not found.", "title_not_found"),
+      new RemoveMediaTitleCommandError("Library title was not found.", "title_not_found"),
     );
 
     const result = await removeMediaTitleAction(initialRemoveMediaTitleActionState, validForm());
@@ -948,7 +959,7 @@ describe("removeMediaTitleAction", () => {
   it("points blocked removal to the new Activity cancellation control", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
     removeMediaTitleMock.mockRejectedValue(
-      new DeleteMediaTitleWithFilesError(
+      new RemoveMediaTitleCommandError(
         "This title still has an active season plan, download, or import.",
         "active_download",
       ),
@@ -958,27 +969,122 @@ describe("removeMediaTitleAction", () => {
 
     expect(result).toEqual({
       status: "error",
-      message: "This title still has an active season plan, download, or import.",
+      message: "This title still has active season recovery or downloader work. Select the safe stop-and-remove option below and confirm again, or manage the work in Activity.",
       action: "open_activity",
     });
   });
 
   it("removes a title and revalidates the matching library pages", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-    removeMediaTitleMock.mockResolvedValue({
-      removedTitle: { id: titleId, mediaType: "tv" },
-      fileOutcomes: [],
-      filesRequestedForDeletion: false,
-    } as never);
+    removeMediaTitleMock.mockResolvedValue({ id: titleId, mediaType: "tv" } as never);
 
     const result = await removeMediaTitleAction(initialRemoveMediaTitleActionState, validForm());
 
-    expect(removeMediaTitleMock).toHaveBeenCalledWith("u1", { titleId, deleteFiles: false });
+    expect(removeMediaTitleMock).toHaveBeenCalledWith("u1", { titleId });
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
     // Per-title routes were removed; dialog content is rendered from the list page.
     expect(revalidateMock).not.toHaveBeenCalledWith(`/library/tv/${titleId}`);
     expect(result).toEqual({ status: "success", message: "Library title removed." });
+  });
+
+  it("requires an administrator before queueing deletion from disk", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "user" } } as never);
+
+    const result = await removeMediaTitleAction(
+      initialRemoveMediaTitleActionState,
+      validForm(true),
+    );
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Only an administrator can delete media files from disk.",
+    });
+    expect(findMediaTitleMock).not.toHaveBeenCalled();
+    expect(createImmediateJobMock).not.toHaveBeenCalled();
+  });
+
+  it("checks DB ownership and active associations before queueing file deletion", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
+    findMediaTitleMock.mockResolvedValue({ id: titleId, mediaType: "tv" } as never);
+    hasActiveTitleDownloadMock.mockResolvedValue(true);
+
+    const result = await removeMediaTitleAction(
+      initialRemoveMediaTitleActionState,
+      validForm(true),
+    );
+
+    expect(findMediaTitleMock).toHaveBeenCalledWith("u1", titleId);
+    expect(hasActiveTitleDownloadMock).toHaveBeenCalledWith("u1", titleId);
+    expect(createImmediateJobMock).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: "error", action: "open_activity" });
+  });
+
+  it("queues file deletion without importing the filesystem workflow into the web action", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
+    findMediaTitleMock.mockResolvedValue({ id: titleId, mediaType: "tv" } as never);
+    hasActiveTitleDownloadMock.mockResolvedValue(false);
+    createImmediateJobMock.mockResolvedValue({ id: "job-delete" } as never);
+
+    const result = await removeMediaTitleAction(
+      initialRemoveMediaTitleActionState,
+      validForm(true),
+    );
+
+    expect(removeMediaTitleMock).not.toHaveBeenCalled();
+    expect(createImmediateJobMock).toHaveBeenCalledWith({
+      userId: "u1",
+      jobType: "media-title-delete",
+      targetType: "media-title",
+      targetKey: titleId,
+    });
+    expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
+    expect(result).toEqual({
+      status: "success",
+      message: "Title removal queued. Nooklet will delete its files in the isolated background worker.",
+      action: "queued_removal",
+    });
+  });
+
+  it("persists explicit stop-then-remove intent without touching the downloader in the web action", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "user" } } as never);
+    findMediaTitleMock.mockResolvedValue({ id: titleId, mediaType: "tv" } as never);
+    createImmediateJobMock.mockResolvedValue({ id: "job-retire" } as never);
+
+    const result = await removeMediaTitleAction(
+      initialRemoveMediaTitleActionState,
+      validForm(false, true),
+    );
+
+    expect(findMediaTitleMock).toHaveBeenCalledWith("u1", titleId);
+    expect(hasActiveTitleDownloadMock).not.toHaveBeenCalled();
+    expect(removeMediaTitleMock).not.toHaveBeenCalled();
+    expect(createImmediateJobMock).toHaveBeenCalledWith({
+      userId: "u1",
+      jobType: "media-title-delete",
+      targetType: "media-title-preserve-files",
+      targetKey: titleId,
+    });
+    expect(result).toEqual({
+      status: "success",
+      message: "Safe removal queued. Nooklet will stop and verify active downloads, then remove the title. Imported media files will stay on disk.",
+      action: "queued_removal",
+    });
+  });
+
+  it("rejects conflicting preserve-files and delete-files intents", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
+
+    const result = await removeMediaTitleAction(
+      initialRemoveMediaTitleActionState,
+      validForm(true, true),
+    );
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Choose either a safe stop-and-remove or permanent file deletion, not both.",
+    });
+    expect(createImmediateJobMock).not.toHaveBeenCalled();
   });
 });
 

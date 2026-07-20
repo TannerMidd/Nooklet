@@ -1,8 +1,8 @@
 # Data and Background Jobs
 
-> Applies to the current `main` implementation. Last source review: 2026-07-16.
+> Applies to the current `main` implementation. Last source review: 2026-07-20.
 
-Nooklet uses one SQLite database for durable application state and an in-process worker for scheduled workflows. The worker does not rely on an in-memory queue for ownership: schedules, claims, run tokens, heartbeats, and leases are persisted in the `jobs` table.
+Nooklet uses one SQLite database for durable application state and a separately supervised worker process for scheduled workflows. The worker does not rely on an in-memory queue for ownership: schedules, claims, run tokens, heartbeats, and leases are persisted in the `jobs` table. Production web requests never start the worker or download runner in their own process.
 
 ## Database lifecycle
 
@@ -56,19 +56,21 @@ The diagram is intentionally selective. Use the schema and migration history for
 
 ## Worker model
 
-The [worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts) starts from [Next.js instrumentation](https://github.com/TannerMidd/Nooklet/blob/main/src/instrumentation.ts). It performs a pass immediately, then every 15 seconds.
+The container, native, and development supervisors start a standalone [worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts) beside the Next.js web child. [Next.js instrumentation](https://github.com/TannerMidd/Nooklet/blob/main/src/instrumentation.ts) initializes only the web database client and never starts background work. The worker performs a pass immediately, then every 15 seconds.
 
-Five persisted job types are supported:
+Seven persisted job types are supported:
 
 - `watch-history-sync`
 - `recommendation-run`
 - `media-library-scan`
 - `missing-content-search`
 - `metadata-refresh`
+- `download-import`
+- `media-title-delete`
 
-Cancellation reconciliation, download imports, legacy SABnzbd reconciliation, and due season-fulfillment recovery are maintenance work run on each worker pass rather than separate `jobs` rows. The built-in engine runner is also kicked from maintenance and drains its own persisted queue.
+Cancellation reconciliation, download imports, legacy SABnzbd reconciliation, and due season-fulfillment recovery are maintenance work run on each worker pass. User-requested scans, import retries, file deletions, and safe stop-then-remove title requests are also persisted as immediate jobs so their filesystem work never executes in the web process. A safe title-removal job re-enables its unique immediate job while downloader verification is pending and deletes only the library record after active associations clear. The built-in engine runner is kicked from maintenance and drains its own persisted queue.
 
-The maintenance order is deliberate:
+Filesystem-backed immediate jobs run serially first (`download-import`, `media-title-delete`, then `media-library-scan`). They do not use lease heartbeats as proof of worker progress, so a wedged mount cannot be hidden by an unrelated network job. Maintenance runs next, in this deliberate order:
 
 1. Start or wake the built-in engine runner.
 2. Reconcile due season-plan cancellations.
@@ -141,16 +143,17 @@ Key timing values:
 | Mechanism | Current value | Source |
 | --- | ---: | --- |
 | Worker poll | 15 seconds | [worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts) |
-| Job heartbeat | 60 seconds | [worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts) |
+| Job heartbeat | 30 seconds | [worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts) |
 | Claim lease | 5 minutes | [job repository](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/jobs/repositories/job-repository.ts) |
 | Season work lease | 15 minutes, renewed during work | [fulfillment work lease](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/season-fulfillment-work-lease.ts) |
 | Health stale threshold | 60 seconds | [worker readiness](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker-readiness.ts) |
+| Storage snapshot refresh / kill ceiling | 60 seconds / 30 seconds | [probe coordinator](https://github.com/TannerMidd/Nooklet/blob/main/scripts/lib/storage-probe-coordinator.mjs) |
 
-Each job type has its own process-local lane guard, so unrelated job types may run concurrently while only one job of a given type is claimed by this process at a time. The persisted run token prevents a stale claimant from completing a row it no longer owns.
+After filesystem work and maintenance finish, unrelated network/AI job types may run concurrently while only one job of a given type is claimed by this process at a time. The persisted run token prevents a stale claimant from completing a row it no longer owns. The overall pass is serialized: a timer tick that arrives while the previous pass is unresolved cannot update success or freshness.
 
 ## Health semantics
 
-The public `/api/health` route checks both database readiness and worker recency:
+The public `/api/health` route executes a real SQLite query and checks the atomically persisted worker heartbeat:
 
 - HTTP 200 with `status: "ok"` means the database is ready and the latest responsive worker pass has no recorded failure.
 - HTTP 200 with `status: "degraded"` means the worker is still ticking but a workload failed. This is intentionally considered container-responsive.
@@ -171,8 +174,10 @@ See [Backup, Restore, and Upgrades](Backup-Restore-and-Upgrades).
 ## Known constraints
 
 - SQLite supports the intended one-container topology; it is not a shared multi-node database configuration.
-- Persisted job leases improve crash recovery, but the engine singleton, active-lane guards, and import locks are still process-local.
-- Season-plan schedules and renewable per-plan work leases are persisted; the maintenance-loop mutex itself remains process-local under the supported one-process topology.
+- Persisted job leases improve crash recovery; active-lane guards and import locks remain local to the one supported worker process.
+- Season-plan schedules and renewable per-plan work leases are persisted; the maintenance-loop mutex remains worker-local under the supported one-worker topology.
+- The web and worker share SQLite on the local Docker named volume. This is not a supported network-filesystem or multi-host database topology.
+- An uninterruptible host-mount syscall may require Docker or host repair. The process boundary keeps it from consuming the web process's event loop or libuv pool.
 - The public health probe reports worker responsiveness, not the success of every optional integration.
 - Migrations run at application startup. Back up before upgrading because rollback may require restoring the pre-upgrade database.
 - There is no automated restore drill in the current CI workflow.

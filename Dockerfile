@@ -57,11 +57,16 @@ ENV NODE_ENV=production \
 # need the better-sqlite3 native module which standalone tracing pulls in.
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/.next/worker/worker.cjs ./worker.cjs
+COPY --from=builder /app/.next/worker/worker.cjs.map ./worker.cjs.map
 COPY --from=builder /app/drizzle ./drizzle
 # Keep the documented runtime backup command without reintroducing build-only
 # tooling (such as the standalone sanitizer) into the final image.
 COPY --from=builder /app/scripts/backup-database.mjs ./scripts/backup-database.mjs
 COPY --from=builder /app/scripts/recover-account.mjs ./scripts/recover-account.mjs
+COPY --from=builder /app/scripts/container-supervisor.mjs ./scripts/container-supervisor.mjs
+COPY --from=builder /app/scripts/lib/storage-probe-coordinator.mjs ./scripts/lib/storage-probe-coordinator.mjs
+COPY --from=builder /app/scripts/validate-media-directory.mjs ./scripts/validate-media-directory.mjs
 
 # Persist data outside the image. The volume is mounted here in compose.
 RUN mkdir -p /app/data && chown -R node:node /app
@@ -74,4 +79,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:42021/api/health').then(r=>{if(r.status!==200)process.exit(1)}).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["tini", "-g", "--"]
-CMD ["node", "server.js"]
+CMD ["node", "scripts/container-supervisor.mjs"]

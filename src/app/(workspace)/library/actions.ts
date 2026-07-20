@@ -25,6 +25,10 @@ import {
   UpdateMediaTitlePreferencesCommandError,
 } from "@/modules/media-library/commands/update-media-title-preferences";
 import {
+  removeMediaTitleCommand,
+  RemoveMediaTitleCommandError,
+} from "@/modules/media-library/commands/remove-media-title";
+import {
   updateMediaLibraryMonitoringCommand,
 } from "@/modules/media-library/commands/update-media-library-monitoring";
 import {
@@ -43,10 +47,6 @@ import {
 import {
   summarizeRequestSubmission,
 } from "@/modules/media-library/workflows/request-title-with-release-search/outcome-summary";
-import {
-  deleteMediaTitleWithFilesWorkflow,
-  DeleteMediaTitleWithFilesError,
-} from "@/modules/media-library/workflows/delete-media-title-with-files";
 import { autoLinkMediaTitleTmdb } from "@/modules/media-library/workflows/auto-link-media-title-tmdb";
 import { getMediaLibraryTvSeasonEpisodes } from "@/modules/media-library/queries/get-media-library-tv-season-episodes";
 import { type LoadTvSeasonEpisodesResult } from "@/app/(workspace)/library/tv-seasons-types";
@@ -72,16 +72,18 @@ import {
   searchLibraryItemReleasesWorkflow,
   SearchLibraryItemReleasesWorkflowError,
 } from "@/modules/media-library/workflows/search-library-item-releases";
-import { findTvSeasonByIdForUser } from "@/modules/media-library/repositories/media-library-repository";
+import {
+  findMediaTitleByIdForUser,
+  findTvSeasonByIdForUser,
+} from "@/modules/media-library/repositories/media-library-repository";
+import { hasActiveDownloadAssociationForTitle } from "@/modules/downloads/queries/has-active-download-association";
 import {
   attemptSeasonPack,
   createSeasonFulfillment,
 } from "@/modules/downloads/workflows/season-fulfillment";
 import {
-  scanMediaLibraryInputSchema,
-  scanMediaLibraryWorkflow,
-  ScanMediaLibraryWorkflowError,
-} from "@/modules/media-library/workflows/scan-library";
+  createImmediateJob,
+} from "@/modules/jobs/repositories/job-repository";
 import { configureLibraryScanSchedule } from "@/modules/media-library/workflows/configure-library-scan-schedule";
 import { configureMetadataRefreshSchedule } from "@/modules/media-library/workflows/configure-metadata-refresh-schedule";
 import { configureMissingSearchSchedule } from "@/modules/media-library/workflows/configure-missing-search-schedule";
@@ -177,25 +179,20 @@ export async function scanLibraryAction(
     return { status: "error", message: "You need to sign in again." };
   }
 
-  const parsed = scanMediaLibraryInputSchema.safeParse({});
-
-  if (!parsed.success) {
-    return { status: "error", message: "Nooklet could not start the scan." };
-  }
-
   try {
-    const result = await scanMediaLibraryWorkflow(session.user.id, parsed.data);
+    await createImmediateJob({
+      userId: session.user.id,
+      jobType: "media-library-scan",
+      targetType: "media-library",
+      targetKey: "manual",
+    });
 
     revalidatePath("/library");
     return {
       status: "success",
-      message: `Scan finished: ${result.discoveredFileCount} file${result.discoveredFileCount === 1 ? "" : "s"}, ${result.matchedTitleCount} title${result.matchedTitleCount === 1 ? "" : "s"}.`,
+      message: "Library scan queued. Nooklet will run it in the isolated background worker.",
     };
-  } catch (error) {
-    if (error instanceof ScanMediaLibraryWorkflowError) {
-      return { status: "error", message: error.message };
-    }
-
+  } catch {
     return { status: "error", message: "Nooklet could not scan the library." };
   }
 }
@@ -460,6 +457,8 @@ export async function removeMediaTitleAction(
   }
 
   const deleteFiles = formData.get("deleteFiles") === "on" || formData.get("deleteFiles") === "true";
+  const retireActiveWork = formData.get("retireActiveWork") === "on"
+    || formData.get("retireActiveWork") === "true";
 
   if (deleteFiles && session.user.role !== "admin") {
     return {
@@ -469,29 +468,74 @@ export async function removeMediaTitleAction(
     };
   }
 
+  if (deleteFiles && retireActiveWork) {
+    return {
+      ...initialRemoveMediaTitleActionState,
+      status: "error",
+      message: "Choose either a safe stop-and-remove or permanent file deletion, not both.",
+    };
+  }
+
   try {
-    const result = await deleteMediaTitleWithFilesWorkflow(session.user.id, {
+    if (retireActiveWork) {
+      const title = await findMediaTitleByIdForUser(session.user.id, parsed.data.titleId);
+      if (!title) {
+        throw new RemoveMediaTitleCommandError("Library title was not found.", "title_not_found");
+      }
+
+      await createImmediateJob({
+        userId: session.user.id,
+        jobType: "media-title-delete",
+        targetType: "media-title-preserve-files",
+        targetKey: parsed.data.titleId,
+      });
+      revalidateMediaTitlePages(title.mediaType);
+      return {
+        status: "success",
+        message: "Safe removal queued. Nooklet will stop and verify active downloads, then remove the title. Imported media files will stay on disk.",
+        action: "queued_removal",
+      };
+    }
+
+    if (deleteFiles) {
+      const title = await findMediaTitleByIdForUser(session.user.id, parsed.data.titleId);
+      if (!title) {
+        throw new RemoveMediaTitleCommandError("Library title was not found.", "title_not_found");
+      }
+      if (await hasActiveDownloadAssociationForTitle(session.user.id, parsed.data.titleId)) {
+        throw new RemoveMediaTitleCommandError(
+          "This title still has an active season plan, download, or import. Stop it in Activity before removing the title.",
+          "active_download",
+        );
+      }
+
+      await createImmediateJob({
+        userId: session.user.id,
+        jobType: "media-title-delete",
+        targetType: "media-title",
+        targetKey: parsed.data.titleId,
+      });
+      revalidateMediaTitlePages(title.mediaType);
+      return {
+        status: "success",
+        message: "Title removal queued. Nooklet will delete its files in the isolated background worker.",
+        action: "queued_removal",
+      };
+    }
+
+    const removedTitle = await removeMediaTitleCommand(session.user.id, {
       titleId: parsed.data.titleId,
-      deleteFiles,
     });
-
-    revalidateMediaTitlePages(result.removedTitle.mediaType);
-
-    const deletedCount = result.fileOutcomes.filter((outcome) => outcome.status === "deleted").length;
-    const failedCount = result.fileOutcomes.filter((outcome) => outcome.status === "failed").length;
-    const message = deleteFiles
-      ? failedCount > 0
-        ? `Library title removed. Deleted ${deletedCount} files; ${failedCount} could not be removed.`
-        : `Library title removed. Deleted ${deletedCount} files.`
-      : "Library title removed.";
-
-    return { status: failedCount > 0 ? "warning" : "success", message };
+    revalidateMediaTitlePages(removedTitle.mediaType);
+    return { status: "success", message: "Library title removed." };
   } catch (error) {
-    if (error instanceof DeleteMediaTitleWithFilesError) {
+    if (error instanceof RemoveMediaTitleCommandError) {
       return {
         ...initialRemoveMediaTitleActionState,
         status: "error",
-        message: error.message,
+        message: error.code === "active_download"
+          ? "This title still has active season recovery or downloader work. Select the safe stop-and-remove option below and confirm again, or manage the work in Activity."
+          : error.message,
         action: error.code === "active_download" ? "open_activity" : undefined,
       };
     }
@@ -499,7 +543,11 @@ export async function removeMediaTitleAction(
     return {
       ...initialRemoveMediaTitleActionState,
       status: "error",
-      message: "Nooklet could not remove that title.",
+      message: deleteFiles
+        ? "Nooklet could not queue that title removal."
+        : retireActiveWork
+          ? "Nooklet could not queue that safe title removal."
+          : "Nooklet could not remove that title.",
     };
   }
 }

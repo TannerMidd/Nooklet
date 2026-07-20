@@ -106,6 +106,10 @@ describe("download queue API", () => {
   });
 
   it("routes built-in actions only to the built-in engine", async () => {
+    engineActionMock.mockResolvedValue({
+      status: "applied",
+      message: "Download queue updated.",
+    });
     const response = await POST(jsonRequest({
       source: "engine",
       type: "move",
@@ -120,6 +124,29 @@ describe("download queue API", () => {
       direction: "up",
     });
     expect(sabnzbdActionMock).not.toHaveBeenCalled();
+  });
+
+  it("returns truthful pending state while isolated cancellation cleanup runs", async () => {
+    engineActionMock.mockResolvedValue({
+      status: "pending",
+      message: "Cancellation requested. Cleanup is still running.",
+    });
+
+    const response = await POST(jsonRequest({
+      source: "engine",
+      type: "remove",
+      itemId: "engine-item",
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ...queueState,
+      statusMessage: "Cancellation requested. Cleanup is still running.",
+      action: {
+        status: "pending",
+        message: "Cancellation requested. Cleanup is still running.",
+      },
+    });
   });
 
   it("routes SABnzbd actions only to SABnzbd", async () => {
@@ -145,22 +172,22 @@ describe("download queue API", () => {
     consoleSpy.mockRestore();
   });
 
-  it("returns a safe conflict explanation when a built-in download is post-processing", async () => {
+  it("returns a safe conflict explanation when pausing a post-processing download", async () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     engineActionMock.mockRejectedValue(new EngineQueueActionError(
-      "This download is in post-processing. Wait for assembly, repair, or extraction to finish before removing it.",
+      "This download is finishing post-processing and cannot be paused right now.",
     ));
 
     const response = await POST(jsonRequest({
       source: "engine",
-      type: "remove",
+      type: "pause",
       itemId: "engine-item",
     }));
 
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
       code: "queue_action_conflict",
-      message: "This download is in post-processing. Wait for assembly, repair, or extraction to finish before removing it.",
+      message: "This download is finishing post-processing and cannot be paused right now.",
     });
     consoleSpy.mockRestore();
   });

@@ -19,6 +19,22 @@ function capacityPercent(free: number | null, total: number | null) {
   return Math.max(0, Math.min(100, Math.round(((total - free) / total) * 100)));
 }
 
+function checkedAtLabel(value: Date | null) {
+  return value ? `Last checked ${value.toLocaleString()}` : "Awaiting the first background check";
+}
+
+function snapshotBadge(
+  status: "fresh" | "stale" | "error" | "unavailable",
+  healthy: boolean,
+) {
+  if (status === "unavailable") return { label: "Checking", variant: "neutral" as const };
+  if (status === "stale") return { label: "Stale reading", variant: "highlight" as const };
+  if (status === "error") return { label: "Unavailable", variant: "wine" as const };
+  return healthy
+    ? { label: "Ready", variant: "accent-cool" as const }
+    : { label: "Needs attention", variant: "wine" as const };
+}
+
 function CapacityBar({ free, total, label }: { free: number | null; total: number | null; label: string }) {
   const percent = capacityPercent(free, total);
   return (
@@ -46,6 +62,7 @@ export function StorageOverviewView({ overview }: { overview: StorageOverview })
     && workspace.writable
     && workspace.maximumNewDownloadBytes !== null
     && workspace.maximumNewDownloadBytes > 0;
+  const workspaceBadge = snapshotBadge(workspace.snapshotStatus, workspaceHealthy);
 
   return (
     <div className="space-y-6">
@@ -58,15 +75,19 @@ export function StorageOverviewView({ overview }: { overview: StorageOverview })
               The built-in downloader saves, repairs, and unpacks files here before importing them into a movie or TV library. Free space on a final media drive does not replace free space here.
             </p>
           </div>
-          <Badge variant={workspaceHealthy ? "accent-cool" : "wine"}>
-            {workspaceHealthy ? "Ready" : "Needs attention"}
+          <Badge variant={workspaceBadge.variant}>
+            {workspaceBadge.label}
           </Badge>
         </div>
 
-        <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+        <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-lg bg-cream/[0.04] p-3">
-            <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Effective path</dt>
-            <dd className="mt-1 break-all font-mono text-xs leading-5 text-foreground">{workspace.effectivePath}</dd>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Work path</dt>
+            <dd className="mt-1 break-all font-mono text-xs leading-5 text-foreground">{workspace.workLocation.effectivePath}</dd>
+          </div>
+          <div className="rounded-lg bg-cream/[0.04] p-3">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Output path</dt>
+            <dd className="mt-1 break-all font-mono text-xs leading-5 text-foreground">{workspace.outputLocation.effectivePath}</dd>
           </div>
           <div className="rounded-lg bg-cream/[0.04] p-3">
             <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Safety + processing reserve</dt>
@@ -92,9 +113,12 @@ export function StorageOverviewView({ overview }: { overview: StorageOverview })
         <p className={`mt-3 text-sm ${workspaceHealthy ? "text-muted" : "text-accent-wine"}`}>
           {workspaceHealthy
             ? workspace.statusMessage
-            : workspace.maximumNewDownloadBytes === 0
+            : workspace.snapshotStatus === "fresh" && workspace.maximumNewDownloadBytes === 0
               ? "The workspace is below the safety reserve. Free space before starting another download."
               : workspace.statusMessage}
+        </p>
+        <p className="mt-2 text-xs leading-5 text-muted">
+          {checkedAtLabel(workspace.lastCheckedAt)}. Capacity is cached so loading this page never touches the mount directly.
         </p>
         <p className="mt-2 text-xs leading-5 text-muted">
           This estimate already accounts for Nooklet&apos;s 512 MB reserve and the temporary second copy needed while unpacking. The exact requirement appears before each request is queued.
@@ -112,7 +136,13 @@ export function StorageOverviewView({ overview }: { overview: StorageOverview })
           <EmptyState message="No movie or TV library destination is configured yet." />
         ) : (
           <ul className="grid gap-3 lg:grid-cols-2">
-            {overview.libraryDestinations.map((destination) => (
+            {overview.libraryDestinations.map((destination) => {
+              const healthy = destination.live && destination.writable;
+              const badge = destination.snapshotStatus === "fresh" && destination.live && !destination.writable
+                ? { label: "Read-only", variant: "wine" as const }
+                : snapshotBadge(destination.snapshotStatus, healthy);
+
+              return (
               <li key={destination.pathId} className="rounded-xl border border-cream/[0.08] bg-cream/[0.03] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
@@ -127,8 +157,8 @@ export function StorageOverviewView({ overview }: { overview: StorageOverview })
                       <p className="mt-1 text-xs text-muted">{destination.libraryName}</p>
                     ) : null}
                   </div>
-                  <Badge variant={destination.live && destination.writable ? "accent-cool" : "wine"}>
-                    {destination.live && destination.writable ? "Writable" : destination.live ? "Read-only" : "Unreachable"}
+                  <Badge variant={badge.variant}>
+                    {badge.label}
                   </Badge>
                 </div>
                 <p className="mt-3 break-all font-mono text-xs leading-5 text-foreground">{destination.effectivePath}</p>
@@ -136,14 +166,16 @@ export function StorageOverviewView({ overview }: { overview: StorageOverview })
                   <CapacityBar
                     free={destination.freeSpaceBytes}
                     total={destination.totalSpaceBytes}
-                    label="No live capacity reading is available."
+                    label="No cached capacity reading is available."
                   />
                 </div>
                 <p className={`mt-2 text-xs leading-5 ${destination.live && destination.writable ? "text-muted" : "text-accent-wine"}`}>
                   {destination.statusMessage}
                 </p>
+                <p className="mt-1 text-xs leading-5 text-muted">{checkedAtLabel(destination.lastCheckedAt)}.</p>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>

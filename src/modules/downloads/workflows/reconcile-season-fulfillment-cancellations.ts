@@ -1,5 +1,3 @@
-import { rm } from "node:fs/promises";
-
 import { activeDownloadRequestStatuses } from "@/lib/database/schema";
 import { decryptSecret } from "@/lib/security/secret-box";
 import {
@@ -15,16 +13,9 @@ import {
   updateDownloadFulfillment,
 } from "@/modules/downloads/repositories/season-fulfillment-repository";
 import {
-  deleteEngineDownload,
   findEngineDownloadById,
-  isEngineDownloadPostProcessing,
+  requestEngineDownloadControl,
 } from "@/modules/download-engine/queue/engine-repository";
-import {
-  clearEngineDownloadSignal,
-  engineCompleteDir,
-  engineIncompleteDir,
-  signalEngineDownload,
-} from "@/modules/download-engine/runtime/engine-runner";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import {
   acquireSeasonFulfillmentWorkLease,
@@ -47,21 +38,6 @@ type RemovalCheck = {
   removed: boolean;
   message?: string;
 };
-
-async function removeEngineDirectories(externalQueueId: string): Promise<RemovalCheck> {
-  try {
-    await rm(engineIncompleteDir(externalQueueId), { recursive: true, force: true });
-    await rm(engineCompleteDir(externalQueueId), { recursive: true, force: true });
-    return { removed: true };
-  } catch (error) {
-    return {
-      removed: false,
-      message: error instanceof Error
-        ? `The built-in download files could not be removed yet: ${error.message}`
-        : "The built-in download files could not be removed yet.",
-    };
-  }
-}
 
 async function resolveEntryClientType(
   userId: string,
@@ -88,26 +64,22 @@ async function reconcileEngineRemoval(
   externalQueueId: string,
 ): Promise<RemovalCheck> {
   const record = await findEngineDownloadById(userId, externalQueueId);
-  if (!record) return removeEngineDirectories(externalQueueId);
+  if (!record) return { removed: true };
 
-  if (isEngineDownloadPostProcessing(record.state)) {
-    return {
-      removed: false,
-      message: "The built-in downloader is finishing post-processing; removal will retry automatically.",
-    };
+  const requested = await requestEngineDownloadControl(userId, externalQueueId, "cancel");
+  if (!requested) {
+    return (await findEngineDownloadById(userId, externalQueueId))
+      ? {
+          removed: false,
+          message: "The built-in downloader changed before cancellation could be recorded.",
+        }
+      : { removed: true };
   }
 
-  signalEngineDownload(externalQueueId, "cancel");
-  const removed = await deleteEngineDownload(userId, externalQueueId);
-  if (!removed) {
-    clearEngineDownloadSignal(externalQueueId);
-    return {
-      removed: false,
-      message: "The built-in downloader changed state before removal could be verified.",
-    };
-  }
-
-  return removeEngineDirectories(externalQueueId);
+  return {
+    removed: false,
+    message: "Built-in downloader cleanup is pending in the isolated worker.",
+  };
 }
 
 async function verifiedSabnzbdContext(userId: string) {

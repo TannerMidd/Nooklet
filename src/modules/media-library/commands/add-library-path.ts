@@ -1,4 +1,7 @@
-import { FilesystemPolicyError, resolveApprovedMediaDirectory } from "@/lib/security/filesystem-policy";
+import {
+  IsolatedFilesystemPolicyError,
+  resolveApprovedMediaDirectoryIsolated,
+} from "@/lib/security/isolated-filesystem-policy";
 import { type MediaLibraryPathRecord } from "@/modules/media-library/repositories/media-library-repository";
 import {
   addMediaLibraryPath,
@@ -30,9 +33,9 @@ export async function addLibraryPathCommand(
 
   let canonicalPath: string;
   try {
-    canonicalPath = resolveApprovedMediaDirectory(parsed.path);
+    canonicalPath = await resolveApprovedMediaDirectoryIsolated(parsed.path);
   } catch (error) {
-    if (error instanceof FilesystemPolicyError) {
+    if (error instanceof IsolatedFilesystemPolicyError) {
       throw new LibraryPathCommandError(error.message, "path_not_allowed");
     }
     throw error;

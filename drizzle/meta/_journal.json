@@ -281,6 +281,20 @@
       "when": 1784514663766,
       "tag": "0039_download_request_cancellation_checkpoint",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1784580699402,
+      "tag": "0040_storage_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1784582236301,
+      "tag": "0041_engine_download_controls",
+      "breakpoints": true
     }
   ]
 }

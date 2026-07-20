@@ -7,6 +7,7 @@ import { decryptSecret, encryptSecret } from "@/lib/security/secret-box";
 import {
   engineDownloads,
   type EngineDownloadCategory,
+  type EngineDownloadControlIntent,
   type EngineDownloadFailureKind,
   type EngineDownloadState,
 } from "@/lib/database/schema";
@@ -210,7 +211,10 @@ export async function claimNextQueuedEngineDownload(): Promise<EngineDownloadRec
   const candidate = database
     .select()
     .from(engineDownloads)
-    .where(eq(engineDownloads.state, "queued"))
+    .where(and(
+      eq(engineDownloads.state, "queued"),
+      isNull(engineDownloads.controlIntent),
+    ))
     .orderBy(asc(engineDownloads.priority), asc(engineDownloads.createdAt))
     .limit(1)
     .get();
@@ -221,8 +225,17 @@ export async function claimNextQueuedEngineDownload(): Promise<EngineDownloadRec
 
   const claimed = database
     .update(engineDownloads)
-    .set({ state: "fetching", updatedAt: new Date() })
-    .where(and(eq(engineDownloads.id, candidate.id), eq(engineDownloads.state, "queued")))
+    .set({
+      state: "fetching",
+      bytesPerSecond: null,
+      errorMessage: null,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(engineDownloads.id, candidate.id),
+      eq(engineDownloads.state, "queued"),
+      isNull(engineDownloads.controlIntent),
+    ))
     .run();
 
   if (claimed.changes === 0) {
@@ -236,6 +249,7 @@ export async function updateEngineDownloadProgress(id: string, progress: {
   downloadedBytes: number;
   completedSegments: number;
   failedSegments: number;
+  bytesPerSecond?: number | null;
 }) {
   const database = ensureDatabaseReady();
 
@@ -251,21 +265,137 @@ export async function setEngineDownloadState(id: string, state: EngineDownloadSt
   errorMessage?: string | null;
   outputPath?: string | null;
   completedAt?: Date | null;
+} = {}, options: {
+  expectedStates?: EngineDownloadState[];
+  controlIntent?: EngineDownloadControlIntent | null;
+  clearControlIntent?: boolean;
 } = {}) {
   const database = ensureDatabaseReady();
+  const controlCondition = options.controlIntent === null
+    ? isNull(engineDownloads.controlIntent)
+    : options.controlIntent
+      ? eq(engineDownloads.controlIntent, options.controlIntent)
+      : undefined;
 
-  database
+  const result = database
     .update(engineDownloads)
     .set({
       state,
+      ...(state === "fetching" ? {} : { bytesPerSecond: null }),
+      ...(options.clearControlIntent ? { controlIntent: null } : {}),
       updatedAt: new Date(),
       ...extras,
       ...(state === "completed" || state === "failed"
         ? { nzbXml: encryptSecret(""), password: null }
         : {}),
     })
-    .where(eq(engineDownloads.id, id))
+    .where(and(
+      eq(engineDownloads.id, id),
+      options.expectedStates
+        ? inArray(engineDownloads.state, options.expectedStates)
+        : undefined,
+      controlCondition,
+    ))
     .run();
+
+  return result.changes > 0;
+}
+
+/**
+ * Reads the durable control fence synchronously so segment workers can poll it
+ * between NNTP requests without relying on process-local signals.
+ */
+export function readEngineDownloadRuntimeState(id: string) {
+  return ensureDatabaseReady()
+    .select({
+      state: engineDownloads.state,
+      controlIntent: engineDownloads.controlIntent,
+    })
+    .from(engineDownloads)
+    .where(eq(engineDownloads.id, id))
+    .get() ?? null;
+}
+
+/** Persists a pause/cancel request for the isolated engine process. */
+export async function requestEngineDownloadControl(
+  userId: string,
+  id: string,
+  controlIntent: EngineDownloadControlIntent,
+) {
+  const database = ensureDatabaseReady();
+  const result = database
+    .update(engineDownloads)
+    .set({
+      controlIntent,
+      ...(controlIntent === "cancel" ? { bytesPerSecond: null } : {}),
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(engineDownloads.userId, userId),
+      eq(engineDownloads.id, id),
+      // Queued rows are parked synchronously by the web-side state CAS. A
+      // durable pause intent is valid only while the worker still owns the
+      // fetching phase; it must never be written after post-processing wins
+      // that race because finalized output cannot be resumed as a download.
+      controlIntent === "pause" ? eq(engineDownloads.state, "fetching") : undefined,
+      controlIntent === "pause" ? isNull(engineDownloads.controlIntent) : undefined,
+    ))
+    .run();
+
+  if (result.changes === 0) return null;
+
+  return database
+    .select()
+    .from(engineDownloads)
+    .where(and(eq(engineDownloads.userId, userId), eq(engineDownloads.id, id)))
+    .get() ?? null;
+}
+
+export async function listEngineDownloadsWithControlIntent(
+  controlIntent: EngineDownloadControlIntent,
+) {
+  return ensureDatabaseReady()
+    .select()
+    .from(engineDownloads)
+    .where(eq(engineDownloads.controlIntent, controlIntent))
+    .orderBy(asc(engineDownloads.updatedAt))
+    .all();
+}
+
+/** Deletes only a row still fenced by durable cancellation intent. */
+export async function deleteCancelledEngineDownload(userId: string, id: string) {
+  const result = ensureDatabaseReady()
+    .delete(engineDownloads)
+    .where(and(
+      eq(engineDownloads.userId, userId),
+      eq(engineDownloads.id, id),
+      eq(engineDownloads.controlIntent, "cancel"),
+    ))
+    .run();
+
+  return result.changes > 0;
+}
+
+/** Atomically resumes a parked download without overriding cancellation. */
+export async function resumePausedEngineDownload(userId: string, id: string) {
+  const result = ensureDatabaseReady()
+    .update(engineDownloads)
+    .set({
+      state: "queued",
+      controlIntent: null,
+      bytesPerSecond: null,
+      errorMessage: null,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(engineDownloads.userId, userId),
+      eq(engineDownloads.id, id),
+      eq(engineDownloads.state, "paused"),
+      isNull(engineDownloads.controlIntent),
+    ))
+    .run();
+
+  return result.changes > 0;
 }
 
 export async function listActiveEngineDownloads(userId: string) {
@@ -367,16 +497,33 @@ export async function transitionEngineDownloadState(
   id: string,
   from: EngineDownloadState[],
   to: EngineDownloadState,
+  options: {
+    controlIntent?: EngineDownloadControlIntent | null;
+    clearControlIntent?: boolean;
+    errorMessage?: string | null;
+  } = {},
 ) {
   const database = ensureDatabaseReady();
+  const controlCondition = options.controlIntent === null
+    ? isNull(engineDownloads.controlIntent)
+    : options.controlIntent
+      ? eq(engineDownloads.controlIntent, options.controlIntent)
+      : undefined;
 
   const result = database
     .update(engineDownloads)
-    .set({ state: to, updatedAt: new Date() })
+    .set({
+      state: to,
+      ...(to === "fetching" ? {} : { bytesPerSecond: null }),
+      ...(options.clearControlIntent ? { controlIntent: null } : {}),
+      ...(options.errorMessage !== undefined ? { errorMessage: options.errorMessage } : {}),
+      updatedAt: new Date(),
+    })
     .where(and(
       eq(engineDownloads.userId, userId),
       eq(engineDownloads.id, id),
       inArray(engineDownloads.state, from),
+      controlCondition,
     ))
     .run();
 
@@ -402,8 +549,25 @@ export async function requeueStrandedEngineDownloads() {
 
   database
     .update(engineDownloads)
-    .set({ state: "queued", updatedAt: new Date() })
-    .where(inArray(engineDownloads.state, ["fetching", "assembling", "repairing", "extracting"]))
+    .set({
+      state: "paused",
+      controlIntent: null,
+      bytesPerSecond: null,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      inArray(engineDownloads.state, ["fetching", "assembling", "repairing", "extracting"]),
+      eq(engineDownloads.controlIntent, "pause"),
+    ))
+    .run();
+
+  database
+    .update(engineDownloads)
+    .set({ state: "queued", bytesPerSecond: null, updatedAt: new Date() })
+    .where(and(
+      inArray(engineDownloads.state, ["fetching", "assembling", "repairing", "extracting"]),
+      isNull(engineDownloads.controlIntent),
+    ))
     .run();
 }
 

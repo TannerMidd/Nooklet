@@ -1,43 +1,48 @@
-import path from "node:path";
 import { rm } from "node:fs/promises";
+import path from "node:path";
 
-import { type EngineDownloadFailureKind } from "@/lib/database/schema";
+import { type EngineDownloadFailureKind, type EngineDownloadState } from "@/lib/database/schema";
 import { env } from "@/lib/env";
+import { SafeFetchAbortError, SsrfBlockedError } from "@/lib/security/safe-fetch";
 import {
   resolveUsenetServer,
   UsenetServerConfigError,
 } from "@/modules/download-engine/config/resolve-usenet-server";
-import { finalizeDownload, FinalizeDownloadError } from "@/modules/download-engine/finalize/finalize-download";
+import {
+  finalizeDownload,
+  FinalizeDownloadError,
+} from "@/modules/download-engine/finalize/finalize-download";
 import { parseNzb } from "@/modules/download-engine/nzb/parse-nzb";
 import {
   claimNextQueuedEngineDownload,
-  setEngineDownloadState,
-  updateEngineDownloadProgress,
+  deleteCancelledEngineDownload,
+  listEngineDownloadsWithControlIntent,
+  readEngineDownloadRuntimeState,
   requeueStrandedEngineDownloads,
   resolveEngineDownloadPayload,
-  type EngineDownloadRecord,
+  setEngineDownloadState,
   transitionEngineDownloadState,
+  type EngineDownloadRecord,
+  updateEngineDownloadProgress,
 } from "@/modules/download-engine/queue/engine-repository";
+import { inspectLiveEngineCapacity } from "@/modules/download-engine/runtime/live-capacity";
+import {
+  recordDownloadEngineLoopFailed,
+  recordDownloadEngineLoopStarted,
+  recordDownloadEngineLoopSucceeded,
+} from "@/modules/download-engine/runtime/engine-heartbeat";
 import { downloadNzb } from "@/modules/download-engine/scheduler/download-nzb";
 import { NntpError, type NntpErrorKind } from "@/modules/download-engine/nntp/nntp-client";
-import { SafeFetchAbortError, SsrfBlockedError } from "@/lib/security/safe-fetch";
 
 /**
- * In-process engine runner (ADR-0002). The background worker tick calls
- * `ensureEngineRunnerStarted()`; the runner then drains the queued downloads
- * one at a time on a long-lived async loop, holding NNTP connections open for
- * the duration of each transfer. Process-wide singleton, same pattern as the
- * job worker.
+ * The isolated worker owns this process-local runner. Queue controls and UI
+ * telemetry live in SQLite so web requests never depend on this process's
+ * memory and survive worker restarts.
  */
-
-type EngineControlSignal = "pause" | "cancel";
-
 type EngineRuntimeState = {
   running?: boolean;
   recovered?: boolean;
-  controls?: Map<string, EngineControlSignal>;
-  /** Rolling transfer-rate samples for the active download. */
-  speed?: { downloadId: string; bytesPerSecond: number; lastBytes: number; lastAt: number } | null;
+  activeDownloadId?: string;
 };
 
 const engineGlobals = globalThis as typeof globalThis & {
@@ -46,7 +51,6 @@ const engineGlobals = globalThis as typeof globalThis & {
 
 const runtime: EngineRuntimeState = engineGlobals.__nookletEngine ?? {};
 engineGlobals.__nookletEngine = runtime;
-runtime.controls = runtime.controls ?? new Map();
 
 const infrastructureNntpFailureKinds: NntpErrorKind[] = [
   "connect-failed",
@@ -123,61 +127,178 @@ export function engineCompleteDir(downloadId: string) {
   return path.join(env.DOWNLOAD_ENGINE_DIR, "complete", downloadId);
 }
 
-export function signalEngineDownload(downloadId: string, signal: EngineControlSignal) {
-  runtime.controls!.set(downloadId, signal);
-}
+type SpeedSample = {
+  bytesPerSecond: number;
+  lastBytes: number;
+  lastAt: number;
+};
 
-export function clearEngineDownloadSignal(downloadId: string) {
-  runtime.controls!.delete(downloadId);
-}
-
-/** Bytes/second for the currently transferring download, if it matches. */
-export function getEngineDownloadSpeed(downloadId: string): number | null {
-  const speed = runtime.speed;
-
-  return speed && speed.downloadId === downloadId ? Math.round(speed.bytesPerSecond) : null;
-}
-
-function trackSpeed(downloadId: string, downloadedBytes: number) {
+function trackSpeed(current: SpeedSample | null, downloadedBytes: number) {
   const now = Date.now();
-  const current = runtime.speed;
 
-  if (!current || current.downloadId !== downloadId) {
-    runtime.speed = { downloadId, bytesPerSecond: 0, lastBytes: downloadedBytes, lastAt: now };
-    return;
+  if (!current) {
+    return {
+      sample: { bytesPerSecond: 0, lastBytes: downloadedBytes, lastAt: now },
+      bytesPerSecond: 0,
+    };
   }
 
   const elapsedMs = now - current.lastAt;
-
   if (elapsedMs < 1_000) {
-    return;
+    return { sample: current, bytesPerSecond: Math.round(current.bytesPerSecond) };
   }
 
   const deltaBytes = downloadedBytes - current.lastBytes;
   const instantRate = (deltaBytes * 1000) / elapsedMs;
-  // Exponential smoothing keeps the displayed speed stable.
   current.bytesPerSecond = current.bytesPerSecond === 0
     ? instantRate
     : current.bytesPerSecond * 0.6 + instantRate * 0.4;
   current.lastBytes = downloadedBytes;
   current.lastAt = now;
+
+  return { sample: current, bytesPerSecond: Math.round(current.bytesPerSecond) };
 }
 
-async function processEngineDownload(download: EngineDownloadRecord) {
+async function cleanCancelledEngineDownload(
+  download: Pick<EngineDownloadRecord, "id" | "userId">,
+) {
+  await rm(engineIncompleteDir(download.id), { recursive: true, force: true });
+  await rm(engineCompleteDir(download.id), { recursive: true, force: true });
+
+  const deleted = await deleteCancelledEngineDownload(download.userId, download.id);
+  const current = deleted ? null : readEngineDownloadRuntimeState(download.id);
+  if (current?.controlIntent === "cancel") {
+    throw new Error("The cancelled engine download changed before cleanup could be finalized.");
+  }
+}
+
+export async function reconcilePendingEngineCancellations() {
+  const cancellations = await listEngineDownloadsWithControlIntent("cancel");
+
+  for (const download of cancellations) {
+    // The active loop observes the same durable intent between segments and
+    // owns cleanup. Never remove its directories concurrently.
+    if (download.id === runtime.activeDownloadId) continue;
+    await cleanCancelledEngineDownload(download);
+  }
+}
+
+async function settleEngineControl(download: EngineDownloadRecord) {
+  const current = readEngineDownloadRuntimeState(download.id);
+
+  if (!current) {
+    // A legacy/concurrent owner may have removed the row. No output may be
+    // published after ownership disappears.
+    await rm(engineIncompleteDir(download.id), { recursive: true, force: true });
+    await rm(engineCompleteDir(download.id), { recursive: true, force: true });
+    return true;
+  }
+
+  if (current.controlIntent === "cancel") {
+    await cleanCancelledEngineDownload(download);
+    return true;
+  }
+
+  if (current.controlIntent === "pause") {
+    const paused = await setEngineDownloadState(
+      download.id,
+      "paused",
+      {},
+      {
+        expectedStates: [current.state],
+        controlIntent: "pause",
+        clearControlIntent: true,
+      },
+    );
+    if (paused) return true;
+
+    // Cancellation is allowed to supersede a pending pause. Re-read after a
+    // lost compare-and-swap so we never report the control as settled while a
+    // newer intent is still waiting for cleanup.
+    const latest = readEngineDownloadRuntimeState(download.id);
+    if (!latest) {
+      await rm(engineIncompleteDir(download.id), { recursive: true, force: true });
+      await rm(engineCompleteDir(download.id), { recursive: true, force: true });
+      return true;
+    }
+    if (latest.controlIntent === "cancel") {
+      await cleanCancelledEngineDownload(download);
+      return true;
+    }
+
+    return false;
+  }
+
+  return false;
+}
+
+async function failEngineDownload(
+  download: EngineDownloadRecord,
+  expectedStates: EngineDownloadState[],
+  failureKind: EngineDownloadFailureKind,
+  errorMessage: string,
+) {
+  const failed = await setEngineDownloadState(
+    download.id,
+    "failed",
+    { failureKind, errorMessage, completedAt: new Date() },
+    { expectedStates, controlIntent: null },
+  );
+  if (!failed) await settleEngineControl(download);
+}
+
+async function requeueForCapacity(
+  download: EngineDownloadRecord,
+  errorMessage: string,
+) {
+  const queued = await transitionEngineDownloadState(
+    download.userId,
+    download.id,
+    ["fetching"],
+    "queued",
+    { controlIntent: null, errorMessage },
+  );
+  if (!queued) await settleEngineControl(download);
+}
+
+async function processEngineDownload(download: EngineDownloadRecord): Promise<"continue" | "stop"> {
   const workDir = engineIncompleteDir(download.id);
   let transferFailureKinds: NntpErrorKind[] = [];
+  let speedSample: SpeedSample | null = null;
+  let latestBytesPerSecond: number | null = null;
+
+  runtime.activeDownloadId = download.id;
 
   try {
+    try {
+      const capacity = await inspectLiveEngineCapacity();
+      if (!capacity.sufficient) {
+        await requeueForCapacity(
+          download,
+          "Waiting for enough free space in the download workspace. Nooklet will check again automatically.",
+        );
+        return "stop";
+      }
+    } catch {
+      if (await settleEngineControl(download)) return "continue";
+      await requeueForCapacity(
+        download,
+        "The download workspace could not be checked. Nooklet will try again automatically.",
+      );
+      return "stop";
+    }
+
     const payload = resolveEngineDownloadPayload(download);
     const resolvedServer = await resolveUsenetServer(download.userId);
 
     if (!resolvedServer) {
-      await setEngineDownloadState(download.id, "failed", {
-        failureKind: "infrastructure",
-        errorMessage: "No usenet server is configured. Add one under Settings → Connections.",
-        completedAt: new Date(),
-      });
-      return;
+      await failEngineDownload(
+        download,
+        ["fetching"],
+        "infrastructure",
+        "No usenet server is configured. Add one under Settings → Connections.",
+      );
+      return "continue";
     }
 
     const nzb = parseNzb(payload.nzbXml);
@@ -194,24 +315,24 @@ async function processEngineDownload(download: EngineDownloadRecord) {
       server: resolvedServer.server,
       workDir,
       onProgress: (progress) => {
-        trackSpeed(download.id, progress.downloadedBytes);
+        const trackedSpeed = trackSpeed(speedSample, progress.downloadedBytes);
+        speedSample = trackedSpeed.sample;
+        latestBytesPerSecond = trackedSpeed.bytesPerSecond;
         const now = Date.now();
 
         if (now - lastPersistAt >= 1_000) {
           lastPersistAt = now;
-          // Serialize writes so a slower earlier update cannot overwrite a
-          // newer progress snapshot. Capture failures for the main control
-          // flow instead of creating an unhandled promise rejection.
+          // Serialize writes so an older progress snapshot cannot overwrite a
+          // newer one and capture failures for the runner's main control flow.
           progressPersistence = progressPersistence.then(async () => {
-            if (progressPersistenceError) {
-              return;
-            }
+            if (progressPersistenceError) return;
 
             try {
               await updateEngineDownloadProgress(download.id, {
                 downloadedBytes: progress.downloadedBytes,
                 completedSegments: progress.completedSegments,
                 failedSegments: progress.failedSegments,
+                bytesPerSecond: trackedSpeed.bytesPerSecond,
               });
             } catch (error) {
               progressPersistenceError = error;
@@ -219,79 +340,62 @@ async function processEngineDownload(download: EngineDownloadRecord) {
           });
         }
       },
-      shouldAbort: () => runtime.controls!.has(download.id),
+      shouldAbort: () => {
+        const current = readEngineDownloadRuntimeState(download.id);
+        return !current
+          || current.state !== "fetching"
+          || current.controlIntent !== null;
+      },
     });
     transferFailureKinds = result.failureKinds;
 
     await progressPersistence;
-    if (progressPersistenceError) {
-      throw progressPersistenceError;
-    }
+    if (progressPersistenceError) throw progressPersistenceError;
 
     await updateEngineDownloadProgress(download.id, {
       downloadedBytes: result.downloadedBytes,
       completedSegments: result.completedSegments,
       failedSegments: result.failedSegments,
+      bytesPerSecond: latestBytesPerSecond,
     });
 
-    const signal = runtime.controls!.get(download.id);
-    runtime.controls!.delete(download.id);
+    if (await settleEngineControl(download)) return "continue";
 
-    if (signal === "cancel") {
-      await rm(workDir, { recursive: true, force: true });
-      // The queue action already deleted (or will delete) the row; if it
-      // still exists mark it failed so nothing dangles.
-      await setEngineDownloadState(download.id, "failed", {
-        failureKind: "cancelled",
-        errorMessage: "Cancelled.",
-        completedAt: new Date(),
-      });
-      return;
-    }
-
-    if (signal === "pause" || result.aborted) {
-      await setEngineDownloadState(download.id, "paused");
-      return;
+    if (result.aborted) {
+      const paused = await setEngineDownloadState(
+        download.id,
+        "paused",
+        {},
+        { expectedStates: ["fetching"], controlIntent: null },
+      );
+      if (!paused) await settleEngineControl(download);
+      return "continue";
     }
 
     if (result.unrecoverable) {
       const failureKind = classifyEngineNntpFailureKinds(result.failureKinds);
-      await setEngineDownloadState(download.id, "failed", {
+      await failEngineDownload(
+        download,
+        ["fetching"],
         failureKind,
-        errorMessage: failureKind === "infrastructure"
+        failureKind === "infrastructure"
           ? "The transfer stopped early because the news server kept failing mid-download. Check the Usenet connection, then resume this download."
           : "The transfer stopped early: more of the release's articles are missing or damaged than its PAR2 recovery set can repair, so it can never assemble completely.",
-        completedAt: new Date(),
-      });
-      return;
+      );
+      return "continue";
     }
 
     if (result.completedSegments === 0) {
       const failureKind = classifyEngineNntpFailureKinds(result.failureKinds);
-      await setEngineDownloadState(download.id, "failed", {
+      await failEngineDownload(
+        download,
+        ["fetching"],
         failureKind,
-        errorMessage: failureKind === "infrastructure"
+        failureKind === "infrastructure"
           ? "The built-in downloader could not reach or authenticate with the news server. Check the Usenet connection, then resume this download."
           : "No article could be fetched from the news server — the post may have been removed.",
-        completedAt: new Date(),
-      });
-      return;
-    }
-
-    const lateSignal = runtime.controls!.get(download.id);
-    if (lateSignal) {
-      runtime.controls!.delete(download.id);
-      if (lateSignal === "cancel") {
-        await rm(workDir, { recursive: true, force: true });
-        await setEngineDownloadState(download.id, "failed", {
-          failureKind: "cancelled",
-          errorMessage: "Cancelled.",
-          completedAt: new Date(),
-        });
-      } else {
-        await setEngineDownloadState(download.id, "paused");
-      }
-      return;
+      );
+      return "continue";
     }
 
     const postProcessState = result.ok ? "extracting" : "repairing";
@@ -300,15 +404,11 @@ async function processEngineDownload(download: EngineDownloadRecord) {
       download.id,
       ["fetching"],
       postProcessState,
+      { controlIntent: null },
     );
     if (!claimedPostProcessing) {
-      // A cancellation may delete the row after the signal check. The
-      // fetching->post-process CAS is the durable acknowledgement: without
-      // it, no output is allowed to finalize.
-      runtime.controls!.delete(download.id);
-      await rm(workDir, { recursive: true, force: true });
-      await rm(engineCompleteDir(download.id), { recursive: true, force: true });
-      return;
+      await settleEngineControl(download);
+      return "continue";
     }
 
     const finalized = await finalizeDownload({
@@ -319,65 +419,90 @@ async function processEngineDownload(download: EngineDownloadRecord) {
       password: payload.password,
     });
 
-    await setEngineDownloadState(download.id, "completed", {
-      failureKind: null,
-      outputPath: finalized.outputPath,
-      errorMessage: finalized.warnings.length > 0 ? finalized.warnings.join(" ") : null,
-      completedAt: new Date(),
-    });
+    const completed = await setEngineDownloadState(
+      download.id,
+      "completed",
+      {
+        failureKind: null,
+        outputPath: finalized.outputPath,
+        errorMessage: finalized.warnings.length > 0 ? finalized.warnings.join(" ") : null,
+        completedAt: new Date(),
+      },
+      { expectedStates: [postProcessState], controlIntent: null },
+    );
+    if (!completed) await settleEngineControl(download);
+    return "continue";
   } catch (error) {
+    if (await settleEngineControl(download)) return "continue";
+
     const message = error instanceof FinalizeDownloadError
       ? error.message
       : error instanceof Error
         ? error.message
         : "The download failed unexpectedly.";
 
-    await setEngineDownloadState(download.id, "failed", {
-      failureKind: classifyEngineRuntimeError(error, transferFailureKinds),
-      errorMessage: message,
-      completedAt: new Date(),
-    });
+    await failEngineDownload(
+      download,
+      ["fetching", "assembling", "repairing", "extracting"],
+      classifyEngineRuntimeError(error, transferFailureKinds),
+      message,
+    );
+    return "continue";
   } finally {
-    if (runtime.speed?.downloadId === download.id) {
-      runtime.speed = null;
-    }
+    if (runtime.activeDownloadId === download.id) runtime.activeDownloadId = undefined;
   }
 }
 
 async function runEngineLoop() {
   try {
+    recordDownloadEngineLoopStarted();
+  } catch (error) {
+    console.error("[download-engine] could not persist loop start:", error);
+  }
+
+  try {
     for (;;) {
       const download = await claimNextQueuedEngineDownload();
+      if (!download) break;
 
-      if (!download) {
-        break;
-      }
-
-      await processEngineDownload(download);
+      const disposition = await processEngineDownload(download);
+      if (disposition === "stop") break;
     }
+    try {
+      recordDownloadEngineLoopSucceeded();
+    } catch (error) {
+      console.error("[download-engine] could not persist loop success:", error);
+    }
+  } catch (error) {
+    try {
+      recordDownloadEngineLoopFailed(error);
+    } catch (heartbeatError) {
+      console.error("[download-engine] could not persist loop failure:", heartbeatError);
+    }
+    throw error;
   } finally {
     runtime.running = false;
   }
 }
 
 /**
- * Called from the worker tick. Recovers stranded rows once per process, then
- * starts the drain loop when queued work exists and no loop is running.
+ * Called from the isolated worker tick. It recovers stranded durable state,
+ * reconciles cancellation intent, and starts one drain loop per worker.
  */
 export async function ensureEngineRunnerStarted() {
+  await reconcilePendingEngineCancellations();
+
   if (!runtime.recovered) {
-    runtime.recovered = true;
     await requeueStrandedEngineDownloads();
+    // Only latch recovery after the durable transition succeeds. A transient
+    // SQLite failure must be retried on the next worker tick.
+    runtime.recovered = true;
   }
 
-  if (runtime.running) {
-    return;
-  }
+  if (runtime.running) return;
 
   runtime.running = true;
   void runEngineLoop().catch((error) => {
-    // A database/claim failure is retried by the next maintenance tick, but
-    // the promise must always be observed to avoid destabilizing the process.
     console.error("[download-engine] runner stopped unexpectedly:", error);
   });
 }

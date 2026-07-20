@@ -54,6 +54,7 @@ export async function removeMediaTitleCommand(
       libraryId: removedTitle.libraryId,
       title: removedTitle.title,
       year: removedTitle.year,
+      filesRequestedForDeletion: false,
     },
   });
 

@@ -1,6 +1,6 @@
 # Health and diagnostics
 
-Nooklet exposes a small public readiness probe for automation and an authenticated health screen for operators. Use both with the container logs: the probe deliberately reports stable status fields and never returns raw database or worker error text.
+Nooklet exposes a small public readiness probe for automation and an authenticated health screen for operators. Use both with the container logs: the probe deliberately reports stable status fields and never returns raw database, worker, or download-engine error text.
 
 - Probe: `GET /api/health`
 - Operator screen: `/health`
@@ -36,8 +36,8 @@ Interpret the result before restarting anything:
 | HTTP | `status` | Meaning | First action |
 | --- | --- | --- | --- |
 | `200` | `ok` | SQLite is ready and the worker has ticked recently without a recorded error. | No runtime recovery is required. Check the feature-specific screen if one operation still fails. |
-| `200` | `degraded` | SQLite is ready and the worker is responsive, but its latest maintenance pass recorded an error. | Open `/health`, then inspect `docker compose logs --tail=200 app` for the private error detail. |
-| `503` | `degraded` | SQLite is ready, but the worker has not started or its last tick is more than 60 seconds old. | Inspect logs for startup, event-loop, or database contention errors; then recreate the container if configuration changed. |
+| `200` | `degraded` | SQLite is ready and the worker is responsive, but a worker pass failed or the built-in download engine has a stalled/failed stage. | Open `/health`, then inspect `docker compose logs --tail=200 app` for the private error detail. |
+| `503` | `degraded` | SQLite is ready, but the isolated worker has not started or has made no proven progress for more than 60 seconds. | The web UI should remain available. Inspect worker/storage logs and host-drive health before recreating the container. |
 | `503` | `error` | Database initialization, migration, or readiness failed. | Do not delete the volume. Capture logs and make a verified backup before attempting repair. |
 
 The response has `Cache-Control: no-store`. A recent worker error is represented only as `worker.hasError: true`; its text remains in the server logs.
@@ -51,20 +51,35 @@ A healthy response resembles:
   "status": "ok",
   "checks": {
     "database": "ok",
-    "backgroundWorker": "ok"
+    "backgroundWorker": "ok",
+    "downloadEngine": "idle"
   },
   "worker": {
     "started": true,
+    "runningPass": false,
     "runningMaintenance": false,
-    "lastTickAt": "2026-07-15T17:00:00.000Z",
-    "lastSuccessAt": "2026-07-15T17:00:00.000Z",
+    "startedAt": "2026-07-20T17:00:00.000Z",
+    "activePassStartedAt": null,
+    "lastProgressAt": "2026-07-20T17:00:00.000Z",
+    "lastTickAt": "2026-07-20T17:00:00.000Z",
+    "lastSuccessAt": "2026-07-20T17:00:00.000Z",
     "hasError": false
   },
-  "timestamp": "2026-07-15T17:00:01.000Z"
+  "downloadEngine": {
+    "activeCount": 0,
+    "stalledCount": 0,
+    "failedCount": 0,
+    "activeStage": null,
+    "lastProgressAt": null,
+    "hasLoopError": false
+  },
+  "timestamp": "2026-07-20T17:00:01.000Z"
 }
 ```
 
-The worker normally ticks every 15 seconds. Nooklet considers it unresponsive after 60 seconds without a tick. `lastSuccessAt` is the most recent pass in which all worker lanes succeeded; `runningMaintenance` identifies an active download/import maintenance pass.
+The worker normally ticks every 15 seconds. Nooklet considers it unresponsive after 60 seconds without proven progress. `lastSuccessAt` is the most recent pass in which all worker lanes succeeded; `runningPass` and `activePassStartedAt` prevent a later timer tick from hiding a still-unresolved pass. `runningMaintenance` identifies active download/import maintenance.
+
+`checks.downloadEngine` is `idle`, `ok`, or `degraded`. It is derived from durable engine rows and a small loop-error heartbeat stored beside SQLite. Fetching is considered stalled only after 15 minutes without persisted segment progress. Queue-only work uses a five-minute window, while assembly, repair, and extraction use much longer size-scaled windows. These thresholds are diagnostics: engine degradation remains HTTP 200 while the database and scheduler are responsive, and Nooklet does not kill or restart an active download because of this check.
 
 ## Docker health semantics
 
@@ -72,8 +87,8 @@ The image health check calls the probe every 30 seconds, waits up to 5 seconds, 
 
 This has two deliberate consequences:
 
-1. `status: "degraded"` with HTTP 200 remains container-healthy because the process, database, and worker are responsive.
-2. A stale worker or database failure returns 503 and can mark the container unhealthy.
+1. `status: "degraded"` with HTTP 200 remains container-healthy because the process, database, and worker are responsive. This includes a stalled or failed built-in engine stage.
+2. A stale worker or database failure returns 503 and can mark the container unhealthy. The web child is a separate process and can remain responsive while the worker is stale.
 
 `restart: unless-stopped` restarts a process that exits; Docker Compose does not automatically replace a merely unhealthy container. Diagnose the underlying condition rather than relying on restart loops.
 
@@ -88,6 +103,8 @@ Useful log prefixes include:
 
 - `[health]` — database readiness or migration failure while serving the probe.
 - `[background-worker]` — scheduled job, download import, reconciliation, or lease-heartbeat failure.
+- `[download-engine]` — detached engine-loop, transfer, or diagnostic persistence failure.
+- `[supervisor]` — child startup/restart, shutdown, or storage-probe deadline events.
 - Next.js startup output — invalid environment values, bind failures, or server startup failures.
 
 Stop following logs with `Ctrl+C`; this does not stop the container.
@@ -128,6 +145,33 @@ For a responsive but degraded worker:
 5. Allow the next 15-second pass to retry transient import and integration failures.
 
 Restart only after checking the error. A restart clears the in-memory health summary, but it does not correct an unreachable service, bad credential, full staging drive, or invalid path mapping.
+
+The **Built-in download engine** card distinguishes idle, active, and degraded operation. It shows the persisted stage and progress time, unresolved infrastructure failures, and any unexpected detached-loop failure. Bad individual releases classified as content failures remain in Activity rather than degrading the engine as a whole.
+
+## Frozen-mount containment
+
+Docker Desktop presents Windows bind mounts through a filesystem bridge. A
+damaged or disconnected host drive can leave `statx`, `access`, `statfs`, copy,
+or directory calls waiting in the kernel, where application-level timeouts
+cannot cancel them.
+
+Nooklet contains that failure in three ways:
+
+1. Next.js and the background worker run in different OS processes.
+2. Home, Setup, and Storage Settings read SQLite snapshots instead of probing
+   mounts while rendering.
+3. Capacity probes run in a disposable process with a 30-second kill ceiling.
+
+If the latest probe cannot complete, Storage shows its last capacity as stale
+and worker health may become degraded or stale, but ordinary login and
+SQLite-backed pages should continue loading. Repair the host drive or Docker
+Desktop file-sharing path; repeatedly increasing timeouts cannot release a
+kernel-blocked filesystem call.
+
+On Windows, inspect the physical volume as well as Docker. A volume reporting
+`HealthStatus: Warning` or `OperationalStatus: Full Repair Needed` requires
+host-level attention even if recreating the container temporarily restores
+access.
 
 ## Configuration changes and recreation
 

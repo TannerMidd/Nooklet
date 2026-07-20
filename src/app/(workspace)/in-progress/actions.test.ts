@@ -6,11 +6,8 @@ vi.mock("next/cache", () => ({
 vi.mock("@/auth", () => ({
   auth: vi.fn(),
 }));
-vi.mock("@/modules/downloads/workflows/import-completed-downloads", () => ({
-  importCompletedDownloadsWorkflow: vi.fn(),
-}));
-vi.mock("@/modules/downloads/workflows/import-completed-engine-downloads", () => ({
-  importCompletedEngineDownloadsWorkflow: vi.fn(),
+vi.mock("@/modules/jobs/repositories/job-repository", () => ({
+  createImmediateJob: vi.fn(),
 }));
 vi.mock("@/modules/downloads/workflows/cancel-season-fulfillment", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/downloads/workflows/cancel-season-fulfillment")>();
@@ -35,13 +32,12 @@ import {
   cancelSeasonFulfillmentWorkflow,
   CancelSeasonFulfillmentWorkflowError,
 } from "@/modules/downloads/workflows/cancel-season-fulfillment";
-import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
-import { importCompletedEngineDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-engine-downloads";
 import {
   resumeSeasonFulfillmentWorkflow,
   retryDownloadRequestWorkflow,
   RetryDownloadRequestWorkflowError,
 } from "@/modules/downloads/workflows/retry-download-request";
+import { createImmediateJob } from "@/modules/jobs/repositories/job-repository";
 
 import { initialDownloadActivityActionState } from "./action-state";
 import {
@@ -56,8 +52,7 @@ const authMock = vi.mocked(auth);
 const cancelFulfillmentMock = vi.mocked(cancelSeasonFulfillmentWorkflow);
 const retryWorkflowMock = vi.mocked(retryDownloadRequestWorkflow);
 const resumeFulfillmentMock = vi.mocked(resumeSeasonFulfillmentWorkflow);
-const importWorkflowMock = vi.mocked(importCompletedDownloadsWorkflow);
-const engineImportWorkflowMock = vi.mocked(importCompletedEngineDownloadsWorkflow);
+const createImmediateJobMock = vi.mocked(createImmediateJob);
 const revalidateMock = vi.mocked(revalidatePath);
 
 const requestId = "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9";
@@ -180,12 +175,12 @@ describe("resumeSeasonFulfillmentAction", () => {
 });
 
 describe("cancelSeasonFulfillmentAction", () => {
-  it("cancels the logical plan and revalidates Activity and Library", async () => {
+  it("checkpoints cancellation and revalidates Activity and Library", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
     cancelFulfillmentMock.mockResolvedValue({
-      cancelled: true,
-      cancellationPending: false,
-      message: "Season recovery cancelled.",
+      cancelled: false,
+      cancellationPending: true,
+      message: "Cancellation started. Nooklet will keep removing and verifying this plan's downloads automatically.",
     });
 
     const result = await cancelSeasonFulfillmentAction(
@@ -199,7 +194,7 @@ describe("cancelSeasonFulfillmentAction", () => {
     expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
     expect(result).toEqual({
       status: "success",
-      message: "Season recovery cancelled.",
+      message: "Cancellation started. Nooklet will keep removing and verifying this plan's downloads automatically.",
     });
   });
 
@@ -231,109 +226,65 @@ describe("runDownloadImportNowAction", () => {
     const result = await runDownloadImportNowAction();
 
     expect(result).toEqual({ status: "error", message: "You need to sign in again." });
-    expect(importWorkflowMock).not.toHaveBeenCalled();
+    expect(createImmediateJobMock).not.toHaveBeenCalled();
   });
 
-  it("runs the import pass and revalidates the page", async () => {
+  it("queues the import pass for the isolated worker and revalidates the page", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-    engineImportWorkflowMock.mockResolvedValue(null);
-    importWorkflowMock.mockResolvedValue({
-      matchedCount: 1,
-      importedCount: 1,
-      failedCount: 0,
-      importedFileCount: 2,
-      affectedLibraryPathIds: [],
-      retry: { attemptedCount: 0, queuedCount: 0, failedCount: 0 },
-      discovery: { attempted: false, ok: true, message: null },
-    } as never);
+    createImmediateJobMock.mockResolvedValue({ id: "job-1" } as never);
 
     const result = await runDownloadImportNowAction();
 
-    expect(importWorkflowMock).toHaveBeenCalledWith("u1");
-    expect(engineImportWorkflowMock).toHaveBeenCalledWith("u1");
+    expect(createImmediateJobMock).toHaveBeenCalledWith({
+      userId: "u1",
+      jobType: "download-import",
+      targetType: "download-import",
+      targetKey: "all",
+    });
     expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
     expect(revalidateMock).toHaveBeenCalledWith("/home");
     expect(result).toEqual({
       status: "success",
-      message: "Built-in: no completed downloads waiting. SABnzbd: 1 imported, 0 failed.",
+      message: "Import pass queued. Nooklet will run it in the isolated background worker.",
     });
   });
 
-  it("returns an error when an import pass completes with failed items", async () => {
+  it("returns an error when the import job cannot be queued", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-    engineImportWorkflowMock.mockResolvedValue({
-      matchedCount: 1,
-      importedCount: 0,
-      failedCount: 1,
-      importedFileCount: 0,
-      affectedLibraryPathIds: [],
-      retry: { attemptedCount: 0, queuedCount: 0, failedCount: 0 },
-      discovery: { attempted: false, ok: true, message: null },
-    } as never);
-    importWorkflowMock.mockResolvedValue({
-      matchedCount: 0,
-      importedCount: 0,
-      failedCount: 0,
-      importedFileCount: 0,
-      affectedLibraryPathIds: [],
-      retry: { attemptedCount: 0, queuedCount: 0, failedCount: 0 },
-      discovery: { attempted: false, ok: true, message: null },
-    } as never);
+    createImmediateJobMock.mockRejectedValue(new Error("database unavailable"));
 
     await expect(runDownloadImportNowAction()).resolves.toEqual({
       status: "error",
-      message: "Built-in: 0 imported, 1 failed. SABnzbd: 0 imported, 0 failed.",
+      message: "Nooklet could not queue the import pass.",
     });
   });
 });
 
 describe("retryCompletedDownloadImportAction", () => {
-  it("runs a request-scoped import instead of importing every completed item", async () => {
+  it("queues a request-scoped import instead of importing on the web request", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-    engineImportWorkflowMock.mockResolvedValue(null);
-    importWorkflowMock.mockResolvedValue({
-      matchedCount: 1,
-      importedCount: 1,
-      failedCount: 0,
-      importedFileCount: 1,
-      affectedLibraryPathIds: ["path-1"],
-      retry: { attemptedCount: 0, queuedCount: 0, failedCount: 0 },
-      discovery: { attempted: true, ok: true, message: null },
-    } as never);
+    createImmediateJobMock.mockResolvedValue({ id: "job-1" } as never);
 
     const result = await retryCompletedDownloadImportAction(
       initialDownloadActivityActionState,
       retryForm(),
     );
 
-    expect(engineImportWorkflowMock).toHaveBeenCalledWith("u1", { requestId });
-    expect(importWorkflowMock).toHaveBeenCalledWith("u1", { requestId });
+    expect(createImmediateJobMock).toHaveBeenCalledWith({
+      userId: "u1",
+      jobType: "download-import",
+      targetType: "download-request",
+      targetKey: requestId,
+    });
     expect(result).toEqual({
       status: "success",
-      message: "Imported 1 completed download into the library.",
+      message: "Import retry queued. Nooklet will process it in the isolated background worker.",
     });
   });
 
-  it("keeps a targeted import failure visible instead of claiming success", async () => {
+  it("keeps a targeted queue failure visible instead of claiming success", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-    engineImportWorkflowMock.mockResolvedValue({
-      matchedCount: 1,
-      importedCount: 0,
-      failedCount: 1,
-      importedFileCount: 0,
-      affectedLibraryPathIds: [],
-      retry: { attemptedCount: 0, queuedCount: 0, failedCount: 0 },
-      discovery: { attempted: false, ok: true, message: null },
-    } as never);
-    importWorkflowMock.mockResolvedValue({
-      matchedCount: 0,
-      importedCount: 0,
-      failedCount: 0,
-      importedFileCount: 0,
-      affectedLibraryPathIds: [],
-      retry: { attemptedCount: 0, queuedCount: 0, failedCount: 0 },
-      discovery: { attempted: false, ok: true, message: null },
-    } as never);
+    createImmediateJobMock.mockRejectedValue(new Error("database unavailable"));
 
     const result = await retryCompletedDownloadImportAction(
       initialDownloadActivityActionState,
@@ -342,7 +293,7 @@ describe("retryCompletedDownloadImportAction", () => {
 
     expect(result).toEqual({
       status: "error",
-      message: "Import retry still failed for 1 completed download. Review the technical details, destination, and file permissions.",
+      message: "Nooklet could not queue that import retry.",
     });
   });
 });

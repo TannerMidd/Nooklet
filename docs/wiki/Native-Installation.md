@@ -73,7 +73,7 @@ Do not approve an entire filesystem root. Each configured media folder must exis
 npm run dev
 ```
 
-The development command listens on port `42021`. Open [http://localhost:42021](http://localhost:42021).
+The development command listens on port `42021`. Open [http://localhost:42021](http://localhost:42021). It supervises a hot-reloading Next.js child and a separately built worker child. Worker-source changes rebuild and restart only the worker runtime; storage capacity checks run in disposable probe processes.
 
 ## 4. Start a production build
 
@@ -84,7 +84,16 @@ npm start -- -p 42021
 
 The explicit port keeps the listener aligned with the default `APP_URL`. If you choose another port, update `APP_URL` to the origin users actually open.
 
-The application initializes the SQLite database, applies Drizzle migrations, and starts the in-process background worker during Node runtime registration. Do not run a separate migration or worker command.
+`npm start` applies Drizzle migrations, then supervises separate web and worker processes plus disposable storage probes. Do not start a second worker beside this combined command.
+
+Service managers that require one process per unit may instead run the supported split pair after `npm run build`:
+
+```bash
+npm run start:web -- -p 42021
+npm run start:worker
+```
+
+Both units are required. `start:web` never executes background or media-filesystem work. `start:worker` supervises the durable job worker and the short-lived storage probes that populate cached capacity snapshots. Configure the service manager to restart both units after an upgrade or environment change.
 
 For a durable installation, supervise `npm start -- -p 42021` with the service manager appropriate to the host and restart it after environment changes. Configure the service account with read/write access to the database directory, download workspace, and final library destinations.
 
@@ -140,4 +149,6 @@ Generate a migration with `npm run db:generate` only after an intentional schema
 - [Environment validation](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/env.ts)
 - [Database startup and migrations](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/client.ts)
 - [Filesystem boundary enforcement](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/security/filesystem-policy.ts)
-- [Runtime worker startup](https://github.com/TannerMidd/Nooklet/blob/main/src/instrumentation.ts)
+- [Web-only runtime instrumentation](https://github.com/TannerMidd/Nooklet/blob/main/src/instrumentation.ts)
+- [Native worker supervisor](https://github.com/TannerMidd/Nooklet/blob/main/scripts/worker-supervisor.mjs)
+- [Disposable storage-probe coordinator](https://github.com/TannerMidd/Nooklet/blob/main/scripts/lib/storage-probe-coordinator.mjs)

@@ -8,14 +8,12 @@ import {
   cancelSeasonFulfillmentWorkflow,
   CancelSeasonFulfillmentWorkflowError,
 } from "@/modules/downloads/workflows/cancel-season-fulfillment";
-import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
-import { ImportCompletedDownloadsWorkflowError } from "@/modules/downloads/workflows/import-completed-downloads/errors";
-import { importCompletedEngineDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-engine-downloads";
 import {
   resumeSeasonFulfillmentWorkflow,
   retryDownloadRequestWorkflow,
   RetryDownloadRequestWorkflowError,
 } from "@/modules/downloads/workflows/retry-download-request";
+import { createImmediateJob } from "@/modules/jobs/repositories/job-repository";
 
 import { type DownloadActivityActionState } from "./action-state";
 
@@ -171,70 +169,26 @@ export async function retryCompletedDownloadImportAction(
     return { status: "error", message: "Choose a completed download to import." };
   }
 
-  let matchedCount = 0;
-  let importedCount = 0;
-  let failedCount = 0;
-  let passFailed = false;
-
   try {
-    const engineResult = await importCompletedEngineDownloadsWorkflow(
-      session.user.id,
-      { requestId: parsed.data.requestId },
-    );
-    if (engineResult) {
-      matchedCount += engineResult.matchedCount;
-      importedCount += engineResult.importedCount;
-      failedCount += engineResult.failedCount;
-    }
-  } catch {
-    passFailed = true;
-  }
+    await createImmediateJob({
+      userId: session.user.id,
+      jobType: "download-import",
+      targetType: "download-request",
+      targetKey: parsed.data.requestId,
+    });
 
-  try {
-    const sabResult = await importCompletedDownloadsWorkflow(
-      session.user.id,
-      { requestId: parsed.data.requestId },
-    );
-    matchedCount += sabResult.matchedCount;
-    importedCount += sabResult.importedCount;
-    failedCount += sabResult.failedCount;
-  } catch (error) {
-    if (
-      !(error instanceof ImportCompletedDownloadsWorkflowError)
-      || error.code !== "sabnzbd_not_connected"
-    ) {
-      passFailed = true;
-    }
-  }
-
-  revalidatePath("/in-progress");
-  revalidatePath("/home");
-
-  if (failedCount > 0) {
-    return {
-      status: "error",
-      message: `Import retry still failed for ${failedCount} completed download${failedCount === 1 ? "" : "s"}. Review the technical details, destination, and file permissions.`,
-    };
-  }
-  if (importedCount > 0) {
+    revalidatePath("/in-progress");
+    revalidatePath("/home");
     return {
       status: "success",
-      message: `Imported ${importedCount} completed download${importedCount === 1 ? "" : "s"} into the library.`,
+      message: "Import retry queued. Nooklet will process it in the isolated background worker.",
     };
-  }
-  if (passFailed) {
+  } catch {
     return {
       status: "error",
-      message: "Nooklet could not inspect that completed download. Check the downloader connection and try again.",
+      message: "Nooklet could not queue that import retry.",
     };
   }
-
-  return {
-    status: "error",
-    message: matchedCount > 0
-      ? "The completed download was found, but no media file was imported."
-      : "Nooklet could not find completed files for that request.",
-  };
 }
 
 export async function runDownloadImportNowAction(): Promise<DownloadActivityActionState> {
@@ -245,45 +199,21 @@ export async function runDownloadImportNowAction(): Promise<DownloadActivityActi
   }
 
   try {
-    const messages: string[] = [];
-    let hasFailure = false;
-
-    try {
-      const engineResult = await importCompletedEngineDownloadsWorkflow(session.user.id);
-      if (engineResult && engineResult.failedCount > 0) {
-        hasFailure = true;
-      }
-      messages.push(engineResult
-        ? `Built-in: ${engineResult.importedCount} imported, ${engineResult.failedCount} failed.`
-        : "Built-in: no completed downloads waiting.");
-    } catch {
-      hasFailure = true;
-      messages.push("Built-in: import pass failed.");
-    }
-
-    try {
-      const sabResult = await importCompletedDownloadsWorkflow(session.user.id);
-      if (sabResult.failedCount > 0) {
-        hasFailure = true;
-      }
-      messages.push(`SABnzbd: ${sabResult.importedCount} imported, ${sabResult.failedCount} failed.`);
-    } catch (error) {
-      if (error instanceof ImportCompletedDownloadsWorkflowError && error.code === "sabnzbd_not_connected") {
-        messages.push("SABnzbd: not configured (skipped)." );
-      } else {
-        hasFailure = true;
-        messages.push("SABnzbd: import pass failed.");
-      }
-    }
+    await createImmediateJob({
+      userId: session.user.id,
+      jobType: "download-import",
+      targetType: "download-import",
+      targetKey: "all",
+    });
 
     revalidatePath("/in-progress");
     revalidatePath("/home");
 
     return {
-      status: hasFailure ? "error" : "success",
-      message: messages.join(" "),
+      status: "success",
+      message: "Import pass queued. Nooklet will run it in the isolated background worker.",
     };
   } catch {
-    return { status: "error", message: "Nooklet could not run the import pass." };
+    return { status: "error", message: "Nooklet could not queue the import pass." };
   }
 }

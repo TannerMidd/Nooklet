@@ -38,17 +38,23 @@ Start the development server:
 npm run dev
 ```
 
-The default development URL is `http://localhost:42021`.
+The default development URL is `http://localhost:42021`. This command keeps
+Next.js hot reload in the web process, watches and rebuilds the isolated worker
+bundle under ignored `.codex-tmp/`, and runs storage checks in disposable probe
+children. A slow media mount therefore cannot consume the web process's
+filesystem thread pool during development.
 
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
-| `npm run dev` | Start the Next.js development server on port 42021 |
+| `npm run dev` | Start the hot-reloading web server, isolated worker, and disposable storage probes on port 42021 |
 | `npm run typecheck` | Run TypeScript without emitting output |
 | `npm run lint` | Run ESLint across the repository |
 | `npm test` | Run Vitest in the Node environment |
 | `npm run build` | Build and sanitize the standalone production bundle |
+| `npm run start:web` | Start only the built Next.js web process; pair it with `start:worker` |
+| `npm run start:worker` | Start the built worker plus its disposable storage-probe coordinator |
 | `npm run check` | Typecheck, lint, test, and build |
 | `npm run db:generate` | Generate a Drizzle migration after a schema change |
 | `npm run db:backup` | Create and verify a SQLite backup using `.env` |

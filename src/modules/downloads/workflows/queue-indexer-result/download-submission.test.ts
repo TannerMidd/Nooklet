@@ -151,6 +151,24 @@ describe("download submission", () => {
     });
   });
 
+  it("classifies stale or unavailable storage telemetry as retryable infrastructure", async () => {
+    findIndexerMock.mockResolvedValue({ baseUrl: "https://indexer.test" } as never);
+    fetchMock.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue("<nzb />") } as never);
+    enqueueMock.mockRejectedValue(new EnqueueNzbDownloadError(
+      "storage_unavailable",
+      "The latest work storage check is stale.",
+    ));
+
+    await expect(submitIndexerResultToDownloadClient(
+      resolvedResult,
+      { kind: "nooklet", client: { id: "client-1" } } as never,
+    )).rejects.toMatchObject({
+      code: "download_capacity_exceeded",
+      capacity: null,
+      message: "The latest work storage check is stale.",
+    });
+  });
+
   it("removes SABnzbd jobs during persistence compensation", async () => {
     await compensateIndexerResultSubmission(
       "user-1",
