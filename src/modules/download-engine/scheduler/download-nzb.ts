@@ -101,7 +101,6 @@ type FileAssemblyState = {
   filePath: string | null;
   handle: FileHandle | null;
   opening: Promise<void> | null;
-  decodedName: string | null;
   expectedFileSize: number | null;
   ranges: Array<{ begin: number; end: number }>;
   totalSegments: number;
@@ -166,7 +165,6 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     filePath: null,
     handle: null,
     opening: null,
-    decodedName: null,
     expectedFileSize: null,
     ranges: [],
     totalSegments: file.segments.length,
@@ -263,7 +261,6 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
         const filePath = path.join(input.workDir, name);
         const handle = await open(filePath, "wx");
         await handle.truncate(fileSize);
-        state.decodedName = decodedName;
         state.expectedFileSize = fileSize;
         state.fileName = name;
         state.filePath = filePath;
@@ -283,7 +280,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
       decoded = decodeYencArticle(body, { maxFileBytes: declaredFileBytes });
     } catch (error) {
       if (error instanceof YencDecodeError) {
-        throw new NntpError("protocol-error", error.message, true);
+        throw new NntpError("article-unusable", error.message, true);
       }
 
       throw error;
@@ -292,23 +289,20 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
     if (decoded.data.length > task.declaredBytes) {
       throw new NntpError(
-        "protocol-error",
+        "article-unusable",
         `Segment <${task.messageId}> exceeds its NZB-declared byte size.`,
         true,
       );
     }
 
-    if (state.decodedName !== null && state.decodedName !== decoded.name) {
-      throw new NntpError(
-        "protocol-error",
-        `Segment <${task.messageId}> changed the yEnc file name.`,
-        true,
-      );
-    }
-
+    // The yEnc name is advisory, not identity: obfuscated posts randomize it
+    // per article, so parts of one file routinely disagree. The NZB's <file>
+    // grouping is the identity, and size/part/range/CRC below still prove a
+    // segment belongs here. PAR2 deobfuscation restores the real name after
+    // assembly. Rejecting on the name condemned every such release.
     if (state.expectedFileSize !== null && state.expectedFileSize !== decoded.fileSize) {
       throw new NntpError(
-        "protocol-error",
+        "article-unusable",
         `Segment <${task.messageId}> changed the yEnc file size.`,
         true,
       );
@@ -316,7 +310,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
     if (state.totalSegments > 1 && !decoded.part) {
       throw new NntpError(
-        "protocol-error",
+        "article-unusable",
         `Segment <${task.messageId}> omitted its multipart byte range.`,
         true,
       );
@@ -324,7 +318,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
     if (decoded.part && decoded.part.number !== null && decoded.part.number !== task.segmentNumber) {
       throw new NntpError(
-        "protocol-error",
+        "article-unusable",
         `Segment <${task.messageId}> declared the wrong part number.`,
         true,
       );
@@ -332,7 +326,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
     if (decoded.part && decoded.part.total !== null && decoded.part.total !== state.totalSegments) {
       throw new NntpError(
-        "protocol-error",
+        "article-unusable",
         `Segment <${task.messageId}> declared an inconsistent part count.`,
         true,
       );
@@ -342,9 +336,9 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
     // Another connection may have opened this file while this segment was
     // decoding; re-check the canonical metadata after the shared open.
-    if (state.decodedName !== decoded.name || state.expectedFileSize !== decoded.fileSize) {
+    if (state.expectedFileSize !== decoded.fileSize) {
       throw new NntpError(
-        "protocol-error",
+        "article-unusable",
         `Segment <${task.messageId}> conflicts with another segment's yEnc metadata.`,
         true,
       );
@@ -356,14 +350,14 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
     if (state.ranges.some((existing) => range.begin <= existing.end && range.end >= existing.begin)) {
       throw new NntpError(
-        "protocol-error",
+        "article-unusable",
         `Segment <${task.messageId}> overlaps another yEnc byte range.`,
         true,
       );
     }
 
     if (decoded.crcOk === false || !decoded.sizeOk) {
-      throw new NntpError("protocol-error", `Segment <${task.messageId}> failed integrity checks.`, true);
+      throw new NntpError("article-unusable", `Segment <${task.messageId}> failed integrity checks.`, true);
     }
 
     state.ranges.push(range);
@@ -483,11 +477,13 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
         state.failedSegments += 1;
         totals.failedSegments += 1;
 
-        // Only an article the server does not have is evidence about the
-        // release. A transport failure says our connection broke, so spending
-        // the PAR2 recovery budget on it condemns posts that are perfectly
-        // downloadable — and the caller then blocklists them and moves on.
-        if (terminalFailureKind === "article-not-found") {
+        // Only the article itself is evidence about the release: one the
+        // server does not have, or one it delivered that will not decode into
+        // this file. Both leave the same hole for PAR2 to repair. A transport
+        // failure says our connection broke, so spending the recovery budget
+        // on it condemns posts that are perfectly downloadable — and the
+        // caller then blocklists them and moves on.
+        if (terminalFailureKind === "article-not-found" || terminalFailureKind === "article-unusable") {
           if (par2FileIndexes.has(task.fileIndex)) {
             lostPar2Bytes += task.declaredBytes;
           } else {

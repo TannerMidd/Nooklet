@@ -51,9 +51,14 @@ export function buildSinglePartArticle(payload: Buffer, name = "test file.bin") 
 
 /**
  * Splits a payload into `partCount` multi-part yEnc articles for one file.
- * Returns article bodies in part order.
+ * Returns article bodies in part order. `name` may be a per-part function to
+ * model obfuscated posts, which randomize the yEnc name on every article.
  */
-export function buildMultiPartArticles(payload: Buffer, name: string, partCount: number): string[] {
+export function buildMultiPartArticles(
+  payload: Buffer,
+  name: string | ((partNumber: number) => string),
+  partCount: number,
+): string[] {
   const partSize = Math.ceil(payload.length / partCount);
   const articles: string[] = [];
 
@@ -61,9 +66,10 @@ export function buildMultiPartArticles(payload: Buffer, name: string, partCount:
     const begin = part * partSize;
     const end = Math.min(begin + partSize, payload.length);
     const slice = payload.subarray(begin, end);
+    const partName = typeof name === "function" ? name(part + 1) : name;
 
     articles.push([
-      `=ybegin part=${part + 1} total=${partCount} line=128 size=${payload.length} name=${name}`,
+      `=ybegin part=${part + 1} total=${partCount} line=128 size=${payload.length} name=${partName}`,
       `=ypart begin=${begin + 1} end=${end}`,
       yencEncode(slice),
       `=yend size=${slice.length} part=${part + 1} pcrc32=${crc32Of(slice).toString(16)}`,

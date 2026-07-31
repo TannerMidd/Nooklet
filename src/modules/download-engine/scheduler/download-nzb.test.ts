@@ -103,6 +103,74 @@ describe("downloadNzb", () => {
     expect(progressUpdates.at(-1)).toBe(5);
   });
 
+  it("assembles an obfuscated post whose every article declares a different yEnc name", async () => {
+    // Modern obfuscated releases randomize the yEnc name per article. Only the
+    // NZB <file> grouping identifies the file, so treating the name as identity
+    // rejected every part but the first and condemned the whole release.
+    const payload = buildDeterministicPayload(40_000, 11);
+    const articles = buildMultiPartArticles(
+      payload,
+      (partNumber) => `${"0123456789abcdef".repeat(3)}-${partNumber}`,
+      6,
+    );
+    const segmentIds = articles.map((_, index) => `obf-${index + 1}@test`);
+
+    server = await startFakeNntpServer({
+      articles: new Map(articles.map((article, index) => [segmentIds[index], article])),
+    });
+
+    workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+    const nzb = parseNzb(nzbXml([{ subject: '"01f3ba9c.par2" yEnc (1/6)', segmentIds }]));
+
+    const result = await downloadNzb({
+      nzb,
+      server: { host: "127.0.0.1", port: server.port, trustedRootCertificates: [tlsTestCertificate], connections: 4, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      workDir,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.completedSegments).toBe(6);
+    expect(result.failedSegments).toBe(0);
+    expect(result.transportExhausted).toBe(false);
+    expect(result.failureKinds).toEqual([]);
+
+    const assembled = await readFile(result.files[0]!.filePath!);
+    expect(assembled.equals(payload)).toBe(true);
+  });
+
+  it("still rejects articles that disagree on the file size the parts belong to", async () => {
+    const payload = buildDeterministicPayload(20_000, 5);
+    const articles = buildMultiPartArticles(payload, "real.bin", 2);
+    // Same file entry, but the second article claims a different total size —
+    // genuine evidence the parts are not one file, unlike a rotating name.
+    const mismatched = articles[1]!.replace(`size=${payload.length} name=`, `size=${payload.length + 4_096} name=`);
+
+    server = await startFakeNntpServer({
+      articles: new Map([
+        ["size-1@test", articles[0]!],
+        ["size-2@test", mismatched],
+      ]),
+    });
+
+    workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+    const nzb = parseNzb(nzbXml([{ subject: '"real.bin"', segmentIds: ["size-1@test", "size-2@test"] }]));
+
+    const result = await downloadNzb({
+      nzb,
+      server: { host: "127.0.0.1", port: server.port, trustedRootCertificates: [tlsTestCertificate], connections: 1, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      workDir,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.failedSegments).toBe(1);
+    // Evidence about the post, not the connection: it must never read as a
+    // transport failure, or the caller stops looking for another release.
+    expect(result.failureKinds).toEqual(["article-unusable"]);
+    expect(result.transportExhausted).toBe(false);
+  });
+
   it("marks files with missing articles as damaged without failing others", async () => {
     const goodPayload = buildDeterministicPayload(2_000, 1);
     const partialPayload = buildDeterministicPayload(4_000, 2);

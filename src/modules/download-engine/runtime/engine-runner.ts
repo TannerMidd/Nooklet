@@ -375,6 +375,10 @@ async function processEngineDownload(download: EngineDownloadRecord): Promise<"c
     // Checked before `unrecoverable` so a broken server is never reported as a
     // damaged release: that verdict blocklists the release and sends the
     // caller hunting through every other candidate for the same episode.
+    //
+    // Only genuine transport kinds reach this counter — articles that arrive
+    // but will not decode are `article-unusable` and spend the release's own
+    // recovery budget instead — so this really is a server verdict.
     if (result.transportExhausted) {
       await failEngineDownload(
         download,

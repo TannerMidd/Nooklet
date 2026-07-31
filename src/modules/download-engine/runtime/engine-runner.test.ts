@@ -19,7 +19,7 @@ describe("engine failure classification", () => {
     },
   );
 
-  it.each(["article-not-found", "protocol-error"] as const)(
+  it.each(["article-not-found", "article-unusable", "protocol-error"] as const)(
     "classifies %s as release content",
     (kind) => {
       expect(classifyEngineNntpFailureKinds([kind])).toBe("content");
@@ -28,6 +28,14 @@ describe("engine failure classification", () => {
       );
     },
   );
+
+  // Regression: articles that arrive intact but will not decode into the file
+  // the NZB filed them under must never be reported as a downloader problem.
+  // That verdict tells the retry pipeline the connection is broken, and it
+  // stops trying other releases for the item entirely.
+  it("never reads a storm of undecodable articles as a downloader problem", () => {
+    expect(classifyEngineNntpFailureKinds(Array(80).fill("article-unusable"))).toBe("content");
+  });
 
   it("retains infrastructure classification through a failed partial-transfer finalize", () => {
     expect(classifyEngineRuntimeError(

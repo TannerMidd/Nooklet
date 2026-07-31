@@ -41,6 +41,14 @@ export type NntpErrorKind =
   | "connect-failed"
   | "auth-failed"
   | "article-not-found"
+  /**
+   * The server delivered the article, but its content could not be decoded or
+   * does not belong to the file the NZB filed it under. Evidence about the
+   * post, never about the connection — kept distinct from `protocol-error` so
+   * a bad release can never be reported as a broken news server.
+   */
+  | "article-unusable"
+  /** The server broke the protocol itself: unexpected status codes, bad framing. */
   | "protocol-error"
   | "timeout"
   | "connection-closed";
