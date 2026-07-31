@@ -60,6 +60,7 @@ import {
   attemptSeasonPack,
   createSeasonFulfillment,
   markFulfillmentEpisodeFailedAndRetry,
+  markSeasonPackFailedAndRecover,
   queueMissingSeasonEpisodes,
   reconcileSeasonCoverage,
   recordSeasonPackSubmissionOutcome,
@@ -612,6 +613,56 @@ describe("season fulfillment recovery", () => {
       attemptCount: 1,
     }));
     expect(result).toMatchObject({ activeCount: 1, queuedCount: 1 });
+  });
+
+  it("retries a missed episode in minutes while its candidate budget remains", async () => {
+    fulfillment = makeFulfillment({ strategy: "episodes" });
+    const episode = makeEpisode("episode-missed", 1);
+    listEpisodesMock.mockResolvedValue([episode] as never);
+    searchMock.mockResolvedValue(noMatchingReleaseResult());
+
+    await queueMissingSeasonEpisodes({
+      userId: "user-1",
+      fulfillmentId: fulfillment.id,
+      reason: "No season pack was usable.",
+    });
+
+    expect(episodeStates).toContainEqual(expect.objectContaining({
+      episodeId: episode.id,
+      status: "retry_wait",
+      attemptCount: 0,
+      nextAttemptAt: new Date("2026-07-15T18:05:00.000Z"),
+    }));
+  });
+
+  it("keeps the long release cooldown once the episode candidate budget is spent", async () => {
+    fulfillment = makeFulfillment({ strategy: "episodes" });
+    const episode = makeEpisode("episode-spent", 1);
+    episodeStates = [{
+      fulfillmentId: fulfillment.id,
+      episodeId: episode.id,
+      status: "retry_wait",
+      attemptCount: 3,
+      nextAttemptAt: fixedNow,
+      statusMessage: "No matching episode release is available yet.",
+      createdAt: fixedNow,
+      updatedAt: fixedNow,
+    }];
+    listEpisodesMock.mockResolvedValue([episode] as never);
+    searchMock.mockResolvedValue(noMatchingReleaseResult());
+
+    await queueMissingSeasonEpisodes({
+      userId: "user-1",
+      fulfillmentId: fulfillment.id,
+      reason: "Resuming automatic season recovery.",
+    });
+
+    expect(searchMock).not.toHaveBeenCalled();
+    expect(episodeStates).toContainEqual(expect.objectContaining({
+      episodeId: episode.id,
+      status: "unavailable",
+      nextAttemptAt: new Date("2026-07-16T00:00:00.000Z"),
+    }));
   });
 
   it("starts a fresh bounded candidate cycle when a blocked season is resumed manually", async () => {
@@ -1202,6 +1253,31 @@ describe("season fulfillment recovery", () => {
       nextAttemptAt: null,
     });
     expect(listEpisodesMock).not.toHaveBeenCalled();
+  });
+
+  it("switches a failed season pack straight to episodes instead of another pack", async () => {
+    const episode = makeEpisode("episode-1", 1);
+    listEpisodesMock.mockResolvedValue([episode] as never);
+    countAttemptsMock.mockResolvedValue(1);
+
+    const recovery = await markSeasonPackFailedAndRecover({
+      userId: "user-1",
+      fulfillmentId: "fulfillment-1",
+      failureMessage: "The transfer stopped early: too many articles are missing.",
+    });
+
+    expect(searchMock).not.toHaveBeenCalledWith(
+      "user-1",
+      expect.anything(),
+      expect.objectContaining({ attemptStrategy: "season_pack" }),
+    );
+    expect(searchMock).toHaveBeenCalledWith(
+      "user-1",
+      expect.objectContaining({ episodeId: episode.id }),
+      expect.objectContaining({ attemptStrategy: "episode" }),
+    );
+    expect(recovery?.fallback).toMatchObject({ queuedCount: 1 });
+    expect(fulfillment.strategy).toBe("episodes");
   });
 
   it("uses one fulfillment lease so pack search and episode fallback cannot overlap", async () => {

@@ -558,20 +558,30 @@ async function attemptEpisode(
       return { queued: false } satisfies EpisodeAttemptResult;
     }
 
+    // The long cooldown is for a genuinely exhausted cycle. While attempts
+    // remain, come back on the short transient schedule instead: a release the
+    // indexer did not have a minute ago is usually grabbable well before the
+    // next six-hour sweep.
+    const budgetRemains = cycleAttemptsUsed < maxAutomaticReleaseAttempts;
+    const unavailableMessage = episodeStateMessage({
+      episode,
+      reason: result.queuedDownload.reason === "no_matching_release"
+        ? "no_match"
+        : "queue_failed",
+      detail: result.queuedDownload.message,
+    });
     await upsertDownloadFulfillmentEpisode({
       userId,
       fulfillmentId: fulfillment.id,
       episodeId: episode.id,
-      status: "unavailable",
+      status: budgetRemains ? "retry_wait" : "unavailable",
       attemptCount: cycleAttemptsUsed,
-      nextAttemptAt: nowPlus(unavailableReleaseRecheckMs),
-      statusMessage: episodeStateMessage({
-        episode,
-        reason: result.queuedDownload.reason === "no_matching_release"
-          ? "no_match"
-          : "queue_failed",
-        detail: result.queuedDownload.message,
-      }),
+      nextAttemptAt: budgetRemains
+        ? nextTransientRetryAt(state)
+        : nowPlus(unavailableReleaseRecheckMs),
+      statusMessage: budgetRemains
+        ? `${unavailableMessage} Nooklet will retry shortly.`
+        : `${unavailableMessage} Nooklet will search for new releases later.`,
     });
     return { queued: false } satisfies EpisodeAttemptResult;
   } catch (error) {
@@ -1407,25 +1417,26 @@ export async function markSeasonPackFailedAndRecover(input: {
     packAttemptCount: attempts,
     status: "active",
     nextAttemptAt: nowPlus(activeCoverageRecheckMs),
-    statusMessage: `${input.failureMessage} Searching for an alternate season pack.`,
+    statusMessage: `${input.failureMessage} Switching to individual episodes.`,
   });
-  if (attempts >= fulfillment.packAttemptLimit) {
-    const fallback = await queueMissingSeasonEpisodes({
-      userId: input.userId,
-      fulfillmentId: input.fulfillmentId,
-      reason: `All ${attempts} season-pack attempts failed.`,
-      workLease: workClaim.lease,
-    });
-    const updated = await findDownloadFulfillmentById(input.userId, input.fulfillmentId);
-    return {
-      fulfillment: updated ?? fulfillment,
-      releaseSearch: null,
-      fallback,
-    } satisfies SeasonPackAttemptResult;
-  }
-  return attemptSeasonPack(input.userId, input.fulfillmentId, {
+  // A pack that reached the downloader and failed has already spent a full
+  // transfer cycle. Hunting alternate packs spends more of them serially while
+  // individual episodes usually are grabbable right now, so go straight to
+  // episode coverage instead of burning the rest of the pack budget.
+  const fallback = await queueMissingSeasonEpisodes({
+    userId: input.userId,
+    fulfillmentId: input.fulfillmentId,
+    reason: attempts > 1
+      ? `${attempts} season-pack attempts failed.`
+      : "The season pack failed.",
     workLease: workClaim.lease,
   });
+  const updated = await findDownloadFulfillmentById(input.userId, input.fulfillmentId);
+  return {
+    fulfillment: updated ?? fulfillment,
+    releaseSearch: null,
+    fallback,
+  } satisfies SeasonPackAttemptResult;
   } finally {
     await releaseSeasonWork(workClaim);
   }

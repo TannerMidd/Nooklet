@@ -168,7 +168,8 @@ export async function retryFailedCompletedDownloads(
           failureMessage,
         });
         const updated = await findDownloadFulfillmentById(userId, fulfillment.id);
-        const alternateQueued = recovery?.releaseSearch?.queuedDownload.queued === true;
+        // A failed pack now switches straight to episode coverage, so the only
+        // recovery signal left is how many episodes that queued.
         const fallbackQueued = recovery?.fallback?.queuedCount ?? 0;
         await updateDownloadRequestStatus({
           userId,
@@ -176,8 +177,7 @@ export async function retryFailedCompletedDownloads(
           status: "failed",
           statusMessage: `${failureMessage} ${updated?.statusMessage ?? "Nooklet checked automatic recovery options."}`,
         });
-        if (alternateQueued) queuedCount += 1;
-        else if (fallbackQueued > 0) queuedCount += fallbackQueued;
+        if (fallbackQueued > 0) queuedCount += fallbackQueued;
         else failedCount += 1;
         continue;
       }
