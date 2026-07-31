@@ -18,6 +18,16 @@ const retryableQueueErrorCodes = new Set([
   "release_unavailable",
 ]);
 
+/**
+ * Ceiling on candidates tried in one pass when the caller sets no explicit
+ * budget. Queueing now verifies with the news server that a release's articles
+ * still exist, which costs round trips on the way to rejecting a dead
+ * candidate, and this runs inside user-facing requests. Candidates beyond the
+ * ceiling are not lost: the next search pass resumes with the failed ones
+ * excluded.
+ */
+const defaultMaxCandidateAttempts = 8;
+
 export type QueueFailureKind =
   | "release"
   | "infrastructure"
@@ -112,7 +122,7 @@ export async function queueReleaseCandidates(
   let lastErrorMessage: string | null = null;
   let lastCapacity: DownloadCapacityDetails | null = null;
   const candidateAttemptLimit = context.maxCandidateAttempts == null
-    ? candidates.length
+    ? Math.min(candidates.length, defaultMaxCandidateAttempts)
     : Math.max(0, Math.floor(context.maxCandidateAttempts));
   let consumedCandidateAttempts = 0;
 

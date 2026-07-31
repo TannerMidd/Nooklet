@@ -243,11 +243,11 @@ describe("downloadNzb", () => {
     expect(result.failedSegments).toBe(0);
   });
 
-  it("does not let an all-missing probe sample abandon a release on its own", async () => {
-    // A server answering "gone" to every STAT is indistinguishable from one
-    // whose STAT is not usable. Abandoning here discarded every candidate for
-    // an episode without transferring a byte, so the probe must fall through
-    // and let the transfer backstop reach the verdict instead.
+  it("abandons a wholly removed release at the probe, without transferring anything", async () => {
+    // Every article gone: STAT says so and BODY confirms it. Previously the
+    // all-missing sample was treated as unproven, so the release had to fail
+    // article by article until byte accounting reached the same verdict —
+    // thousands of round trips for the cheapest case to diagnose.
     server = await startFakeNntpServer({ articles: new Map() });
     workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
 
@@ -262,11 +262,50 @@ describe("downloadNzb", () => {
       workDir,
     });
 
-    // Still abandoned — by byte accounting after a handful of bodies, not by
-    // the probe's zero-width confidence bound.
     expect(result.unrecoverable).toBe(true);
-    expect(result.failedSegments).toBeGreaterThan(0);
     expect(result.failureKinds).toEqual(["article-not-found"]);
+    // The verdict came from the probe, so no segment ever entered the transfer.
+    expect(result.failedSegments).toBe(0);
+    expect(result.completedSegments).toBe(0);
+    expect(result.downloadedBytes).toBe(0);
+  });
+
+  it("does not abandon a downloadable release when only STAT reports it missing", async () => {
+    // The case the all-missing guard exists for: a server that answers "gone"
+    // to every STAT while serving the articles perfectly well. Condemning here
+    // would discard every candidate for an item without transferring a byte.
+    const payload = buildDeterministicPayload(400, 9);
+    const articles = new Map(Array.from({ length: 60 }, (_, index) => [
+      `probe-${index}@test`,
+      buildSinglePartArticle(payload, `probe-${index}.bin`),
+    ]));
+
+    workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+    const nzb = parseNzb(nzbXml(Array.from({ length: 60 }, (_, index) => ({
+      subject: `"probe-${index}.bin"`,
+      segmentIds: [`probe-${index}@test`],
+    }))));
+
+    let statCalls = 0;
+    const result = await downloadNzb({
+      nzb,
+      server: { host: "127.0.0.1", port: 1, connections: 2, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      workDir,
+      clientFactory: () => ({
+        connect: async () => undefined,
+        stat: async () => { statCalls += 1; return false; },
+        body: async (id: string) => Buffer.from(articles.get(id)!, "latin1"),
+        quit: async () => undefined,
+        destroy: () => undefined,
+      }),
+    });
+
+    expect(statCalls).toBeGreaterThan(0);
+    expect(result.unrecoverable).toBe(false);
+    expect(result.ok).toBe(true);
+    expect(result.completedSegments).toBe(60);
+    expect(result.failedSegments).toBe(0);
   });
 
   it("blames the server, not the release, when transport keeps failing", async () => {

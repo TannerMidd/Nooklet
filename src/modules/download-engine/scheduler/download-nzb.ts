@@ -10,6 +10,10 @@ import {
 } from "@/modules/download-engine/nntp/nntp-client";
 import { type ParsedNzb } from "@/modules/download-engine/nzb/parse-nzb";
 import {
+  isPar2Subject,
+  sampleWithoutReplacement,
+} from "@/modules/download-engine/scheduler/release-availability";
+import {
   decodeYencArticle,
   YencDecodeError,
 } from "@/modules/download-engine/yenc/decode-yenc";
@@ -120,10 +124,6 @@ function fallbackFileName(subject: string, fileIndex: number) {
   return sanitizeDownloadFileName(quoted ?? subject, `file-${fileIndex + 1}.bin`);
 }
 
-/** PAR2 recovery volumes are identifiable from the NZB subject line. */
-function isPar2Subject(subject: string) {
-  return /\.par2\b/i.test(subject);
-}
 
 /** Releases below this many data segments skip the availability probe. */
 const probeMinDataSegments = 40;
@@ -136,21 +136,14 @@ const probeSampleSize = 120;
  * candidate for an episode without transferring a byte.
  */
 const probeMinPresentArticles = 3;
+/**
+ * BODY requests used to confirm an all-missing STAT sample before the release
+ * is abandoned. Cheap enough to be free next to the thousands of doomed
+ * fetches the confirmation replaces.
+ */
+const probeConfirmationArticles = 3;
 /** Transport-failed segments tolerated before the run stops blaming the release. */
 const maxTransportFailures = 50;
-
-/** Uniform sample without replacement (partial Fisher–Yates). */
-function sampleSegmentTasks<T>(source: readonly T[], count: number): T[] {
-  const pool = [...source];
-  const size = Math.min(count, pool.length);
-
-  for (let index = 0; index < size; index += 1) {
-    const pick = index + Math.floor(Math.random() * (pool.length - index));
-    [pool[index], pool[pick]] = [pool[pick], pool[index]];
-  }
-
-  return pool.slice(0, size);
-}
 
 export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbResult> {
   const clientFactory = input.clientFactory ?? defaultClientFactory;
@@ -533,13 +526,14 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
       return false;
     }
 
-    const sample = sampleSegmentTasks(dataTasks, probeSampleSize);
+    const sample = sampleWithoutReplacement(dataTasks, probeSampleSize);
     const dataDeclaredBytes = dataTasks.reduce((total, task) => total + task.declaredBytes, 0);
     const client = clientFactory(input.server);
     let sampledBytes = 0;
     let missingBytes = 0;
     let missingCount = 0;
     let presentCount = 0;
+    let confirmedFullyMissing = false;
 
     try {
       await client.connect();
@@ -556,6 +550,34 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
         } else {
           missingBytes += task.declaredBytes;
           missingCount += 1;
+        }
+      }
+
+      // A sample with nothing present is the one shape the bound below cannot
+      // speak to, and it has two very different causes: the release is gone,
+      // or STAT is not usable here. BODY tells them apart — a 430 to an actual
+      // article request is the server's own answer, not an inference from it.
+      // Without this, the cheapest release to diagnose became the most
+      // expensive: every article had to fail individually before byte
+      // accounting reached the same verdict, thousands of round trips later.
+      if (presentCount === 0 && missingCount > 0) {
+        confirmedFullyMissing = true;
+
+        for (const task of sample.slice(0, probeConfirmationArticles)) {
+          if (aborted || input.shouldAbort?.()) {
+            return false;
+          }
+
+          try {
+            await client.body(task.messageId);
+            // Fetchable after all: STAT is not to be trusted for this release.
+            return false;
+          } catch (error) {
+            if (!(error instanceof NntpError) || error.kind !== "article-not-found") {
+              // Transport trouble proves nothing about the release.
+              return false;
+            }
+          }
         }
       }
     } catch (error) {
@@ -576,16 +598,21 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
     // The 3-sigma bound below collapses to zero width when the sample is
     // entirely missing, so it offers no protection in exactly the case a
-    // misbehaving STAT produces. Require positive proof the server serves
-    // this release before a negative verdict is allowed to abandon it.
-    if (presentCount < probeMinPresentArticles) {
+    // misbehaving STAT produces. Require positive proof about the release —
+    // either articles the server does serve, or BODY confirming the ones it
+    // does not — before a negative verdict is allowed to abandon it.
+    if (presentCount < probeMinPresentArticles && !confirmedFullyMissing) {
       return false;
     }
 
     const missingRatio = missingBytes / sampledBytes;
     const countRatio = missingCount / sample.length;
     const sigma = Math.sqrt((countRatio * (1 - countRatio)) / sample.length);
-    const lowerBoundRatio = Math.max(0, missingRatio - 3 * sigma);
+    // A confirmed all-missing sample needs no confidence interval: the loss
+    // was observed directly rather than projected from a partial one.
+    const lowerBoundRatio = confirmedFullyMissing
+      ? missingRatio
+      : Math.max(0, missingRatio - 3 * sigma);
 
     return lowerBoundRatio * dataDeclaredBytes > par2DeclaredBytes + hiddenRecoveryAllowance;
   }

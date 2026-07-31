@@ -374,4 +374,42 @@ describe("queueReleaseCandidates", () => {
       rejectedResultIds: ["first", "second"],
     });
   });
+
+  it("bounds a budgetless pass so one request cannot walk a whole result page", async () => {
+    // Queueing verifies with the news server that a candidate's articles still
+    // exist, so each rejection costs round trips inside a user-facing request.
+    // The remaining candidates are picked up by the next search pass.
+    queueMock.mockRejectedValue(
+      new QueueIndexerResultWorkflowError("release_unavailable", "The release is gone."),
+    );
+
+    const outcome = await queueReleaseCandidates(
+      "u1",
+      Array.from({ length: 25 }, (_, index) => ({ id: `candidate-${index}` })),
+      context,
+    );
+
+    expect(queueMock).toHaveBeenCalledTimes(8);
+    expect(outcome).toMatchObject({ queued: false, failureKind: "release" });
+    expect(outcome.rejectedResultIds).toHaveLength(8);
+  });
+
+  it("still tries every candidate when the pass stays under the ceiling", async () => {
+    queueMock
+      .mockRejectedValueOnce(new QueueIndexerResultWorkflowError("release_unavailable", "Gone."))
+      .mockRejectedValueOnce(new QueueIndexerResultWorkflowError("release_unavailable", "Gone."))
+      .mockResolvedValueOnce({ downloadRequest: { id: "download3" } } as never);
+
+    const outcome = await queueReleaseCandidates(
+      "u1",
+      [{ id: "first" }, { id: "second" }, { id: "third" }],
+      context,
+    );
+
+    expect(outcome).toMatchObject({
+      queued: true,
+      selectedResultId: "third",
+      rejectedResultIds: ["first", "second"],
+    });
+  });
 });

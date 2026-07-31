@@ -6,6 +6,9 @@ import {
   enqueueNzbDownloadWorkflow,
 } from "@/modules/download-engine/workflows/enqueue-nzb-download";
 import { applyEngineQueueAction } from "@/modules/download-engine/workflows/apply-engine-queue-action";
+import { resolveUsenetServer } from "@/modules/download-engine/config/resolve-usenet-server";
+import { parseNzb } from "@/modules/download-engine/nzb/parse-nzb";
+import { releaseIsWhollyUnavailable } from "@/modules/download-engine/scheduler/release-availability";
 import { findIndexerById } from "@/modules/indexers/repositories/indexer-repository";
 
 import { QueueIndexerResultWorkflowError } from "./errors";
@@ -43,6 +46,46 @@ async function fetchNzbDocument(downloadUrl: string): Promise<string> {
   return response.text();
 }
 
+/**
+ * Refuses a candidate whose articles are already gone, before it becomes a
+ * download the user has to watch fail. `release_unavailable` is retryable, so
+ * the caller simply moves to the next candidate.
+ *
+ * Indexers keep listing releases long after the posts behind them expire or
+ * are removed, and popularity-ranked candidates surface exactly those first.
+ * The check exits on the first article the server does have, so a healthy
+ * release costs one round trip; only a dead one pays for the full sample.
+ */
+async function rejectWhollyUnavailableRelease(userId: string, nzbXml: string) {
+  let resolvedServer: Awaited<ReturnType<typeof resolveUsenetServer>>;
+
+  try {
+    resolvedServer = await resolveUsenetServer(userId);
+  } catch {
+    // A server that cannot be resolved is the enqueue path's problem to
+    // report, not a reason to reject the release here.
+    return;
+  }
+
+  if (!resolvedServer) return;
+
+  let nzb;
+
+  try {
+    nzb = parseNzb(nzbXml);
+  } catch {
+    // Let enqueueNzbDownloadWorkflow produce the canonical invalid-NZB error.
+    return;
+  }
+
+  if (await releaseIsWhollyUnavailable({ nzb, server: resolvedServer.server })) {
+    throw new QueueIndexerResultWorkflowError(
+      "release_unavailable",
+      "The news server no longer carries this release's articles.",
+    );
+  }
+}
+
 async function submitToEngine(
   resolvedResult: ResolvedQueueIndexerResult,
 ): Promise<QueueIndexerResultSubmission> {
@@ -73,6 +116,7 @@ async function submitToEngine(
     }
 
     const nzbXml = await fetchNzbDocument(downloadUrl);
+    await rejectWhollyUnavailableRelease(resolvedResult.result.userId, nzbXml);
     const enqueued = await enqueueNzbDownloadWorkflow(resolvedResult.result.userId, {
       name: resolvedResult.result.title,
       category,
