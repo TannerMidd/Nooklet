@@ -372,6 +372,19 @@ async function processEngineDownload(download: EngineDownloadRecord): Promise<"c
       return "continue";
     }
 
+    // Checked before `unrecoverable` so a broken server is never reported as a
+    // damaged release: that verdict blocklists the release and sends the
+    // caller hunting through every other candidate for the same episode.
+    if (result.transportExhausted) {
+      await failEngineDownload(
+        download,
+        ["fetching"],
+        "infrastructure",
+        "The news server kept failing on articles this release does have. Check the Usenet connection, then resume this download.",
+      );
+      return "continue";
+    }
+
     if (result.unrecoverable) {
       const failureKind = classifyEngineNntpFailureKinds(result.failureKinds);
       await failEngineDownload(

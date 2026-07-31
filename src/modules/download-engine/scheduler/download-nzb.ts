@@ -60,6 +60,12 @@ export type DownloadNzbResult = {
    * release is a write-off and the caller should move on.
    */
   unrecoverable: boolean;
+  /**
+   * True when the run stopped because the news server kept failing on
+   * segments this release does have. It says nothing about the release, so
+   * the caller must not blocklist it and move to another candidate.
+   */
+  transportExhausted: boolean;
   failureKinds: NntpErrorKind[];
   /** True when every file completed with zero failed segments. */
   ok: boolean;
@@ -123,6 +129,16 @@ function isPar2Subject(subject: string) {
 /** Releases below this many data segments skip the availability probe. */
 const probeMinDataSegments = 40;
 const probeSampleSize = 120;
+/**
+ * A negative probe verdict is only believable when the sample also proved the
+ * server can serve this release at all. An all-missing sample means STAT is
+ * not answering usefully here (spool disagreement, throttling, a server that
+ * reports nothing by message-id), and abandoning on it discards every
+ * candidate for an episode without transferring a byte.
+ */
+const probeMinPresentArticles = 3;
+/** Transport-failed segments tolerated before the run stops blaming the release. */
+const maxTransportFailures = 50;
 
 /** Uniform sample without replacement (partial Fisher–Yates). */
 function sampleSegmentTasks<T>(source: readonly T[], count: number): T[] {
@@ -195,6 +211,11 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
   let failedDataBytes = 0;
   let lostPar2Bytes = 0;
   let unrecoverable = false;
+  // Segments given up on for transport reasons rather than a missing article.
+  // Each already burned its full retry budget on a fresh connection, so this
+  // many means the server side is broken, not the release.
+  let transportFailures = 0;
+  let transportExhausted = false;
 
   let nextTaskIndex = 0;
   let aborted = false;
@@ -396,7 +417,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
         break;
       }
 
-      if (unrecoverable) {
+      if (unrecoverable || transportExhausted) {
         break;
       }
 
@@ -428,11 +449,13 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
           terminalFailureKind = error.kind;
           const permanent = error instanceof NntpError && error.permanent;
-          const connectionLost =
-            error instanceof NntpError &&
-            (error.kind === "connection-closed" || error.kind === "timeout" || error.kind === "connect-failed");
 
-          if (connectionLost) {
+          // Only a "not on this server" reply leaves the stream in a known
+          // state: its status line was consumed and no article body follows.
+          // Anything else can desync the connection, and a desynced
+          // connection fails every later segment this worker touches, so it
+          // must be thrown away rather than reused.
+          if (error.kind !== "article-not-found") {
             dropClient();
           }
 
@@ -460,14 +483,29 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
         state.failedSegments += 1;
         totals.failedSegments += 1;
 
-        if (par2FileIndexes.has(task.fileIndex)) {
-          lostPar2Bytes += task.declaredBytes;
-        } else {
-          failedDataBytes += task.declaredBytes;
-        }
+        // Only an article the server does not have is evidence about the
+        // release. A transport failure says our connection broke, so spending
+        // the PAR2 recovery budget on it condemns posts that are perfectly
+        // downloadable — and the caller then blocklists them and moves on.
+        if (terminalFailureKind === "article-not-found") {
+          if (par2FileIndexes.has(task.fileIndex)) {
+            lostPar2Bytes += task.declaredBytes;
+          } else {
+            failedDataBytes += task.declaredBytes;
+          }
 
-        if (failedDataBytes > Math.max(0, par2DeclaredBytes - lostPar2Bytes) + hiddenRecoveryAllowance) {
-          unrecoverable = true;
+          if (failedDataBytes > Math.max(0, par2DeclaredBytes - lostPar2Bytes) + hiddenRecoveryAllowance) {
+            unrecoverable = true;
+          }
+        } else {
+          transportFailures += 1;
+
+          // A server that keeps refusing mid-run will not improve by grinding
+          // through the remaining segments. Stop, but report it as the
+          // transport problem it is instead of a damaged release.
+          if (transportFailures >= maxTransportFailures) {
+            transportExhausted = true;
+          }
         }
       } else {
         state.completedSegments += 1;
@@ -505,6 +543,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     let sampledBytes = 0;
     let missingBytes = 0;
     let missingCount = 0;
+    let presentCount = 0;
 
     try {
       await client.connect();
@@ -516,7 +555,9 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
         sampledBytes += task.declaredBytes;
 
-        if (!(await client.stat(task.messageId))) {
+        if (await client.stat(task.messageId)) {
+          presentCount += 1;
+        } else {
           missingBytes += task.declaredBytes;
           missingCount += 1;
         }
@@ -534,6 +575,14 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     }
 
     if (sampledBytes === 0) {
+      return false;
+    }
+
+    // The 3-sigma bound below collapses to zero width when the sample is
+    // entirely missing, so it offers no protection in exactly the case a
+    // misbehaving STAT produces. Require positive proof the server serves
+    // this release before a negative verdict is allowed to abandon it.
+    if (presentCount < probeMinPresentArticles) {
       return false;
     }
 
@@ -604,7 +653,8 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     totalSegments: tasks.length,
     aborted,
     unrecoverable,
+    transportExhausted,
     failureKinds: [...failureKinds],
-    ok: !aborted && files.every((file) => file.ok),
+    ok: !aborted && !transportExhausted && files.every((file) => file.ok),
   };
 }

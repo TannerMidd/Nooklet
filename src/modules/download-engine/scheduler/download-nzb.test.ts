@@ -143,9 +143,43 @@ describe("downloadNzb", () => {
     expect(partialFile?.failedSegments).toBe(1);
   });
 
-  it("abandons a mass-removed release from the availability probe before fetching bodies", async () => {
-    // 60 data segments, none available: the STAT sample proves the release
-    // unrepairable without transferring a single article body.
+  it("abandons a partly removed release from the probe before fetching bodies", async () => {
+    // Enough articles answer STAT to prove the server serves this release, and
+    // the rest are gone well past any recovery budget. That is the only shape
+    // a probe verdict is trustworthy for.
+    const payload = buildDeterministicPayload(500, 4);
+    const articles = new Map<string, string>();
+    const files = Array.from({ length: 60 }, (_, index) => ({
+      subject: `"probe-${index}.bin"`,
+      segmentIds: [`probe-${index}@test`],
+    }));
+
+    for (let index = 0; index < 6; index += 1) {
+      articles.set(`probe-${index}@test`, buildSinglePartArticle(payload, `probe-${index}.bin`));
+    }
+
+    server = await startFakeNntpServer({ articles });
+    workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+    const result = await downloadNzb({
+      nzb: parseNzb(nzbXml(files)),
+      server: { host: "127.0.0.1", port: server.port, trustedRootCertificates: [tlsTestCertificate], connections: 4, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      workDir,
+    });
+
+    expect(result.unrecoverable).toBe(true);
+    expect(result.aborted).toBe(false);
+    expect(result.ok).toBe(false);
+    expect(result.downloadedBytes).toBe(0);
+    expect(result.completedSegments).toBe(0);
+    expect(result.failedSegments).toBe(0);
+  });
+
+  it("does not let an all-missing probe sample abandon a release on its own", async () => {
+    // A server answering "gone" to every STAT is indistinguishable from one
+    // whose STAT is not usable. Abandoning here discarded every candidate for
+    // an episode without transferring a byte, so the probe must fall through
+    // and let the transfer backstop reach the verdict instead.
     server = await startFakeNntpServer({ articles: new Map() });
     workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
 
@@ -160,13 +194,47 @@ describe("downloadNzb", () => {
       workDir,
     });
 
+    // Still abandoned — by byte accounting after a handful of bodies, not by
+    // the probe's zero-width confidence bound.
     expect(result.unrecoverable).toBe(true);
-    expect(result.aborted).toBe(false);
-    expect(result.ok).toBe(false);
-    expect(result.downloadedBytes).toBe(0);
-    expect(result.completedSegments).toBe(0);
-    expect(result.failedSegments).toBe(0);
+    expect(result.failedSegments).toBeGreaterThan(0);
     expect(result.failureKinds).toEqual(["article-not-found"]);
+  });
+
+  it("blames the server, not the release, when transport keeps failing", async () => {
+    // Articles the server has, but every BODY draws an unexpected reply. The
+    // release must not be condemned: that verdict blocklists it and sends the
+    // caller through every other candidate for the same episode.
+    const nzb = parseNzb(nzbXml(Array.from({ length: 80 }, (_, index) => ({
+      subject: `"flaky-${index}.bin"`,
+      segmentIds: [`flaky-${index}@test`],
+    }))));
+
+    workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+    let connectCount = 0;
+    const result = await downloadNzb({
+      nzb,
+      server: { host: "127.0.0.1", port: 1, connections: 4, timeoutMs: 3_000, resolvedAddresses: [{ address: "127.0.0.1", family: 4 }] },
+      workDir,
+      clientFactory: () => ({
+        connect: async () => { connectCount += 1; },
+        stat: async () => true,
+        body: async () => {
+          throw new NntpError("protocol-error", "BODY failed: 502 too many connections");
+        },
+        quit: async () => undefined,
+        destroy: () => undefined,
+      }),
+    });
+
+    expect(result.transportExhausted).toBe(true);
+    expect(result.unrecoverable).toBe(false);
+    expect(result.ok).toBe(false);
+    expect(result.failureKinds).toEqual(["protocol-error"]);
+    // Every failure threw away its connection instead of reusing a stream that
+    // may be desynced, so reconnects far outnumber the four workers.
+    expect(connectCount).toBeGreaterThan(4);
   });
 
   it("lets a fully available release pass the probe and download normally", async () => {
