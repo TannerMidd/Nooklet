@@ -47,7 +47,7 @@ export function AlertDialog({
         tabIndex={-1}
         aria-hidden="true"
         onClick={onClose}
-        className="absolute inset-0 h-full w-full bg-black/75 backdrop-blur-sm"
+        className="absolute inset-0 h-full w-full nk-scrim nk-fade"
       />
       <section
         ref={dialogRef}
@@ -56,7 +56,7 @@ export function AlertDialog({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         tabIndex={-1}
-        className="relative w-full max-w-md rounded-2xl border border-control bg-panel-raised p-6 shadow-2xl focus:outline-none"
+        className="relative w-full max-w-md nk-pop rounded-[20px] border border-cream/[0.10] bg-[rgb(23,21,19)] p-6 shadow-[0_44px_90px_-44px_rgba(0,0,0,0.95)] focus:outline-none"
       >
         <div className="flex gap-3">
           <span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${tone === "danger" ? "bg-accent-wine/15 text-accent-wine" : "bg-accent/15 text-accent"}`}>

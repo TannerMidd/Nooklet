@@ -77,7 +77,7 @@ export default async function AdminPage() {
                 <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="truncate font-heading text-lg text-foreground">
+                      <h3 className="truncate font-heading text-[21px] text-foreground">
                         {user.displayName}
                       </h3>
                       {isCurrentAdmin ? <Badge variant="accent-cool">You</Badge> : null}

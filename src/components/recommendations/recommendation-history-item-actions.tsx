@@ -66,7 +66,7 @@ export function RecommendationHistoryItemActions({
           <Link
             href={detailsHref}
             scroll={false}
-            className="inline-flex min-h-11 items-center rounded-full border border-control bg-cream/[0.03] px-4 text-xs font-semibold text-foreground hover:bg-cream/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            className="inline-flex min-h-11 items-center rounded-full border border-cream/[0.14] bg-cream/[0.03] px-4 text-xs font-semibold text-foreground hover:bg-cream/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             {existingInLibrary ? "View title" : "Review request"}
           </Link>

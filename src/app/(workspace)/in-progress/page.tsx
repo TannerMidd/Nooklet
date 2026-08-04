@@ -11,6 +11,7 @@ import {
 } from "@/app/(workspace)/in-progress/download-activity-panel";
 import { SabnzbdActivityPanel } from "@/components/recommendations/sabnzbd-activity-panel";
 import { PageHeader } from "@/components/ui/page-header";
+import { SegmentedLinks } from "@/components/ui/segmented-control";
 import {
   getDownloadActivityPage,
   type DownloadActivityView,
@@ -73,21 +74,23 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
         actions={<ImportNowButton />}
       />
 
-      <nav aria-label="Activity views" className="flex flex-wrap gap-2">
-        {views.map((view) => (
-          <Link
-            key={view.value}
-            href={activityHref(view.value, activity.query)}
-            aria-current={currentView === view.value ? "page" : undefined}
-            className={currentView === view.value
-              ? "inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-5 text-sm font-semibold text-accent-foreground"
-              : "inline-flex min-h-11 items-center gap-2 rounded-full border border-control bg-cream/[0.03] px-5 text-sm font-semibold text-muted hover:text-foreground"}
-          >
-            {view.label}
-            <span className={currentView === view.value ? "text-accent-foreground/75" : "text-muted"}>{view.count}</span>
-          </Link>
-        ))}
-      </nav>
+      <SegmentedLinks
+        label="Activity views"
+        className="max-w-full flex-wrap"
+        options={views.map((view) => ({
+          key: view.value,
+          href: activityHref(view.value, activity.query),
+          active: currentView === view.value,
+          label: (
+            <>
+              {view.label}
+              <span className={currentView === view.value ? "text-accent-foreground/75" : "text-muted"}>
+                {view.count}
+              </span>
+            </>
+          ),
+        }))}
+      />
 
       <form action="/in-progress" className="flex max-w-xl flex-col gap-2 sm:flex-row">
         <input type="hidden" name="view" value={currentView} />
@@ -97,9 +100,9 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
           name="q"
           defaultValue={activity.query}
           placeholder="Search requested or release title"
-          className="min-h-11 min-w-0 flex-1 rounded-lg border border-control bg-cream/[0.03] px-4 text-sm text-foreground outline-none placeholder:text-muted focus:border-focus focus:ring-2 focus:ring-focus/30"
+          className="min-h-11 min-w-0 flex-1 rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-4 text-sm text-foreground outline-none placeholder:text-muted focus:border-focus focus:ring-2 focus:ring-focus/30"
         />
-        <button type="submit" className="min-h-11 rounded-lg border border-control px-5 text-sm font-semibold text-foreground hover:bg-cream/[0.06]">Search history</button>
+        <button type="submit" className="min-h-11 rounded-lg border border-cream/[0.14] px-5 text-sm font-semibold text-foreground hover:bg-cream/[0.06]">Search history</button>
       </form>
 
       {currentView === "active" ? <SabnzbdActivityPanel initialState={activeQueue} /> : null}
@@ -116,11 +119,11 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
         {activity.pagination.pageCount > 1 ? (
           <nav aria-label="Activity history pages" className="flex items-center justify-between gap-3 pt-2 text-sm">
             {activity.pagination.hasPreviousPage ? (
-              <Link href={activityHref(currentView, activity.query, activity.pagination.page - 1)} className="inline-flex min-h-11 items-center rounded-lg border border-control px-4 font-semibold text-foreground">Previous</Link>
+              <Link href={activityHref(currentView, activity.query, activity.pagination.page - 1)} className="inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] px-4 font-semibold text-foreground">Previous</Link>
             ) : <span />}
             <span className="text-muted">Page {activity.pagination.page} of {activity.pagination.pageCount} · {activity.pagination.total} items</span>
             {activity.pagination.hasNextPage ? (
-              <Link href={activityHref(currentView, activity.query, activity.pagination.page + 1)} className="inline-flex min-h-11 items-center rounded-lg border border-control px-4 font-semibold text-foreground">Next</Link>
+              <Link href={activityHref(currentView, activity.query, activity.pagination.page + 1)} className="inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] px-4 font-semibold text-foreground">Next</Link>
             ) : <span />}
           </nav>
         ) : null}

@@ -43,7 +43,7 @@ export function LibraryTitleDialogShell({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[150] bg-background/85 px-3 py-4 sm:px-6 sm:py-8"
+      className="nk-scrim nk-fade fixed inset-0 z-[150] px-3 py-4 sm:px-6 sm:py-8"
       onClick={closeDialog}
     >
       <div className="flex min-h-full items-center justify-center">
@@ -53,22 +53,24 @@ export function LibraryTitleDialogShell({
           aria-modal="true"
           aria-labelledby={labelledBy}
           tabIndex={-1}
-          className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-cream/[0.08] bg-panel shadow-[0_28px_70px_-42px_rgba(0,0,0,0.75)]"
+          className="nk-pop relative flex h-[min(700px,90vh)] w-full max-w-[1040px] flex-col overflow-hidden rounded-[20px] border border-cream/[0.10] bg-[rgb(23,21,19)] shadow-[0_44px_90px_-44px_rgba(0,0,0,0.95)]"
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="flex justify-end border-b border-cream/[0.08] px-4 py-3 sm:px-6">
-            <button
-              type="button"
-              ref={closeButtonRef}
-              aria-label="Close dialog"
-              title="Close"
-              onClick={closeDialog}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-cream/[0.08] bg-cream/[0.04] text-muted transition hover:bg-cream/[0.06] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-            >
-              <X aria-hidden="true" size={16} />
-            </button>
-          </div>
-          <div className="overflow-y-auto">{children}</div>
+          {/* The redesign floats the close control over the work pane rather
+              than giving it a chrome bar of its own. */}
+          <button
+            type="button"
+            ref={closeButtonRef}
+            aria-label="Close dialog"
+            title="Close"
+            onClick={closeDialog}
+            className="absolute right-3 top-2.5 z-20 inline-flex h-11 w-11 items-center justify-center rounded-lg border border-cream/[0.10] bg-cream/[0.03] text-muted transition hover:bg-cream/[0.08] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            <X aria-hidden="true" size={16} />
+          </button>
+          {/* Panes manage their own scrolling so the identity rail and the work
+              pane move independently. */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">{children}</div>
         </div>
       </div>
     </div>,

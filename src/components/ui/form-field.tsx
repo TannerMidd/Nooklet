@@ -2,6 +2,7 @@
 
 import { useId, type ReactNode } from "react";
 
+import { fieldLabel } from "@/components/ui/control-surface";
 import { cn } from "@/lib/utils";
 
 export type FormFieldControlProps = {
@@ -41,7 +42,7 @@ export function FormField({
 
   return (
     <div className={cn("space-y-1.5", className)}>
-      <label htmlFor={controlId} className="block text-sm font-semibold text-foreground">
+      <label htmlFor={controlId} className={fieldLabel}>
         {label}
         {required ? <span className="ml-1 text-accent" aria-hidden="true">*</span> : null}
       </label>

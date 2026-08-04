@@ -173,7 +173,7 @@ export function IndexerSettingsForm({ indexer }: { indexer?: IndexerSettingsView
             <select
               value={providerPreset}
               onChange={(event) => applyPreset(event.target.value)}
-              className="min-h-11 w-full rounded-lg border border-control bg-cream/[0.04] px-3.5 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
+              className="min-h-11 w-full rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3.5 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
             >
               {indexerProviderPresets.map((preset) => (
                 <option key={preset.id} value={preset.id}>{preset.label}</option>
@@ -195,7 +195,7 @@ export function IndexerSettingsForm({ indexer }: { indexer?: IndexerSettingsView
                 name="protocol"
                 value={protocol}
                 onChange={(event) => setProtocol(event.target.value as "newznab" | "torznab")}
-                className="min-h-11 w-full rounded-lg border border-control bg-cream/[0.04] px-3.5 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
+                className="min-h-11 w-full rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3.5 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
               >
                 <option value="newznab">Newznab (Usenet)</option>
                 {indexer?.protocol === "torznab" ? (
@@ -232,11 +232,11 @@ export function IndexerSettingsForm({ indexer }: { indexer?: IndexerSettingsView
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium text-foreground">Search this indexer for</legend>
             <div className="grid gap-2 sm:grid-cols-2">
-              <label className="flex min-h-11 items-center gap-3 rounded-lg border border-control bg-cream/[0.03] px-3.5 text-sm text-foreground">
+              <label className="flex min-h-11 items-center gap-3 rounded-lg border border-cream/[0.10] bg-cream/[0.03] px-3.5 text-sm text-foreground">
                 <input type="checkbox" name="movieCategory" value="2000" defaultChecked={hasCategory(indexer, "movie", "2000") || !indexer} className="h-4 w-4 accent-accent" />
                 <span>Movies</span>
               </label>
-              <label className="flex min-h-11 items-center gap-3 rounded-lg border border-control bg-cream/[0.03] px-3.5 text-sm text-foreground">
+              <label className="flex min-h-11 items-center gap-3 rounded-lg border border-cream/[0.10] bg-cream/[0.03] px-3.5 text-sm text-foreground">
                 <input type="checkbox" name="tvCategory" value="5000" defaultChecked={hasCategory(indexer, "tv", "5000") || !indexer} className="h-4 w-4 accent-accent" />
                 <span>TV series</span>
               </label>

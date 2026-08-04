@@ -254,11 +254,11 @@ export function RecommendationRequestForm({
         <p className="pl-8 text-sm text-accent-wine">{state.fieldErrors.selectedGenres}</p>
       ) : null}
 
-      <details className="ml-8 rounded-xl border border-cream/10 bg-cream/[0.02]">
+      <details className="ml-8 rounded-xl border border-cream/[0.08] bg-cream/[0.02]">
         <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
           Advanced recommendation settings
         </summary>
-        <div className="flex flex-wrap items-end gap-4 border-t border-cream/10 p-4">
+        <div className="flex flex-wrap items-end gap-4 border-t border-cream/[0.07] p-4">
         <label className="w-full max-w-[280px] space-y-1.5">
           <span className="text-xs font-semibold text-foreground">AI model</span>
           <SearchableSelect

@@ -9,6 +9,7 @@ import {
   initialMediaTitlePreferenceActionState,
 } from "@/app/(workspace)/library/action-state";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { type MediaQualityProfileOption } from "@/modules/media-library/queries/list-media-quality-profiles";
 
 type MediaTitlePreferencesFormProps = {
@@ -16,6 +17,7 @@ type MediaTitlePreferencesFormProps = {
   monitored: boolean;
   qualityProfile: MediaQualityProfileOption["value"];
   qualityProfiles: readonly MediaQualityProfileOption[];
+  className?: string;
 };
 
 function SaveButton() {
@@ -34,6 +36,7 @@ export function MediaTitlePreferencesForm({
   monitored,
   qualityProfile,
   qualityProfiles,
+  className,
 }: MediaTitlePreferencesFormProps) {
   const [state, formAction] = useActionState(
     updateMediaTitlePreferencesAction,
@@ -41,7 +44,13 @@ export function MediaTitlePreferencesForm({
   );
 
   return (
-    <form action={formAction} className="grid gap-3 rounded-lg border border-cream/[0.08] bg-cream/[0.03] p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+    <form
+      action={formAction}
+      className={cn(
+        "grid gap-3 rounded-[13px] border border-cream/[0.08] bg-cream/[0.03] p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end",
+        className,
+      )}
+    >
       <input type="hidden" name="titleId" value={titleId} />
       <label className="inline-flex min-h-11 items-center gap-2 rounded-md border border-cream/[0.08] bg-cream/[0.03] px-2.5 py-1.5 text-sm text-muted">
         <input type="checkbox" name="monitored" defaultChecked={monitored} className="h-4 w-4 accent-accent" />

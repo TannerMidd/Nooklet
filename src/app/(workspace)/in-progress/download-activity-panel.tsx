@@ -332,7 +332,7 @@ export function DownloadActivityPanel({ entries }: { entries: DownloadActivityEn
         const technicalMessage = entry.technicalStatusMessage ?? entry.statusMessage;
 
         return (
-        <li key={entry.id} className="rounded-2xl border border-cream/10 bg-cream/[0.03] px-5 py-4">
+        <li key={entry.id} className="rounded-2xl border border-cream/[0.08] bg-cream/[0.03] px-5 py-4">
           <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 space-y-1">
               <p className="truncate font-medium text-foreground">{entry.requestedTitle}</p>
@@ -361,9 +361,9 @@ export function DownloadActivityPanel({ entries }: { entries: DownloadActivityEn
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={Math.round(entry.queue.progressPercent)}
-                    className="h-2 overflow-hidden rounded-full bg-cream/10"
+                    className="h-[5px] overflow-hidden rounded-full bg-cream/[0.07]"
                   >
-                    <div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(0, Math.min(100, entry.queue.progressPercent))}%` }} />
+                    <div className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${Math.max(0, Math.min(100, entry.queue.progressPercent))}%` }} />
                   </div>
                 </div>
               ) : null}

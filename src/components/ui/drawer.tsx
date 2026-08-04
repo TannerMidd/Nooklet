@@ -34,7 +34,7 @@ export function Drawer({ open, onClose, title, children, id, side = "right", cla
         tabIndex={-1}
         aria-hidden="true"
         onClick={onClose}
-        className="absolute inset-0 h-full w-full bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 h-full w-full nk-scrim nk-fade"
       />
       <aside
         ref={dialogRef}
@@ -44,13 +44,13 @@ export function Drawer({ open, onClose, title, children, id, side = "right", cla
         aria-label={title}
         tabIndex={-1}
         className={cn(
-          "absolute inset-y-0 flex w-[min(88vw,22rem)] flex-col border-control bg-panel shadow-2xl focus:outline-none",
+          "absolute inset-y-0 flex w-[min(88vw,22rem)] flex-col border-cream/[0.10] bg-[rgb(23,21,19)] shadow-[0_44px_90px_-44px_rgba(0,0,0,0.95)] focus:outline-none",
           side === "left" ? "left-0 border-r" : "right-0 border-l",
           className,
         )}
       >
-        <div className="flex min-h-16 items-center justify-between gap-3 border-b border-cream/10 px-5">
-          <h2 className="font-heading text-xl text-foreground">{title}</h2>
+        <div className="flex min-h-16 items-center justify-between gap-3 border-b border-cream/[0.07] px-5">
+          <h2 className="font-heading text-[21px] text-foreground">{title}</h2>
           <button
             type="button"
             onClick={onClose}

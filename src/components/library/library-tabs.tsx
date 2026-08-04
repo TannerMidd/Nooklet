@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 
+import { segmentedItemClass, segmentedTrack } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/utils";
 
 export type LibraryTabsTab = {
@@ -29,7 +30,7 @@ export function LibraryTabs({ tabs, defaultTabId }: LibraryTabsProps) {
       <div
         role="tablist"
         aria-label="Library views"
-        className="grid gap-0.5 rounded-lg bg-cream/[0.05] p-[3px] sm:inline-grid sm:grid-flow-col"
+        className={cn(segmentedTrack, "grid gap-0.5 sm:inline-grid sm:grid-flow-col")}
       >
         {tabs.map((tab) => {
           const active = tab.id === activeTab.id;
@@ -42,12 +43,7 @@ export function LibraryTabs({ tabs, defaultTabId }: LibraryTabsProps) {
               aria-controls={`library-tab-panel-${tab.id}`}
               id={`library-tab-${tab.id}`}
               onClick={() => setActiveTabId(tab.id)}
-              className={cn(
-                "min-h-11 rounded-md px-4 text-[13px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
-                active
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted hover:text-foreground",
-              )}
+              className={segmentedItemClass(active)}
             >
               {tab.label}
             </button>

@@ -82,7 +82,7 @@ export function ChangePasswordForm() {
       ) : null}
 
       {state.status === "success" ? (
-        <Link href="/home" className="inline-flex min-h-11 items-center rounded-lg border border-control px-4 text-sm font-semibold text-foreground hover:bg-cream/[0.06]">
+        <Link href="/home" className="inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] px-4 text-sm font-semibold text-foreground hover:bg-cream/[0.06]">
           Continue to Nooklet
         </Link>
       ) : null}

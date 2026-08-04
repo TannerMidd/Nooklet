@@ -7,7 +7,7 @@ import { auth } from "@/auth";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatStrip } from "@/components/ui/stat-card";
 import {
   listLibraryOverview,
   type LibrarySummary,
@@ -35,12 +35,12 @@ function LibraryDestinationCard({
   return (
     <Link
       href={href}
-      className={`relative flex min-h-32 items-center justify-between gap-4 rounded-2xl border border-cream/10 p-6 transition hover:-translate-y-0.5 hover:border-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${tone === "warm" ? "bg-[linear-gradient(120deg,rgba(232,165,80,0.12),rgba(255,244,230,0.02)_65%)]" : "bg-[linear-gradient(120deg,rgba(127,181,164,0.12),rgba(255,244,230,0.02)_65%)]"}`}
+      className={`relative flex items-center justify-between gap-3 rounded-2xl border border-cream/[0.08] p-[22px] transition hover:-translate-y-0.5 hover:border-cream/[0.16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${tone === "warm" ? "bg-[linear-gradient(120deg,rgba(232,165,80,0.10),transparent_60%),rgba(255,244,230,0.03)]" : "bg-[linear-gradient(120deg,rgba(127,181,164,0.10),transparent_60%),rgba(255,244,230,0.03)]"}`}
     >
       <LinkPendingOverlay />
       <span>
-        <span className="block font-heading text-2xl text-foreground">{title}</span>
-        <span className="mt-1 block text-sm text-muted">{description}</span>
+        <span className="block font-heading text-[21px] text-foreground">{title}</span>
+        <span className="mt-1 block text-[13px] text-muted">{description}</span>
       </span>
       <ChevronRight aria-hidden="true" className="h-5 w-5 shrink-0 text-muted" />
     </Link>
@@ -69,7 +69,7 @@ export default async function LibraryPage() {
             <LibraryScanButton />
             <Link
               href="/settings/storage"
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-control bg-cream/[0.03] px-4 py-2 text-sm font-semibold text-foreground hover:bg-cream/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-cream/[0.14] bg-cream/[0.03] px-4 py-2 text-sm font-semibold text-foreground hover:bg-cream/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             >
               <Settings aria-hidden="true" className="h-4 w-4" /> Storage
             </Link>
@@ -77,12 +77,14 @@ export default async function LibraryPage() {
         )}
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Libraries" value={overview.totals.libraries} />
-        <StatCard label="Titles" value={overview.totals.titles} />
-        <StatCard label="Media files" value={overview.totals.files} />
-        <StatCard label="Monitored" value={overview.totals.monitored} />
-      </div>
+      <StatStrip
+        entries={[
+          { label: "Libraries", value: overview.totals.libraries },
+          { label: "Titles", value: overview.totals.titles },
+          { label: "Media files", value: overview.totals.files },
+          { label: "Monitored", value: overview.totals.monitored },
+        ]}
+      />
 
       {overview.totals.paths === 0 && overview.totals.titles === 0 ? (
         <EmptyState

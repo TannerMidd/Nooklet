@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 
 import { auth } from "@/auth";
@@ -5,7 +6,6 @@ import { RecommendationAddForm } from "@/components/recommendations/recommendati
 import { RecommendationFeaturedCard } from "@/components/recommendations/recommendation-featured-card";
 import { RecommendationFeedbackActions } from "@/components/recommendations/recommendation-feedback-actions";
 import { RecommendationPendingTimer } from "@/components/recommendations/recommendation-pending-timer";
-import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import { RecommendationRequestForm } from "@/components/recommendations/recommendation-request-form";
 import { RecommendationRetryForm } from "@/components/recommendations/recommendation-retry-form";
 import { RecommendationRunAutoRefresh } from "@/components/recommendations/recommendation-run-auto-refresh";
@@ -383,16 +383,20 @@ export async function RecommendationWorkspace({
               : `No ${mediaType === "tv" ? "TV" : "movie"} recommendation runs yet.`}
           </p>
         ) : (
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             {previousRuns.map((run) => {
               const genreSummary = formatGenreSummary(run.selectedGenres);
 
               return (
-                <article
-                  key={run.id}
-                  className="rounded-xl border border-cream/[0.07] bg-cream/[0.02] px-5 py-4"
-                >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <article key={run.id}>
+                  {/* The redesign collapses older batches to one row each. Opening
+                      a row loads that run as the featured batch, where its items,
+                      feedback controls, and retry action all live. */}
+                  <Link
+                    href={`${routePath}?run=${run.id}`}
+                    className="relative flex flex-col gap-3 rounded-xl border border-cream/[0.07] bg-cream/[0.02] px-[18px] py-3.5 transition hover:border-cream/[0.12] hover:bg-cream/[0.045] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:flex-row md:items-center md:justify-between md:gap-4"
+                  >
+                    <LinkPendingOverlay />
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground">
                         {formatPromptLabel(run.requestPrompt, run.selectedGenres)}
@@ -419,87 +423,14 @@ export async function RecommendationWorkspace({
                       <span className="text-[12.5px] text-muted">
                         {formatDate(run.completedAt ?? run.createdAt)}
                       </span>
+                      <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted" />
                     </div>
-                  </div>
+                  </Link>
 
                   {run.errorMessage ? (
-                    <p className="mt-3 rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2 text-sm text-foreground">
+                    <p className="mt-2 rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2 text-sm text-foreground">
                       {run.errorMessage}
                     </p>
-                  ) : null}
-
-                  <RecommendationRetryForm
-                    mediaType={run.mediaType}
-                    requestPrompt={run.requestPrompt}
-                    selectedGenres={run.selectedGenres}
-                    requestedCount={run.requestedCount}
-                    aiModel={run.aiModel ?? defaultModel}
-                    aiTemperature={run.aiTemperature ?? 0.9}
-                    redirectPath={routePath}
-                    runStatus={run.status}
-                    className="mt-3"
-                  />
-
-                  {run.items.length > 0 ? (
-                    <div className="mt-4 grid max-h-[32rem] gap-3 overflow-y-auto pr-2 xl:grid-cols-2">
-                      {run.items.map((item) => (
-                        <div
-                          key={item.id}
-                          className="rounded-xl border border-cream/[0.08] bg-cream/[0.03] p-4"
-                        >
-                          <div className="flex min-w-0 gap-4">
-                            <RecommendationPoster
-                              title={item.title}
-                              posterUrl={item.providerMetadata?.posterUrl}
-                              className="w-16 rounded-md sm:w-20"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="font-semibold text-foreground">
-                                {item.title}
-                                {item.year ? ` (${item.year})` : ""}
-                              </p>
-                              <p className="mt-1.5 text-[13px] leading-5 text-muted">{item.rationale}</p>
-                              <div className="mt-2 flex flex-wrap gap-3 text-xs font-medium text-muted">
-                                {item.confidenceLabel ? <span>{item.confidenceLabel}</span> : null}
-                                {item.existingInLibrary ? <span>existing in library</span> : null}
-                              </div>
-                              <RecommendationSabnzbdStatus
-                                title={item.title}
-                                year={item.year}
-                                mediaType={item.mediaType}
-                                providerMetadata={item.providerMetadata}
-                                className="mt-3"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <RecommendationAddForm
-                              itemId={item.id}
-                              existingInLibrary={item.existingInLibrary}
-                              returnTo={routePath}
-                              variant="compact"
-                              buttonClassName="min-h-11 rounded-full border border-accent/45 bg-transparent px-4 text-xs font-semibold text-accent shadow-none hover:bg-accent/[0.14]"
-                              mediaType={item.mediaType}
-                              tmdbId={
-                                item.providerMetadata?.tmdbDetails?.mediaType === item.mediaType
-                                  ? item.providerMetadata.tmdbDetails.tmdbId ?? null
-                                  : null
-                              }
-                              titleLabel={`${item.title}${item.year ? ` (${item.year})` : ""}`}
-                              libraries={libraryOptions}
-                              qualityProfiles={qualityProfiles}
-                              pathOptions={pathOptions}
-                            />
-                            <RecommendationFeedbackActions
-                              itemId={item.id}
-                              feedback={item.feedback}
-                              returnTo={routePath}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
                   ) : null}
                 </article>
               );

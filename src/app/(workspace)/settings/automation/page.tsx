@@ -55,7 +55,7 @@ export default async function AutomationSettingsPage() {
         <>
           <Panel eyebrow="Library" title="Library scan" description="Discover new and changed files in attached movie and TV folders.">
             <LibraryScanSettingsForm settings={scan} />
-            <div className="mt-4 border-t border-line pt-4">
+            <div className="mt-4 border-t border-cream/[0.07] pt-4">
               <LibraryScanButton />
             </div>
           </Panel>
@@ -82,7 +82,7 @@ export default async function AutomationSettingsPage() {
               const sourceLabel = source.sourceType === "plex" ? "Plex" : source.sourceType === "tautulli" ? "Tautulli" : source.sourceType === "trakt" ? "Trakt" : "Manual";
               if (source.sourceType === "manual") return null;
               return (
-                <div key={source.id} className="rounded-xl border border-line bg-cream/[0.025] p-4">
+                <div key={source.id} className="rounded-xl border border-cream/[0.08] bg-cream/[0.025] p-4">
                   <p className="mb-3 font-semibold text-foreground">{sourceLabel}</p>
                   <WatchHistoryScheduleForm
                     sourceType={source.sourceType}
@@ -100,7 +100,7 @@ export default async function AutomationSettingsPage() {
         ) : (
           <div className="space-y-3 text-sm leading-6 text-muted">
             <p>Run a first sync under History sources. Nooklet will then offer a schedule here using those saved source choices.</p>
-            <Link href="/settings/history" className="inline-flex min-h-11 items-center rounded-lg border border-control px-4 font-semibold text-foreground">Set up a history source</Link>
+            <Link href="/settings/history" className="inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] px-4 font-semibold text-foreground">Set up a history source</Link>
           </div>
         )}
       </Panel>

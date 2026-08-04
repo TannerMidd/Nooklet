@@ -152,7 +152,7 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
           ? "Browse the complete collection, then open a title to review one consistent request."
           : "Personalized ideas, popular releases, and title search in one place."}
         actions={selectedRail ? (
-          <Link href={buildDiscoverHref(filters)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-control px-4 py-2 text-sm font-semibold text-foreground hover:bg-cream/[0.05]">
+          <Link href={buildDiscoverHref(filters)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-cream/[0.14] px-4 py-2 text-sm font-semibold text-foreground hover:bg-cream/[0.05]">
             <ArrowLeft aria-hidden="true" className="h-4 w-4" /> All collections
           </Link>
         ) : (
@@ -163,28 +163,28 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
       >
         {!selectedRail ? (
           <nav aria-label="Personalized discovery" className="flex flex-wrap gap-2">
-            <Link href="/movies" className="inline-flex min-h-11 items-center rounded-full border border-control bg-cream/[0.03] px-4 text-sm font-semibold text-foreground hover:bg-cream/[0.07]">Movie ideas</Link>
-            <Link href="/tv" className="inline-flex min-h-11 items-center rounded-full border border-control bg-cream/[0.03] px-4 text-sm font-semibold text-foreground hover:bg-cream/[0.07]">TV ideas</Link>
-            <Link href="/history" className="inline-flex min-h-11 items-center rounded-full border border-control bg-cream/[0.03] px-4 text-sm font-semibold text-foreground hover:bg-cream/[0.07]">Past picks</Link>
-            <Link href="/analytics" className="inline-flex min-h-11 items-center rounded-full border border-control bg-cream/[0.03] px-4 text-sm font-semibold text-foreground hover:bg-cream/[0.07]">Your taste</Link>
+            <Link href="/movies" className="inline-flex min-h-11 items-center rounded-full border border-cream/[0.14] bg-cream/[0.03] px-4 text-sm font-semibold text-foreground hover:bg-cream/[0.07]">Movie ideas</Link>
+            <Link href="/tv" className="inline-flex min-h-11 items-center rounded-full border border-cream/[0.14] bg-cream/[0.03] px-4 text-sm font-semibold text-foreground hover:bg-cream/[0.07]">TV ideas</Link>
+            <Link href="/history" className="inline-flex min-h-11 items-center rounded-full border border-cream/[0.14] bg-cream/[0.03] px-4 text-sm font-semibold text-foreground hover:bg-cream/[0.07]">Past picks</Link>
+            <Link href="/analytics" className="inline-flex min-h-11 items-center rounded-full border border-cream/[0.14] bg-cream/[0.03] px-4 text-sm font-semibold text-foreground hover:bg-cream/[0.07]">Your taste</Link>
           </nav>
         ) : null}
       </PageHeader>
 
-      <form action="/discover" className="grid gap-3 rounded-2xl border border-line bg-cream/[0.025] p-4 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(140px,1fr))_auto_auto_auto] lg:items-center">
+      <form action="/discover" className="grid gap-3 rounded-2xl border border-cream/[0.08] bg-cream/[0.025] p-4 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(140px,1fr))_auto_auto_auto] lg:items-center">
         <label className="space-y-1 text-xs font-semibold text-muted">
           Media
-          <select name="media" defaultValue={filters.media} className="block min-h-11 w-full rounded-lg border border-control bg-background px-3 text-sm text-foreground">
+          <select name="media" defaultValue={filters.media} className="block min-h-11 w-full rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3 text-sm text-foreground">
             <option value="all">Movies and TV</option><option value="movie">Movies</option><option value="tv">TV series</option>
           </select>
         </label>
         <label className="space-y-1 text-xs font-semibold text-muted">
           Released since
-          <input name="yearFrom" type="number" min="1900" max={new Date().getFullYear() + 2} defaultValue={filters.yearFrom ?? ""} placeholder="Any year" className="block min-h-11 w-full rounded-lg border border-control bg-background px-3 text-sm text-foreground" />
+          <input name="yearFrom" type="number" min="1900" max={new Date().getFullYear() + 2} defaultValue={filters.yearFrom ?? ""} placeholder="Any year" className="block min-h-11 w-full rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3 text-sm text-foreground" />
         </label>
         <label className="space-y-1 text-xs font-semibold text-muted">
           Minimum rating
-          <select name="rating" defaultValue={filters.rating ?? ""} className="block min-h-11 w-full rounded-lg border border-control bg-background px-3 text-sm text-foreground">
+          <select name="rating" defaultValue={filters.rating ?? ""} className="block min-h-11 w-full rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3 text-sm text-foreground">
             <option value="">Any rating</option><option value="6">6+</option><option value="7">7+</option><option value="8">8+</option>
           </select>
         </label>
@@ -224,28 +224,25 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
               <p className="text-sm leading-6 text-muted">TMDB returned no titles for this rail right now.</p>
             ) : (
               <ul className={selectedRail
-                ? "grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6"
-                : "flex snap-x gap-4 overflow-x-auto pb-3"}
+                ? "grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6"
+                : "grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-3.5 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]"}
               >
                 {rail.titles.map((title) => (
-                  <li
-                    key={`${rail.category}-${rail.mediaType}-${title.tmdbId}`}
-                    className={selectedRail ? undefined : "w-36 shrink-0 snap-start sm:w-44"}
-                  >
+                  <li key={`${rail.category}-${rail.mediaType}-${title.tmdbId}`}>
                     <Link
                       href={buildOverviewHref(rail.mediaType, title.tmdbId, filters, selectedRailKey)}
                       scroll={false}
-                      className="relative flex flex-col gap-2 transition duration-200 hover:-translate-y-1"
+                      className="relative flex flex-col gap-2 transition duration-200 hover:-translate-y-[3px]"
                     >
-                      <LinkPendingOverlay className="rounded-xl" />
-                      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl border border-cream/10 bg-panel shadow-[0_18px_34px_-24px_rgba(0,0,0,0.8)]">
+                      <LinkPendingOverlay className="rounded-lg" />
+                      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-cream/[0.10] bg-panel shadow-[0_18px_34px_-24px_rgba(0,0,0,0.8)]">
                         {title.posterUrl ? (
                           <Image
                             src={title.posterUrl}
                             alt=""
                             fill
                             unoptimized
-                          sizes={selectedRail ? "(min-width: 1280px) 12rem, 30vw" : "11rem"}
+                            sizes={selectedRail ? "(min-width: 1280px) 12rem, 30vw" : "(min-width: 640px) 11rem, 48vw"}
                             className="object-cover"
                           />
                         ) : (
@@ -254,7 +251,7 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
                           </span>
                         )}
                         {title.voteAverage ? (
-                          <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-background/70 px-2 py-0.5 text-[11px] font-semibold text-foreground">
+                          <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-background/[0.72] px-2 py-[3px] text-[11px] font-semibold text-foreground">
                             <Star aria-hidden="true" className="h-2.5 w-2.5 fill-current" />
                             {title.voteAverage.toFixed(1)}
                           </span>

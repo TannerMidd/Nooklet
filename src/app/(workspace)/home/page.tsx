@@ -127,12 +127,12 @@ export default async function WorkspaceHomePage() {
               <Link
                 key={action.href}
                 href={action.href}
-                className="group rounded-2xl border border-cream/10 bg-cream/[0.03] p-5 transition hover:-translate-y-0.5 hover:border-control hover:bg-cream/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                className="group rounded-2xl border border-cream/[0.08] bg-cream/[0.03] p-5 transition hover:-translate-y-0.5 hover:border-cream/[0.16] hover:bg-cream/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
                   <Icon aria-hidden="true" className="h-5 w-5" />
                 </span>
-                <span className="mt-4 block font-heading text-xl text-foreground">{action.label}</span>
+                <span className="mt-4 block font-heading text-[21px] text-foreground">{action.label}</span>
                 <span className="mt-1 block text-sm leading-5 text-muted">{action.description}</span>
               </Link>
             );
@@ -158,7 +158,7 @@ export default async function WorkspaceHomePage() {
       >
         <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {capabilityHighlights.map((capability) => (
-            <li key={capability.id} className="rounded-xl border border-cream/10 bg-cream/[0.03] p-3.5">
+            <li key={capability.id} className="rounded-xl border border-cream/[0.08] bg-cream/[0.03] p-3.5">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-foreground">{capability.title}</p>
                 <Badge variant={capability.status === "ready" ? "accent-cool" : capability.status === "needs-attention" ? "wine" : "neutral"}>
@@ -193,7 +193,7 @@ export default async function WorkspaceHomePage() {
               Nothing needs attention right now.
             </p>
           ) : (
-            <ul className="divide-y divide-cream/10">
+            <ul className="divide-y divide-cream/[0.05]">
               {needsAttention.slice(0, 4).map((entry) => (
                 <li key={entry.id} className="flex gap-3 py-3 first:pt-0 last:pb-0">
                   <AlertCircle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-accent-wine" />
@@ -222,7 +222,7 @@ export default async function WorkspaceHomePage() {
               Completed imports will appear here.
             </div>
           ) : (
-            <ul className="divide-y divide-cream/10">
+            <ul className="divide-y divide-cream/[0.05]">
               {completed.slice(0, 5).map((entry) => (
                 <li key={entry.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
                   <Library aria-hidden="true" className="h-5 w-5 shrink-0 text-accent-cool" />

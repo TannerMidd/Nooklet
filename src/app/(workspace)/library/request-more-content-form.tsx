@@ -60,7 +60,7 @@ export function RequestMoreContentForm({
   return (
     <form action={formAction} className="space-y-3 rounded-lg border border-cream/[0.08] bg-cream/[0.03] p-4">
       <div>
-        <p className="font-heading text-base text-foreground">Request more from {titleLabel}</p>
+        <p className="font-heading text-[19px] text-foreground">Request more from {titleLabel}</p>
         <p className="text-xs text-muted">
           Pick any TMDB season or episode below — already-monitored seasons are tagged so you can avoid duplicates.
         </p>

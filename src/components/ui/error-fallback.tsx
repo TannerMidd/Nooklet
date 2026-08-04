@@ -43,7 +43,7 @@ export function ErrorFallback({ error, reset, fullPage = false }: ErrorFallbackP
         <Button type="button" onClick={reset}>Try again</Button>
         <Link
           href="/home"
-          className="inline-flex min-h-11 items-center rounded-lg border border-control bg-cream/[0.04] px-5 py-2 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          className="inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] bg-cream/[0.04] px-5 py-2 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         >
           Go home
         </Link>

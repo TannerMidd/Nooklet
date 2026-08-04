@@ -100,7 +100,7 @@ export default async function WatchHistorySettingsPage() {
         title="History sources"
         description="Connect and run each source here. Recurring schedules are managed together under Automation."
         actions={(
-          <Link href="/settings/automation" className="inline-flex min-h-11 items-center rounded-lg border border-control px-4 text-sm font-semibold text-foreground">
+          <Link href="/settings/automation" className="inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] px-4 text-sm font-semibold text-foreground">
             Automation schedules
           </Link>
         )}

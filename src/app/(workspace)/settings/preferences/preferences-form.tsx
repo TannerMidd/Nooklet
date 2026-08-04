@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { initialUpdatePreferencesActionState } from "@/app/(workspace)/settings/preferences/action-state";
 import { AsyncButton } from "@/components/ui/async-button";
 import { Input } from "@/components/ui/input";
+import { ToggleField } from "@/components/ui/toggle-switch";
 import { languagePreferenceOptions } from "@/modules/preferences/language-preferences";
 import { type PreferenceRecord } from "@/modules/preferences/queries/get-user-preferences";
 import {
@@ -40,18 +41,12 @@ type CheckboxFieldProps = {
 
 function CheckboxField({ name, label, description, defaultChecked }: CheckboxFieldProps) {
   return (
-    <label className="flex min-h-11 items-start gap-3 rounded-lg bg-cream/[0.04] px-3.5 py-3 transition hover:bg-cream/[0.06]">
-      <input
-        name={name}
-        type="checkbox"
-        defaultChecked={defaultChecked}
-        className="mt-0.5 h-5 w-5 rounded border-control text-accent focus:ring-2 focus:ring-focus"
-      />
-      <span className="space-y-0.5">
-        <span className="block text-sm font-medium text-foreground">{label}</span>
-        <span className="block text-xs leading-5 text-muted">{description}</span>
-      </span>
-    </label>
+    <ToggleField
+      name={name}
+      label={label}
+      description={description}
+      defaultChecked={defaultChecked}
+    />
   );
 }
 
@@ -86,7 +81,7 @@ export function PreferencesForm({
           <select
             name="defaultMediaMode"
             defaultValue={preferences.defaultMediaMode}
-            className="min-h-11 w-full rounded-lg border border-control bg-cream/[0.04] px-3 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
+            className="min-h-11 w-full rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
             aria-invalid={Boolean(state.fieldErrors?.defaultMediaMode)}
           >
             <option value="tv">TV</option>
@@ -152,7 +147,7 @@ export function PreferencesForm({
           <select
             name="languagePreference"
             defaultValue={preferences.languagePreference}
-            className="min-h-11 w-full rounded-lg border border-control bg-cream/[0.04] px-3 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
+            className="min-h-11 w-full rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
             aria-invalid={Boolean(state.fieldErrors?.languagePreference)}
           >
             {languagePreferenceOptions.map((option) => (
@@ -167,21 +162,23 @@ export function PreferencesForm({
         </label>
       </div>
 
-      <div className="grid gap-2.5 md:grid-cols-2">
+      {/* The redesign stacks these as one hairline-divided list rather than a
+          grid of boxed checkboxes. */}
+      <div className="flex flex-col">
         <CheckboxField
           name="watchHistoryOnly"
           label="Watch-history only mode"
           description="Use configured watch-history sources as the recommendation context instead of mixing in other source inputs."
           defaultChecked={preferences.watchHistoryOnly}
         />
-        <div className="rounded-md bg-cream/[0.04] px-3 py-2.5 md:col-span-2">
+        <div className="border-t border-cream/[0.05] py-3">
           <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">Watch-history sources</p>
-            <p className="text-sm leading-6 text-muted">
+            <p className="text-sm font-semibold text-foreground">Watch-history sources</p>
+            <p className="text-[13px] leading-5 text-muted">
               Choose which synced history sources are allowed to contribute taste context when watch-history-only mode is enabled.
             </p>
           </div>
-          <div className="mt-2.5 grid gap-2.5 md:grid-cols-2">
+          <div className="mt-3 grid gap-2.5 md:grid-cols-2">
             {availableWatchHistorySources.map((source) => (
               <label
                 key={source.sourceType}
@@ -192,7 +189,7 @@ export function PreferencesForm({
                   type="checkbox"
                   value={source.sourceType}
                   defaultChecked={preferences.watchHistorySourceTypes.includes(source.sourceType)}
-                  className="mt-0.5 h-5 w-5 rounded border-control text-accent focus:ring-2 focus:ring-focus"
+                  className="mt-0.5 h-5 w-5 rounded border-cream/[0.10] text-accent focus:ring-2 focus:ring-focus"
                 />
                 <span className="space-y-0.5">
                   <span className="block text-sm font-medium text-foreground">{source.label}</span>

@@ -17,6 +17,12 @@ type LibraryItemSearchFormProps = {
   label: string;
   targetPathOptions: MediaLibraryPathOption[];
   currentLibraryPathId?: string | null;
+  /**
+   * Row-level variant used by the episode table: an icon-only trigger that
+   * inherits the destination folder chosen once for the whole title, instead
+   * of repeating a folder select on every row.
+   */
+  compact?: boolean;
 };
 
 function pathOptionLabel(option: MediaLibraryPathOption) {
@@ -34,6 +40,22 @@ function SearchButton({ label }: { label: string }) {
   );
 }
 
+function CompactSearchButton({ label }: { label: string }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-label={label}
+      title={label}
+      className="inline-flex h-11 w-11 items-center justify-center rounded-lg border-none bg-transparent text-muted/70 transition hover:bg-cream/[0.08] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-60"
+    >
+      <Search aria-hidden="true" size={13} />
+    </button>
+  );
+}
+
 export function LibraryItemSearchForm({
   titleId,
   seasonId,
@@ -41,6 +63,7 @@ export function LibraryItemSearchForm({
   label,
   targetPathOptions,
   currentLibraryPathId,
+  compact = false,
 }: LibraryItemSearchFormProps) {
   const [state, formAction] = useActionState(
     searchLibraryItemReleasesAction,
@@ -50,6 +73,18 @@ export function LibraryItemSearchForm({
     && targetPathOptions.some((option) => option.id === currentLibraryPathId)
     ? currentLibraryPathId
     : (targetPathOptions.find((option) => option.isDownloadDefault) ?? targetPathOptions[0])?.id ?? "";
+
+  if (compact) {
+    return (
+      <form action={formAction} className="contents">
+        <input type="hidden" name="titleId" value={titleId} />
+        {seasonId ? <input type="hidden" name="seasonId" value={seasonId} /> : null}
+        {episodeId ? <input type="hidden" name="episodeId" value={episodeId} /> : null}
+        <input type="hidden" name="targetLibraryPathId" value={defaultPathId} />
+        <CompactSearchButton label={state.message ?? label} />
+      </form>
+    );
+  }
 
   return (
     <form action={formAction} className="flex flex-col gap-2">

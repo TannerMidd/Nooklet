@@ -7,7 +7,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatStrip } from "@/components/ui/stat-card";
+import { StatusDot } from "@/components/ui/status-dot";
 import { statusTone } from "@/components/ui/status-tone";
 import { listUserJobs } from "@/modules/jobs/queries/list-user-jobs";
 import { type ReadinessCapability } from "@/modules/readiness/evaluate-readiness";
@@ -89,13 +90,13 @@ function ActionCapability({ capability }: { capability: ReadinessCapability }) {
         </ul>
       ) : null}
       {capability.id === "worker" ? (
-        <p className="mt-3 rounded-lg border border-cream/10 bg-black/10 px-3 py-2 text-xs leading-5 text-muted">
+        <p className="mt-3 rounded-lg border border-cream/[0.08] bg-black/10 px-3 py-2 text-xs leading-5 text-muted">
           Restart the Nooklet app or container, then reload this page. If the worker responds but stays degraded, expand its technical error below.
         </p>
       ) : (
         <Link
           href={capability.remediationHref}
-          className="relative mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-cream/10 bg-cream/[0.04] px-4 py-2 text-sm font-semibold text-foreground hover:border-accent/35 hover:bg-cream/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          className="relative mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-cream/[0.14] bg-cream/[0.04] px-4 py-2 text-sm font-semibold text-foreground hover:border-accent/35 hover:bg-cream/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         >
           <LinkPendingOverlay />
           {capability.remediationLabel}
@@ -154,12 +155,14 @@ export default async function HealthPage() {
         </Panel>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Ready capabilities" value={readyCapabilities.length} />
-        <StatCard label="Needs attention" value={attentionCapabilities.length} />
-        <StatCard label="Configured services" value={configuredServices.length} />
-        <StatCard label="Background worker" value={workerLabel} />
-      </div>
+      <StatStrip
+        entries={[
+          { label: "Ready capabilities", value: readyCapabilities.length },
+          { label: "Needs attention", value: attentionCapabilities.length },
+          { label: "Configured services", value: configuredServices.length },
+          { label: "Background worker", value: workerLabel },
+        ]}
+      />
 
       <Panel title="Background worker" description="Runs recommendations, schedules, download processing, and imports.">
         <article className={`rounded-xl border p-4 text-sm leading-6 ${statusTone(workerHealthy ? "verified" : worker.responsive ? "running" : "failed")}`}>
@@ -183,7 +186,7 @@ export default async function HealthPage() {
             <span>{activeJobs.length} enabled or running {activeJobs.length === 1 ? "job" : "jobs"}</span>
           </div>
           {worker.worker.lastError ? (
-            <details className="mt-3 rounded-lg border border-cream/10 bg-black/10 px-3 py-2">
+            <details className="mt-3 rounded-lg border border-cream/[0.08] bg-black/10 px-3 py-2">
               <summary className="cursor-pointer font-semibold text-foreground">Technical worker error</summary>
               <p className="mt-2 break-words font-mono text-xs leading-5 text-muted">{worker.worker.lastError}</p>
             </details>
@@ -212,7 +215,7 @@ export default async function HealthPage() {
             <span>{downloadEngine.failedCount} unresolved infrastructure {downloadEngine.failedCount === 1 ? "failure" : "failures"}</span>
           </div>
           {downloadEngine.issues.length > 0 ? (
-            <details className="mt-3 rounded-lg border border-cream/10 bg-black/10 px-3 py-2">
+            <details className="mt-3 rounded-lg border border-cream/[0.08] bg-black/10 px-3 py-2">
               <summary className="cursor-pointer font-semibold text-foreground">Download engine diagnostics</summary>
               <ul className="mt-2 space-y-2 text-xs leading-5 text-muted">
                 {downloadEngine.issues.map((issue) => (
@@ -235,32 +238,39 @@ export default async function HealthPage() {
         description="Only services you chose to configure are scored here. Unused integrations remain neutral."
         actions={<Link href="/settings/connections" className="text-sm font-semibold text-accent hover:text-accent-strong">Manage connections</Link>}
       >
+        {/* Service health reads as neutral cards carrying a colored status dot —
+            the redesign reserves tinted surfaces for blockers. */}
         {configuredServices.length === 0 ? (
           <EmptyState
             message="No server connections are configured yet. Start with TMDB, then choose a downloader."
             action={<Link href="/setup" className="text-sm font-semibold text-accent">Open guided setup</Link>}
           />
         ) : (
-          <ul className="grid gap-3 lg:grid-cols-2">
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3.5">
             {configuredServices.map((connection) => (
-              <li key={connection.serviceType} className={`rounded-xl border p-4 text-sm leading-6 ${statusTone(connection.status)}`}>
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="font-semibold text-foreground">{connection.displayName}</p>
-                    <p className="mt-1 text-muted">{connection.statusMessage}</p>
-                  </div>
-                  <Badge variant={connection.status === "verified" ? "accent-cool" : connection.status === "error" ? "wine" : "neutral"}>
-                    {connection.status === "verified" ? "Verified" : connection.status === "error" ? "Error" : "Not verified"}
-                  </Badge>
+              <li
+                key={connection.serviceType}
+                className="rounded-2xl border border-cream/[0.08] bg-cream/[0.03] px-5 py-4"
+              >
+                <div className="flex items-center justify-between gap-2.5">
+                  <p className="min-w-0 truncate text-[14.5px] font-semibold text-foreground">
+                    {connection.displayName}
+                  </p>
+                  <StatusDot
+                    tone={connection.status === "verified" ? "ok" : connection.status === "error" ? "error" : "neutral"}
+                    label={connection.status === "verified" ? "Verified" : connection.status === "error" ? "Error" : "Configured"}
+                    className="shrink-0"
+                  />
                 </div>
-                <p className="mt-2 text-xs text-muted">Last verified {formatDate(connection.lastVerifiedAt)}</p>
+                <p className="mt-2 text-[13px] leading-5 text-muted">{connection.statusMessage}</p>
+                <p className="mt-1 text-xs text-muted/75">Last verified {formatDate(connection.lastVerifiedAt)}</p>
               </li>
             ))}
           </ul>
         )}
 
         {unconfiguredServices.length > 0 ? (
-          <details className="mt-4 rounded-xl border border-cream/10 bg-cream/[0.02] px-4 py-3">
+          <details className="mt-4 rounded-xl border border-cream/[0.08] bg-cream/[0.02] px-4 py-3">
             <summary className="cursor-pointer text-sm font-semibold text-foreground">
               Not configured ({unconfiguredServices.length})
             </summary>
@@ -280,7 +290,7 @@ export default async function HealthPage() {
           {optionalCapabilities.length > 0 ? (
             <ul className="space-y-3">
               {optionalCapabilities.map((capability) => (
-                <li key={capability.id} className="rounded-xl border border-cream/10 bg-cream/[0.03] p-3.5">
+                <li key={capability.id} className="rounded-xl border border-cream/[0.08] bg-cream/[0.03] p-3.5">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <p className="font-semibold text-foreground">{capability.title}</p>
@@ -336,11 +346,11 @@ export default async function HealthPage() {
           )}
 
           {jobs.length > 0 ? (
-            <details className="mt-4 rounded-xl border border-cream/10 bg-cream/[0.02] px-4 py-3">
+            <details className="mt-4 rounded-xl border border-cream/[0.08] bg-cream/[0.02] px-4 py-3">
               <summary className="cursor-pointer text-sm font-semibold text-foreground">All job details ({jobs.length})</summary>
               <ul className="mt-3 space-y-3">
                 {jobs.map((job) => (
-                  <li key={job.id} className="rounded-lg border border-cream/10 bg-cream/[0.03] p-3 text-xs leading-5 text-muted">
+                  <li key={job.id} className="rounded-lg border border-cream/[0.08] bg-cream/[0.03] p-3 text-xs leading-5 text-muted">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="font-semibold text-foreground">{jobLabel(job.jobType)}</p>
                       <Badge variant={job.lastStatus === "failed" ? "wine" : job.lastStatus === "succeeded" ? "accent-cool" : "neutral"}>{job.lastStatus}</Badge>

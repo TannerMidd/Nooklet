@@ -172,6 +172,77 @@ ol {
   animation: nk-enter 480ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Dialog entrance: the scrim fades while the panel rises and settles. */
+@keyframes nk-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nk-pop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.nk-fade {
+  animation: nk-fade 180ms ease;
+}
+
+/* Live indicator: the queue hero's dot breathes while work is in flight. */
+@keyframes nk-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.nk-pulse {
+  animation: nk-pulse 1.8s ease-in-out infinite;
+}
+
+/* Floating bulk-action bar: rises into place when a selection starts. */
+@keyframes nk-rise {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.nk-rise {
+  animation: nk-rise 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Modal scrim: one warm near-black wash with a soft blur behind every dialog,
+   drawer, and palette. */
+.nk-scrim {
+  background: rgba(10, 9, 8, 0.76);
+  backdrop-filter: blur(7px);
+}
+
+.nk-pop {
+  animation: nk-pop 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @keyframes recommendation-card-enter {
   0% {
     opacity: 0;

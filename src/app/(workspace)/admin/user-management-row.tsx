@@ -113,7 +113,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
         className="w-[min(94vw,32rem)]"
       >
         <div className="space-y-6 p-5">
-          <div className="rounded-xl border border-cream/10 bg-cream/[0.03] p-4 text-sm leading-6">
+          <div className="rounded-xl border border-cream/[0.08] bg-cream/[0.03] p-4 text-sm leading-6">
             <p className="font-semibold text-foreground">Current access</p>
             <p className="mt-1 text-muted">
               {user.role === "admin"
@@ -123,7 +123,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
             <p className="mt-1 text-muted">Account is {user.isDisabled ? "disabled" : "active"}.</p>
           </div>
 
-          <form ref={roleFormRef} action={roleAction} className="space-y-3 rounded-xl border border-cream/10 p-4">
+          <form ref={roleFormRef} action={roleAction} className="space-y-3 rounded-xl border border-cream/[0.08] p-4">
             <input type="hidden" name="userId" value={user.id} />
             <FormField label="Role" description="Administrators can change all shared server configuration.">
               {(controlProps) => (
@@ -133,7 +133,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
                   value={selectedRole}
                   onChange={(event) => setSelectedRole(event.target.value as UserRole)}
                   disabled={rolePending}
-                  className="min-h-11 w-full rounded-lg border border-control bg-panel px-3 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
+                  className="min-h-11 w-full rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
                 >
                   <option value="user">User</option>
                   <option value="admin">Administrator</option>
@@ -150,7 +150,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
             <ActionMessage state={roleState} />
           </form>
 
-          <form ref={statusFormRef} action={statusAction} className="space-y-3 rounded-xl border border-cream/10 p-4">
+          <form ref={statusFormRef} action={statusAction} className="space-y-3 rounded-xl border border-cream/[0.08] p-4">
             <input type="hidden" name="userId" value={user.id} />
             <input type="hidden" name="isDisabled" value={user.isDisabled ? "false" : "true"} />
             <div>
@@ -174,7 +174,7 @@ export function UserManagementRow({ currentAdminUserId, user }: UserManagementRo
             <ActionMessage state={statusState} />
           </form>
 
-          <form ref={passwordFormRef} action={passwordAction} className="space-y-3 rounded-xl border border-cream/10 p-4">
+          <form ref={passwordFormRef} action={passwordAction} className="space-y-3 rounded-xl border border-cream/[0.08] p-4">
             <input type="hidden" name="userId" value={user.id} />
             <div>
               <p className="font-semibold text-foreground">Temporary password</p>

@@ -8,6 +8,7 @@ import { RecommendationPoster } from "@/components/recommendations/recommendatio
 import { RecommendationTitleOverviewDialog } from "@/components/recommendations/recommendation-title-overview-dialog";
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
+import { SegmentedLinks } from "@/components/ui/segmented-control";
 import { getUserPreferences } from "@/modules/preferences/queries/get-user-preferences";
 import { listRecommendationHistory } from "@/modules/recommendations/queries/list-recommendation-history";
 import { getRecommendationTitleOverview } from "@/modules/recommendations/queries/get-recommendation-title-overview";
@@ -112,7 +113,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
   ];
 
   const pageLinkClass =
-    "relative inline-flex min-h-11 items-center justify-center rounded-full border border-control px-4 text-xs font-semibold text-foreground transition hover:bg-cream/[0.06]";
+    "relative inline-flex min-h-11 items-center justify-center rounded-full border border-cream/[0.14] px-4 text-xs font-semibold text-foreground transition hover:bg-cream/[0.06]";
   const pageDisabledClass =
     "inline-flex min-h-10 items-center justify-center rounded-full border border-cream/10 px-4 text-xs font-semibold text-muted opacity-50";
 
@@ -125,22 +126,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <div className="mr-2 flex rounded-lg bg-cream/[0.05] p-[3px]">
-          {scopeItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={
-                item.active
-                  ? "relative inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-[13px] font-semibold text-accent-foreground"
-                  : "relative inline-flex min-h-11 items-center rounded-md px-4 text-[13px] font-semibold text-muted transition hover:text-foreground"
-              }
-            >
-              <LinkPendingOverlay />
-              {item.label}
-            </Link>
-          ))}
-        </div>
+        <SegmentedLinks label="Media type" options={scopeItems} className="mr-2" />
         {activeFilters.map((filter) => (
           <span
             key={filter}

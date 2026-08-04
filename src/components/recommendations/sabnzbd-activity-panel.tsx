@@ -11,7 +11,6 @@ import {
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { AlertDialog } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { StatCard } from "@/components/ui/stat-card";
 import { cn } from "@/lib/utils";
 import {
   getSabnzbdQueueActionKey,
@@ -34,7 +33,7 @@ function ProgressBar({ progressPercent, title }: { progressPercent: number; titl
 
   return (
     <div
-      className="h-2.5 overflow-hidden rounded-full bg-cream/[0.04]"
+      className="h-[5px] overflow-hidden rounded-full bg-cream/[0.07]"
       role="progressbar"
       aria-label={`${title} download progress`}
       aria-valuemin={0}
@@ -47,6 +46,44 @@ function ProgressBar({ progressPercent, title }: { progressPercent: number; titl
       />
     </div>
   );
+}
+
+function formatGigabytes(megabytes: number) {
+  return megabytes >= 1024
+    ? `${(megabytes / 1024).toFixed(1)} GB`
+    : `${Math.round(megabytes)} MB`;
+}
+
+/**
+ * The redesign leads this screen with one live figure rather than a row of
+ * stat cards: what the queue is doing, how fast, and how far through the
+ * combined payload it is.
+ */
+function buildLiveQueue(snapshot: NonNullable<ActiveDownloadQueueState["snapshot"]>) {
+  const queuedCount = Math.max(0, snapshot.totalQueueCount - snapshot.activeQueueCount);
+  const totalMb = snapshot.items.reduce((sum, item) => sum + (item.totalMb ?? 0), 0);
+  const remainingMb = snapshot.items.reduce((sum, item) => sum + (item.remainingMb ?? 0), 0);
+  const doneMb = Math.max(0, totalMb - remainingMb);
+
+  return {
+    status: snapshot.queueStatus ?? (snapshot.paused ? "Paused" : "Idle"),
+    isLive: !snapshot.paused && snapshot.activeQueueCount > 0,
+    detail: [
+      `${snapshot.activeQueueCount} active`,
+      `${queuedCount} queued`,
+    ].join(" · "),
+    figures: [
+      { label: "Speed", value: snapshot.speed ? `${snapshot.speed}/s` : "—" },
+      { label: "Time left", value: snapshot.timeLeft ?? "—" },
+    ],
+    // Only meaningful once the downloader reports sizes for the queue.
+    progress: totalMb > 0
+      ? {
+          percent: Math.min(100, Math.max(0, Math.round((doneMb / totalMb) * 100))),
+          of: `${formatGigabytes(doneMb)} of ${formatGigabytes(totalMb)}`,
+        }
+      : null,
+  };
 }
 
 function getActionErrorMessage(value: unknown) {
@@ -82,7 +119,7 @@ function SourceQueue({ sourceState, isBusy, pendingActionKey, submitAction }: So
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-heading text-xl text-foreground">{sourceState.label}</h3>
+            <h3 className="font-heading text-[21px] text-foreground">{sourceState.label}</h3>
             <span className="rounded-full border border-cream/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
               {sourceState.source === "engine" ? "Primary" : "Legacy"}
             </span>
@@ -281,14 +318,7 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
     await executeQueueAction(source, action);
   }, [executeQueueAction]);
 
-  const summaryItems = snapshot
-    ? [
-        { label: "Queue status", value: snapshot.queueStatus ?? (snapshot.paused ? "Paused" : "Unknown") },
-        { label: "Active items", value: String(snapshot.activeQueueCount) },
-        { label: "Speed", value: snapshot.speed ? `${snapshot.speed}/s` : "—" },
-        { label: "Time left", value: snapshot.timeLeft ?? "—" },
-      ]
-    : [];
+  const liveQueue = snapshot ? buildLiveQueue(snapshot) : null;
 
   return (
     <div className={cn("space-y-7", className)}>
@@ -315,12 +345,55 @@ export function SabnzbdActivityPanel({ initialState, className }: SabnzbdActivit
         }}
       />
 
-      {summaryItems.length > 0 ? (
-        <div className="grid gap-3.5 md:grid-cols-2 xl:grid-cols-4">
-          {summaryItems.map((item) => (
-            <StatCard key={item.label} label={item.label} value={item.value} className="[&>p:first-child]:text-[clamp(17px,2.2vw,28px)]" />
-          ))}
-        </div>
+      {liveQueue ? (
+        <section className="flex flex-col gap-5 rounded-3xl border border-cream/[0.08] bg-[linear-gradient(125deg,rgba(232,165,80,0.08),transparent_55%),rgba(255,244,230,0.03)] px-6 py-[22px]">
+          <div className="flex flex-wrap items-start justify-between gap-x-7 gap-y-4">
+            <div className="min-w-0">
+              <p className="inline-flex items-center gap-2.5 font-heading text-3xl leading-[1.1] text-foreground">
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "h-[9px] w-[9px] shrink-0 rounded-full bg-accent shadow-[0_0_14px_rgba(232,165,80,0.55)]",
+                    liveQueue.isLive ? "nk-pulse" : null,
+                  )}
+                />
+                {liveQueue.status}
+              </p>
+              <p className="mt-[7px] text-[13px] text-muted">{liveQueue.detail}</p>
+            </div>
+            <div className="flex shrink-0 gap-8">
+              {liveQueue.figures.map((figure) => (
+                <div key={figure.label}>
+                  <p className="font-heading text-[26px] leading-none text-foreground">{figure.value}</p>
+                  <p className="mt-[7px] text-[11px] font-semibold uppercase tracking-[0.09em] text-muted">
+                    {figure.label}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+          {liveQueue.progress ? (
+            <div className="flex flex-col gap-2.5">
+              <div
+                role="progressbar"
+                aria-label="Overall queue progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={liveQueue.progress.percent}
+                className="h-1.5 overflow-hidden rounded-full bg-cream/[0.07]"
+              >
+                <div
+                  className="h-full rounded-full bg-accent transition-[width] duration-500"
+                  style={{ width: `${liveQueue.progress.percent}%` }}
+                />
+              </div>
+              <div className="flex items-baseline justify-between gap-3 text-xs text-muted">
+                <span>{liveQueue.progress.of}</span>
+                <span className="font-semibold text-accent">{liveQueue.progress.percent}%</span>
+              </div>
+            </div>
+          ) : null}
+        </section>
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3">

@@ -445,19 +445,19 @@ export function TvRequestDialog({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[170] flex items-center justify-center bg-black/60 p-4" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[170] flex items-center justify-center nk-scrim nk-fade p-4" onMouseDown={onClose}>
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-cream/[0.08] bg-panel shadow-2xl sm:max-h-[85vh]"
+        className="nk-pop flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[20px] border border-cream/[0.10] bg-[rgb(23,21,19)] shadow-[0_44px_90px_-44px_rgba(0,0,0,0.95)] sm:max-h-[85vh]"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-cream/[0.08] p-4 sm:p-5">
           <div>
-            <p id={titleId} className="font-heading text-lg text-foreground">Choose what to download</p>
+            <p id={titleId} className="font-heading text-[19px] text-foreground">Choose what to download</p>
             <p className="text-sm text-muted">{titleLabel}</p>
           </div>
           <Button ref={closeButtonRef} variant="ghost" onClick={onClose} type="button">Close</Button>

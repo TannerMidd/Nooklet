@@ -1,6 +1,7 @@
 "use client";
 
-import { CalendarDays, Check, ChevronDown, DatabaseZap, Download, HardDrive, Search } from "lucide-react";
+import { CalendarDays, Check, DatabaseZap, Download, HardDrive, Search, Star, X } from "lucide-react";
+import Image from "next/image";
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -15,7 +16,6 @@ import {
   type TitleSearchResultView,
 } from "@/app/(workspace)/search/action-state";
 import { QueueResultButton } from "@/app/(workspace)/search/queue-result-button";
-import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
 import {
   TitleRequestControls,
   type LibraryOption,
@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InlineAlert } from "@/components/ui/inline-alert";
+import { segmentedItemClass, segmentedTrack } from "@/components/ui/segmented-control";
 import { Spinner } from "@/components/ui/spinner";
 import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
 
@@ -125,24 +126,6 @@ function formatPublishedAt(value: string | null) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
-}
-
-function TitleMeta({ title }: { title: TitleSearchResultView }) {
-  return (
-    <div className="flex flex-wrap gap-2 text-xs text-muted">
-      <span className="rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">
-        {title.mediaType === "tv" ? "TV" : "Movie"}
-      </span>
-      {title.year ? (
-        <span className="rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">{title.year}</span>
-      ) : null}
-      {title.voteAverage !== null ? (
-        <span className="rounded-md border border-cream/[0.08] bg-cream/[0.03] px-1.5 py-0.5">
-          TMDB {title.voteAverage.toFixed(1)}
-        </span>
-      ) : null}
-    </div>
-  );
 }
 
 function ReleaseResults({
@@ -262,58 +245,75 @@ function RequestTitleForm({
   );
 }
 
+function resultKey(title: TitleSearchResultView) {
+  return `${title.mediaType}-${title.tmdbId}`;
+}
+
+/** Poster tile from the redesign: artwork, rating badge, and a request cue. */
 function TitleResultCard({
   title,
-  libraries,
-  qualityProfiles,
-  pathOptions,
+  selected,
+  onSelect,
 }: {
   title: TitleSearchResultView;
-  libraries: LibraryOption[];
-  qualityProfiles: readonly QualityProfileOption[];
-  pathOptions: MediaLibraryPathOption[];
+  selected: boolean;
+  onSelect: () => void;
 }) {
   return (
-    <li className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] p-4">
-      <div className="grid gap-4 lg:grid-cols-[120px_minmax(0,1fr)]">
-        <RecommendationPoster title={title.title} posterUrl={title.posterUrl} />
-        <div className="min-w-0 space-y-4">
-          <div className="space-y-2">
-            <TitleMeta title={title} />
-            <p className="break-words font-heading text-lg leading-tight text-foreground">
-              {title.title}{title.year ? ` (${title.year})` : ""}
-            </p>
-            {title.overview ? <p className="line-clamp-3 text-sm leading-6 text-muted">{title.overview}</p> : null}
-          </div>
-          <details className="group overflow-hidden rounded-lg border border-cream/[0.08] bg-cream/[0.02]">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-semibold text-foreground transition hover:bg-cream/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus [&::-webkit-details-marker]:hidden">
-              Review &amp; request
-              <ChevronDown
-                aria-hidden="true"
-                className="h-4 w-4 shrink-0 text-muted transition-transform group-open:rotate-180"
-              />
-            </summary>
-            <div className="border-t border-cream/[0.08] p-3">
-              <RequestTitleForm
-                title={title}
-                libraries={libraries}
-                qualityProfiles={qualityProfiles}
-                pathOptions={pathOptions}
-              />
-            </div>
-          </details>
-        </div>
-      </div>
+    <li>
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={selected}
+        className="flex w-full flex-col gap-2.5 text-left transition duration-200 hover:-translate-y-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      >
+        <span className="relative block aspect-[2/3] w-full overflow-hidden rounded-lg border border-cream/[0.10] bg-panel shadow-[0_18px_34px_-24px_rgba(0,0,0,0.8)]">
+          {title.posterUrl ? (
+            <Image
+              src={title.posterUrl}
+              alt=""
+              fill
+              unoptimized
+              sizes="(min-width: 640px) 11rem, 45vw"
+              className="object-cover"
+            />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center text-xs text-muted">
+              No artwork
+            </span>
+          )}
+          {title.voteAverage !== null ? (
+            <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full bg-background/[0.75] px-2 py-[3px] text-[11px] font-semibold text-foreground">
+              <Star aria-hidden="true" className="h-2.5 w-2.5 fill-current" />
+              {title.voteAverage.toFixed(1)}
+            </span>
+          ) : null}
+        </span>
+        <span className="block min-w-0">
+          <span className="block truncate text-[13.5px] font-semibold text-foreground">
+            {title.title}
+          </span>
+          <span className="mt-[3px] block text-xs text-muted">
+            {[title.year, title.mediaType === "tv" ? "TV" : "Movie"].filter(Boolean).join(" · ")}
+          </span>
+          <span className="mt-[7px] block text-[12.5px] font-semibold text-accent">
+            {selected ? "Selected ↓" : "Request →"}
+          </span>
+        </span>
+      </button>
     </li>
   );
 }
 
 function TitleResults({
   state,
-  libraries,
-  qualityProfiles,
-  pathOptions,
-}: RequestOptionsProps & { state: TitleSearchActionState }) {
+  selectedKey,
+  onSelect,
+}: {
+  state: TitleSearchActionState;
+  selectedKey: string | null;
+  onSelect: (title: TitleSearchResultView) => void;
+}) {
   if (state.status === "idle") {
     return <EmptyState message="No title search has run yet." />;
   }
@@ -323,17 +323,25 @@ function TitleResults({
   }
 
   return (
-    <ul className="space-y-3">
-      {state.results.map((title) => (
-        <TitleResultCard
-          key={`${title.mediaType}-${title.tmdbId}`}
-          title={title}
-          libraries={libraries}
-          qualityProfiles={qualityProfiles}
-          pathOptions={pathOptions}
-        />
-      ))}
-    </ul>
+    <section className="flex flex-col gap-4.5">
+      <div className="flex items-baseline justify-between gap-4 border-b border-cream/[0.07] pb-3">
+        <h2 className="font-heading text-2xl text-foreground">Results</h2>
+        <p className="text-[12.5px] text-muted">
+          {state.results.length} {state.results[0]?.mediaType === "tv" ? "series" : "movies"} · best
+          match first
+        </p>
+      </div>
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(128px,1fr))] gap-x-4 gap-y-5 sm:grid-cols-[repeat(auto-fill,minmax(148px,1fr))]">
+        {state.results.map((title) => (
+          <TitleResultCard
+            key={resultKey(title)}
+            title={title}
+            selected={selectedKey === resultKey(title)}
+            onSelect={() => onSelect(title)}
+          />
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -346,6 +354,7 @@ export function TitleSearchForm({
   pathOptions,
 }: TitleSearchFormProps) {
   const [mediaType, setMediaType] = useState<"movie" | "tv">(initialMediaType);
+  const [selectedTitle, setSelectedTitle] = useState<TitleSearchResultView | null>(null);
 
   return (
     <div className="space-y-6">
@@ -362,14 +371,12 @@ export function TitleSearchForm({
             className="h-11 min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted/70"
           />
           <div className="flex shrink-0 items-center gap-2">
-            <div className="flex rounded-lg bg-cream/[0.05] p-[3px]" role="group" aria-label="Media type">
+            <div className={segmentedTrack} role="group" aria-label="Media type">
               <button
                 type="button"
                 aria-pressed={mediaType === "movie"}
                 onClick={() => setMediaType("movie")}
-                className={`min-h-11 rounded-md px-4 text-[13px] font-semibold transition ${
-                  mediaType === "movie" ? "bg-accent text-accent-foreground" : "text-muted hover:text-foreground"
-                }`}
+                className={segmentedItemClass(mediaType === "movie")}
               >
                 Movies
               </button>
@@ -377,9 +384,7 @@ export function TitleSearchForm({
                 type="button"
                 aria-pressed={mediaType === "tv"}
                 onClick={() => setMediaType("tv")}
-                className={`min-h-11 rounded-md px-4 text-[13px] font-semibold transition ${
-                  mediaType === "tv" ? "bg-accent text-accent-foreground" : "text-muted hover:text-foreground"
-                }`}
+                className={segmentedItemClass(mediaType === "tv")}
               >
                 TV
               </button>
@@ -394,7 +399,55 @@ export function TitleSearchForm({
         </p>
       </form>
 
-      <TitleResults state={initialState} libraries={libraries} qualityProfiles={qualityProfiles} pathOptions={pathOptions} />
+      <TitleResults
+        state={initialState}
+        selectedKey={selectedTitle ? resultKey(selectedTitle) : null}
+        onSelect={(title) => setSelectedTitle((current) => (
+          current && resultKey(current) === resultKey(title) ? null : title
+        ))}
+      />
+
+      {/* The redesign floats the request controls in a tray over the results
+          instead of expanding each card. Below `lg` it sits inline, where a
+          fixed bar would cover most of the viewport. */}
+      {selectedTitle ? (
+        <>
+          <div
+            aria-hidden="true"
+            className="hidden lg:block lg:h-32"
+          />
+          <section
+            aria-label={`Request ${selectedTitle.title}`}
+            className="nk-pop rounded-2xl border border-cream/[0.14] bg-[rgb(23,21,19)] p-4 shadow-[0_22px_44px_-18px_rgba(0,0,0,0.95)] lg:fixed lg:bottom-6 lg:left-56 lg:right-0 lg:z-[60] lg:mx-auto lg:max-h-[60vh] lg:w-[min(1040px,calc(100vw-6rem))] lg:overflow-y-auto"
+          >
+            <div className="mb-3 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[10.5px] font-semibold uppercase tracking-[0.11em] text-accent">
+                  Request
+                </p>
+                <p className="mt-0.5 truncate text-sm font-semibold text-foreground">
+                  {selectedTitle.title}{selectedTitle.year ? ` (${selectedTitle.year})` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedTitle(null)}
+                aria-label="Cancel request"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-cream/[0.08] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                <X aria-hidden="true" size={16} />
+              </button>
+            </div>
+            <RequestTitleForm
+              key={resultKey(selectedTitle)}
+              title={selectedTitle}
+              libraries={libraries}
+              qualityProfiles={qualityProfiles}
+              pathOptions={pathOptions}
+            />
+          </section>
+        </>
+      ) : null}
     </div>
   );
 }

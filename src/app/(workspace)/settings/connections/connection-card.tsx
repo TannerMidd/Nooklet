@@ -255,7 +255,7 @@ function UsenetFields({
         </label>
       </div>
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px]">
-        <div className="flex min-h-11 items-center rounded-lg border border-control bg-cream/[0.03] px-3.5 text-sm text-foreground">
+        <div className="flex min-h-11 items-center rounded-lg border border-cream/[0.10] bg-cream/[0.03] px-3.5 text-sm text-foreground">
           <span>
             Encrypted with TLS <span className="text-muted">(always on)</span>
           </span>

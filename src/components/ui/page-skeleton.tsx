@@ -16,7 +16,7 @@ export function PageSkeleton({ cards = 4, rows = 3 }: { cards?: number; rows?: n
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: cards }, (_, index) => <Block key={index} className="h-24" />)}
       </div>
-      <div className="space-y-3 rounded-2xl border border-line p-4 sm:p-5">
+      <div className="space-y-3 rounded-2xl border border-cream/[0.08] p-4 sm:p-5">
         {Array.from({ length: rows }, (_, index) => <Block key={index} className="h-20" />)}
       </div>
     </div>

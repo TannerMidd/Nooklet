@@ -44,7 +44,7 @@ function NavigationContents({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <nav
-        className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-4"
+        className="min-h-0 flex-1 space-y-[22px] overflow-y-auto px-3 pb-4 pt-1"
         aria-label="Workspace navigation"
         onClick={(event) => {
           if (event.target instanceof Element && event.target.closest("a")) {
@@ -52,8 +52,15 @@ function NavigationContents({
           }
         }}
       >
-        {groups.map((group) => (
-          <section key={group.title} aria-label={group.title} className="space-y-1">
+        {groups.map((group, groupIndex) => (
+          <section key={group.title} aria-label={group.title} className="space-y-0.5">
+            {/* The redesign leaves the first group unlabeled and captions every
+                group after it with uppercase micro-type. */}
+            {groupIndex > 0 ? (
+              <h2 className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-[0.10em] text-muted/70">
+                {group.title}
+              </h2>
+            ) : null}
             {group.items.map((item) => (
               <AppNavLink
                 key={item.href}
@@ -65,8 +72,8 @@ function NavigationContents({
         ))}
       </nav>
 
-      <div className="m-3 flex items-center gap-2.5 rounded-lg border border-cream/10 bg-cream/[0.03] px-3 py-2.5">
-        <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/[0.14] text-xs font-bold text-accent">
+      <div className="m-3 flex items-center gap-2.5 rounded-lg border border-cream/[0.07] bg-cream/[0.03] px-3 py-2.5">
+        <span aria-hidden="true" className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-accent/[0.14] text-xs font-bold text-accent">
           {userInitials(user.name, user.email)}
         </span>
         <div className="min-w-0 flex-1">
@@ -105,7 +112,7 @@ export function AppShell({ children, user }: AppShellProps) {
       </a>
       <QuickActionPalette />
 
-      <div className="min-h-screen lg:pl-60">
+      <div className="min-h-screen lg:pl-56">
         <header className="sticky top-0 z-30 flex min-h-14 items-center justify-between border-b border-cream/[0.07] bg-background/95 px-4 backdrop-blur lg:hidden">
           <Link
             href="/home"
@@ -124,7 +131,7 @@ export function AppShell({ children, user }: AppShellProps) {
               aria-controls="workspace-navigation"
               aria-expanded={mobileNavOpen}
               onClick={() => setMobileNavOpen((current) => !current)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-control bg-cream/[0.04] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-cream/[0.14] bg-cream/[0.04] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             >
               <Menu aria-hidden="true" className="h-5 w-5" />
             </button>
@@ -133,15 +140,15 @@ export function AppShell({ children, user }: AppShellProps) {
 
         <aside
           aria-label="Workspace navigation panel"
-          className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-cream/10 bg-panel lg:flex"
+          className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col border-r border-cream/[0.07] bg-panel/60 lg:flex"
         >
-          <div className="flex min-h-16 items-center px-5">
+          <div className="flex items-center px-5 pb-4 pt-5">
             <Link
               href="/home"
               className="flex items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               aria-label="Nooklet home"
             >
-              <span aria-hidden="true" className="nk-brand-dot h-2.5 w-2.5 shrink-0" />
+              <span aria-hidden="true" className="nk-brand-dot h-[9px] w-[9px] shrink-0" />
               <span className="nooklet-wordmark text-[21px] leading-none text-foreground">Nooklet</span>
             </Link>
           </div>
@@ -151,7 +158,7 @@ export function AppShell({ children, user }: AppShellProps) {
           <NavigationContents groups={visibleNavigationGroups} user={user} />
         </aside>
 
-        <main id="main-content" tabIndex={-1} className="min-w-0 px-4 py-6 sm:px-6 lg:px-12 lg:py-9">
+        <main id="main-content" tabIndex={-1} className="min-w-0 px-4 pb-12 pt-6 sm:px-6 lg:px-12 lg:pb-16 lg:pt-9">
           <div className="mx-auto w-full max-w-[1240px]">{children}</div>
         </main>
       </div>

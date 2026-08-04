@@ -35,7 +35,7 @@ export function QuickActionTrigger({ compact = false }: { compact?: boolean }) {
       onClick={() => window.dispatchEvent(new Event(quickActionEvent))}
       aria-haspopup="dialog"
       className={cn(
-        "inline-flex min-h-11 items-center rounded-lg border border-control bg-cream/[0.03] text-sm font-semibold text-muted transition hover:bg-cream/[0.07] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
+        "inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] bg-cream/[0.03] text-sm font-semibold text-muted transition hover:bg-cream/[0.07] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
         compact ? "w-11 justify-center" : "w-full justify-between gap-3 px-3",
       )}
       aria-label={compact ? "Open quick actions" : undefined}
@@ -92,17 +92,17 @@ export function QuickActionPalette() {
   return (
     open && portalTarget ? createPortal(
         <div className="fixed inset-0 z-[95] flex items-start justify-center p-4 pt-[10vh] sm:pt-[14vh]">
-          <button type="button" tabIndex={-1} aria-hidden="true" onClick={close} className="absolute inset-0 h-full w-full bg-black/75 backdrop-blur-sm" />
+          <button type="button" tabIndex={-1} aria-hidden="true" onClick={close} className="absolute inset-0 h-full w-full nk-scrim nk-fade" />
           <section
             ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
             tabIndex={-1}
-            className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-control bg-panel-raised shadow-2xl focus:outline-none"
+            className="relative w-full max-w-xl overflow-hidden nk-pop rounded-[20px] border border-cream/[0.10] bg-[rgb(23,21,19)] shadow-[0_44px_90px_-44px_rgba(0,0,0,0.95)] focus:outline-none"
           >
             <h2 id={titleId} className="sr-only">Quick actions</h2>
-            <div className="flex items-center gap-3 border-b border-line px-4">
+            <div className="flex items-center gap-3 border-b border-cream/[0.07] px-4">
               <Search aria-hidden="true" className="h-5 w-5 shrink-0 text-muted" />
               <input
                 ref={inputRef}

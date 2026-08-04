@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
+import { SegmentedLinks } from "@/components/ui/segmented-control";
 import { StatusDot } from "@/components/ui/status-dot";
 import { LibraryScanButton } from "@/app/(workspace)/library/library-scan-button";
 import { LibraryTitleDialog } from "@/app/(workspace)/library/library-title-dialog";
@@ -206,7 +207,7 @@ function TitleCard({
       <Link
         href={buildLibraryPageHref(mediaType, query, page, title.id, browse)}
         scroll={false}
-        className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-cream/[0.03] transition hover:-translate-y-0.5 hover:border-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+        className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-cream/[0.08] bg-cream/[0.03] transition hover:-translate-y-0.5 hover:border-cream/[0.16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       >
         <LinkPendingOverlay />
         <div className="relative aspect-[2/3] overflow-hidden bg-panel">
@@ -334,35 +335,35 @@ export async function LibraryTitlePage({
       </header>
 
       <form
-        className="grid gap-3 rounded-2xl border border-line bg-cream/[0.025] p-4 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1.6fr)_repeat(4,minmax(130px,0.7fr))_auto]"
+        className="grid gap-3 rounded-2xl border border-cream/[0.08] bg-cream/[0.025] p-4 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1.6fr)_repeat(4,minmax(130px,0.7fr))_auto]"
         action={mediaType === "tv" ? "/library/tv" : "/library/movies"}
       >
-        <label className="flex min-h-11 items-center gap-2 rounded-lg border border-control bg-background/30 px-3">
+        <label className="flex min-h-11 items-center gap-2 rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3">
           <Search aria-hidden="true" className="h-[18px] w-[18px] shrink-0 text-muted" />
           <span className="sr-only">Title</span>
           <input name="q" defaultValue={query ?? ""} placeholder={mediaType === "tv" ? "Series title" : "Movie title"} className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted/70" />
         </label>
         <label className="sr-only" htmlFor="library-status">Availability</label>
-        <select id="library-status" name="status" defaultValue={status ?? ""} className="min-h-11 rounded-lg border border-control bg-background px-3 text-sm text-foreground">
+        <select id="library-status" name="status" defaultValue={status ?? ""} className="min-h-11 rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3 text-sm text-foreground">
           <option value="">Any status</option>
           <option value="available">Available</option>
           <option value="requested">Requested</option>
           <option value="missing">Missing</option>
         </select>
         <label className="sr-only" htmlFor="library-monitoring">Monitoring</label>
-        <select id="library-monitoring" name="monitored" defaultValue={typeof monitored === "boolean" ? monitored ? "yes" : "no" : ""} className="min-h-11 rounded-lg border border-control bg-background px-3 text-sm text-foreground">
+        <select id="library-monitoring" name="monitored" defaultValue={typeof monitored === "boolean" ? monitored ? "yes" : "no" : ""} className="min-h-11 rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3 text-sm text-foreground">
           <option value="">Any monitoring</option>
           <option value="yes">Monitored</option>
           <option value="no">Unmonitored</option>
         </select>
         <label className="sr-only" htmlFor="library-destination">Library</label>
-        <select id="library-destination" name="library" defaultValue={libraryId ?? ""} className="min-h-11 rounded-lg border border-control bg-background px-3 text-sm text-foreground">
+        <select id="library-destination" name="library" defaultValue={libraryId ?? ""} className="min-h-11 rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3 text-sm text-foreground">
           <option value="">Any library</option>
           <option value="unassigned">Unassigned</option>
           {libraryOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select>
         <label className="sr-only" htmlFor="library-sort">Sort</label>
-        <select id="library-sort" name="sort" defaultValue={sort} className="min-h-11 rounded-lg border border-control bg-background px-3 text-sm text-foreground">
+        <select id="library-sort" name="sort" defaultValue={sort} className="min-h-11 rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3 text-sm text-foreground">
           <option value="title">Title A–Z</option>
           <option value="recent">Recently changed</option>
           <option value="year">Newest year</option>
@@ -373,10 +374,21 @@ export async function LibraryTitlePage({
       </form>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex rounded-lg border border-control p-1" aria-label="Library layout">
-          <Link href={buildLibraryPageHref(mediaType, query, 1, null, { ...browse, view: "list" })} aria-current={view === "list" ? "page" : undefined} className={view === "list" ? "rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground" : "rounded-md px-4 py-2 text-sm font-semibold text-muted hover:text-foreground"}>List</Link>
-          <Link href={buildLibraryPageHref(mediaType, query, 1, null, { ...browse, view: "grid" })} aria-current={view === "grid" ? "page" : undefined} className={view === "grid" ? "rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground" : "rounded-md px-4 py-2 text-sm font-semibold text-muted hover:text-foreground"}>Grid</Link>
-        </div>
+        <SegmentedLinks
+          label="Library layout"
+          options={[
+            {
+              href: buildLibraryPageHref(mediaType, query, 1, null, { ...browse, view: "list" }),
+              label: "List",
+              active: view === "list",
+            },
+            {
+              href: buildLibraryPageHref(mediaType, query, 1, null, { ...browse, view: "grid" }),
+              label: "Grid",
+              active: view === "grid",
+            },
+          ]}
+        />
         {hasFilters ? (
           <Link href={mediaType === "tv" ? "/library/tv" : "/library/movies"} className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-accent">Clear filters</Link>
         ) : null}

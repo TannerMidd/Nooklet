@@ -119,11 +119,11 @@ function ChannelEditor({ channel }: { channel: NotificationChannelView }) {
   );
 
   return (
-    <details className="rounded-lg border border-cream/10 bg-background/20">
+    <details className="rounded-lg border border-cream/[0.08] bg-background/20">
       <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
         Edit channel
       </summary>
-      <form action={action} className="space-y-4 border-t border-cream/10 p-4">
+      <form action={action} className="space-y-4 border-t border-cream/[0.07] p-4">
         <input type="hidden" name="id" value={channel.id} />
         <label className="block space-y-1.5 text-sm">
           <span className="font-medium text-foreground">Display name</span>
@@ -138,7 +138,7 @@ function ChannelEditor({ channel }: { channel: NotificationChannelView }) {
           <legend className="text-sm font-medium text-foreground">Notify me when</legend>
           <div className="grid gap-2 md:grid-cols-2">
             {notificationEventTypes.map((event) => (
-              <label key={event} className="flex min-h-11 items-center gap-3 rounded-lg border border-cream/10 px-3 py-2 text-sm text-foreground">
+              <label key={event} className="flex min-h-11 items-center gap-3 rounded-lg border border-cream/[0.10] px-3 py-2 text-sm text-foreground">
                 <input
                   type="checkbox"
                   name="events"
@@ -183,7 +183,7 @@ function ConfiguredChannel({
   }
 
   return (
-    <li className="space-y-3 rounded-xl border border-cream/10 bg-cream/[0.04] p-4">
+    <li className="space-y-3 rounded-xl border border-cream/[0.08] bg-cream/[0.04] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">{channel.displayName}</p>
@@ -249,7 +249,7 @@ export function NotificationChannelsForm({ channels }: { channels: NotificationC
   return (
     <div className="space-y-8">
       <section className="space-y-4">
-        <h2 className="font-heading text-xl text-foreground">Add a notification channel</h2>
+        <h2 className="font-heading text-2xl text-foreground">Add a notification channel</h2>
         <StatusBanner state={addState} />
         <form action={addAction} className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
@@ -263,7 +263,7 @@ export function NotificationChannelsForm({ channels }: { channels: NotificationC
                 name="channelType"
                 value={selectedType}
                 onChange={(event) => setSelectedType(event.target.value as NotificationChannelType)}
-                className="min-h-11 w-full rounded-lg border border-control bg-cream/[0.04] px-3 text-sm text-foreground"
+                className="min-h-11 w-full rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3 text-sm text-foreground"
               >
                 {notificationChannelTypes.map((type) => (
                   <option key={type} value={type}>{channelTypeLabels[type]}</option>
@@ -279,7 +279,7 @@ export function NotificationChannelsForm({ channels }: { channels: NotificationC
             <legend className="text-sm font-medium text-foreground">Notify me when</legend>
             <div className="grid gap-2 md:grid-cols-2">
               {notificationEventTypes.map((event) => (
-                <label key={event} className="flex min-h-11 items-center gap-3 rounded-lg border border-cream/10 bg-cream/[0.04] px-3 py-2 text-sm text-foreground">
+                <label key={event} className="flex min-h-11 items-center gap-3 rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3 py-2 text-sm text-foreground">
                   <input
                     type="checkbox"
                     name="events"
@@ -304,7 +304,7 @@ export function NotificationChannelsForm({ channels }: { channels: NotificationC
       </section>
 
       <section className="space-y-4">
-        <h2 className="font-heading text-xl text-foreground">Configured channels</h2>
+        <h2 className="font-heading text-2xl text-foreground">Configured channels</h2>
         <StatusBanner state={testState} />
         {channels.length === 0 ? (
           <p className="text-sm leading-6 text-muted">No notification channels yet.</p>
