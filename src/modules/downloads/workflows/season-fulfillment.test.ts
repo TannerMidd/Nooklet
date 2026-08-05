@@ -830,6 +830,7 @@ describe("season fulfillment recovery", () => {
         queued: false,
         reason: "queue_failed",
         failureKind: "infrastructure",
+        terminalFailure: true,
         message: "The download path is unavailable.",
       },
     } as never);
@@ -845,6 +846,81 @@ describe("season fulfillment recovery", () => {
     expect(searchMock).toHaveBeenCalledTimes(1);
     expect(listEpisodesMock).not.toHaveBeenCalled();
     expect(upsertEpisodeMock).not.toHaveBeenCalled();
+  });
+
+  // `blocked` has no due timestamp, so listDueDownloadFulfillments can never
+  // pick the plan up again — a provider hiccup must not end automatic recovery.
+  it("retries a season pack after a transient downloader failure instead of blocking", async () => {
+    countAttemptsMock
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(1);
+    searchMock.mockResolvedValue({
+      queuedDownload: {
+        queued: false,
+        reason: "queue_failed",
+        failureKind: "infrastructure",
+        terminalFailure: false,
+        message: "Nooklet could not queue the selected release: fetch failed",
+      },
+    } as never);
+
+    const result = await attemptSeasonPack("user-1", "fulfillment-1");
+
+    expect(result.fulfillment).toMatchObject({
+      status: "retry_wait",
+      nextAttemptAt: new Date("2026-07-15T18:05:00.000Z"),
+    });
+  });
+
+  it("parks a season pack once the transient backoff reaches its ceiling", async () => {
+    countAttemptsMock
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(1);
+    // The gap already scheduled between the last write and its next attempt is
+    // how the backoff records elapsed failure; at the ceiling a human is due.
+    fulfillment.nextAttemptAt = new Date(fulfillment.updatedAt.getTime() + 6 * 60 * 60 * 1000);
+    searchMock.mockResolvedValue({
+      queuedDownload: {
+        queued: false,
+        reason: "queue_failed",
+        failureKind: "infrastructure",
+        terminalFailure: false,
+        message: "Nooklet could not queue the selected release: fetch failed",
+      },
+    } as never);
+
+    const result = await attemptSeasonPack("user-1", "fulfillment-1");
+
+    expect(result.fulfillment).toMatchObject({ status: "blocked", nextAttemptAt: null });
+  });
+
+  it("reschedules untouched episodes after a transient failure rather than blocking them", async () => {
+    const episodes = Array.from({ length: 6 }, (_, index) => (
+      makeEpisode(`episode-${index + 1}`, index + 1)
+    ));
+    listEpisodesMock.mockResolvedValue(episodes as never);
+    countAttemptsMock.mockResolvedValue(1);
+    searchMock.mockResolvedValue({
+      queuedDownload: {
+        queued: false,
+        reason: "queue_failed",
+        failureKind: "infrastructure",
+        terminalFailure: false,
+        message: "Nooklet could not queue the selected release: fetch failed",
+      },
+    } as never);
+
+    const result = await queueMissingSeasonEpisodes({
+      userId: "user-1",
+      fulfillmentId: "fulfillment-1",
+      reason: "No season pack was usable.",
+    });
+
+    // The fan-out still short-circuits so a failing downloader is not hammered
+    // once per episode, but nothing is parked.
+    expect(searchMock.mock.calls.length).toBeLessThanOrEqual(3);
+    expect(result).toMatchObject({ episodeCount: 6, blockedCount: 0, queuedCount: 0 });
+    expect(result.retryWaitCount).toBe(6);
   });
 
   it("defers a season pack when workspace capacity is temporarily reserved", async () => {
@@ -967,6 +1043,7 @@ describe("season fulfillment recovery", () => {
         queued: false,
         reason: "queue_failed",
         failureKind: "infrastructure",
+        terminalFailure: true,
         capacity: storageCapacity,
         message: "Active downloads do not account for this shortage. Free space in the configured download workspace or correct its drive/volume mapping, then resume.",
         rejectedResultIds: [],
@@ -1045,6 +1122,7 @@ describe("season fulfillment recovery", () => {
         queued: false,
         reason: "queue_failed",
         failureKind: "infrastructure",
+        terminalFailure: true,
         capacity: storageCapacity,
         message: "The configured download workspace or drive/volume mapping needs attention.",
       },

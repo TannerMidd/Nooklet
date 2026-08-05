@@ -136,13 +136,37 @@ describe("scheduleSeasonFulfillmentAfterRequest", () => {
     }));
   });
 
-  it("blocks the plan and episode when the downloader infrastructure fails", async () => {
+  // `blocked` carries no due timestamp, so listDueDownloadFulfillments never
+  // picks the plan up again and only a manual resume recovers it. A dropped
+  // connection must not cost a season that.
+  it("retries the plan and episode when the downloader fails transiently", async () => {
     await scheduleSeasonFulfillmentAfterRequest("user-1", {
       ...request,
       episodeId: "episode-1",
     }, {
       status: "failed",
       message: "NNTP connection failed.",
+      retryableContentFailure: true,
+      failureKind: "infrastructure",
+    });
+
+    expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({
+      status: "retry_wait",
+      nextAttemptAt: new Date("2026-07-15T18:05:00.000Z"),
+    }));
+    expect(upsertEpisodeMock).toHaveBeenCalledWith(expect.objectContaining({
+      episodeId: "episode-1",
+      status: "retry_wait",
+    }));
+  });
+
+  it("blocks the plan and episode when the downloader is misconfigured", async () => {
+    await scheduleSeasonFulfillmentAfterRequest("user-1", {
+      ...request,
+      episodeId: "episode-1",
+    }, {
+      status: "failed",
+      message: "No usenet server is configured. Add one under Settings → Connections.",
       retryableContentFailure: true,
       failureKind: "infrastructure",
     });

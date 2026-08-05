@@ -5,7 +5,10 @@ import {
   selectReleaseCandidates,
   type ReleaseSelectionTarget,
 } from "@/modules/media-library/release-selection";
-import { isInfrastructureIndexerSearchFailure } from "@/modules/downloads/workflows/download-failure-classification";
+import {
+  isInfrastructureIndexerSearchFailure,
+  isTerminalInfrastructureFailure,
+} from "@/modules/downloads/workflows/download-failure-classification";
 import { type SeasonFulfillmentWorkLease } from "@/modules/downloads/workflows/season-fulfillment-work-lease";
 
 import { type ResolvedLibrarySearchItem } from "./item-resolution";
@@ -19,6 +22,8 @@ export type LibraryItemQueuedDownload =
       reason: "search_failed" | "no_matching_release" | "queue_failed";
       message: string | null;
       failureKind?: "release" | "infrastructure" | "capacity" | "conflict" | "unknown";
+      /** True when an infrastructure failure needs a human before any retry. */
+      terminalFailure?: boolean;
       capacity?: DownloadCapacityDetails | null;
       selectedResultId: null;
       rejectedResultIds: string[];
@@ -102,6 +107,9 @@ export async function queueLibraryItemRelease(
       failureKind: isInfrastructureIndexerSearchFailure(releaseSearch.searchRun.errorMessage)
         ? "infrastructure"
         : "unknown",
+      // A search failure is aggregated indexer error text with no structured
+      // code behind it, so the message is genuinely all there is to go on.
+      terminalFailure: isTerminalInfrastructureFailure(releaseSearch.searchRun.errorMessage),
       selectedResultId: null,
       rejectedResultIds: [],
       download: null,

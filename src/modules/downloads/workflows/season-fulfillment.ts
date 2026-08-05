@@ -52,7 +52,13 @@ type Fulfillment = NonNullable<Awaited<ReturnType<typeof findDownloadFulfillment
 type EpisodeState = Awaited<ReturnType<typeof listDownloadFulfillmentEpisodes>>[number];
 type EpisodeAttemptResult = {
   queued: boolean;
-  infrastructureFailureMessage?: string;
+  /**
+   * Set for any infrastructure failure so the pass stops fanning out at a
+   * downloader or indexer that is already failing. `terminal` separates that
+   * short-circuit from the durable decision: a transient fault reschedules the
+   * untouched children, only a configuration fault parks them.
+   */
+  infrastructureFailure?: { message: string; terminal: boolean };
 };
 type SeasonWorkClaim = {
   lease: SeasonFulfillmentWorkLease;
@@ -215,17 +221,54 @@ function nowPlus(delayMs: number) {
   return new Date(Date.now() + delayMs);
 }
 
-function nextTransientRetryAt(previous: {
+type RetrySchedulable = {
   nextAttemptAt: Date | null;
   updatedAt: Date;
-} | null) {
+};
+
+/**
+ * The gap already scheduled between the last write and its next attempt is a
+ * durable record of how long this has been failing, so the backoff doubles
+ * without needing a consecutive-failure column.
+ */
+function nextTransientRetryDelayMs(previous: RetrySchedulable | null) {
   const priorDelay = previous?.nextAttemptAt
     ? Math.max(0, previous.nextAttemptAt.getTime() - previous.updatedAt.getTime())
     : 0;
-  const delay = priorDelay >= transientRetryDelayMs
+  return priorDelay >= transientRetryDelayMs
     ? Math.min(maxTransientRetryDelayMs, priorDelay * 2)
     : transientRetryDelayMs;
-  return nowPlus(delay);
+}
+
+function nextTransientRetryAt(previous: RetrySchedulable | null) {
+  return nowPlus(nextTransientRetryDelayMs(previous));
+}
+
+/**
+ * Decides how an infrastructure failure is scheduled.
+ *
+ * `blocked` with a null `nextAttemptAt` is genuinely terminal:
+ * listDueDownloadFulfillments requires a due timestamp, so nothing picks the
+ * plan up again and only a manual resume recovers it. That is right for a
+ * misconfigured indexer and wrong for a provider hiccup — one 503 used to end
+ * automatic recovery for a whole season.
+ *
+ * Transient failures now back off instead, doubling from five minutes, and
+ * only park once the backoff reaches its six-hour ceiling. By then the
+ * condition has persisted long enough that a human really is the next step.
+ */
+function scheduleInfrastructureRetry(
+  outcome: { terminalFailure?: boolean },
+  previous: RetrySchedulable | null,
+): { status: "blocked"; nextAttemptAt: null } | { status: "retry_wait"; nextAttemptAt: Date } {
+  if (
+    outcome.terminalFailure === true
+    || nextTransientRetryDelayMs(previous) >= maxTransientRetryDelayMs
+  ) {
+    return { status: "blocked", nextAttemptAt: null };
+  }
+
+  return { status: "retry_wait", nextAttemptAt: nextTransientRetryAt(previous) };
 }
 
 function nextCapacityRetryAt(previous: {
@@ -306,7 +349,7 @@ async function attemptEpisode(
   episode: TvEpisodeRecord,
   state: EpisodeState | null,
   workLease: SeasonFulfillmentWorkLease,
-) {
+): Promise<EpisodeAttemptResult> {
   const requestKey = `season-fulfillment:${fulfillment.id}:episode:${episode.id}`;
   const lease = await acquireMediaRequestAttempt(
     userId,
@@ -490,19 +533,24 @@ async function attemptEpisode(
         reason: "search_failed",
         detail: result.queuedDownload.message,
       });
-      const infrastructureFailure = result.queuedDownload.failureKind === "infrastructure";
+      const schedule = result.queuedDownload.failureKind === "infrastructure"
+        ? scheduleInfrastructureRetry(result.queuedDownload, state)
+        : { status: "retry_wait" as const, nextAttemptAt: nextTransientRetryAt(state) };
       await upsertDownloadFulfillmentEpisode({
         userId,
         fulfillmentId: fulfillment.id,
         episodeId: episode.id,
-        status: infrastructureFailure ? "blocked" : "retry_wait",
+        status: schedule.status,
         attemptCount: cycleAttemptsUsed,
-        nextAttemptAt: infrastructureFailure ? null : nextTransientRetryAt(state),
+        nextAttemptAt: schedule.nextAttemptAt,
         statusMessage: message,
       });
-      return infrastructureFailure
-        ? { queued: false, infrastructureFailureMessage: message } satisfies EpisodeAttemptResult
-        : { queued: false } satisfies EpisodeAttemptResult;
+      return {
+        queued: false,
+        ...(result.queuedDownload.failureKind === "infrastructure"
+          ? { infrastructureFailure: { message, terminal: schedule.status === "blocked" } }
+          : {}),
+      } satisfies EpisodeAttemptResult;
     }
 
     if (
@@ -525,21 +573,28 @@ async function attemptEpisode(
       result.queuedDownload.reason === "queue_failed"
       && result.queuedDownload.failureKind === "infrastructure"
     ) {
-      const infrastructureFailureMessage = episodeStateMessage({
+      const failureMessage = episodeStateMessage({
         episode,
         reason: "queue_failed",
         detail: result.queuedDownload.message,
       });
+      const schedule = scheduleInfrastructureRetry(result.queuedDownload, state);
       await upsertDownloadFulfillmentEpisode({
         userId,
         fulfillmentId: fulfillment.id,
         episodeId: episode.id,
-        status: "blocked",
+        status: schedule.status,
         attemptCount: cycleAttemptsUsed,
-        nextAttemptAt: null,
-        statusMessage: infrastructureFailureMessage,
+        nextAttemptAt: schedule.nextAttemptAt,
+        statusMessage: failureMessage,
       });
-      return { queued: false, infrastructureFailureMessage } satisfies EpisodeAttemptResult;
+      return {
+        queued: false,
+        infrastructureFailure: {
+          message: failureMessage,
+          terminal: schedule.status === "blocked",
+        },
+      } satisfies EpisodeAttemptResult;
     }
 
     if (
@@ -925,9 +980,12 @@ export async function queueMissingSeasonEpisodes(input: {
   }
 
   let queuedCount = 0;
-  let infrastructureFailureMessage: string | null = null;
+  let infrastructureFailure: EpisodeAttemptResult["infrastructureFailure"] = undefined;
   await mapWithConcurrency(searchable, episodeSearchConcurrency, async (episode) => {
-    if (infrastructureFailureMessage) return;
+    // Stop fanning out at a downloader or indexer that is already failing,
+    // whether or not the fault turns out to need a human. Running the rest of
+    // the season into the same wall only wastes round trips.
+    if (infrastructureFailure) return;
     const outcome = await attemptEpisode(
       input.userId,
       fulfillment,
@@ -936,12 +994,14 @@ export async function queueMissingSeasonEpisodes(input: {
       workClaim.lease,
     );
     if (outcome.queued) queuedCount += 1;
-    if (outcome.infrastructureFailureMessage) {
-      infrastructureFailureMessage = outcome.infrastructureFailureMessage;
+    if (outcome.infrastructureFailure) {
+      infrastructureFailure = outcome.infrastructureFailure;
     }
   });
 
-  if (infrastructureFailureMessage) {
+  if (infrastructureFailure) {
+    // Narrowing is lost across the closure above.
+    const failure = infrastructureFailure as NonNullable<EpisodeAttemptResult["infrastructureFailure"]>;
     const currentStates = new Map((await listDownloadFulfillmentEpisodes({
       userId: input.userId,
       fulfillmentId: fulfillment.id,
@@ -949,14 +1009,21 @@ export async function queueMissingSeasonEpisodes(input: {
     for (const episode of searchable) {
       const state = currentStates.get(episode.id);
       if (state?.status !== "pending") continue;
+      // Children never reached: park them only when a human has to clear the
+      // fault, otherwise hand them the same backoff the failing child got.
+      const schedule = failure.terminal
+        ? { status: "blocked" as const, nextAttemptAt: null }
+        : { status: "retry_wait" as const, nextAttemptAt: nextTransientRetryAt(state) };
       await upsertDownloadFulfillmentEpisode({
         userId: input.userId,
         fulfillmentId: fulfillment.id,
         episodeId: episode.id,
-        status: "blocked",
+        status: schedule.status,
         attemptCount: state.attemptCount,
-        nextAttemptAt: null,
-        statusMessage: `${episodeCode(episode)} paused because the download infrastructure needs attention. ${infrastructureFailureMessage}`,
+        nextAttemptAt: schedule.nextAttemptAt,
+        statusMessage: failure.terminal
+          ? `${episodeCode(episode)} paused because the download infrastructure needs attention. ${failure.message}`
+          : `${episodeCode(episode)} is waiting for the downloader to recover. ${failure.message}`,
       });
     }
   }
@@ -1010,6 +1077,8 @@ export async function recordSeasonPackSubmissionOutcome(input: {
         reason: "not_requested" | "search_not_run" | "search_failed" | "no_matching_release" | "queue_failed";
         message: string | null;
         failureKind?: "release" | "infrastructure" | "capacity" | "conflict" | "unknown";
+        /** True when an infrastructure failure needs a human before any retry. */
+        terminalFailure?: boolean;
         capacity?: DownloadCapacityDetails | null;
       };
 }) {
@@ -1049,16 +1118,18 @@ export async function recordSeasonPackSubmissionOutcome(input: {
     || input.outcome.reason === "search_not_run"
     || input.outcome.reason === "not_requested"
   ) {
-    const infrastructureFailure = input.outcome.reason === "search_failed"
-      && input.outcome.failureKind === "infrastructure";
+    const schedule = input.outcome.reason === "search_failed"
+      && input.outcome.failureKind === "infrastructure"
+      ? scheduleInfrastructureRetry(input.outcome, fulfillment)
+      : { status: "retry_wait" as const, nextAttemptAt: nextTransientRetryAt(fulfillment) };
     await updateDownloadFulfillment({
       userId: input.userId,
       fulfillmentId: input.fulfillmentId,
       expectedStatuses: [...openFulfillmentStatuses],
-      status: infrastructureFailure ? "blocked" : "retry_wait",
+      status: schedule.status,
       packAttemptCount: attempts,
-      nextAttemptAt: infrastructureFailure ? null : nextTransientRetryAt(fulfillment),
-      statusMessage: infrastructureFailure
+      nextAttemptAt: schedule.nextAttemptAt,
+      statusMessage: schedule.status === "blocked"
         ? input.outcome.message ?? "Configure and verify an indexer, then resume this season."
         : input.outcome.message
           ? `Season-pack search failed. Nooklet will retry automatically: ${input.outcome.message}`
@@ -1089,15 +1160,18 @@ export async function recordSeasonPackSubmissionOutcome(input: {
     input.outcome.reason === "queue_failed"
     && input.outcome.failureKind === "infrastructure"
   ) {
+    const schedule = scheduleInfrastructureRetry(input.outcome, fulfillment);
     await updateDownloadFulfillment({
       userId: input.userId,
       fulfillmentId: input.fulfillmentId,
       expectedStatuses: [...openFulfillmentStatuses],
-      status: "blocked",
+      status: schedule.status,
       packAttemptCount: attempts,
-      nextAttemptAt: null,
-      statusMessage: input.outcome.message
-        ?? "The downloader or storage configuration must be fixed before this season can continue.",
+      nextAttemptAt: schedule.nextAttemptAt,
+      statusMessage: schedule.status === "blocked"
+        ? input.outcome.message
+          ?? "The downloader or storage configuration must be fixed before this season can continue."
+        : `The downloader was not reachable. Nooklet will retry automatically${input.outcome.message ? `: ${input.outcome.message}` : "."}`,
     });
     return null;
   }
@@ -1291,15 +1365,17 @@ export async function attemptSeasonPack(
   }
 
   if (releaseSearch.queuedDownload.reason === "search_failed") {
-    const infrastructureFailure = releaseSearch.queuedDownload.failureKind === "infrastructure";
+    const schedule = releaseSearch.queuedDownload.failureKind === "infrastructure"
+      ? scheduleInfrastructureRetry(releaseSearch.queuedDownload, fulfillment)
+      : { status: "retry_wait" as const, nextAttemptAt: nextTransientRetryAt(fulfillment) };
     const updated = await updateDownloadFulfillment({
       userId,
       fulfillmentId,
       expectedStatuses: [...openFulfillmentStatuses],
-      status: infrastructureFailure ? "blocked" : "retry_wait",
+      status: schedule.status,
       packAttemptCount: totalAttempts,
-      nextAttemptAt: infrastructureFailure ? null : nextTransientRetryAt(fulfillment),
-      statusMessage: infrastructureFailure
+      nextAttemptAt: schedule.nextAttemptAt,
+      statusMessage: schedule.status === "blocked"
         ? releaseSearch.queuedDownload.message
           ?? "Configure and verify an indexer, then resume this season."
         : releaseSearch.queuedDownload.message
@@ -1331,15 +1407,18 @@ export async function attemptSeasonPack(
     releaseSearch.queuedDownload.reason === "queue_failed"
     && releaseSearch.queuedDownload.failureKind === "infrastructure"
   ) {
+    const schedule = scheduleInfrastructureRetry(releaseSearch.queuedDownload, fulfillment);
     const updated = await updateDownloadFulfillment({
       userId,
       fulfillmentId,
       expectedStatuses: [...openFulfillmentStatuses],
-      status: "blocked",
+      status: schedule.status,
       packAttemptCount: totalAttempts,
-      nextAttemptAt: null,
-      statusMessage: releaseSearch.queuedDownload.message
-        ?? "The downloader or storage configuration must be fixed before this season can continue.",
+      nextAttemptAt: schedule.nextAttemptAt,
+      statusMessage: schedule.status === "blocked"
+        ? releaseSearch.queuedDownload.message
+          ?? "The downloader or storage configuration must be fixed before this season can continue."
+        : `The downloader was not reachable. Nooklet will retry automatically${releaseSearch.queuedDownload.message ? `: ${releaseSearch.queuedDownload.message}` : "."}`,
     });
     return { fulfillment: updated ?? fulfillment, releaseSearch, fallback: null };
   }

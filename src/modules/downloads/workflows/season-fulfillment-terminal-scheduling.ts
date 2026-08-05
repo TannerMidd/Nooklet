@@ -6,6 +6,7 @@ import {
 } from "@/modules/downloads/repositories/season-fulfillment-repository";
 import {
   isInfrastructureDownloadFailure,
+  isTerminalInfrastructureFailure,
   type DownloadFailureKind,
 } from "@/modules/downloads/workflows/download-failure-classification";
 import {
@@ -85,9 +86,14 @@ export async function scheduleSeasonFulfillmentAfterRequest(
 
     const infrastructureFailure = outcome.status === "failed"
       && isInfrastructureDownloadFailure(outcome.message, outcome.failureKind);
+    // An infrastructure failure only parks the plan when a human has to clear
+    // it. A reset connection or an unreachable provider is retried instead —
+    // `blocked` has no due timestamp, so nothing would ever pick it up again.
     const shouldRetry = outcome.status === "failed"
-      && outcome.retryableContentFailure
-      && !infrastructureFailure;
+      && (
+        (outcome.retryableContentFailure && !infrastructureFailure)
+        || (infrastructureFailure && !isTerminalInfrastructureFailure(outcome.message))
+      );
     const status = outcome.status === "succeeded"
       ? "partial" as const
       : shouldRetry

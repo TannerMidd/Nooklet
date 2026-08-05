@@ -9,6 +9,7 @@ import {
   type DownloadCapacityDisposition,
 } from "@/modules/downloads/workflows/queue-indexer-result/errors";
 import { type SeasonFulfillmentWorkLease } from "@/modules/downloads/workflows/season-fulfillment-work-lease";
+import { isTerminalInfrastructureFailure } from "@/modules/downloads/workflows/download-failure-classification";
 
 import { type ReleaseCandidate } from "./candidate-selection";
 
@@ -35,6 +36,37 @@ export type QueueFailureKind =
   | "conflict"
   | "unknown";
 
+/**
+ * Infrastructure faults that cannot clear themselves: nothing is configured,
+ * a connection was never verified, no library folder matches, or the
+ * workspace is genuinely out of room. Callers park the plan for these and
+ * back off for everything else.
+ */
+const terminalInfrastructureErrorCodes = new Set([
+  "sabnzbd_not_connected",
+  "sabnzbd_not_verified",
+  "target_path_not_found",
+]);
+
+function queueFailureIsTerminal(error: QueueIndexerResultWorkflowError) {
+  if (terminalInfrastructureErrorCodes.has(error.code)) return true;
+
+  if (error.code === "download_capacity_exceeded") {
+    // Contention between active downloads resolves as they finish; a genuine
+    // shortage or a bad volume mapping does not.
+    return capacityDisposition(error) === "storage_insufficient";
+  }
+
+  // `indexer_unavailable` is the one code that spans both: an unapproved host
+  // or rejected key needs a human, a reset connection or a 5xx does not, and
+  // only the message distinguishes them.
+  if (error.code === "indexer_unavailable") {
+    return isTerminalInfrastructureFailure(error.message);
+  }
+
+  return false;
+}
+
 export type QueueReleaseCandidatesContext = {
   mediaTitleId: string;
   requestedTitle: string;
@@ -55,6 +87,8 @@ export type QueuedReleaseCandidatesOutcome =
       reason: "queue_failed";
       message: string | null;
       failureKind: QueueFailureKind;
+      /** True when an infrastructure failure needs a human before any retry. */
+      terminalFailure?: boolean;
       capacity?: DownloadCapacityDetails | null;
       selectedResultId: null;
       rejectedResultIds: string[];
@@ -175,6 +209,7 @@ export async function queueReleaseCandidates(
           reason: "queue_failed",
           message: queueFailureMessage(error),
           failureKind: queueFailureKind(error),
+          terminalFailure: queueFailureIsTerminal(error),
           capacity: error.capacity,
           selectedResultId: null,
           rejectedResultIds,
