@@ -382,6 +382,12 @@ async function runCompletedDownloadImportPass() {
   const failures: string[] = [];
 
   for (const userId of userIds) {
+    // Each user is a completed unit of work. Recording it keeps a long pass
+    // over many users from reading as a stalled worker, while a pass wedged
+    // inside one user's import still goes stale — which is the signal the
+    // filesystem-job carve-out below exists to preserve.
+    recordWorkerProgress();
+
     // The built-in engine import never depends on SABnzbd being reachable,
     // so it runs first in its own failure domain.
     try {
@@ -441,11 +447,22 @@ async function runMaintenancePass() {
   persistWorkerHealth();
 
   try {
+    // Progress is recorded between steps and inside the two long ones. The
+    // maintenance pass regularly outlives backgroundWorkerStaleAfterMs — the
+    // import sweep runs per user against a 20s SABnzbd timeout, and season
+    // recovery runs indexer searches per fulfillment — and recording only at
+    // the end made a busy worker look dead, taking /api/health to 503 and the
+    // container to unhealthy. Deliberately not a timer: a wedged mount must
+    // still surface, so only completed units count.
     await ensureEngineRunnerStarted();
+    recordWorkerProgress();
     await reconcilePendingSeasonFulfillmentCancellations();
+    recordWorkerProgress();
     await reconcilePendingDownloadRequestCancellations();
+    recordWorkerProgress();
     await runCompletedDownloadImportPass();
-    await runDueSeasonFulfillments();
+    recordWorkerProgress();
+    await runDueSeasonFulfillments({ onProgress: () => recordWorkerProgress() });
   } finally {
     sharedWorkerState.runningMaintenance = false;
     recordWorkerProgress();

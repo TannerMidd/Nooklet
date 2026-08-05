@@ -1594,13 +1594,32 @@ export async function markFulfillmentEpisodeFailedAndRetry(input: {
   }
 }
 
-export async function runDueSeasonFulfillments() {
+/**
+ * Wall-clock budget for one pass. Plans are durable and ordered by their due
+ * timestamp, so stopping early loses nothing and keeps a backlog of fifty
+ * fulfillments — each running indexer searches — from monopolising the worker.
+ */
+const seasonFulfillmentPassBudgetMs = 2 * 60 * 1000;
+
+export async function runDueSeasonFulfillments(options: {
+  /**
+   * Called after each fulfillment settles. The worker uses this to record
+   * real progress: a pass that keeps completing units stays responsive, while
+   * one wedged inside a single unit correctly goes stale.
+   */
+  onProgress?: () => void;
+  budgetMs?: number;
+} = {}) {
   const due = await listDueDownloadFulfillments({ limit: 50 });
+  const startedAt = Date.now();
+  const budgetMs = options.budgetMs ?? seasonFulfillmentPassBudgetMs;
   let attemptedCount = 0;
   let queuedCount = 0;
   let failedCount = 0;
 
   for (const fulfillment of due) {
+    if (Date.now() - startedAt >= budgetMs) break;
+
     try {
       const fresh = await findDownloadFulfillmentById(fulfillment.userId, fulfillment.id);
       if (
@@ -1658,6 +1677,10 @@ export async function runDueSeasonFulfillments() {
       } finally {
         await releaseSeasonFulfillmentWorkLease(errorLease);
       }
+    } finally {
+      // Every path through the body — including the `continue`s — settles one
+      // fulfillment, so this is genuine progress rather than a timer tick.
+      options.onProgress?.();
     }
   }
 

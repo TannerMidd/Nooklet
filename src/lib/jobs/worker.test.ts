@@ -71,6 +71,8 @@ import { retireMediaTitlePreservingFilesWorkflow } from "@/modules/media-library
 import { scanMediaLibraryWorkflow } from "@/modules/media-library/workflows/scan-library";
 import { searchMissingMonitoredContentWorkflow } from "@/modules/media-library/workflows/search-missing-monitored";
 
+import { backgroundWorkerStaleAfterMs } from "@/lib/jobs/worker-readiness";
+
 import { getBackgroundWorkerHealth, runDueJobs } from "./worker";
 
 const listActiveUsersMock = vi.mocked(listUsersWithActiveDownloadRequestsForImport);
@@ -463,5 +465,65 @@ describe("runDueJobs", () => {
 
     expect(claimDueJobsMock).toHaveBeenCalledWith("missing-content-search", expect.any(Date), 1);
     expect(searchMissingContentMock).toHaveBeenCalledWith("user1");
+  });
+
+  // The maintenance pass routinely outlives backgroundWorkerStaleAfterMs: the
+  // import sweep runs per user against a 20s SABnzbd timeout, and season
+  // recovery runs indexer searches per fulfillment. Recording progress only at
+  // the end made a busy worker read as dead, which took /api/health to 503 and
+  // the container to unhealthy.
+  it("stays responsive through a maintenance pass that outlives the stale window", async () => {
+    vi.useFakeTimers();
+
+    try {
+      vi.setSystemTime(new Date("2026-08-05T00:00:00.000Z"));
+      listActiveUsersMock.mockResolvedValue(["user-1", "user-2", "user-3"]);
+      const observedAgesMs: number[] = [];
+
+      importCompletedEngineDownloadsMock.mockImplementation(async () => {
+        const lastProgressAt = getBackgroundWorkerHealth().lastProgressAt;
+        observedAgesMs.push(Date.now() - (lastProgressAt?.getTime() ?? 0));
+        // This user's import takes longer than the whole stale window.
+        vi.setSystemTime(new Date(Date.now() + 90_000));
+        return null;
+      });
+
+      await runDueJobs();
+
+      expect(observedAgesMs).toHaveLength(3);
+      for (const ageMs of observedAgesMs) {
+        expect(ageMs).toBeLessThan(backgroundWorkerStaleAfterMs);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // The other half of the property: progress must come from completed units,
+  // never a timer, so a wedged mount still surfaces as a stale worker.
+  it("records no progress while a single unit is in flight", async () => {
+    vi.useFakeTimers();
+
+    try {
+      vi.setSystemTime(new Date("2026-08-05T00:00:00.000Z"));
+      listActiveUsersMock.mockResolvedValue(["user-1"]);
+      let progressAtEntry: number | null = null;
+      let progressAfterStall: number | null = null;
+
+      importCompletedEngineDownloadsMock.mockImplementation(async () => {
+        progressAtEntry = getBackgroundWorkerHealth().lastProgressAt?.getTime() ?? null;
+        vi.setSystemTime(new Date(Date.now() + 90_000));
+        await Promise.resolve();
+        progressAfterStall = getBackgroundWorkerHealth().lastProgressAt?.getTime() ?? null;
+        return null;
+      });
+
+      await runDueJobs();
+
+      expect(progressAtEntry).not.toBeNull();
+      expect(progressAfterStall).toBe(progressAtEntry);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
