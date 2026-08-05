@@ -84,13 +84,18 @@ function readText(value: unknown): string | null {
   return null;
 }
 
+/**
+ * Indexers report counts and sizes inconsistently — decimals, negatives, the
+ * occasional empty attribute. The schema wants non-negative integers, so
+ * normalize here rather than letting one odd value fail validation.
+ */
 function readNumber(value: string | null) {
   if (!value) {
     return null;
   }
 
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : null;
 }
 
 function readDate(value: string | null) {
@@ -201,11 +206,20 @@ export async function searchNewznabIndexer(input: NewznabSearchInput): Promise<N
   const channel = asRecord(asRecord(payload)?.rss)?.channel;
   const items = asArray(asRecord(channel)?.item);
 
-  const results = items
+  // Validate per item and drop only the bad ones. Parsing the array as a unit
+  // meant a single malformed attribute threw away every result the indexer
+  // returned, and the caller could not tell that from an empty page.
+  return items
     .map((item) => asRecord(item))
     .filter((item): item is ParsedNode => Boolean(item))
-    .map(normalizeItem)
-    .filter((item): item is NewznabSearchResult => Boolean(item));
+    .flatMap((item) => {
+      const normalized = normalizeItem(item);
 
-  return z.array(newznabSearchResultSchema).parse(results);
+      if (!normalized) {
+        return [];
+      }
+
+      const parsed = newznabSearchResultSchema.safeParse(normalized);
+      return parsed.success ? [parsed.data] : [];
+    });
 }

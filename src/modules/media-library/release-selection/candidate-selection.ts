@@ -43,6 +43,32 @@ function normalizeIdentityText(value: string) {
     .trim();
 }
 
+/**
+ * Same normalization with separators removed entirely.
+ *
+ * Scene names drop punctuation rather than replacing it, so "It's Always
+ * Sunny" becomes "Its.Always.Sunny" — which reads as `its always sunny` on the
+ * word-separated form and never matches `it s always sunny`. Every candidate
+ * for such a title was filtered out, so it could never download at all.
+ */
+function collapseIdentityText(value: string) {
+  return value
+    .normalize("NFKC")
+    .toLocaleLowerCase("und")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+/**
+ * Resolution and dimension tokens read as years: `1920x1080` matches a
+ * `19\d\d` scan, so a release carrying a resolution but no year looked like it
+ * declared 1920 and was rejected against the real one.
+ */
+function stripResolutionTokens(title: string) {
+  return title
+    .replace(/\d{3,4}\s*[x×]\s*\d{3,4}/gi, " ")
+    .replace(/\b\d{3,4}[ip]\b/gi, " ");
+}
+
 function releaseMatchesExpectedIdentity(
   result: ReleaseCandidate,
   options: Pick<ReleaseSelectionOptions, "expectedTitle" | "expectedYear" | "mediaType">,
@@ -53,16 +79,26 @@ function releaseMatchesExpectedIdentity(
 
   const expectedTitle = normalizeIdentityText(options.expectedTitle);
   const releaseTitle = normalizeIdentityText(result.title);
-  if (
-    !expectedTitle
-    || (releaseTitle !== expectedTitle && !releaseTitle.startsWith(`${expectedTitle} `))
-  ) {
+
+  if (!expectedTitle) {
+    return false;
+  }
+
+  const matchesSeparated = releaseTitle === expectedTitle
+    || releaseTitle.startsWith(`${expectedTitle} `);
+  // The collapsed comparison only ever accepts more than the separated one, so
+  // it cannot reject a title that matches today.
+  const matchesCollapsed = collapseIdentityText(result.title)
+    .startsWith(collapseIdentityText(options.expectedTitle));
+
+  if (!matchesSeparated && !matchesCollapsed) {
     return false;
   }
 
   if (options.expectedYear) {
-    const declaredYears = Array.from(result.title.matchAll(/(?:^|\D)((?:19|20)\d{2})(?!\d)/g))
-      .map((match) => Number(match[1]));
+    const declaredYears = Array.from(
+      stripResolutionTokens(result.title).matchAll(/(?:^|\D)((?:19|20)\d{2})(?!\d)/g),
+    ).map((match) => Number(match[1]));
     if (declaredYears.length > 0 && !declaredYears.includes(options.expectedYear)) {
       return false;
     }

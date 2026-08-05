@@ -106,6 +106,47 @@ describe("searchNewznabIndexer", () => {
     })).rejects.toThrow(expected);
   });
 
+  // The array used to be validated as a unit, so one odd attribute threw away
+  // every result the indexer returned — indistinguishable from an empty page.
+  it("drops only the items that fail validation", async () => {
+    safeFetchMock.mockResolvedValue(new Response(`
+      <rss>
+        <channel>
+          <item>
+            <title>Good Release 1080p</title>
+            <guid>guid-good</guid>
+            <link>https://indexer.example/download/guid-good</link>
+            <newznab:attr name="size" value="12345" />
+          </item>
+          <item>
+            <title>Fractional Size 1080p</title>
+            <guid>guid-fractional</guid>
+            <link>https://indexer.example/download/guid-fractional</link>
+            <newznab:attr name="size" value="1234.5" />
+            <newznab:attr name="grabs" value="-3" />
+          </item>
+          <item>
+            <title>No Download URL</title>
+            <guid>guid-broken</guid>
+          </item>
+        </channel>
+      </rss>
+    `, { status: 200 }) as never);
+
+    const results = await searchNewznabIndexer({
+      protocol: "newznab",
+      baseUrl: "https://indexer.example",
+      apiPath: "/api",
+      apiKey: "abc123",
+      query: "Release",
+      categories: [],
+    });
+
+    expect(results.map((entry) => entry.indexerGuid)).toEqual(["guid-good", "guid-fractional"]);
+    // Decimals and negatives are normalized rather than discarding the item.
+    expect(results[1]).toMatchObject({ sizeBytes: 1234, grabs: 0 });
+  });
+
   it("throws on non-success responses", async () => {
     safeFetchMock.mockResolvedValue(new Response("nope", { status: 500 }) as never);
 

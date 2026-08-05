@@ -115,6 +115,59 @@ describe("selectReleaseCandidates", () => {
     expect(candidates.map((candidate) => candidate.id)).toEqual(["correct"]);
   });
 
+  // Scene names drop punctuation rather than replacing it, so the
+  // word-separated form of the expected title never lined up and *every*
+  // candidate for such a title was filtered out.
+  it.each([
+    ["It's Always Sunny in Philadelphia", "Its.Always.Sunny.in.Philadelphia.S01E01.1080p"],
+    ["Marvel's Agents of S.H.I.E.L.D.", "Marvels.Agents.of.SHIELD.S01E01.1080p"],
+    ["Bob's Burgers", "Bobs.Burgers.S01E01.1080p"],
+  ])("matches %s against its punctuation-stripped release name", (expectedTitle, title) => {
+    const candidates = selectReleaseCandidates(
+      [result({ id: "match", title })],
+      {
+        qualityProfile: "hd-1080p",
+        expectedTitle,
+        mediaType: "tv",
+        target: { kind: "episode", season: 1, episode: 1 },
+      },
+    );
+
+    expect(candidates.map((candidate) => candidate.id)).toEqual(["match"]);
+  });
+
+  it("still rejects a different title that merely shares a prefix word", () => {
+    const candidates = selectReleaseCandidates(
+      [result({ id: "other", title: "The.Bobs.Burgers.Movie.2022.1080p" })],
+      {
+        qualityProfile: "hd-1080p",
+        expectedTitle: "Bob's Burgers",
+        mediaType: "movie",
+      },
+    );
+
+    expect(candidates).toEqual([]);
+  });
+
+  // `1920x1080` matched the year scan, so a release carrying a resolution but
+  // no year looked like it declared 1920.
+  it("does not read a resolution token as a declared year", () => {
+    const candidates = selectReleaseCandidates(
+      [
+        result({ id: "resolution-only", title: "Arrival 1920x1080 BluRay x264" }),
+        result({ id: "wrong-year", title: "Arrival 1996 1920x1080 BluRay" }),
+      ],
+      {
+        qualityProfile: "hd-1080p",
+        expectedTitle: "Arrival",
+        expectedYear: 2016,
+        mediaType: "movie",
+      },
+    );
+
+    expect(candidates.map((candidate) => candidate.id)).toEqual(["resolution-only"]);
+  });
+
   it("uses bounded TV tokens and requires an explicit complete-series release for all-TV requests", () => {
     const episodeCandidates = selectReleaseCandidates(
       [
