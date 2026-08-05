@@ -98,7 +98,9 @@ async function submitToEngine(
       : null;
 
     if (!indexer) {
-      throw new Error("The indexer that supplied this release is no longer available.");
+      throw new Error(
+        "The indexer that supplied this release is no longer configured in Nooklet.",
+      );
     }
 
     let downloadOrigin: string;
@@ -111,8 +113,13 @@ async function submitToEngine(
       throw new Error("The indexer returned an invalid NZB download URL.");
     }
 
+    // Naming the two origins matters: this is an indexer/configuration fault
+    // that a user can act on, and without them it is indistinguishable from a
+    // dead release in the activity list.
     if (downloadOrigin !== indexerOrigin) {
-      throw new Error("The indexer returned an NZB URL from an unapproved host.");
+      throw new Error(
+        `The indexer returned an NZB URL from an unapproved host (${downloadOrigin} does not match the configured indexer at ${indexerOrigin}).`,
+      );
     }
 
     const nzbXml = await fetchNzbDocument(downloadUrl);
@@ -139,8 +146,21 @@ async function submitToEngine(
       );
     }
 
+    // Everything reaching here failed before the indexer gave us a usable
+    // answer, so none of it is evidence about the release. Only the two
+    // verdicts above are: an explicit 404/410 from the indexer, and an NZB
+    // document that parsed as junk.
+    //
+    // This distinction is durable, not cosmetic. `release_unavailable` fails
+    // the reservation, which leaves a download_requests row carrying the
+    // search result id — the exact thing listFulfillmentReleaseExclusions
+    // reads to exclude a release from every future search. `fetch` collapses
+    // every socket, DNS and TLS failure into an opaque `TypeError`, so keying
+    // off the error type let one reset connection permanently discard a
+    // perfectly grabbable release and spend a candidate attempt doing it.
+    // Defaulting the other way costs at most a retry.
     throw new QueueIndexerResultWorkflowError(
-      error instanceof TypeError ? "release_unavailable" : "indexer_unavailable",
+      "indexer_unavailable",
       error instanceof Error
         ? `Nooklet could not queue the selected release: ${error.message}`
         : "Nooklet could not queue the selected release.",

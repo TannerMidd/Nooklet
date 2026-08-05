@@ -429,6 +429,39 @@ describe("queueIndexerResultWorkflow", () => {
     expect(persistMock).not.toHaveBeenCalled();
   });
 
+  it("discards the reservation when the indexer is unreachable, leaving no exclusion", async () => {
+    const request = {
+      resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9",
+      mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+      seasonId: "5760bd46-7923-4a45-8533-49878b2dd7c2",
+    };
+    const resolvedResult = { result: { id: request.resultId, title: "Severance S01" } };
+    const reservedRequest = { id: "request-indexer-down" };
+    const transportError = new QueueIndexerResultWorkflowError(
+      "indexer_unavailable",
+      "Nooklet could not queue the selected release: fetch failed",
+    );
+
+    validateMock.mockReturnValue(request as never);
+    resolveResultMock.mockResolvedValue(resolvedResult as never);
+    resolveTargetMock.mockResolvedValue({ path: { id: "path-1" } } as never);
+    resolveClientMock.mockResolvedValue({ client: { id: "client-1" } } as never);
+    reserveMock.mockResolvedValue(reservedRequest as never);
+    submitMock.mockRejectedValue(transportError);
+    discardReservedMock.mockResolvedValue(true);
+
+    await expect(
+      queueIndexerResultWorkflow("user1", request as never),
+    ).rejects.toBe(transportError);
+
+    // The discard is what keeps the release out of listFulfillmentReleaseExclusions:
+    // failReservedDownloadRequest would leave a download_requests row carrying
+    // the search result id, excluding a grabbable release from every future search.
+    expect(discardReservedMock).toHaveBeenCalledWith({ userId: "user1", reservedRequest });
+    expect(failReservedMock).not.toHaveBeenCalled();
+    expect(persistMock).not.toHaveBeenCalled();
+  });
+
   it("keeps an intrinsically oversized candidate as a durable failed attempt", async () => {
     const request = {
       resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9",

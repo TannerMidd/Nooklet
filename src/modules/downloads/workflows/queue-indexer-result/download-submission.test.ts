@@ -4,7 +4,12 @@ vi.mock("@/lib/integrations/sabnzbd", () => ({
   addSabnzbdUrlToQueue: vi.fn(),
   removeSabnzbdQueueItem: vi.fn(),
 }));
-vi.mock("@/lib/security/safe-fetch", () => ({ safeFetch: vi.fn() }));
+// Keep the real error classes: the point of these tests is that a transport
+// failure is never mistaken for a verdict about the release.
+vi.mock("@/lib/security/safe-fetch", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/security/safe-fetch")>();
+  return { ...actual, safeFetch: vi.fn() };
+});
 vi.mock("@/lib/security/secret-box", () => ({ decryptSecret: vi.fn((value: string) => value) }));
 vi.mock("@/modules/download-engine/workflows/enqueue-nzb-download", async (importOriginal) => {
   const actual = await importOriginal<
@@ -20,7 +25,7 @@ vi.mock("@/modules/indexers/repositories/indexer-repository", () => ({
 }));
 
 import { addSabnzbdUrlToQueue, removeSabnzbdQueueItem } from "@/lib/integrations/sabnzbd";
-import { safeFetch } from "@/lib/security/safe-fetch";
+import { SafeFetchAbortError, SsrfBlockedError, safeFetch } from "@/lib/security/safe-fetch";
 import {
   EnqueueNzbDownloadError,
   enqueueNzbDownloadWorkflow,
@@ -86,7 +91,12 @@ describe("download submission", () => {
     await expect(submitIndexerResultToDownloadClient(
       hostileResult,
       { kind: "nooklet", client: { id: "client-1" } } as never,
-    )).rejects.toThrow(/unapproved host/);
+    )).rejects.toMatchObject({
+      code: "indexer_unavailable",
+      // Both origins are named so the activity list shows a configuration
+      // fault instead of something indistinguishable from a dead release.
+      message: expect.stringContaining("http://127.0.0.1:3000"),
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -117,6 +127,44 @@ describe("download submission", () => {
       resolvedResult,
       { kind: "nooklet", client: { id: "client-1" } } as never,
     )).rejects.toMatchObject({ code: "release_unavailable" });
+  });
+
+  // `release_unavailable` leaves a durable exclusion and spends a candidate
+  // attempt; `indexer_unavailable` discards the reservation and costs nothing.
+  // Nothing below reached a usable answer from the indexer, so none of it may
+  // be recorded as a verdict about the release.
+  describe.each([
+    // undici collapses every socket/DNS/TLS error into this exact shape.
+    ["a reset connection", new TypeError("fetch failed")],
+    ["a request timeout", new SafeFetchAbortError("timeout", "The request timed out after 60s.")],
+    // NZB download URLs very commonly redirect, which safeFetch refuses.
+    ["a refused redirect", new SsrfBlockedError("Refusing to follow redirect to https://cdn.test/x.nzb")],
+  ])("when the NZB fetch fails with %s", (_label, failure) => {
+    it("blames the indexer, not the release", async () => {
+      findIndexerMock.mockResolvedValue({ baseUrl: "https://indexer.test" } as never);
+      fetchMock.mockRejectedValue(failure);
+
+      await expect(submitIndexerResultToDownloadClient(
+        resolvedResult,
+        { kind: "nooklet", client: { id: "client-1" } } as never,
+      )).rejects.toMatchObject({ code: "indexer_unavailable" });
+      expect(enqueueMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it.each([
+    [404, "release_unavailable"],
+    [410, "release_unavailable"],
+    [429, "indexer_unavailable"],
+    [503, "indexer_unavailable"],
+  ])("maps HTTP %i on the NZB download to %s", async (status, code) => {
+    findIndexerMock.mockResolvedValue({ baseUrl: "https://indexer.test" } as never);
+    fetchMock.mockResolvedValue({ ok: false, status } as never);
+
+    await expect(submitIndexerResultToDownloadClient(
+      resolvedResult,
+      { kind: "nooklet", client: { id: "client-1" } } as never,
+    )).rejects.toMatchObject({ code });
   });
 
   it("preserves structured disk-capacity details for release selection", async () => {
