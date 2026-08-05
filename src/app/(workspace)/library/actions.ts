@@ -331,8 +331,11 @@ export async function updateMediaTitlePreferencesAction(
  * filtering — and blaming the quality profile for both sent people tuning a
  * profile that was never involved. An unaired episode is the most common
  * cause of the first, so say so outright rather than leaving a dead end.
+ *
+ * Deliberately not exported: this is a "use server" module, where every export
+ * must be an async Server Action. It is covered through the action itself.
  */
-export function describeNoMatchingRelease(
+function describeNoMatchingRelease(
   result: Awaited<ReturnType<typeof searchLibraryItemReleasesWorkflow>>,
   qualityProfile: MediaQualityProfile,
 ): string {
