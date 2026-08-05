@@ -878,14 +878,17 @@ describe("searchLibraryItemReleasesAction", () => {
     });
   });
 
-  it("reports no matching releases without treating the search as a server error", async () => {
+  // `no_matching_release` covers both "the indexers returned nothing" and
+  // "releases came back but none survived filtering". Blaming the quality
+  // profile for the first sent people tuning a profile that was never involved.
+  it("says the indexers returned nothing when no releases came back at all", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
     searchLibraryItemMock.mockResolvedValue({
       item: {
         title: { id: titleId, mediaType: "movie", qualityProfile: "uhd-2160p" },
         episode: null,
       },
-      releaseSearch: { searchRun: { id: "run1", status: "succeeded" } },
+      releaseSearch: { searchRun: { id: "run1", status: "succeeded" }, results: [] },
       queuedDownload: { queued: false, reason: "no_matching_release" },
     } as never);
 
@@ -893,9 +896,81 @@ describe("searchLibraryItemReleasesAction", () => {
 
     expect(result).toEqual({
       status: "warning",
-      message: "Search finished, but no releases matched UHD 2160p.",
+      message: "Search finished, but the indexers returned no releases for this item.",
       downloadRequestId: null,
     });
+  });
+
+  it("blames the quality profile only when releases were actually found", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    searchLibraryItemMock.mockResolvedValue({
+      item: {
+        title: { id: titleId, mediaType: "movie", qualityProfile: "uhd-2160p" },
+        episode: null,
+      },
+      releaseSearch: {
+        searchRun: { id: "run1", status: "succeeded" },
+        results: [{ id: "r1" }, { id: "r2" }, { id: "r3" }],
+      },
+      queuedDownload: { queued: false, reason: "no_matching_release" },
+    } as never);
+
+    const result = await searchLibraryItemReleasesAction(initialLibraryItemSearchActionState, validForm());
+
+    expect(result).toMatchObject({
+      status: "warning",
+      message: "Search finished: 3 releases found, but none matched UHD 2160p for this item.",
+    });
+  });
+
+  it("explains that an unaired episode has nothing posted yet", async () => {
+    vi.useFakeTimers();
+
+    try {
+      vi.setSystemTime(new Date(2026, 7, 5, 12));
+      authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+      searchLibraryItemMock.mockResolvedValue({
+        item: {
+          title: { id: titleId, mediaType: "tv", qualityProfile: "hd-1080p" },
+          episode: { id: "e3", airDate: "2026-08-06" },
+        },
+        releaseSearch: { searchRun: { id: "run1", status: "succeeded" }, results: [] },
+        queuedDownload: { queued: false, reason: "no_matching_release" },
+      } as never);
+
+      const result = await searchLibraryItemReleasesAction(initialLibraryItemSearchActionState, validForm());
+
+      expect(result.status).toBe("warning");
+      expect(result.message).toContain("has not aired yet");
+      expect(result.message).toContain("August 6, 2026");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not claim an already-aired episode is unaired", async () => {
+    vi.useFakeTimers();
+
+    try {
+      vi.setSystemTime(new Date(2026, 7, 5, 12));
+      authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+      searchLibraryItemMock.mockResolvedValue({
+        item: {
+          title: { id: titleId, mediaType: "tv", qualityProfile: "hd-1080p" },
+          episode: { id: "e1", airDate: "2026-08-05" },
+        },
+        releaseSearch: { searchRun: { id: "run1", status: "succeeded" }, results: [] },
+        queuedDownload: { queued: false, reason: "no_matching_release" },
+      } as never);
+
+      const result = await searchLibraryItemReleasesAction(initialLibraryItemSearchActionState, validForm());
+
+      expect(result.message).toBe(
+        "Search finished, but the indexers returned no releases for this item.",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("maps workflow errors to the action state", async () => {

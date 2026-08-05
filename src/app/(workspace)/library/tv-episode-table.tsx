@@ -16,11 +16,16 @@ import { LibraryItemSearchForm } from "@/app/(workspace)/library/library-item-se
 import { type MediaLibraryTvEpisodeSummary } from "@/modules/media-library/queries/get-media-library-tv-title-details";
 import { type MediaLibraryTvSeasonOverview } from "@/modules/media-library/queries/get-media-library-tv-title-summary";
 import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
+import {
+  episodeHasAired,
+  parseCalendarDate,
+  toCalendarDate,
+} from "@/modules/media-library/episode-air-date";
 import { cn } from "@/lib/utils";
 
 /** Column track shared by the header and every row so they stay aligned. */
 const rowGrid =
-  "grid grid-cols-[24px_62px_minmax(0,1fr)_88px_58px_44px] items-center gap-[11px] px-5";
+  "grid grid-cols-[24px_62px_minmax(0,1fr)_88px_58px_58px_44px] items-center gap-[11px] px-5";
 
 type EpisodeFetchState =
   | { kind: "idle" }
@@ -32,11 +37,47 @@ function episodeCode(episode: MediaLibraryTvEpisodeSummary) {
   return `S${String(episode.seasonNumber).padStart(2, "0")}E${String(episode.episodeNumber).padStart(2, "0")}`;
 }
 
-function qualityLabel(episode: MediaLibraryTvEpisodeSummary) {
-  if (!episode.hasFile && episode.fileCount === 0) {
-    return "Missing";
+function isMissing(episode: MediaLibraryTvEpisodeSummary) {
+  return !episode.hasFile && episode.fileCount === 0;
+}
+
+/**
+ * An episode that has not aired yet is not missing — there is nothing to have.
+ * Labelling it "Missing" sent people hunting for a release that cannot exist,
+ * which is exactly how a search returning nothing looks like a broken button.
+ */
+function qualityLabel(episode: MediaLibraryTvEpisodeSummary, today: string) {
+  if (isMissing(episode)) {
+    return episodeHasAired(episode.airDate, today) ? "Missing" : "Unaired";
   }
   return episode.qualityLabels.length > 0 ? episode.qualityLabels.join(" / ") : "Untagged";
+}
+
+function airDateLabel(episode: MediaLibraryTvEpisodeSummary) {
+  const parsed = parseCalendarDate(episode.airDate);
+
+  return parsed
+    ? parsed.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    : "—";
+}
+
+function airDateTooltip(episode: MediaLibraryTvEpisodeSummary, today: string) {
+  const parsed = parseCalendarDate(episode.airDate);
+
+  if (!parsed) {
+    return "No air date is known for this episode.";
+  }
+
+  const formatted = parsed.toLocaleDateString(undefined, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  return episodeHasAired(episode.airDate, today)
+    ? `Aired ${formatted}`
+    : `Airs ${formatted} — nothing has been posted yet`;
 }
 
 export function TvEpisodeTable({
@@ -114,10 +155,16 @@ export function TvEpisodeTable({
 
   const state = cache[activeSeason.seasonNumber] ?? { kind: "idle" as const };
   const allEpisodes = state.kind === "loaded" ? state.episodes : [];
-  const visibleEpisodes = missingOnly
-    ? allEpisodes.filter((episode) => !episode.hasFile && episode.fileCount === 0)
-    : allEpisodes;
-  const missingCount = allEpisodes.filter((e) => !e.hasFile && e.fileCount === 0).length;
+  const visibleEpisodes = missingOnly ? allEpisodes.filter(isMissing) : allEpisodes;
+  // Episode rows only render after the client-side load resolves, so reading
+  // the clock here cannot desync from a server render.
+  const today = toCalendarDate(new Date());
+  // Counted apart: an unaired episode is not missing, and lumping the two
+  // together makes a season look incomplete when it is merely still airing.
+  const missingCount = allEpisodes
+    .filter((e) => isMissing(e) && episodeHasAired(e.airDate, today)).length;
+  const unairedCount = allEpisodes
+    .filter((e) => isMissing(e) && !episodeHasAired(e.airDate, today)).length;
   const unmonitoredCount = allEpisodes.filter((e) => !e.monitored).length;
 
   /** Applies the existing per-episode action across the selection, in order. */
@@ -216,6 +263,7 @@ export function TvEpisodeTable({
               `${activeSeason.episodeCount} episodes`,
               `${activeSeason.availableEpisodeCount} available`,
               missingCount > 0 ? `${missingCount} missing` : null,
+              unairedCount > 0 ? `${unairedCount} unaired` : null,
               unmonitoredCount > 0 ? `${unmonitoredCount} unmonitored` : null,
             ].filter(Boolean).join(" · ")}
           </p>
@@ -264,6 +312,7 @@ export function TvEpisodeTable({
         <span>Ep</span>
         <span>Title</span>
         <span>Quality</span>
+        <span>Airs</span>
         <span>Added</span>
         <span />
       </div>
@@ -286,7 +335,10 @@ export function TvEpisodeTable({
 
         {visibleEpisodes.map((episode) => {
           const checked = selected.includes(episode.id);
-          const missing = !episode.hasFile && episode.fileCount === 0;
+          const aired = episodeHasAired(episode.airDate, today);
+          // Only an aired episode can be missing; an unaired one is simply
+          // not out yet, and colouring it as missing implies work to do.
+          const missing = isMissing(episode) && aired;
 
           return (
             <div
@@ -339,7 +391,16 @@ export function TvEpisodeTable({
                   missing ? "font-semibold text-accent" : "text-muted",
                 )}
               >
-                {qualityLabel(episode)}
+                {qualityLabel(episode, today)}
+              </span>
+              <span
+                title={airDateTooltip(episode, today)}
+                className={cn(
+                  "truncate text-[12.5px] tabular-nums",
+                  aired ? "text-muted" : "font-semibold text-accent-cool",
+                )}
+              >
+                {airDateLabel(episode)}
               </span>
               <span className="text-[12.5px] text-muted">
                 {episode.lastFileModifiedAt

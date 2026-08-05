@@ -56,6 +56,12 @@ import {
   updateLibraryPathInputSchema,
 } from "@/modules/media-library/schemas/library-path";
 import { getMediaQualityProfileLabel } from "@/modules/media-library/queries/list-media-quality-profiles";
+import {
+  episodeHasAired,
+  parseCalendarDate,
+  toCalendarDate,
+} from "@/modules/media-library/episode-air-date";
+import { type MediaQualityProfile } from "@/lib/database/schema";
 import { libraryScanScheduleInputSchema } from "@/modules/media-library/schemas/library-scan-schedule";
 import { metadataRefreshScheduleInputSchema } from "@/modules/media-library/schemas/metadata-refresh-schedule";
 import { missingSearchScheduleInputSchema } from "@/modules/media-library/schemas/missing-search-schedule";
@@ -317,6 +323,44 @@ export async function updateMediaTitlePreferencesAction(
   }
 }
 
+/**
+ * Explains an empty-handed search.
+ *
+ * `no_matching_release` covers two very different outcomes — the indexers
+ * returned nothing at all, or they returned releases and none survived
+ * filtering — and blaming the quality profile for both sent people tuning a
+ * profile that was never involved. An unaired episode is the most common
+ * cause of the first, so say so outright rather than leaving a dead end.
+ */
+export function describeNoMatchingRelease(
+  result: Awaited<ReturnType<typeof searchLibraryItemReleasesWorkflow>>,
+  qualityProfile: MediaQualityProfile,
+): string {
+  const found = result.releaseSearch.results.length;
+
+  if (found > 0) {
+    return `Search finished: ${found} release${found === 1 ? "" : "s"} found, `
+      + `but none matched ${getMediaQualityProfileLabel(qualityProfile)} for this item.`;
+  }
+
+  const airDate = result.item.episode?.airDate ?? null;
+
+  if (airDate && !episodeHasAired(airDate, toCalendarDate(new Date()))) {
+    const airs = parseCalendarDate(airDate);
+    // Fixed locale: this string is composed on the server, which has no view of
+    // the viewer's locale. The episode table formats the same date client-side
+    // in theirs.
+    const formatted = airs
+      ? airs.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+      : airDate;
+
+    return `This episode has not aired yet — it airs ${formatted}, `
+      + "so nothing has been posted for it. Nooklet will search again automatically once it is out.";
+  }
+
+  return "Search finished, but the indexers returned no releases for this item.";
+}
+
 export async function searchLibraryItemReleasesAction(
   _previous: LibraryItemSearchActionState,
   formData: FormData,
@@ -415,7 +459,7 @@ export async function searchLibraryItemReleasesAction(
       return {
         ...initialLibraryItemSearchActionState,
         status: "warning",
-        message: `Search finished, but no releases matched ${getMediaQualityProfileLabel(title.qualityProfile)}.`,
+        message: describeNoMatchingRelease(result, title.qualityProfile),
       };
     }
 
