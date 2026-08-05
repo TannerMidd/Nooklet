@@ -5,19 +5,20 @@ vi.mock("node:fs/promises", () => ({
   statfs: vi.fn(),
 }));
 vi.mock("@/modules/download-engine/queue/engine-repository", () => ({
-  getActiveEngineDownloadCapacityUsage: vi.fn(),
+  getInFlightEngineDownloadCapacityUsage: vi.fn(),
 }));
 
 import { mkdir, statfs } from "node:fs/promises";
 
 import { env } from "@/lib/env";
-import { getActiveEngineDownloadCapacityUsage } from "@/modules/download-engine/queue/engine-repository";
+import { getInFlightEngineDownloadCapacityUsage } from "@/modules/download-engine/queue/engine-repository";
 
 import { inspectLiveEngineCapacity } from "./live-capacity";
 
 const mkdirMock = vi.mocked(mkdir);
 const statfsMock = vi.mocked(statfs);
-const usageMock = vi.mocked(getActiveEngineDownloadCapacityUsage);
+const usageMock = vi.mocked(getInFlightEngineDownloadCapacityUsage);
+const reserveBytes = 512 * 1024 * 1024;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -36,9 +37,10 @@ describe("inspectLiveEngineCapacity", () => {
         : { bavail: 700_000_000, bsize: 1 }
     ) as never);
 
-    await expect(inspectLiveEngineCapacity()).resolves.toEqual({
+    await expect(inspectLiveEngineCapacity({ totalBytes: 2_000 })).resolves.toEqual({
       availableBytes: 700_000_000,
-      requiredBytes: (512 * 1024 * 1024) + 1_000,
+      // reserve + in-flight + twice the candidate (assembled plus unpacked).
+      requiredBytes: reserveBytes + 1_000 + 4_000,
       sufficient: true,
     });
     expect(mkdirMock).toHaveBeenCalledWith(env.DOWNLOAD_ENGINE_WORK_DIR, { recursive: true });
@@ -48,13 +50,26 @@ describe("inspectLiveEngineCapacity", () => {
   });
 
   it("rejects an unsafe or insufficient live reading", async () => {
-    const requiredBytes = (512 * 1024 * 1024) + 1_000;
+    const requiredBytes = reserveBytes + 1_000 + 4_000;
     statfsMock.mockResolvedValue({ bavail: requiredBytes - 1, bsize: 1 } as never);
 
-    await expect(inspectLiveEngineCapacity()).resolves.toMatchObject({
+    await expect(inspectLiveEngineCapacity({ totalBytes: 2_000 })).resolves.toMatchObject({
       availableBytes: requiredBytes - 1,
       requiredBytes,
       sufficient: false,
+    });
+  });
+
+  // The queue-wide reservation counted every queued download at twice its
+  // size, so a backlog could exceed free space and the engine would refuse to
+  // start anything — including downloads that plainly fit. Only work that is
+  // actually running holds space now.
+  it("charges only in-flight downloads, so a queue backlog cannot block a candidate that fits", async () => {
+    usageMock.mockResolvedValue({ activeRemainingBytes: 0, activeWorkspaceBytes: 0 });
+    statfsMock.mockResolvedValue({ bavail: reserveBytes + 10_000, bsize: 1 } as never);
+
+    await expect(inspectLiveEngineCapacity({ totalBytes: 4_000 })).resolves.toMatchObject({
+      sufficient: true,
     });
   });
 });

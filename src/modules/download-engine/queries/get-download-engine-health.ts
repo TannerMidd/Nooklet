@@ -132,7 +132,11 @@ export function evaluateDownloadEngineHealth(
       name: row.name,
       state: row.state,
       lastProgressAt: row.updatedAt,
-      message: `${row.state} has not recorded meaningful progress within its diagnostic window.`,
+      // A queued download that cannot start records why. Surfacing it turns
+      // "no progress" into something actionable — a queue held up by free
+      // space used to be indistinguishable from a healthy idle one.
+      message: row.errorMessage
+        ?? `${row.state} has not recorded meaningful progress within its diagnostic window.`,
     })),
     ...failed.map((row) => ({
       id: row.id,

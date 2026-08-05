@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, eq, inArray, isNull, notInArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, notInArray, or } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import { decryptSecret, encryptSecret } from "@/lib/security/secret-box";
@@ -203,26 +203,31 @@ export async function findEngineDownloadById(userId: string, id: string) {
 }
 
 /**
- * Atomically claims the next queued download (across all users) for the
- * in-process runner. Priority ascends, ties broken by submission order.
+ * Next queued download (across all users) in run order, without claiming it.
+ * The runner checks whether it fits on disk before committing, so a download
+ * it cannot run never churns `updatedAt` and stays visible as stalled.
  */
-export async function claimNextQueuedEngineDownload(): Promise<EngineDownloadRecord | null> {
-  const database = ensureDatabaseReady();
-  const candidate = database
+export async function peekNextQueuedEngineDownload(
+  excludeIds: readonly string[] = [],
+): Promise<EngineDownloadRecord | null> {
+  return ensureDatabaseReady()
     .select()
     .from(engineDownloads)
     .where(and(
       eq(engineDownloads.state, "queued"),
       isNull(engineDownloads.controlIntent),
+      excludeIds.length > 0 ? notInArray(engineDownloads.id, [...excludeIds]) : undefined,
     ))
     .orderBy(asc(engineDownloads.priority), asc(engineDownloads.createdAt))
     .limit(1)
-    .get();
+    .get() ?? null;
+}
 
-  if (!candidate) {
-    return null;
-  }
-
+/** Atomically claims one specific queued download for the in-process runner. */
+export async function claimQueuedEngineDownload(
+  id: string,
+): Promise<EngineDownloadRecord | null> {
+  const database = ensureDatabaseReady();
   const claimed = database
     .update(engineDownloads)
     .set({
@@ -232,7 +237,7 @@ export async function claimNextQueuedEngineDownload(): Promise<EngineDownloadRec
       updatedAt: new Date(),
     })
     .where(and(
-      eq(engineDownloads.id, candidate.id),
+      eq(engineDownloads.id, id),
       eq(engineDownloads.state, "queued"),
       isNull(engineDownloads.controlIntent),
     ))
@@ -242,7 +247,41 @@ export async function claimNextQueuedEngineDownload(): Promise<EngineDownloadRec
     return null;
   }
 
-  return database.select().from(engineDownloads).where(eq(engineDownloads.id, candidate.id)).get() ?? null;
+  return database.select().from(engineDownloads).where(eq(engineDownloads.id, id)).get() ?? null;
+}
+
+/**
+ * Records why a queued download is not starting, without touching
+ * `updatedAt` and only when the reason actually changes.
+ *
+ * Both matter: rewriting the row on every pass reset the diagnostic window so
+ * a permanently stuck queue kept reporting healthy.
+ */
+export async function markEngineDownloadWaitingForCapacity(id: string, message: string) {
+  const result = ensureDatabaseReady()
+    .update(engineDownloads)
+    .set({ errorMessage: message })
+    .where(and(
+      eq(engineDownloads.id, id),
+      eq(engineDownloads.state, "queued"),
+      or(
+        isNull(engineDownloads.errorMessage),
+        ne(engineDownloads.errorMessage, message),
+      ),
+    ))
+    .run();
+
+  return result.changes > 0;
+}
+
+/**
+ * Atomically claims the next queued download (across all users) for the
+ * in-process runner. Priority ascends, ties broken by submission order.
+ */
+export async function claimNextQueuedEngineDownload(): Promise<EngineDownloadRecord | null> {
+  const candidate = await peekNextQueuedEngineDownload();
+
+  return candidate ? claimQueuedEngineDownload(candidate.id) : null;
 }
 
 export async function updateEngineDownloadProgress(id: string, progress: {
@@ -426,6 +465,31 @@ export async function getActiveEngineDownloadCapacityUsage() {
     })
     .from(engineDownloads)
     .where(inArray(engineDownloads.state, [...activeEngineDownloadStates]))
+    .all();
+
+  return summarizeActiveEngineDownloadCapacity(rows);
+}
+
+/**
+ * Space owed to downloads that are actually running.
+ *
+ * Admission counts every committed download, which is right when deciding
+ * whether to accept more work. Deciding whether one download can *start* is a
+ * different question: queued and paused rows are not consuming their future
+ * allowance yet, and whatever they already occupy is in the statfs reading.
+ * Charging for them there made the engine refuse to start anything once the
+ * queue's combined reservation exceeded free space — a queue that could not
+ * drain itself back to health.
+ */
+export async function getInFlightEngineDownloadCapacityUsage() {
+  const database = ensureDatabaseReady();
+  const rows = database
+    .select({
+      totalBytes: engineDownloads.totalBytes,
+      downloadedBytes: engineDownloads.downloadedBytes,
+    })
+    .from(engineDownloads)
+    .where(inArray(engineDownloads.state, ["fetching", ...enginePostProcessingStates]))
     .all();
 
   return summarizeActiveEngineDownloadCapacity(rows);

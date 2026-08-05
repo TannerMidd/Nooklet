@@ -14,9 +14,11 @@ import {
 } from "@/modules/download-engine/finalize/finalize-download";
 import { parseNzb } from "@/modules/download-engine/nzb/parse-nzb";
 import {
-  claimNextQueuedEngineDownload,
+  claimQueuedEngineDownload,
   deleteCancelledEngineDownload,
   listEngineDownloadsWithControlIntent,
+  markEngineDownloadWaitingForCapacity,
+  peekNextQueuedEngineDownload,
   readEngineDownloadRuntimeState,
   requeueStrandedEngineDownloads,
   resolveEngineDownloadPayload,
@@ -249,19 +251,10 @@ async function failEngineDownload(
   if (!failed) await settleEngineControl(download);
 }
 
-async function requeueForCapacity(
-  download: EngineDownloadRecord,
-  errorMessage: string,
-) {
-  const queued = await transitionEngineDownloadState(
-    download.userId,
-    download.id,
-    ["fetching"],
-    "queued",
-    { controlIntent: null, errorMessage },
-  );
-  if (!queued) await settleEngineControl(download);
-}
+const capacityWaitMessage =
+  "Waiting for enough free space in the download workspace. Nooklet will check again automatically.";
+const capacityUncheckableMessage =
+  "The download workspace could not be checked. Nooklet will try again automatically.";
 
 async function processEngineDownload(download: EngineDownloadRecord): Promise<"continue" | "stop"> {
   const workDir = engineIncompleteDir(download.id);
@@ -272,24 +265,6 @@ async function processEngineDownload(download: EngineDownloadRecord): Promise<"c
   runtime.activeDownloadId = download.id;
 
   try {
-    try {
-      const capacity = await inspectLiveEngineCapacity();
-      if (!capacity.sufficient) {
-        await requeueForCapacity(
-          download,
-          "Waiting for enough free space in the download workspace. Nooklet will check again automatically.",
-        );
-        return "stop";
-      }
-    } catch {
-      if (await settleEngineControl(download)) return "continue";
-      await requeueForCapacity(
-        download,
-        "The download workspace could not be checked. Nooklet will try again automatically.",
-      );
-      return "stop";
-    }
-
     const payload = resolveEngineDownloadPayload(download);
     const resolvedServer = await resolveUsenetServer(download.userId);
 
@@ -480,9 +455,40 @@ async function runEngineLoop() {
   }
 
   try {
+    // Downloads passed over this pass because they do not currently fit. They
+    // stay queued in priority order; skipping keeps one oversized release from
+    // blocking every smaller one behind it.
+    const deferred = new Set<string>();
+
     for (;;) {
-      const download = await claimNextQueuedEngineDownload();
-      if (!download) break;
+      const candidate = await peekNextQueuedEngineDownload([...deferred]);
+      if (!candidate) break;
+
+      let capacity;
+
+      try {
+        capacity = await inspectLiveEngineCapacity(candidate);
+      } catch {
+        // Nothing was claimed, so there is nothing to unwind — but record why
+        // the queue is not moving before giving the pass up.
+        await markEngineDownloadWaitingForCapacity(candidate.id, capacityUncheckableMessage);
+        break;
+      }
+
+      if (!capacity.sufficient) {
+        await markEngineDownloadWaitingForCapacity(candidate.id, capacityWaitMessage);
+        deferred.add(candidate.id);
+        continue;
+      }
+
+      const download = await claimQueuedEngineDownload(candidate.id);
+
+      if (!download) {
+        // Paused, cancelled or claimed elsewhere between the peek and the
+        // claim. Skip it so the loop cannot spin on the same row.
+        deferred.add(candidate.id);
+        continue;
+      }
 
       const disposition = await processEngineDownload(download);
       if (disposition === "stop") break;
