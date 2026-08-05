@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import { safeFetch } from "@/lib/security/safe-fetch";
 import { indexerProtocols } from "@/lib/database/schema";
+import {
+  detectNewznabErrorDocument,
+  formatNewznabErrorDocument,
+} from "@/modules/indexers/adapters/newznab-error-document";
 
 export class NewznabAdapterError extends Error {
   constructor(message: string) {
@@ -183,7 +187,17 @@ export async function searchNewznabIndexer(input: NewznabSearchInput): Promise<N
     throw new NewznabAdapterError(`Indexer search failed with HTTP ${response.status}.`);
   }
 
-  const payload = parser.parse(await response.text()) as unknown;
+  const body = await response.text();
+  // An error document has no <channel>, so without this an exhausted API quota
+  // or a rejected key was indistinguishable from "nothing has been posted" —
+  // and the caller would spend a release-attempt budget on that non-answer.
+  const indexerError = detectNewznabErrorDocument(body);
+
+  if (indexerError) {
+    throw new NewznabAdapterError(formatNewznabErrorDocument(indexerError));
+  }
+
+  const payload = parser.parse(body) as unknown;
   const channel = asRecord(asRecord(payload)?.rss)?.channel;
   const items = asArray(asRecord(channel)?.item);
 

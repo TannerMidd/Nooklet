@@ -9,6 +9,10 @@ import { applyEngineQueueAction } from "@/modules/download-engine/workflows/appl
 import { resolveUsenetServer } from "@/modules/download-engine/config/resolve-usenet-server";
 import { parseNzb } from "@/modules/download-engine/nzb/parse-nzb";
 import { releaseIsWhollyUnavailable } from "@/modules/download-engine/scheduler/release-availability";
+import {
+  detectNewznabErrorDocument,
+  formatNewznabErrorDocument,
+} from "@/modules/indexers/adapters/newznab-error-document";
 import { findIndexerById } from "@/modules/indexers/repositories/indexer-repository";
 
 import { QueueIndexerResultWorkflowError } from "./errors";
@@ -36,6 +40,9 @@ async function fetchNzbDocument(downloadUrl: string): Promise<string> {
 
   if (!response.ok) {
     throw new QueueIndexerResultWorkflowError(
+      // Only "this item is gone" is a statement about the release. Rate limits
+      // (429) and server faults (5xx) are the indexer's, and must not cost the
+      // release a durable exclusion.
       response.status === 404 || response.status === 410
         ? "release_unavailable"
         : "indexer_unavailable",
@@ -43,7 +50,21 @@ async function fetchNzbDocument(downloadUrl: string): Promise<string> {
     );
   }
 
-  return response.text();
+  const body = await response.text();
+  // Newznab serves quota and credential errors as an <error> document with
+  // HTTP 200. Left undetected it reaches parseNzb, fails there, and gets
+  // recorded as `invalid_nzb` — blocklisting every candidate the user searched
+  // for while their daily grab limit was spent.
+  const indexerError = detectNewznabErrorDocument(body);
+
+  if (indexerError) {
+    throw new QueueIndexerResultWorkflowError(
+      "indexer_unavailable",
+      `The indexer refused the NZB download. ${formatNewznabErrorDocument(indexerError)}`,
+    );
+  }
+
+  return body;
 }
 
 /**

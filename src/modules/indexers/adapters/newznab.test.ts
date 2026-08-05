@@ -86,6 +86,26 @@ describe("searchNewznabIndexer", () => {
     expect(results[0]).toMatchObject({ seeders: 12, leechers: 3 });
   });
 
+  // These arrive as HTTP 200 with no <channel>. Returning [] made a spent API
+  // quota look identical to "nothing has been posted", so the caller recorded
+  // no_matching_release and spent a release-attempt budget on it.
+  it.each([
+    ["an exhausted grab quota", `<error code="910" description="Request limit reached"/>`, "910"],
+    ["rejected credentials", `<error code="100" description="Incorrect user credentials"/>`, "100"],
+    ["an HTML login page", `<!DOCTYPE html><html><body>Sign in</body></html>`, "HTML"],
+  ])("reports %s as an indexer failure rather than an empty result set", async (_label, body, expected) => {
+    safeFetchMock.mockResolvedValue(new Response(body, { status: 200 }) as never);
+
+    await expect(searchNewznabIndexer({
+      protocol: "newznab",
+      baseUrl: "https://indexer.example",
+      apiPath: "/api",
+      apiKey: "abc123",
+      query: "Arrival",
+      categories: [],
+    })).rejects.toThrow(expected);
+  });
+
   it("throws on non-success responses", async () => {
     safeFetchMock.mockResolvedValue(new Response("nope", { status: 500 }) as never);
 

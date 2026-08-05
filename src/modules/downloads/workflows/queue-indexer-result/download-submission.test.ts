@@ -167,6 +167,27 @@ describe("download submission", () => {
     )).rejects.toMatchObject({ code });
   });
 
+  // Served as HTTP 200, so without detection these reach parseNzb, fail there,
+  // and are recorded as `invalid_nzb` -> release_unavailable. A day spent at
+  // the API cap would blocklist every candidate the user searched for.
+  it.each([
+    ["an exhausted grab quota", `<error code="910" description="Request limit reached"/>`, "910"],
+    ["rejected credentials", `<error code="100" description="Incorrect user credentials"/>`, "100"],
+    ["an HTML error page", `<!DOCTYPE html><html><body>Forbidden</body></html>`, "HTML"],
+  ])("does not blame the release when the indexer returns %s", async (_label, body, expected) => {
+    findIndexerMock.mockResolvedValue({ baseUrl: "https://indexer.test" } as never);
+    fetchMock.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue(body) } as never);
+
+    await expect(submitIndexerResultToDownloadClient(
+      resolvedResult,
+      { kind: "nooklet", client: { id: "client-1" } } as never,
+    )).rejects.toMatchObject({
+      code: "indexer_unavailable",
+      message: expect.stringContaining(expected),
+    });
+    expect(enqueueMock).not.toHaveBeenCalled();
+  });
+
   it("preserves structured disk-capacity details for release selection", async () => {
     findIndexerMock.mockResolvedValue({ baseUrl: "https://indexer.test" } as never);
     fetchMock.mockResolvedValue({ ok: true, text: vi.fn().mockResolvedValue("<nzb />") } as never);
