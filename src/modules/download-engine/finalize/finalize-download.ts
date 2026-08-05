@@ -1,11 +1,12 @@
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { copyFile, lstat, mkdir, mkdtemp, readdir, realpath, rename, rm, stat } from "node:fs/promises";
+import { copyFile, lstat, mkdir, mkdtemp, open, readdir, realpath, rename, rm, stat } from "node:fs/promises";
 
 import { type EngineDownloadFailureKind } from "@/lib/database/schema";
 import { sanitizeDownloadFileName } from "@/modules/download-engine/assembly/sanitize-file-name";
 import { deobfuscateDownloadFiles } from "@/modules/download-engine/finalize/deobfuscate-files";
+import { detectFileKind } from "@/modules/download-engine/finalize/detect-file-kind";
 import { type DownloadedNzbFile } from "@/modules/download-engine/scheduler/download-nzb";
 
 /**
@@ -814,18 +815,65 @@ async function runPar2(workDir: string, warnings: string[]): Promise<Par2Outcome
   }
 }
 
+/**
+ * Base names of `.001`-style split archive sets present in the directory.
+ *
+ * A numeric suffix alone is not evidence of an archive — extracted payload
+ * files carry them too, and deleting those destroyed part of the download.
+ * Only the first volume of a split set carries a signature, so the set is
+ * identified from `.001` and every member of that base name goes with it.
+ */
+async function splitArchiveBaseNames(workDir: string, entries: readonly string[]) {
+  const bases = new Set<string>();
+
+  for (const entry of entries) {
+    if (!/\.\d{3}$/.test(entry)) {
+      continue;
+    }
+
+    const base = entry.slice(0, -4);
+
+    if (bases.has(base)) {
+      continue;
+    }
+
+    try {
+      const handle = await open(path.join(workDir, `${base}.001`), "r");
+
+      try {
+        const header = Buffer.alloc(16);
+        const { bytesRead } = await handle.read(header, 0, 16, 0);
+        const detected = detectFileKind(header.subarray(0, bytesRead));
+
+        if (detected.kind === "rar" || detected.kind === "zip" || detected.kind === "7z") {
+          bases.add(base);
+        }
+      } finally {
+        await handle.close();
+      }
+    } catch {
+      // No readable first volume: not a split set we can vouch for.
+    }
+  }
+
+  return bases;
+}
+
 /** Removes archive volumes and PAR2 files once their contents are secured. */
 async function removeArtifacts(workDir: string, options: { archives: boolean; par2: boolean }) {
   const entries = await listFiles(workDir);
+  const splitBases = options.archives
+    ? await splitArchiveBaseNames(workDir, entries)
+    : new Set<string>();
 
   for (const entry of entries) {
     const lower = entry.toLowerCase();
     const isArchiveVolume =
       lower.endsWith(".rar") ||
       /\.r\d{2,3}$/.test(lower) ||
-      /\.\d{3}$/.test(lower) ||
       lower.endsWith(".7z") ||
-      lower.endsWith(".zip");
+      lower.endsWith(".zip") ||
+      (/\.\d{3}$/.test(lower) && splitBases.has(entry.slice(0, -4)));
 
     if ((options.archives && isArchiveVolume) || (options.par2 && isPar2File(entry))) {
       await rm(path.join(workDir, entry), { force: true });

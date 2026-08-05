@@ -98,6 +98,15 @@ function readNumber(value: string | null) {
   return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : null;
 }
 
+const minutesPerDay = 24 * 60;
+
+/** The Newznab `age` attribute is a whole number of days. */
+function readAgeMinutes(value: string | null) {
+  const days = readNumber(value);
+
+  return days === null ? null : days * minutesPerDay;
+}
+
 function readDate(value: string | null) {
   if (!value) {
     return null;
@@ -173,7 +182,8 @@ function normalizeItem(item: ParsedNode): NewznabSearchResult | null {
     qualityLabel: readAttr(item, "category") ?? null,
     sizeBytes: size,
     publishedAt: readDate(readText(item.pubDate)),
-    ageMinutes: readNumber(readAttr(item, "age")),
+    // Newznab reports `age` in days; the column stores minutes.
+    ageMinutes: readAgeMinutes(readAttr(item, "age")),
     seeders,
     leechers,
     grabs: readNumber(readAttr(item, "grabs")),

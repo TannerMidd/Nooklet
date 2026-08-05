@@ -225,7 +225,13 @@ export async function retryFailedCompletedDownloads(
       } else {
         failedCount += 1;
       }
-    } catch {
+    } catch (error) {
+      // Silently counting these hid systematic retry failures entirely: the
+      // number moved and nothing said why.
+      console.error(
+        `[download-import] automatic retry failed for request ${match.request.id}:`,
+        error,
+      );
       failedCount += 1;
     }
   }

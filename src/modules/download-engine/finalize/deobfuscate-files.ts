@@ -1,5 +1,5 @@
 import path from "node:path";
-import { open, readdir, rename } from "node:fs/promises";
+import { access, open, readdir, rename } from "node:fs/promises";
 
 import { detectFileKind, type DetectedFileKind } from "@/modules/download-engine/finalize/detect-file-kind";
 
@@ -65,6 +65,25 @@ function needsExtension(fileName: string, detected: DetectedFileKind): boolean {
   return currentExtension !== detected.extension;
 }
 
+/** Finds a free name near `preferred`, so a rename can never clobber. */
+async function reserveRenameTarget(workDir: string, preferred: string) {
+  const extension = path.extname(preferred);
+  const baseName = extension ? preferred.slice(0, -extension.length) : preferred;
+  let candidate = preferred;
+
+  for (let suffix = 1; suffix < 1_000; suffix += 1) {
+    try {
+      await access(path.join(workDir, candidate));
+    } catch {
+      return candidate;
+    }
+
+    candidate = `${baseName}.${suffix}${extension}`;
+  }
+
+  return candidate;
+}
+
 export async function deobfuscateDownloadFiles(workDir: string): Promise<ClassifiedDownloadFile[]> {
   const entries = await readdir(workDir, { withFileTypes: true });
   const classified: ClassifiedDownloadFile[] = [];
@@ -88,7 +107,9 @@ export async function deobfuscateDownloadFiles(workDir: string): Promise<Classif
       continue;
     }
 
-    const renamedName = `${entry.name}${detected.extension}`;
+    // rename() silently replaces an existing target, so a set containing both
+    // `abc` and `abc.mkv` would destroy the latter. Pick a free name instead.
+    const renamedName = await reserveRenameTarget(workDir, `${entry.name}${detected.extension}`);
     const renamedPath = path.join(workDir, renamedName);
 
     try {

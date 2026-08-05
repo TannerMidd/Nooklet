@@ -29,6 +29,17 @@ const retryableQueueErrorCodes = new Set([
  */
 const defaultMaxCandidateAttempts = 8;
 
+/**
+ * Ceiling on candidates examined in one pass regardless of budget.
+ *
+ * Rejections that cost nothing — a torrent among usenet results, a search
+ * result that has since expired — deliberately do not consume the attempt
+ * budget, which left the walk bounded only by the result-set size. An
+ * all-torrent page therefore ran the full queueing workflow, database reads
+ * included, once per candidate on every pass.
+ */
+const maxCandidateInspections = 40;
+
 export type QueueFailureKind =
   | "release"
   | "infrastructure"
@@ -159,11 +170,17 @@ export async function queueReleaseCandidates(
     ? Math.min(candidates.length, defaultMaxCandidateAttempts)
     : Math.max(0, Math.floor(context.maxCandidateAttempts));
   let consumedCandidateAttempts = 0;
+  let inspectedCandidates = 0;
 
   for (const candidate of candidates) {
-    if (consumedCandidateAttempts >= candidateAttemptLimit) {
+    if (
+      consumedCandidateAttempts >= candidateAttemptLimit
+      || inspectedCandidates >= maxCandidateInspections
+    ) {
       break;
     }
+
+    inspectedCandidates += 1;
 
     try {
       const download = await queueIndexerResultWorkflow(

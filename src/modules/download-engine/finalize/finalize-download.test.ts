@@ -408,6 +408,25 @@ describe("finalizeDownload", () => {
     expect(result.repaired).toBe(false);
   });
 
+  // Deobfuscation appends an extension to a hex-named file, and rename()
+  // replaces an existing target silently — so a set holding both `abc` and
+  // `abc.mkv` used to lose one of them.
+  it("does not clobber an existing file when adding a detected extension", async () => {
+    const { workDir } = await makeDirs();
+    await mkdir(workDir, { recursive: true });
+
+    await writeFile(path.join(workDir, "abc"), Buffer.concat([mkvMagic, Buffer.alloc(32)]));
+    await writeFile(path.join(workDir, "abc.mkv"), Buffer.concat([mkvMagic, Buffer.alloc(64)]));
+
+    await deobfuscateDownloadFiles(workDir);
+
+    const names = (await readdir(workDir)).sort();
+    expect(names).toHaveLength(2);
+    expect(names).toContain("abc.mkv");
+    // The pre-existing file keeps its content.
+    expect((await readFile(path.join(workDir, "abc.mkv"))).length).toBe(mkvMagic.length + 64);
+  });
+
   it("reports a missing extraction tool as infrastructure, not bad content", async () => {
     const { workDir, outputDir } = await makeDirs();
     await mkdir(workDir, { recursive: true });
