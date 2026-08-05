@@ -424,6 +424,9 @@ export async function resumePausedEngineDownload(userId: string, id: string) {
       controlIntent: null,
       bytesPerSecond: null,
       errorMessage: null,
+      // Clears the marker that distinguishes an engine-parked download from a
+      // user-paused one, so health stops reporting it once it is moving again.
+      failureKind: null,
       updatedAt: new Date(),
     })
     .where(and(

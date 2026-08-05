@@ -222,6 +222,71 @@ describe("engine runner durable cancellation fencing", () => {
     );
   });
 
+  // `failed` wipes the stored NZB and resumePausedEngineDownload only accepts
+  // `paused`, so the "then resume this download" these messages print was
+  // never actually possible before.
+  it("parks an unreachable transfer as resumable instead of failing it", async () => {
+    mocks.peekNextQueuedEngineDownload
+      .mockResolvedValueOnce(download)
+      .mockResolvedValueOnce(null);
+    mocks.readEngineDownloadRuntimeState.mockReturnValue({ state: "fetching", controlIntent: null });
+    mocks.downloadNzb.mockResolvedValue({
+      ok: false,
+      aborted: false,
+      unrecoverable: false,
+      transportExhausted: true,
+      downloadedBytes: 0,
+      completedSegments: 0,
+      failedSegments: 50,
+      failureKinds: ["connection-closed"],
+      files: [],
+    });
+
+    await ensureEngineRunnerStarted();
+    await vi.waitFor(() => expect(mocks.peekNextQueuedEngineDownload).toHaveBeenCalledTimes(2));
+
+    expect(mocks.setEngineDownloadState).toHaveBeenCalledWith(
+      download.id,
+      "paused",
+      expect.objectContaining({ failureKind: "infrastructure" }),
+      { expectedStates: ["fetching"], controlIntent: null },
+    );
+    expect(mocks.setEngineDownloadState).not.toHaveBeenCalledWith(
+      download.id,
+      "failed",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("still fails a release whose articles are genuinely gone", async () => {
+    mocks.peekNextQueuedEngineDownload
+      .mockResolvedValueOnce(download)
+      .mockResolvedValueOnce(null);
+    mocks.readEngineDownloadRuntimeState.mockReturnValue({ state: "fetching", controlIntent: null });
+    mocks.downloadNzb.mockResolvedValue({
+      ok: false,
+      aborted: false,
+      unrecoverable: true,
+      transportExhausted: false,
+      downloadedBytes: 0,
+      completedSegments: 0,
+      failedSegments: 10,
+      failureKinds: ["article-not-found"],
+      files: [],
+    });
+
+    await ensureEngineRunnerStarted();
+    await vi.waitFor(() => expect(mocks.peekNextQueuedEngineDownload).toHaveBeenCalledTimes(2));
+
+    expect(mocks.setEngineDownloadState).toHaveBeenCalledWith(
+      download.id,
+      "failed",
+      expect.objectContaining({ failureKind: "content" }),
+      expect.anything(),
+    );
+  });
+
   it("durably records an unexpected detached loop failure", async () => {
     const error = new Error("queue lookup failed unexpectedly");
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);

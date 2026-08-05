@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, count, desc, eq, exists, inArray, isNotNull, isNull, lte, notExists, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, inArray, isNotNull, isNull, lte, ne, notExists, or, sql, type SQL } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/sqlite-core";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
@@ -260,6 +260,35 @@ export async function updateDownloadRequestStatus(input: {
     .from(downloadRequests)
     .where(and(eq(downloadRequests.userId, input.userId), eq(downloadRequests.id, input.requestId)))
     .get() ?? null;
+}
+
+/**
+ * Updates only the human-readable reason on a request, leaving its status and
+ * downloader linkage alone.
+ *
+ * updateDownloadRequestStatus nulls externalJobId and completedAt whenever
+ * they are omitted, so it cannot be used to annotate a still-active request
+ * without severing it from its queue item.
+ */
+export async function annotateDownloadRequestStatusMessage(input: {
+  userId: string;
+  requestId: string;
+  statusMessage: string;
+}) {
+  const result = ensureDatabaseReady()
+    .update(downloadRequests)
+    .set({ statusMessage: input.statusMessage, updatedAt: new Date() })
+    .where(and(
+      eq(downloadRequests.userId, input.userId),
+      eq(downloadRequests.id, input.requestId),
+      or(
+        isNull(downloadRequests.statusMessage),
+        ne(downloadRequests.statusMessage, input.statusMessage),
+      ),
+    ))
+    .run();
+
+  return result.changes > 0;
 }
 
 /**

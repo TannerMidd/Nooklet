@@ -125,6 +125,12 @@ export function evaluateDownloadEngineHealth(
     && row.failureKind !== "content"
     && row.failureKind !== "cancelled"
   ));
+  // A download the engine parked because the news server was unreachable. The
+  // failure kind is what separates it from one the user paused deliberately,
+  // which must stay silent.
+  const parked = rows.filter((row) => (
+    row.state === "paused" && row.failureKind === "infrastructure"
+  ));
   const hasLoopError = hasUnresolvedLoopFailure(loop);
   const issues: DownloadEngineHealthIssue[] = [
     ...stalled.map((row) => ({
@@ -144,6 +150,14 @@ export function evaluateDownloadEngineHealth(
       state: row.state,
       lastProgressAt: row.updatedAt,
       message: row.errorMessage ?? "The built-in download failed unexpectedly.",
+    })),
+    ...parked.map((row) => ({
+      id: row.id,
+      name: row.name,
+      state: row.state,
+      lastProgressAt: row.updatedAt,
+      message: row.errorMessage
+        ?? "The built-in downloader paused this download until the Usenet connection works again.",
     })),
     ...(hasLoopError ? [{
       id: "download-engine-runner",
@@ -184,7 +198,9 @@ export function getDownloadEngineHealth(userId?: string, now = Date.now()) {
     .from(engineDownloads)
     .where(and(
       userId ? eq(engineDownloads.userId, userId) : undefined,
-      inArray(engineDownloads.state, [...activeStates, "failed"]),
+      // `paused` is not an active state, but the engine parks unreachable
+      // transfers there and those must stay visible.
+      inArray(engineDownloads.state, [...activeStates, "failed", "paused"]),
     ))
     .all();
 

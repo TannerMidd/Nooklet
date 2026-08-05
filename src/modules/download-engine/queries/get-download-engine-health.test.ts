@@ -87,6 +87,47 @@ describe("download engine health", () => {
     expect(infrastructure.issues[0].message).toBe("disk unavailable");
   });
 
+  // Parking an unreachable transfer keeps it resumable, but `paused` is not an
+  // active state — without this it would sit invisible until someone noticed.
+  it("reports an engine-parked download while staying silent about a user pause", () => {
+    const parked = evaluateDownloadEngineHealth(
+      [row({
+        state: "paused",
+        failureKind: "infrastructure",
+        errorMessage: "The news server kept failing on articles this release does have.",
+      })],
+      emptyDownloadEngineLoopHealth(),
+      now.getTime(),
+    );
+    const userPaused = evaluateDownloadEngineHealth(
+      [row({ state: "paused" })],
+      emptyDownloadEngineLoopHealth(),
+      now.getTime(),
+    );
+
+    expect(parked).toMatchObject({ status: "degraded" });
+    expect(parked.issues[0].message).toContain("news server");
+    expect(userPaused).toMatchObject({ status: "idle", issues: [] });
+  });
+
+  // A queued download the runner cannot start records why, and no longer
+  // rewrites updatedAt each pass, so the stall window can actually elapse.
+  it("surfaces the recorded reason a queued download is not starting", () => {
+    const threshold = downloadEngineStageStaleAfterMs("queued", 0);
+    const health = evaluateDownloadEngineHealth(
+      [row({
+        state: "queued",
+        updatedAt: new Date(now.getTime() - threshold - 1),
+        errorMessage: "Waiting for enough free space in the download workspace.",
+      })],
+      emptyDownloadEngineLoopHealth(),
+      now.getTime(),
+    );
+
+    expect(health).toMatchObject({ status: "degraded", stalledCount: 1 });
+    expect(health.issues[0].message).toContain("free space");
+  });
+
   it("persists an unexpected loop failure until a newer successful loop", () => {
     const failedAt = new Date(now.getTime() - 1_000);
     const degraded = evaluateDownloadEngineHealth([], {

@@ -1,6 +1,7 @@
 import { rm } from "node:fs/promises";
 
 import {
+  annotateDownloadRequestStatusMessage,
   findDownloadClientByServiceConnectionId,
   findDownloadRequestById,
   listDownloadQueueItemsForRequest,
@@ -60,6 +61,24 @@ async function runImportCompletedEngineDownloadsWorkflow(
     if (nookletClient) {
       for (const entry of await listActiveDownloadRequestsForImport(userId, nookletClient.id)) {
         const engineDownload = await findEngineDownloadById(userId, entry.queueItem.externalQueueId);
+
+        // A transfer the engine parked because the news server was
+        // unreachable stays active and resumable, but nothing else carries
+        // that reason onto the request — the activity list would otherwise
+        // show it downloading with no explanation.
+        if (
+          engineDownload
+          && engineDownload.state === "paused"
+          && engineDownload.failureKind === "infrastructure"
+          && engineDownload.errorMessage
+        ) {
+          await annotateDownloadRequestStatusMessage({
+            userId,
+            requestId: entry.request.id,
+            statusMessage: engineDownload.errorMessage,
+          });
+          continue;
+        }
 
         if (!engineDownload) {
           const message = "The download is no longer in the queue — it was removed or lost.";

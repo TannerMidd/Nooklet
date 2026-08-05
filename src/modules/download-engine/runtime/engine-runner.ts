@@ -251,6 +251,29 @@ async function failEngineDownload(
   if (!failed) await settleEngineControl(download);
 }
 
+/**
+ * Parks a transfer the news server prevented from finishing.
+ *
+ * `failed` is terminal, and terminal states wipe the stored NZB while
+ * `resumePausedEngineDownload` only accepts `paused` — so the "then resume
+ * this download" these failures have always printed was never actually
+ * possible. Parking makes it true: the payload survives, the existing resume
+ * action works, and the release is not blocklisted for the server's outage.
+ *
+ * Only the fetching phase is parked. Post-processing failures stay terminal
+ * because finalized output cannot be resumed as a download; commit 3 already
+ * keeps those from being blamed on the release.
+ */
+async function parkEngineDownload(download: EngineDownloadRecord, errorMessage: string) {
+  const parked = await setEngineDownloadState(
+    download.id,
+    "paused",
+    { failureKind: "infrastructure", errorMessage },
+    { expectedStates: ["fetching"], controlIntent: null },
+  );
+  if (!parked) await settleEngineControl(download);
+}
+
 const capacityWaitMessage =
   "Waiting for enough free space in the download workspace. Nooklet will check again automatically.";
 const capacityUncheckableMessage =
@@ -357,10 +380,8 @@ async function processEngineDownload(download: EngineDownloadRecord): Promise<"c
     // but will not decode are `article-unusable` and spend the release's own
     // recovery budget instead — so this really is a server verdict.
     if (result.transportExhausted) {
-      await failEngineDownload(
+      await parkEngineDownload(
         download,
-        ["fetching"],
-        "infrastructure",
         "The news server kept failing on articles this release does have. Check the Usenet connection, then resume this download.",
       );
       return "continue";
@@ -368,26 +389,40 @@ async function processEngineDownload(download: EngineDownloadRecord): Promise<"c
 
     if (result.unrecoverable) {
       const failureKind = classifyEngineNntpFailureKinds(result.failureKinds);
+
+      if (failureKind === "infrastructure") {
+        await parkEngineDownload(
+          download,
+          "The transfer stopped early because the news server kept failing mid-download. Check the Usenet connection, then resume this download.",
+        );
+        return "continue";
+      }
+
       await failEngineDownload(
         download,
         ["fetching"],
         failureKind,
-        failureKind === "infrastructure"
-          ? "The transfer stopped early because the news server kept failing mid-download. Check the Usenet connection, then resume this download."
-          : "The transfer stopped early: more of the release's articles are missing or damaged than its PAR2 recovery set can repair, so it can never assemble completely.",
+        "The transfer stopped early: more of the release's articles are missing or damaged than its PAR2 recovery set can repair, so it can never assemble completely.",
       );
       return "continue";
     }
 
     if (result.completedSegments === 0) {
       const failureKind = classifyEngineNntpFailureKinds(result.failureKinds);
+
+      if (failureKind === "infrastructure") {
+        await parkEngineDownload(
+          download,
+          "The built-in downloader could not reach or authenticate with the news server. Check the Usenet connection, then resume this download.",
+        );
+        return "continue";
+      }
+
       await failEngineDownload(
         download,
         ["fetching"],
         failureKind,
-        failureKind === "infrastructure"
-          ? "The built-in downloader could not reach or authenticate with the news server. Check the Usenet connection, then resume this download."
-          : "No article could be fetched from the news server — the post may have been removed.",
+        "No article could be fetched from the news server — the post may have been removed.",
       );
       return "continue";
     }
