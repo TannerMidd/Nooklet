@@ -116,7 +116,9 @@ export function classifyEngineRuntimeError(
     return "infrastructure";
   }
 
-  return error instanceof FinalizeDownloadError ? "content" : "unknown";
+  // Finalization knows whether the release or our own post-processing tooling
+  // was at fault; only the former may blocklist the release.
+  return error instanceof FinalizeDownloadError ? error.kind : "unknown";
 }
 
 export function engineIncompleteDir(downloadId: string) {

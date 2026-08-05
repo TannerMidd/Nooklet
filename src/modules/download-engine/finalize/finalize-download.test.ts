@@ -379,4 +379,52 @@ describe("finalizeDownload", () => {
       }),
     ).rejects.toThrow(/damaged segments and no usable PAR2/);
   });
+
+  // par2 is absent locally, so runPar2 reaches no verdict — the same state a
+  // timeout or an unloadable index produces in the container. An intact
+  // payload must survive it: the engine already verified every segment's CRC
+  // and byte range, and failing here would discard a complete download and
+  // blocklist the release as damaged content.
+  it("keeps an intact payload when PAR2 reaches no verdict", async () => {
+    const { workDir, outputDir } = await makeDirs();
+    await mkdir(workDir, { recursive: true });
+
+    await writeFile(path.join(workDir, "movie.mkv"), Buffer.concat([mkvMagic, Buffer.alloc(1024)]));
+    await writeFile(path.join(workDir, "movie.par2"), par2Magic);
+
+    const result = await finalizeDownload({
+      workDir,
+      outputDir,
+      downloadName: "Intact.Post",
+      // The recovery volume lost segments; the payload did not.
+      files: [
+        okFile("movie.mkv"),
+        { ...okFile("movie.par2"), ok: false, failedSegments: 3 },
+      ],
+      password: null,
+    });
+
+    expect(await readdir(outputDir)).toContain("movie.mkv");
+    expect(result.repaired).toBe(false);
+  });
+
+  it("reports a missing extraction tool as infrastructure, not bad content", async () => {
+    const { workDir, outputDir } = await makeDirs();
+    await mkdir(workDir, { recursive: true });
+
+    await writeFile(
+      path.join(workDir, "obfuscated-archive"),
+      Buffer.concat([Buffer.from([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x01, 0x00]), Buffer.alloc(256)]),
+    );
+
+    await expect(
+      finalizeDownload({
+        workDir,
+        outputDir,
+        downloadName: "Rar.Post",
+        files: [okFile("obfuscated-archive")],
+        password: null,
+      }),
+    ).rejects.toMatchObject({ kind: "infrastructure" });
+  });
 });

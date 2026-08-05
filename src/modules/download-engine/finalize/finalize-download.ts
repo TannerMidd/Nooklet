@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { copyFile, lstat, mkdir, mkdtemp, readdir, realpath, rename, rm, stat } from "node:fs/promises";
 
+import { type EngineDownloadFailureKind } from "@/lib/database/schema";
 import { sanitizeDownloadFileName } from "@/modules/download-engine/assembly/sanitize-file-name";
 import { deobfuscateDownloadFiles } from "@/modules/download-engine/finalize/deobfuscate-files";
 import { type DownloadedNzbFile } from "@/modules/download-engine/scheduler/download-nzb";
@@ -35,9 +36,17 @@ export type FinalizeDownloadResult = {
 };
 
 export class FinalizeDownloadError extends Error {
-  constructor(message: string) {
+  /**
+   * Whether the release is at fault. A missing or broken post-processing tool
+   * is ours, and reporting it as `content` would blocklist a release that is
+   * perfectly downloadable once the tool works again.
+   */
+  readonly kind: EngineDownloadFailureKind;
+
+  constructor(message: string, kind: EngineDownloadFailureKind = "content") {
     super(message);
     this.name = "FinalizeDownloadError";
+    this.kind = kind;
   }
 }
 
@@ -602,11 +611,17 @@ async function inspectArchives(
   const sevenZipArchives = files.filter(isZipOr7zArchive);
 
   if (rarArchives.length > 0 && !(await binaryAvailable("unrar"))) {
-    throw new FinalizeDownloadError("unrar is not installed — RAR archives could not be extracted.");
+    throw new FinalizeDownloadError(
+      "unrar is not installed — RAR archives could not be extracted.",
+      "infrastructure",
+    );
   }
 
   if (sevenZipArchives.length > 0 && !(await binaryAvailable("7zz"))) {
-    throw new FinalizeDownloadError("7zz is not installed — zip/7z archives could not be extracted.");
+    throw new FinalizeDownloadError(
+      "7zz is not installed — zip/7z archives could not be extracted.",
+      "infrastructure",
+    );
   }
 
   const plans: ArchivePlan[] = [];
@@ -713,12 +728,52 @@ async function extractInspectedArchives(
 }
 
 /**
+ * What a PAR2 run told us about the payload.
+ *
+ * The distinction that matters is whether par2 reached a verdict at all.
+ * `no-verdict` covers every way the tool can fail to say anything — a missing
+ * binary, a timeout, a set with no usable index — and must never on its own
+ * condemn a download, because the engine's own per-segment CRC and range
+ * accounting is the stronger evidence about whether the payload is intact.
+ */
+type Par2Outcome = "repaired" | "repair-impossible" | "no-verdict";
+
+/**
+ * Exit codes verified against par2cmdline 0.8.1, the version shipped in the
+ * runtime image:
+ *
+ *   0  payload intact or successfully repaired — including when the recovery
+ *      volumes themselves are corrupt, truncated or missing entirely
+ *   2  payload damaged beyond what the recovery set can rebuild
+ *   3  none of the supplied files is a usable index, so no set could be loaded
+ *
+ * Only 2 is a statement about the payload.
+ */
+function classifyPar2Failure(error: unknown): Par2Outcome {
+  // execFile reports a non-zero exit as a numeric `code` and a missing binary
+  // as a string one, which `NodeJS.ErrnoException` does not model.
+  const failure = error as {
+    code?: string | number | null;
+    killed?: boolean;
+    signal?: string | null;
+  } | null;
+
+  // Timed out or killed: no verdict was reached.
+  if (failure?.killed || failure?.signal) {
+    return "no-verdict";
+  }
+
+  return failure?.code === 2 ? "repair-impossible" : "no-verdict";
+}
+
+/**
  * Runs PAR2 verify/repair. Beyond fixing damaged blocks this restores the
  * real file names of obfuscated posts, so it runs whenever a recovery set is
  * present — not only when segments were damaged. All PAR2 volumes are passed
- * explicitly because obfuscated sets do not share a base name.
+ * explicitly because obfuscated sets do not share a base name; par2 locates
+ * the data files itself by scanning the working directory.
  */
-async function runPar2(workDir: string, warnings: string[]): Promise<{ ran: boolean; ok: boolean }> {
+async function runPar2(workDir: string, warnings: string[]): Promise<Par2Outcome> {
   const entries = await listFiles(workDir);
   const par2Files: Array<{ name: string; size: number }> = [];
 
@@ -728,12 +783,12 @@ async function runPar2(workDir: string, warnings: string[]): Promise<{ ran: bool
   }
 
   if (par2Files.length === 0) {
-    return { ran: false, ok: false };
+    return "no-verdict";
   }
 
   if (!(await binaryAvailable("par2"))) {
     warnings.push("par2 is not installed — skipped verification/repair and file-name restoration.");
-    return { ran: false, ok: false };
+    return "no-verdict";
   }
 
   // Smallest file first: the index file loads fastest and anchors the set.
@@ -747,10 +802,15 @@ async function runPar2(workDir: string, warnings: string[]): Promise<{ ran: bool
       ["repair", "-q", ...par2Files.map((file) => `./${file.name}`)],
       { cwd: workDir, timeout: 60 * 60_000, maxBuffer: 32 * 1024 * 1024 },
     );
-    return { ran: true, ok: true };
+    return "repaired";
   } catch (error) {
-    warnings.push(`PAR2 repair failed: ${shortError(error)}`);
-    return { ran: true, ok: false };
+    const outcome = classifyPar2Failure(error);
+    warnings.push(
+      outcome === "repair-impossible"
+        ? `PAR2 repair failed: ${shortError(error)}`
+        : `PAR2 could not verify this download (${shortError(error)}); continuing on the engine's own segment checks.`,
+    );
+    return outcome;
   }
 }
 
@@ -822,7 +882,6 @@ export async function finalizeDownload(input: {
   maxExtractedFiles?: number;
 }): Promise<FinalizeDownloadResult> {
   const warnings: string[] = [];
-  const hasDamagedFiles = input.files.some((file) => !file.ok);
   const downloadedBytes = input.files.reduce((total, file) => total + file.bytesWritten, 0);
   const maxExtractedBytes = input.maxExtractedBytes
     ?? Math.min(Math.max(downloadedBytes * 20, 4 * 1024 ** 3), 250 * 1024 ** 3);
@@ -835,27 +894,27 @@ export async function finalizeDownload(input: {
   await deobfuscateDownloadFiles(input.workDir);
 
   // 2. PAR2 verify/repair + true-name restoration whenever a set exists.
-  const par2Result = await runPar2(input.workDir, warnings);
-  const repaired = par2Result.ran && par2Result.ok;
+  const par2Outcome = await runPar2(input.workDir, warnings);
+  const repaired = par2Outcome === "repaired";
+  // Damage to the recovery volumes themselves is not damage to the download:
+  // par2 reconstructs from whatever volumes survived, and a complete payload
+  // verifies even with none of them.
+  const damagedPayload = input.files.some(
+    (file) => !file.ok && !(file.fileName && isPar2File(file.fileName)),
+  );
 
-  if (par2Result.ran && !par2Result.ok) {
+  // A PAR2 failure is only fatal when the payload actually needs repairing.
+  // The engine verified every segment's CRC and byte range on the way in, so
+  // for an intact payload that evidence outranks anything par2 reports — and
+  // failing here would discard a complete download *and* blocklist the release
+  // as damaged content. A tool that reached no verdict (missing binary,
+  // timeout, no loadable index) never decides this on its own.
+  if (damagedPayload && !repaired) {
     throw new FinalizeDownloadError(
-      `PAR2 verification/repair failed. ${warnings[warnings.length - 1] ?? ""}`.trim(),
+      par2Outcome === "repair-impossible"
+        ? `Download has damaged segments and PAR2 repair failed. ${warnings[warnings.length - 1] ?? ""}`.trim()
+        : "Download has damaged segments and no usable PAR2 recovery set.",
     );
-  }
-
-  if (hasDamagedFiles && !repaired) {
-    const damagedPayload = input.files.some(
-      (file) => !file.ok && !(file.fileName && isPar2File(file.fileName)),
-    );
-
-    if (damagedPayload) {
-      throw new FinalizeDownloadError(
-        par2Result.ran
-          ? `Download has damaged segments and PAR2 repair failed. ${warnings[warnings.length - 1] ?? ""}`.trim()
-          : "Download has damaged segments and no usable PAR2 recovery set.",
-      );
-    }
   }
 
   // 3. Inspect every archive before any extraction, then unpack into isolated
@@ -872,6 +931,9 @@ export async function finalizeDownload(input: {
   } catch (error) {
     throw new FinalizeDownloadError(
       `Download contains archives that could not be extracted: ${shortError(error, [input.password])}`,
+      // A missing extraction tool stays an infrastructure fault through the
+      // wrap; otherwise the release is blocklisted for our own missing binary.
+      error instanceof FinalizeDownloadError ? error.kind : "content",
     );
   }
 
@@ -888,6 +950,9 @@ export async function finalizeDownload(input: {
   } catch (error) {
     throw new FinalizeDownloadError(
       `Download contains archives that could not be extracted: ${shortError(error, [input.password])}`,
+      // A missing extraction tool stays an infrastructure fault through the
+      // wrap; otherwise the release is blocklisted for our own missing binary.
+      error instanceof FinalizeDownloadError ? error.kind : "content",
     );
   }
 
@@ -907,6 +972,9 @@ export async function finalizeDownload(input: {
       warnings.length > 0
         ? `Download finished but produced no playable media. ${warnings.join(" ")}`
         : "Download finished but produced no playable media — the post may be junk, encrypted, or an unsupported format.",
+      // Obfuscated posts depend on par2 to restore real file names. When the
+      // tool never ran, "no playable media" says nothing about the release.
+      par2Outcome === "no-verdict" && warnings.length > 0 ? "infrastructure" : "content",
     );
   }
 
