@@ -4424,3 +4424,307 @@ pre {
     font-size: 7.5pt;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Code-path breakdown diagrams
+   Geometry lives in SVG attributes; every paint and type value lives here so
+   both themes, print, and forced colors resolve from the shared tokens.
+   Inline SVG cannot use var() in presentation attributes, so nothing in the
+   markup carries a fill or stroke of its own.
+   -------------------------------------------------------------------------- */
+
+.breakdown {
+  padding-block: clamp(3rem, 5vw, 4.75rem);
+  border-top: 1px solid var(--line);
+}
+
+.breakdown-stack > .breakdown:first-child {
+  padding-top: 2rem;
+  border-top: 0;
+}
+
+/* Mirrors .table-wrap: a dense trace scrolls rather than scaling into
+   illegibility on a phone. */
+.cpd-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.cpd-scroll:focus-visible {
+  outline-offset: 3px;
+}
+
+.cpd-canvas {
+  padding-inline: 0;
+  background: none;
+}
+
+/* The rail layout caps the document column at 930px even on a wide desktop
+   (1240px shell minus a 230px rail and a 5rem gap), so the canonical viewBox
+   width is 930 and diagrams render at roughly 1:1 rather than scaling down
+   into unreadable type. */
+.cpd {
+  display: block;
+  width: 100%;
+  min-width: 820px;
+  max-width: 930px;
+  height: auto;
+  margin-inline: auto;
+  font-family: var(--body);
+}
+
+/* --- node surfaces -------------------------------------------------------- */
+.cpd-node {
+  fill: var(--surface);
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+
+.cpd-node-entry {
+  fill: color-mix(in srgb, var(--amber) 12%, var(--surface));
+  stroke: var(--amber);
+}
+
+.cpd-node-domain {
+  fill: color-mix(in srgb, var(--teal) 12%, var(--surface));
+  stroke: var(--teal);
+}
+
+.cpd-node-data {
+  fill: var(--surface-raised);
+  stroke: var(--line-strong);
+}
+
+.cpd-node-external {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-dasharray: 5 4;
+}
+
+.cpd-node-terminal {
+  fill: color-mix(in srgb, var(--wine) 12%, var(--surface));
+  stroke: var(--wine);
+}
+
+.cpd-zone {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-width: 1;
+  stroke-dasharray: 6 5;
+}
+
+.cpd-zone-alert {
+  stroke: var(--wine);
+}
+
+.cpd-band {
+  fill: color-mix(in srgb, var(--surface-strong) 70%, transparent);
+  stroke: none;
+}
+
+/* --- type ----------------------------------------------------------------- */
+.cpd-title {
+  fill: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.cpd-kicker {
+  fill: var(--amber-strong);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.cpd-path {
+  fill: var(--muted);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.cpd-edge-label {
+  fill: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.cpd-lane {
+  fill: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+/* --- edges ---------------------------------------------------------------- */
+/* Every edge kind differs by dash pattern as well as hue, so a trace stays
+   readable with no color at all. */
+.cpd-edge {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-width: 1.75;
+}
+
+.cpd-head {
+  fill: var(--line-strong);
+  stroke: none;
+}
+
+.cpd-edge-return {
+  stroke: var(--teal);
+  stroke-dasharray: 6 4;
+}
+
+.cpd-head-return {
+  fill: var(--teal);
+}
+
+.cpd-edge-fail {
+  stroke: var(--wine);
+  stroke-dasharray: 3 4;
+}
+
+.cpd-head-fail {
+  fill: var(--wine);
+}
+
+.cpd-edge-async {
+  stroke: var(--amber);
+  stroke-dasharray: 1.5 4;
+  stroke-linecap: round;
+}
+
+.cpd-head-async {
+  fill: var(--amber);
+}
+
+/* --- legend modifiers (compose with .legend-line) ------------------------- */
+.legend-flow {
+  border-top-color: var(--line-strong);
+}
+
+.legend-return {
+  border-top-color: var(--teal);
+  border-top-style: dashed;
+}
+
+.legend-fail {
+  border-top-color: var(--wine);
+  border-top-style: dashed;
+}
+
+.legend-async {
+  border-top-color: var(--amber);
+  border-top-style: dotted;
+}
+
+/* --- owning-source link set ----------------------------------------------- */
+.source-set {
+  margin-top: 2rem;
+  padding: 1.15rem 1.35rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.source-set ul {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0;
+  margin: 0.6rem 0 0;
+  list-style: none;
+}
+
+.source-set code {
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-contrast: more) {
+  .cpd-node,
+  .cpd-node-entry,
+  .cpd-node-domain,
+  .cpd-node-data,
+  .cpd-node-terminal {
+    fill: var(--surface);
+    stroke: var(--text);
+    stroke-width: 1.5;
+  }
+
+  .cpd-edge {
+    stroke: var(--text);
+    stroke-width: 2.25;
+  }
+
+  .cpd-head {
+    fill: var(--text);
+  }
+
+  .cpd-path,
+  .cpd-edge-label,
+  .cpd-lane {
+    fill: var(--text);
+  }
+}
+
+@media (forced-colors: active) {
+  .cpd-node,
+  .cpd-node-entry,
+  .cpd-node-domain,
+  .cpd-node-data,
+  .cpd-node-terminal,
+  .cpd-band {
+    fill: Canvas;
+    stroke: CanvasText;
+  }
+
+  .cpd-node-external,
+  .cpd-zone,
+  .cpd-zone-alert {
+    fill: none;
+    stroke: CanvasText;
+  }
+
+  .cpd-edge,
+  .cpd-edge-return,
+  .cpd-edge-fail,
+  .cpd-edge-async {
+    stroke: CanvasText;
+  }
+
+  .cpd-head,
+  .cpd-head-return,
+  .cpd-head-fail,
+  .cpd-head-async {
+    fill: CanvasText;
+  }
+
+  .cpd-title,
+  .cpd-kicker,
+  .cpd-path,
+  .cpd-edge-label,
+  .cpd-lane {
+    fill: CanvasText;
+  }
+
+  .source-set {
+    border-color: CanvasText;
+  }
+}
+
+@media print {
+  .cpd-scroll {
+    overflow: visible;
+  }
+
+  .cpd {
+    min-width: 0;
+  }
+
+  .breakdown,
+  .source-set {
+    break-inside: avoid;
+  }
+}
