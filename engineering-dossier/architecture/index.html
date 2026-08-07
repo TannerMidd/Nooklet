@@ -89,7 +89,7 @@
           </p>
           <div class="hero-actions">
             <a class="button button-primary" href="#bd01-write-path">Start with the write path</a>
-            <a class="button button-secondary" href="#bd13-drift">Jump to known drift</a>
+            <a class="button button-secondary" href="#bd13-drift">Jump to drift review</a>
             <a class="button button-secondary" href="../">Back to the dossier</a>
           </div>
         </div>
@@ -130,7 +130,7 @@
             <a href="#bd10-storage-policy">10 &middot; Storage policy</a>
             <a href="#bd11-security">11 &middot; Security</a>
             <a href="#bd12-db-bootstrap">12 &middot; Database bootstrap</a>
-            <a href="#bd13-drift">Known drift</a>
+            <a href="#bd13-drift">Drift review</a>
           </nav>
         </aside>
 
@@ -1207,12 +1207,11 @@
             <div class="section-heading section-heading-split" data-reveal>
               <div>
                 <p class="eyebrow">Breakdown 08</p>
-                <h2 id="bd08-title">Eight states are declared; seven are reachable.</h2>
+                <h2 id="bd08-title">Seven states are declared; all are reachable.</h2>
               </div>
               <p>
-                The <code>engineDownloadStates</code> enum lists eight values, and every state transition
-                is a compare-and-swap that names the states it expects to find. One of the eight is never
-                written by any code path.
+                The <code>engineDownloadStates</code> enum now contains only states written by the runner,
+                and every transition is a compare-and-swap that names the states it expects to find.
               </p>
             </div>
 
@@ -1233,7 +1232,7 @@
                 <div class="cpd-scroll" tabindex="0" role="region" aria-label="Trace 08 diagram, scrollable">
                   <svg
                     class="cpd"
-                    viewBox="0 0 930 464"
+                    viewBox="0 0 930 380"
                     role="img"
                     aria-labelledby="bd08-fig-title"
                     aria-describedby="bd08-fig-desc"
@@ -1282,26 +1281,21 @@
                     <rect class="cpd-node cpd-node-terminal" x="600" y="304" width="240" height="44" rx="8" />
                     <text class="cpd-title" x="720" y="326" text-anchor="middle" dominant-baseline="central">failed</text>
 
-                    <rect class="cpd-node cpd-node-external" x="600" y="380" width="240" height="44" rx="8" />
-                    <text class="cpd-title" x="720" y="402" text-anchor="middle" dominant-baseline="central">assembling</text>
-                    <text class="cpd-lane" x="600" y="368">DECLARED BUT NEVER WRITTEN</text>
                   </svg>
                 </div>
                 <p class="sr-only" id="bd08-fig-desc">
                   A row starts queued and moves to fetching. From fetching it branches to either repairing
                   or extracting, and both converge on completed. Fetching can also move to paused, either
                   by user intent or because the transfer was parked, and paused returns to queued. Failure
-                  from an active state moves to failed. The eighth declared state, assembling, is drawn
-                  detached because no code path ever writes it.
+                  from an active state moves to failed. Assembly itself happens while the row is fetching.
                 </p>
               </div>
 
               <figcaption>
-                <span>Trace 08.</span> <code>assembling</code> survives only inside expected-state arrays and
-                read-side label mapping &mdash; assembly happens in place during <code>fetching</code>, so
-                nothing transitions into it. Note too that <code>paused</code> carries two distinct
-                meanings: a user pressed pause, or the engine parked a transfer whose server broke. Both
-                are resumable, which is exactly why parking is not modelled as a failure.
+                <span>Trace 08.</span> The former dead <code>assembling</code> value has been removed because
+                yEnc parts are assembled in place during <code>fetching</code>. <code>paused</code> still
+                carries two distinct meanings: a user pressed pause, or the engine parked a transfer whose
+                server broke. Both are resumable, which is exactly why parking is not modelled as a failure.
               </figcaption>
             </figure>
 
@@ -1827,60 +1821,60 @@
             <div class="section-heading section-heading-split" data-reveal>
               <div>
                 <p class="eyebrow">Appendix</p>
-                <h2 id="bd13-title">Where the documentation and the code disagree.</h2>
+                <h2 id="bd13-title">How the reported drift was resolved.</h2>
               </div>
               <p>
-                Every row below is a claim you will find in a decision record, a structure document, or a
-                type union, that the current implementation does not support. They are listed rather than
-                quietly corrected so that reading an ADR does not mislead you.
+                Each previously reported mismatch was reviewed against the implementation. The rows remain
+                as a decision log: one dead state was corrected in code, while intentional constraints and
+                ownership choices were made explicit in the ADRs.
               </p>
             </div>
 
             <div class="table-wrap" tabindex="0" role="region" aria-labelledby="bd13-table-title" data-reveal>
               <table class="technical-table">
-                <caption id="bd13-table-title">Documented claims that current <code>main</code> does not support</caption>
+                <caption id="bd13-table-title">Disposition of previously reported architecture drift</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Claim</th>
-                    <th scope="col">Where it appears</th>
-                    <th scope="col">What the code does</th>
+                    <th scope="col">Reviewed item</th>
+                    <th scope="col">Disposition</th>
+                    <th scope="col">Resolution</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td><code>credential-vault</code> is a core module</td>
-                    <td>ADR-0001's historical module list</td>
-                    <td>No such directory. Secret handling is split across <code>src/lib/security/</code>, service connections, and indexer repositories.</td>
+                    <td><code>credential-vault</code> as a physical module</td>
+                    <td>Accepted architecture</td>
+                    <td>ADR-0001 now defines it as a responsibility: shared crypto lives in <code>src/lib/security/</code>, while each domain owns its secret records and policy.</td>
                   </tr>
                   <tr>
-                    <td><code>metadata</code> is a core module</td>
-                    <td>ADR-0001</td>
-                    <td>No such directory. Metadata adapters live inside <code>service-connections</code>.</td>
+                    <td><code>metadata</code> as a physical module</td>
+                    <td>Accepted architecture</td>
+                    <td>ADR-0001 now records metadata as a capability exposed by <code>service-connections</code>, not a placeholder directory.</td>
                   </tr>
                   <tr>
-                    <td><code>engine_segments</code> stores per-segment progress</td>
-                    <td>ADR-0002</td>
-                    <td>Never built. Progress is in memory, and a restart re-runs the transfer from the NZB stored on the row.</td>
+                    <td>Durable <code>engine_segments</code> rows</td>
+                    <td>Accepted constraint</td>
+                    <td>ADR-0002 now specifies in-memory segment scheduling, aggregate persisted progress, and safe whole-transfer restart from the stored NZB.</td>
                   </tr>
                   <tr>
-                    <td><code>assembling</code> is a reachable state</td>
-                    <td><code>engineDownloadStates</code></td>
-                    <td>Nothing writes it. Assembly happens in place during <code>fetching</code>.</td>
+                    <td><code>assembling</code> engine state</td>
+                    <td>Rectified in code</td>
+                    <td>The dead enum value and dependent branches were removed; an upgrade migration normalizes any historical row before the narrowed state model is used.</td>
                   </tr>
                   <tr>
                     <td>Repositories and adapters are module-internal</td>
-                    <td><code>public.ts</code> facades plus <code>boundaries:check</code></td>
-                    <td>Enforced for production cross-module imports. The focused validator does not claim to prove every possible cycle or direct database read.</td>
+                    <td>Not a drift</td>
+                    <td>ADR-0001 and the structure guide scope this to production cross-module imports; <code>boundaries:check</code> enforces exactly that invariant.</td>
                   </tr>
                   <tr>
-                    <td>Database access stays behind repositories</td>
-                    <td>Layering convention</td>
-                    <td>Fourteen production query files select directly. Four focused workflow/configuration files outside <code>repositories/</code> also own direct writes or transactions.</td>
+                    <td>Database access outside repositories</td>
+                    <td>Accepted architecture</td>
+                    <td>ADR-0001 now permits query-owned read projections and focused workflow/configuration/maintenance transactions while keeping reusable persistence and ordinary writes in repositories.</td>
                   </tr>
                   <tr>
-                    <td>Multiple Usenet servers with priorities</td>
-                    <td>ADR-0002</td>
-                    <td>One canonical instance-wide <code>usenet-server</code> connection is shared; each requesting user gets a distinct native <code>download_clients</code> row linked to it.</td>
+                    <td>Multiple prioritized Usenet servers</td>
+                    <td>Accepted constraint</td>
+                    <td>ADR-0002 now fixes the current topology at one canonical instance-wide server; primary/block-account failover remains a possible future decision.</td>
                   </tr>
                 </tbody>
               </table>
@@ -1913,7 +1907,7 @@
           <a href="https://github.com/TannerMidd/Nooklet/wiki">Wiki</a>
           <a href="https://github.com/TannerMidd/Nooklet/issues">Support</a>
         </nav>
-        <p class="revision">Code paths<br />Reviewed August 6, 2026</p>
+        <p class="revision">Code paths<br />Reviewed August 7, 2026</p>
       </div>
     </footer>
   </body>

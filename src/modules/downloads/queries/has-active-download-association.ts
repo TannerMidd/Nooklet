@@ -14,7 +14,6 @@ const activeQueueItemStatuses = ["queued", "downloading", "paused"] as const;
 const activeEngineDownloadStates = [
   "queued",
   "fetching",
-  "assembling",
   "repairing",
   "extracting",
   "paused",

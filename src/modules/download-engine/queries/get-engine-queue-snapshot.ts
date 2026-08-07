@@ -52,8 +52,6 @@ function stateLabel(record: EngineDownloadRecord) {
       return "Queued";
     case "fetching":
       return "Downloading";
-    case "assembling":
-      return "Assembling";
     case "repairing":
       return "Repairing";
     case "extracting":

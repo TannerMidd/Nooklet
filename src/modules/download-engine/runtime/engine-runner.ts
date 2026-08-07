@@ -473,7 +473,7 @@ async function processEngineDownload(download: EngineDownloadRecord): Promise<"c
 
     await failEngineDownload(
       download,
-      ["fetching", "assembling", "repairing", "extracting"],
+      ["fetching", "repairing", "extracting"],
       classifyEngineRuntimeError(error, transferFailureKinds),
       message,
     );

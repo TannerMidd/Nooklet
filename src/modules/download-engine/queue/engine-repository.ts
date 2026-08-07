@@ -57,14 +57,12 @@ export function resolveEngineDownloadPayload(record: EngineDownloadRecord) {
 export const activeEngineDownloadStates = [
   "queued",
   "fetching",
-  "assembling",
   "repairing",
   "extracting",
   "paused",
 ] as const satisfies readonly EngineDownloadState[];
 
 export const enginePostProcessingStates = [
-  "assembling",
   "repairing",
   "extracting",
 ] as const satisfies readonly EngineDownloadState[];
@@ -623,7 +621,7 @@ export async function requeueStrandedEngineDownloads() {
       updatedAt: new Date(),
     })
     .where(and(
-      inArray(engineDownloads.state, ["fetching", "assembling", "repairing", "extracting"]),
+      inArray(engineDownloads.state, ["fetching", "repairing", "extracting"]),
       eq(engineDownloads.controlIntent, "pause"),
     ))
     .run();
@@ -632,7 +630,7 @@ export async function requeueStrandedEngineDownloads() {
     .update(engineDownloads)
     .set({ state: "queued", bytesPerSecond: null, updatedAt: new Date() })
     .where(and(
-      inArray(engineDownloads.state, ["fetching", "assembling", "repairing", "extracting"]),
+      inArray(engineDownloads.state, ["fetching", "repairing", "extracting"]),
       isNull(engineDownloads.controlIntent),
     ))
     .run();

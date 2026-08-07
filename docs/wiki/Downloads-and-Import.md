@@ -1,6 +1,6 @@
 # Downloads and Import
 
-> Applies to the current `main` implementation. Last source review: 2026-08-06.
+> Applies to the current `main` implementation. Last source review: 2026-08-07.
 
 Nooklet fetches Usenet releases through its built-in downloader. Nooklet owns the request, queue, transfer, repair, extraction, import, media-file, and audit records end to end.
 
@@ -135,9 +135,9 @@ stateDiagram-v2
   failed --> [*]: failure pass closes linked request
 ```
 
-The schema also contains an `assembling` enum value for design compatibility, but the current runner does not persist that state. There is no engine-level `importing` state; importing is represented by the outer `download_requests` workflow and the engine row's `importedAt` timestamp.
+Assembly happens in place during `fetching`; there is no separate persisted `assembling` state. There is also no engine-level `importing` state: importing is represented by the outer `download_requests` workflow and the engine row's `importedAt` timestamp.
 
-On process startup, rows stranded in `fetching`, `assembling`, `repairing`, or `extracting` are returned to `queued`. The runner then removes the old incomplete directory and starts the transfer again from the encrypted stored NZB. Per-segment restart resume is not implemented.
+On process startup, rows stranded in `fetching`, `repairing`, or `extracting` are returned to `queued`. The runner then removes the old incomplete directory and starts the transfer again from the encrypted stored NZB. Per-segment restart resume is not implemented.
 
 ## Queue behavior
 

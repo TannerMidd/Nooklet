@@ -49,13 +49,11 @@ const hour = 60 * minute;
 const activeStates = [
   "queued",
   "fetching",
-  "assembling",
   "repairing",
   "extracting",
 ] as const satisfies readonly EngineDownloadState[];
 const processingStates = [
   "fetching",
-  "assembling",
   "repairing",
   "extracting",
 ] as const satisfies readonly EngineDownloadState[];
@@ -82,8 +80,6 @@ export function downloadEngineStageStaleAfterMs(
       // A single NNTP segment can make three 30-second attempts. Fifteen
       // minutes leaves ample room for the availability probe and reconnects.
       return 15 * minute;
-    case "assembling":
-      return Math.max(45 * minute, scaledAllowance(2 * 1024 * 1024, 15 * minute));
     case "repairing":
       return Math.max(2 * hour, scaledAllowance(512 * 1024, 30 * minute));
     case "extracting":

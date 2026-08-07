@@ -22,7 +22,7 @@ Still reflected in current code:
 - Local login and explicit first-admin bootstrap are implemented.
 - The shipped deployment remains one container.
 
-Inventory drift that should not be presented as current behavior:
+Historical inventory that should not be presented as current behavior:
 
 - Jellyfin is mentioned, but current service/watch-history types are Plex, Tautulli, Trakt, and manual history where applicable.
 - Auth.js currently exposes credentials login only. Trakt's OAuth token is stored connection data, not an Auth.js provider.
@@ -43,11 +43,11 @@ Implemented:
 - Caller-scoped built-in queue presentation at `/api/downloads/queue`.
 - Conservative staging-capacity admission check.
 
-Planned language that is not current runtime behavior:
+Accepted current constraints:
 
 - One Usenet service connection is resolved; multiple priority/block servers are not implemented.
 - `importing` is not an engine state. It belongs to the outer download-request/import workflow.
-- `assembling` remains in the schema enum but is not persisted by the current runner.
+- Assembly happens in place during `fetching`; there is no separate persisted `assembling` state.
 - A restart requeues and starts the download from the stored NZB; segment-level resume is not implemented.
 - The runner drains one engine download at a time, using concurrent NNTP connections within that transfer.
 

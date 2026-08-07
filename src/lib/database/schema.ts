@@ -283,7 +283,6 @@ export const downloadImportRunStatuses = ["pending", "running", "succeeded", "fa
 export const engineDownloadStates = [
   "queued",
   "fetching",
-  "assembling",
   "repairing",
   "extracting",
   "completed",

@@ -6,7 +6,30 @@ Accepted and implemented; runtime placement amended by ADR-0004.
 
 ## Date
 
-2026-07-11; current-alignment update 2026-08-06.
+2026-07-11; current-alignment update 2026-08-07.
+
+### 2026-08-07 implementation amendment
+
+The implemented engine deliberately narrows three parts of the original
+delivery design:
+
+- One canonical, instance-wide Usenet server is supported. Its configured
+  connection count provides parallelism within a transfer; priority and block
+  servers are not part of the accepted current topology.
+- Per-segment scheduling and byte-range coverage are process-local. SQLite
+  persists aggregate byte and segment counters on `engine_downloads`, but
+  there is no `engine_segments` table. After a restart, an interrupted transfer
+  is safely requeued, its incomplete directory is cleared, and its stored NZB
+  is fetched again from the beginning.
+- yEnc parts are written directly into their final byte ranges while the row is
+  `fetching`. There is no separate persisted `assembling` state. A compatibility
+  migration maps any historical `assembling` row back to a resumable state.
+
+This amendment treats restart recovery as durable queue recovery, not byte-level
+resume. It avoids high-churn SQLite segment bookkeeping and a second assembly
+copy at the cost of re-transferring partial work after a process restart. A
+future decision may add resumable segments or multi-server failover if operating
+experience justifies that complexity.
 
 ## Context
 
@@ -77,8 +100,9 @@ admission.
 ### Queue ownership and runtime
 
 - `download_requests` remains the user-facing request record.
-- `engine_downloads` and active segment rows are the durable transfer source of
-  truth.
+- `engine_downloads`, including its aggregate progress counters and encrypted
+  NZB payload, is the durable transfer source of truth. Per-segment state exists
+  only while the runner owns an active transfer.
 - The authenticated queue API filters items through the caller's download
   associations.
 - The separately supervised worker owns transfer, finalization, import, and
@@ -117,6 +141,10 @@ admission.
 - Transfer code requires strict streaming and disk-space discipline.
 - The supported topology is one web process and one worker process against one
   SQLite database; this ADR does not claim horizontal scaling.
+- A worker restart discards partial transfer bytes and fetches the stored NZB
+  again; byte-level resume is not implemented.
+- One Usenet server is resolved, so primary/block-account failover is not
+  implemented.
 - Windows and Linux path semantics require dedicated containment tests.
 
 ## Related

@@ -30,7 +30,6 @@ const titleRemovalActiveQueueStatuses = ["queued", "downloading", "paused"] as c
 const titleRemovalActiveEngineStates = [
   "queued",
   "fetching",
-  "assembling",
   "repairing",
   "extracting",
   "paused",

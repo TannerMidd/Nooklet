@@ -342,7 +342,7 @@ describe("engine repository", () => {
     )).toBe(false);
   });
 
-  it.each(["assembling", "repairing", "extracting"] as const)(
+  it.each(["repairing", "extracting"] as const)(
     "refuses to delete a download while it is %s",
     async (state) => {
       const record = await createEngineDownload(baseInput());

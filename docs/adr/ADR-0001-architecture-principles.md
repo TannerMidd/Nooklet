@@ -9,13 +9,42 @@ ADR-0004. Current deployment and repository details are documented in
 
 ## Date
 
-2026-04-24 (last reviewed 2026-08-06)
+2026-04-24 (last reviewed 2026-08-07)
 
 > Historical note: the context and decisions below describe the architecture
 > at acceptance time. Later ADRs split the worker and download engine from the
 > Next.js web process, and the physical module/schema inventory has evolved.
 > Names such as Jellyfin, `credential-vault`, `metadata`, `oauth_accounts`, and
 > `indexer_sources` are not claims about the current implementation.
+
+### 2026-08-07 implementation amendment
+
+This amendment supersedes the physical-module requirement in the original
+capability list and the `credential-vault` path named in rule 7, while
+preserving their policy intent. The list remains useful as a statement of
+responsibilities, but it no longer prescribes one directory per capability.
+The current module inventory in
+[`docs/architecture/project-structure.md`](../architecture/project-structure.md)
+is authoritative:
+
+- `credential-vault` is a responsibility rather than a module. Shared
+  encryption and masking primitives live in `src/lib/security/`; the domain
+  that owns a secret also owns its record and access policy. Service
+  credentials remain owned by `service-connections`.
+- `metadata` is a capability rather than a module. Provider adapters and their
+  verified connection data are owned by `service-connections` and exposed to
+  other modules through its public facade.
+- Repositories and adapters are private across module boundaries. Production
+  code may not import another module's `repositories/` or `adapters/` internals;
+  the focused boundary validator enforces that rule.
+- A query handler may own a read-only Drizzle projection when introducing a
+  repository method would only mirror that query. Repositories remain the
+  normal home for reusable persistence and writes. A small workflow,
+  configuration resolver, or maintenance operation may own a transaction when
+  the transaction itself is its atomic domain boundary.
+
+These placements keep credential policy, provider behavior, and transaction
+ownership explicit without creating placeholder modules or repository wrappers.
 
 ## Context
 

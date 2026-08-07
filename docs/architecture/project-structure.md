@@ -102,6 +102,13 @@ cross-module imports into another module's `repositories/` or `adapters/`
 folders. This is a focused import-boundary invariant, not a claim that every
 possible module cycle or database access pattern is statically proved.
 
+Query handlers may own read-only Drizzle projections when a repository method
+would only mirror that query. Repositories remain the normal home for reusable
+persistence and writes. A focused workflow, configuration resolver, or
+maintenance operation may own a transaction when that transaction is the
+operation's atomic domain boundary. These exceptions do not weaken the
+cross-module privacy rule above.
+
 ## Workflow layout
 
 Larger workflows generally live at `src/modules/<module>/workflows/<workflow>/`
