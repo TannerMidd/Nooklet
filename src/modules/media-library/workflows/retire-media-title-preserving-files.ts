@@ -1,10 +1,10 @@
 import {
   checkpointDownloadRequestCancellationForTitleRetirement,
   listDownloadRequestsBlockingTitleRemoval,
-} from "@/modules/downloads/repositories/download-repository";
+} from "@/modules/downloads/public";
 import {
   listCancellableSeasonFulfillmentsForTitle,
-} from "@/modules/downloads/repositories/season-fulfillment-repository";
+} from "@/modules/downloads/public";
 import {
   hasActiveDownloadAssociationForTitle,
 } from "@/modules/downloads/queries/has-active-download-association";

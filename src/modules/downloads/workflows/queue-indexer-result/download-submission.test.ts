@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/integrations/sabnzbd", () => ({
-  addSabnzbdUrlToQueue: vi.fn(),
-  removeSabnzbdQueueItem: vi.fn(),
-}));
 // Keep the real error classes: the point of these tests is that a transport
 // failure is never mistaken for a verdict about the release.
 vi.mock("@/lib/security/safe-fetch", async (importOriginal) => {
@@ -24,24 +20,23 @@ vi.mock("@/modules/indexers/repositories/indexer-repository", () => ({
   findIndexerById: vi.fn(),
 }));
 
-import { addSabnzbdUrlToQueue, removeSabnzbdQueueItem } from "@/lib/integrations/sabnzbd";
 import { SafeFetchAbortError, SsrfBlockedError, safeFetch } from "@/lib/security/safe-fetch";
 import {
   EnqueueNzbDownloadError,
   enqueueNzbDownloadWorkflow,
 } from "@/modules/download-engine/workflows/enqueue-nzb-download";
 import { findIndexerById } from "@/modules/indexers/repositories/indexer-repository";
+import { applyEngineQueueAction } from "@/modules/download-engine/workflows/apply-engine-queue-action";
 
 import {
   compensateIndexerResultSubmission,
   submitIndexerResultToDownloadClient,
 } from "./download-submission";
 
-const addMock = vi.mocked(addSabnzbdUrlToQueue);
-const removeMock = vi.mocked(removeSabnzbdQueueItem);
 const fetchMock = vi.mocked(safeFetch);
 const findIndexerMock = vi.mocked(findIndexerById);
 const enqueueMock = vi.mocked(enqueueNzbDownloadWorkflow);
+const applyEngineActionMock = vi.mocked(applyEngineQueueAction);
 
 const resolvedResult = {
   result: {
@@ -60,20 +55,6 @@ beforeEach(() => {
 });
 
 describe("download submission", () => {
-  it("rejects SABnzbd acknowledgements that contain no trackable queue id", async () => {
-    addMock.mockResolvedValue({ queueIds: [] } as never);
-
-    await expect(submitIndexerResultToDownloadClient(
-      resolvedResult,
-      {
-        kind: "sabnzbd",
-        client: { id: "client-1" },
-        baseUrl: "http://sab",
-        apiKey: "secret",
-      } as never,
-    )).rejects.toMatchObject({ code: "sabnzbd_enqueue_failed" });
-  });
-
   it("does not fetch a built-in-engine NZB from a host other than the supplying indexer", async () => {
     findIndexerMock.mockResolvedValue({ baseUrl: "https://indexer.test" } as never);
     const hostileResult = {
@@ -90,7 +71,6 @@ describe("download submission", () => {
 
     await expect(submitIndexerResultToDownloadClient(
       hostileResult,
-      { kind: "nooklet", client: { id: "client-1" } } as never,
     )).rejects.toMatchObject({
       code: "indexer_unavailable",
       // Both origins are named so the activity list shows a configuration
@@ -110,7 +90,6 @@ describe("download submission", () => {
 
     await expect(submitIndexerResultToDownloadClient(
       resolvedResult,
-      { kind: "nooklet", client: { id: "client-1" } } as never,
     )).resolves.toEqual({ queueIds: ["engine-1"], category: "movies" });
     expect(fetchMock).toHaveBeenCalledWith(
       "https://indexer.test/api?t=get&id=1",
@@ -125,7 +104,6 @@ describe("download submission", () => {
 
     await expect(submitIndexerResultToDownloadClient(
       resolvedResult,
-      { kind: "nooklet", client: { id: "client-1" } } as never,
     )).rejects.toMatchObject({ code: "release_unavailable" });
   });
 
@@ -146,7 +124,6 @@ describe("download submission", () => {
 
       await expect(submitIndexerResultToDownloadClient(
         resolvedResult,
-        { kind: "nooklet", client: { id: "client-1" } } as never,
       )).rejects.toMatchObject({ code: "indexer_unavailable" });
       expect(enqueueMock).not.toHaveBeenCalled();
     });
@@ -163,7 +140,6 @@ describe("download submission", () => {
 
     await expect(submitIndexerResultToDownloadClient(
       resolvedResult,
-      { kind: "nooklet", client: { id: "client-1" } } as never,
     )).rejects.toMatchObject({ code });
   });
 
@@ -180,7 +156,6 @@ describe("download submission", () => {
 
     await expect(submitIndexerResultToDownloadClient(
       resolvedResult,
-      { kind: "nooklet", client: { id: "client-1" } } as never,
     )).rejects.toMatchObject({
       code: "indexer_unavailable",
       message: expect.stringContaining(expected),
@@ -206,7 +181,6 @@ describe("download submission", () => {
 
     await expect(submitIndexerResultToDownloadClient(
       resolvedResult,
-      { kind: "nooklet", client: { id: "client-1" } } as never,
     )).rejects.toMatchObject({
       code: "download_capacity_exceeded",
       capacity: {
@@ -230,7 +204,6 @@ describe("download submission", () => {
 
     await expect(submitIndexerResultToDownloadClient(
       resolvedResult,
-      { kind: "nooklet", client: { id: "client-1" } } as never,
     )).rejects.toMatchObject({
       code: "download_capacity_exceeded",
       capacity: null,
@@ -238,23 +211,17 @@ describe("download submission", () => {
     });
   });
 
-  it("removes SABnzbd jobs during persistence compensation", async () => {
+  it("removes native jobs during persistence compensation", async () => {
     await compensateIndexerResultSubmission(
       "user-1",
-      {
-        kind: "sabnzbd",
-        client: { id: "client-1" },
-        baseUrl: "http://sab",
-        apiKey: "secret",
-      } as never,
-      { queueIds: ["nzo-1", "nzo-2"], category: "movies" },
+      { queueIds: ["engine-1", "engine-2"], category: "movies" },
     );
 
-    expect(removeMock).toHaveBeenCalledTimes(2);
-    expect(removeMock).toHaveBeenNthCalledWith(1, {
-      baseUrl: "http://sab",
-      apiKey: "secret",
-      itemId: "nzo-1",
-    });
+    expect(applyEngineActionMock).toHaveBeenCalledTimes(2);
+    expect(applyEngineActionMock).toHaveBeenNthCalledWith(
+      1,
+      "user-1",
+      { type: "remove", itemId: "engine-1" },
+    );
   });
 });

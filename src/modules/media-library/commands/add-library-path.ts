@@ -2,6 +2,7 @@ import {
   IsolatedFilesystemPolicyError,
   resolveApprovedMediaDirectoryIsolated,
 } from "@/lib/security/isolated-filesystem-policy";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import { type MediaLibraryPathRecord } from "@/modules/media-library/repositories/media-library-repository";
 import {
   addMediaLibraryPath,
@@ -13,7 +14,7 @@ import {
   addLibraryPathInputSchema,
   type AddLibraryPathInput,
 } from "@/modules/media-library/schemas/library-path";
-import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+import { createAuditEvent } from "@/modules/users/public";
 
 export class LibraryPathCommandError extends Error {
   constructor(
@@ -30,6 +31,7 @@ export async function addLibraryPathCommand(
   input: AddLibraryPathInput,
 ): Promise<MediaLibraryPathRecord> {
   const parsed = addLibraryPathInputSchema.parse(input);
+  const ownerUserId = await resolveInstanceConfigurationOwnerId(userId);
 
   let canonicalPath: string;
   try {
@@ -41,7 +43,7 @@ export async function addLibraryPathCommand(
     throw error;
   }
 
-  const existingPath = await findMediaLibraryPathByUserPath(userId, canonicalPath);
+  const existingPath = await findMediaLibraryPathByUserPath(ownerUserId, canonicalPath);
 
   if (existingPath) {
     throw new LibraryPathCommandError(
@@ -50,16 +52,16 @@ export async function addLibraryPathCommand(
     );
   }
 
-  const library = await findMediaLibraryByName(userId, parsed.mediaType, parsed.libraryName)
+  const library = await findMediaLibraryByName(ownerUserId, parsed.mediaType, parsed.libraryName)
     ?? await createMediaLibrary({
-      userId,
+      userId: ownerUserId,
       mediaType: parsed.mediaType,
       name: parsed.libraryName,
       isDefault: true,
     });
   const libraryPath = await addMediaLibraryPath({
     libraryId: library.id,
-    userId,
+    userId: ownerUserId,
     path: canonicalPath,
     label: parsed.label || parsed.libraryName,
   });

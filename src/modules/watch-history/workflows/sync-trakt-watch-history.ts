@@ -1,7 +1,7 @@
 import { listTraktWatchedHistory, parseTraktSecret } from "@/lib/integrations/trakt";
 import { decryptSecret } from "@/lib/security/secret-box";
-import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
-import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+import { findServiceConnectionByType } from "@/modules/service-connections/public";
+import { createAuditEvent } from "@/modules/users/public";
 import { type TraktWatchHistorySyncInput } from "@/modules/watch-history/schemas/trakt-watch-history-sync";
 import {
   completeWatchHistorySyncRun,

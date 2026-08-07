@@ -1,6 +1,6 @@
 import {
   type TmdbTitleDetails,
-} from "@/modules/service-connections/adapters/tmdb";
+} from "@/modules/service-connections/public";
 import { tmdbTitleDetailsSchema } from "@/modules/service-connections/schemas/tmdb-title";
 
 export const CURRENT_PROVIDER_METADATA_VERSION = 2;

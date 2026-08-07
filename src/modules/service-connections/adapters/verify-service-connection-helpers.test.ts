@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildAiProviderVerificationResult,
-  buildSabnzbdVerificationResult,
   normalizeAiProviderModelIds,
 } from "./verify-service-connection-helpers";
 
@@ -85,27 +84,4 @@ describe("verify-service-connection-helpers", () => {
     });
   });
 
-  it("returns a success summary for a verified SABnzbd queue", () => {
-    expect(
-      buildSabnzbdVerificationResult({
-        version: "4.5.2",
-        queueStatus: "Downloading",
-        queuePaused: false,
-        activeQueueCount: 2,
-        speed: "12.5 M",
-        timeLeft: "0:10:00",
-      }),
-    ).toEqual({
-      ok: true,
-      message: "Connected to SABnzbd 4.5.2. 2 active queue items.",
-      metadata: {
-        version: "4.5.2",
-        queueStatus: "Downloading",
-        queuePaused: false,
-        activeQueueCount: 2,
-        speed: "12.5 M",
-        timeLeft: "0:10:00",
-      },
-    });
-  });
 });

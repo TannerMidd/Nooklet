@@ -20,7 +20,7 @@ vi.mock("./target-resolution", () => ({
   resolveQueueIndexerResultTarget: vi.fn(),
 }));
 vi.mock("./protocol-guard", () => ({
-  ensureSabnzbdCompatibleResult: vi.fn(),
+  ensureUsenetCompatibleResult: vi.fn(),
 }));
 vi.mock("./client-resolution", () => ({
   resolveDownloadClient: vi.fn(),
@@ -62,7 +62,7 @@ import {
 import { validateQueueIndexerResultRequest } from "./request-validation";
 import { reserveDownloadRequest } from "./reservation";
 import { resolveQueueIndexerResult } from "./result-resolution";
-import { ensureSabnzbdCompatibleResult } from "./protocol-guard";
+import { ensureUsenetCompatibleResult } from "./protocol-guard";
 import { resolveQueueIndexerResultTarget } from "./target-resolution";
 import {
   isSeasonFulfillmentWorkLease,
@@ -75,7 +75,7 @@ const fulfillmentContextMock = vi.mocked(validateQueueIndexerResultFulfillmentCo
 const activeGuardMock = vi.mocked(ensureNoActiveDownloadRequest);
 const associationMock = vi.mocked(validateQueueIndexerResultAssociations);
 const resolveResultMock = vi.mocked(resolveQueueIndexerResult);
-const protocolGuardMock = vi.mocked(ensureSabnzbdCompatibleResult);
+const protocolGuardMock = vi.mocked(ensureUsenetCompatibleResult);
 const resolveTargetMock = vi.mocked(resolveQueueIndexerResultTarget);
 const resolveClientMock = vi.mocked(resolveDownloadClient);
 const reserveMock = vi.mocked(reserveDownloadRequest);
@@ -111,7 +111,7 @@ describe("queueIndexerResultWorkflow", () => {
     const target = { path: { id: request.targetLibraryPathId }, library: { id: request.targetLibraryId } };
     const downloadClient = { client: { id: "client1" }, baseUrl: "http://localhost:8080" };
     const reservedRequest = { id: "request1" };
-    const submission = { queueIds: ["SABnzbd_nzo_1"], category: "movies" };
+    const submission = { queueIds: ["engine-download-1"], category: "movies" };
     const queuedDownload = { downloadRequest: { id: "request1" }, queueItem: null, queueIds: submission.queueIds };
 
     validateMock.mockImplementation(() => {
@@ -190,7 +190,7 @@ describe("queueIndexerResultWorkflow", () => {
       downloadClient,
       context: {},
     });
-    expect(submitMock).toHaveBeenCalledWith(resolvedResult, downloadClient);
+    expect(submitMock).toHaveBeenCalledWith(resolvedResult);
     expect(persistMock).toHaveBeenCalledWith({
       userId: "user1",
       reservedRequest,
@@ -544,7 +544,7 @@ describe("queueIndexerResultWorkflow", () => {
     expect(persistMock).not.toHaveBeenCalled();
   });
 
-  it("marks the reserved request as failed when SABnzbd submission throws", async () => {
+  it("marks the reserved request as failed when downloader submission throws", async () => {
     const request = {
       resultId: "7b2dfc5c-2714-4b97-a0c6-3097d73a7ef9",
       mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
@@ -563,14 +563,14 @@ describe("queueIndexerResultWorkflow", () => {
     resolveTargetMock.mockResolvedValue(null as never);
     resolveClientMock.mockResolvedValue(downloadClient as never);
     reserveMock.mockResolvedValue(reservedRequest as never);
-    const submitError = new Error("sab boom");
+    const submitError = new Error("downloader boom");
     submitMock.mockRejectedValue(submitError);
 
     await expect(queueIndexerResultWorkflow("user1", request as never)).rejects.toBe(submitError);
     expect(failReservedMock).toHaveBeenCalledWith({
       userId: "user1",
       reservedRequest,
-      reason: "sab boom",
+      reason: "downloader boom",
     });
     expect(persistMock).not.toHaveBeenCalled();
     expect(auditMock).not.toHaveBeenCalled();
@@ -583,8 +583,8 @@ describe("queueIndexerResultWorkflow", () => {
     };
     const resolvedResult = { result: { id: request.resultId, title: "Arrival" } };
     const reservedRequest = { id: "request3" };
-    const downloadClient = { kind: "sabnzbd", client: { id: "client1" } };
-    const submission = { queueIds: ["nzo-3"], category: "movies" };
+    const downloadClient = { client: { id: "client1" } };
+    const submission = { queueIds: ["engine-3"], category: "movies" };
     const persistenceError = new Error("database full");
 
     validateMock.mockReturnValue(request as never);
@@ -598,7 +598,7 @@ describe("queueIndexerResultWorkflow", () => {
     compensateMock.mockResolvedValue(undefined);
 
     await expect(queueIndexerResultWorkflow("user1", request as never)).rejects.toBe(persistenceError);
-    expect(compensateMock).toHaveBeenCalledWith("user1", downloadClient, submission);
+    expect(compensateMock).toHaveBeenCalledWith("user1", submission);
     expect(failReservedMock).toHaveBeenCalledWith({
       userId: "user1",
       reservedRequest,

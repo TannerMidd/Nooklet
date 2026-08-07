@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
   mediaFiles,
   mediaLibraries,
@@ -42,15 +43,16 @@ export type LibraryOverview = {
 
 export async function listLibraryOverview(userId: string): Promise<LibraryOverview> {
   const database = ensureDatabaseReady();
+  const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
   const libraries = database
     .select()
     .from(mediaLibraries)
-    .where(eq(mediaLibraries.userId, userId))
+    .where(eq(mediaLibraries.userId, instanceOwnerId))
     .all();
   const paths = database
     .select()
     .from(mediaLibraryPaths)
-    .where(eq(mediaLibraryPaths.userId, userId))
+    .where(eq(mediaLibraryPaths.userId, instanceOwnerId))
     .all();
   const titles = database
     .select()

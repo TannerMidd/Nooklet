@@ -1,6 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-import { mkdir, mkdtemp, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 
 import { describe, expect, it } from "vitest";
 
@@ -11,7 +11,7 @@ async function tempRoot(label: string) {
 }
 
 describe("organizeCompletedDownloadFiles", () => {
-  it("moves the largest completed movie file into the target movie folder", async () => {
+  it("copies the largest completed movie file and retains its source until persistence", async () => {
     const sourceRoot = await tempRoot("movie-source");
     const targetRoot = await tempRoot("movie-target");
     const samplePath = path.join(sourceRoot, "Sample.mkv");
@@ -64,7 +64,7 @@ describe("organizeCompletedDownloadFiles", () => {
         files: [{ sourcePath: moviePath, destinationPath }],
       },
     ]);
-    await expect(stat(moviePath)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(moviePath, "utf8")).resolves.toBe("this is the actual movie file");
     await expect(readFile(samplePath, "utf8")).resolves.toBe("tiny");
     await expect(readFile(destinationPath, "utf8")).resolves.toBe("this is the actual movie file");
   });

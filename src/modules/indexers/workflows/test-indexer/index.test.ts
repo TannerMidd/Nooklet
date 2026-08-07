@@ -67,7 +67,7 @@ describe("testIndexerWorkflow", () => {
     expect(validateMock).toHaveBeenCalledWith({ id: "idx1" });
     expect(resolveMock).toHaveBeenCalledWith("u1", request);
     expect(executeMock).toHaveBeenCalledWith(connection);
-    expect(persistMock).toHaveBeenCalledWith("u1", connection, execution);
+    expect(persistMock).toHaveBeenCalledWith(connection, execution);
     expect(auditMock).toHaveBeenCalledWith("u1", connection, persisted);
     expect(result).toBe(persisted);
   });

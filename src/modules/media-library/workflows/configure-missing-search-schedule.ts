@@ -1,4 +1,5 @@
-import { saveRecurringJob } from "@/modules/jobs/repositories/job-repository";
+import { saveRecurringJob } from "@/modules/jobs/public";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
   type MissingSearchScheduleInput,
   missingSearchScheduleInputSchema,
@@ -15,9 +16,10 @@ export async function configureMissingSearchSchedule(
   input: MissingSearchScheduleInput,
 ): Promise<ConfigureMissingSearchScheduleResult> {
   const parsed = missingSearchScheduleInputSchema.parse(input);
+  const jobOwnerUserId = await resolveInstanceConfigurationOwnerId(userId);
 
   await saveRecurringJob({
-    userId,
+    userId: jobOwnerUserId,
     jobType: "missing-content-search",
     targetType: "media-library",
     targetKey: "all",

@@ -13,15 +13,12 @@ import { ensureEngineRunnerStarted } from "@/modules/download-engine/runtime/eng
 import { runDueSeasonFulfillments } from "@/modules/downloads/workflows/season-fulfillment";
 import { reconcilePendingSeasonFulfillmentCancellations } from "@/modules/downloads/workflows/reconcile-season-fulfillment-cancellations";
 import { reconcilePendingDownloadRequestCancellations } from "@/modules/downloads/workflows/reconcile-download-request-cancellations";
-import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
-import { ImportCompletedDownloadsWorkflowError } from "@/modules/downloads/workflows/import-completed-downloads/errors";
 import { importCompletedEngineDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-engine-downloads";
-import { reconcileDuplicateSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-duplicate-queue-items";
-import { reconcileMissingSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-missing-queue-items";
 import { refreshTvMetadataWorkflow } from "@/modules/media-library/workflows/refresh-tv-metadata";
 import { scanMediaLibraryWorkflow } from "@/modules/media-library/workflows/scan-library";
 import { searchMissingMonitoredContentWorkflow } from "@/modules/media-library/workflows/search-missing-monitored";
 import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
+import { pruneOperationalHistory } from "@/modules/jobs/workflows/prune-operational-history";
 import { parsePlexWatchHistorySourceMetadata } from "@/modules/watch-history/plex-watch-history-source-metadata";
 import { executeQueuedRecommendationRunWorkflow } from "@/modules/recommendations/workflows/create-recommendation-run";
 import { parseWatchHistorySourceMetadataJson } from "@/modules/watch-history/source-metadata";
@@ -37,9 +34,11 @@ import {
   type BackgroundWorkerHealth,
   writeBackgroundWorkerHeartbeat,
 } from "@/lib/jobs/worker-heartbeat";
+import { logger } from "@/lib/observability/logger";
 
 type WorkerState = {
   started?: boolean;
+  stopping?: boolean;
   runningPass?: boolean;
   runningMaintenance?: boolean;
   activeJobTypes?: Set<JobType>;
@@ -50,6 +49,8 @@ type WorkerState = {
   lastTickAt?: Date;
   lastSuccessAt?: Date;
   lastError?: string | null;
+  lastRetentionAt?: Date;
+  drainWaiters?: Set<() => void>;
 };
 
 const workerGlobals = globalThis as typeof globalThis & {
@@ -59,9 +60,12 @@ const workerGlobals = globalThis as typeof globalThis & {
 const sharedWorkerState = workerGlobals.__nookletWorker ?? {};
 workerGlobals.__nookletWorker = sharedWorkerState;
 sharedWorkerState.activeJobTypes ??= new Set<JobType>();
+sharedWorkerState.drainWaiters ??= new Set<() => void>();
 
 const workerIntervalMs = 15_000;
 const jobHeartbeatIntervalMs = 30_000;
+const filesystemProgressHeartbeatIntervalMs = 5_000;
+const retentionIntervalMs = 24 * 60 * 60 * 1_000;
 const filesystemJobTypes = new Set<JobType>([
   "download-import",
   "media-library-scan",
@@ -90,13 +94,36 @@ function persistWorkerHealth() {
   } catch (error) {
     // The worker must keep running if its diagnostic file is temporarily
     // unavailable. Readiness will correctly become stale in the web process.
-    console.error("[background-worker] heartbeat persistence failed:", error);
+    logger.error("worker_heartbeat_persistence_failed", { error });
   }
 }
 
 function recordWorkerProgress(at = new Date()) {
   sharedWorkerState.lastProgressAt = at;
   persistWorkerHealth();
+}
+
+/**
+ * Translate bytes actually read or written by a filesystem workflow into a
+ * throttled worker heartbeat. Unrelated timers never call this reporter, so a
+ * mount-blocked operation still goes stale and is recycled.
+ */
+export function createWorkerFilesystemProgressHeartbeat(options: {
+  now?: () => number;
+  intervalMs?: number;
+  record?: (at: Date) => void;
+} = {}) {
+  const now = options.now ?? Date.now;
+  const intervalMs = options.intervalMs ?? filesystemProgressHeartbeatIntervalMs;
+  const record = options.record ?? recordWorkerProgress;
+  let lastRecordedAt = Number.NEGATIVE_INFINITY;
+
+  return () => {
+    const timestamp = now();
+    if (timestamp - lastRecordedAt < intervalMs) return;
+    lastRecordedAt = timestamp;
+    record(new Date(timestamp));
+  };
 }
 
 function workerErrorMessage(error: unknown) {
@@ -107,7 +134,7 @@ function recordWorkerFailure(error: unknown, context: string) {
   const message = workerErrorMessage(error);
   sharedWorkerState.lastError = `${context}: ${message}`;
   persistWorkerHealth();
-  console.error(`[background-worker] ${context}:`, error);
+  logger.error("worker_pass_error", { context, error });
 }
 
 async function runPlexJob(job: StoredJob) {
@@ -253,45 +280,26 @@ async function runDownloadImportJob(job: StoredJob) {
   }
 
   const input = requestId ? { requestId } : {};
-  const failures: string[] = [];
-  let engineResult: Awaited<ReturnType<typeof importCompletedEngineDownloadsWorkflow>> = null;
-  let sabResult: Awaited<ReturnType<typeof importCompletedDownloadsWorkflow>> | null = null;
+  const result = await importCompletedEngineDownloadsWorkflow(job.userId, input, {
+    onFilesystemProgress: createWorkerFilesystemProgressHeartbeat(),
+  });
 
-  try {
-    engineResult = await importCompletedEngineDownloadsWorkflow(job.userId, input);
-  } catch (error) {
-    failures.push(`built-in import: ${workerErrorMessage(error)}`);
-  }
-
-  try {
-    sabResult = await importCompletedDownloadsWorkflow(job.userId, input);
-  } catch (error) {
-    if (
-      !(error instanceof ImportCompletedDownloadsWorkflowError)
-      || error.code !== "sabnzbd_not_connected"
-    ) {
-      failures.push(`SAB import: ${workerErrorMessage(error)}`);
+  if (!result) {
+    if (requestId) {
+      throw new Error("The requested download was not found in completed downloader history.");
     }
+    return;
   }
 
-  if (failures.length > 0) {
-    throw new Error(failures.join("; "));
+  if (result.failedCount > 0) {
+    throw new Error(`${result.failedCount} completed download import${result.failedCount === 1 ? "" : "s"} failed.`);
   }
 
-  const results = [engineResult, sabResult].filter((result) => result !== null);
-  const matchedCount = results.reduce((total, result) => total + result.matchedCount, 0);
-  const importedCount = results.reduce((total, result) => total + result.importedCount, 0);
-  const failedCount = results.reduce((total, result) => total + result.failedCount, 0);
-
-  if (failedCount > 0) {
-    throw new Error(`${failedCount} completed download import${failedCount === 1 ? "" : "s"} failed.`);
-  }
-
-  if (requestId && matchedCount === 0) {
+  if (requestId && result.matchedCount === 0) {
     throw new Error("The requested download was not found in completed downloader history.");
   }
 
-  if (requestId && importedCount === 0) {
+  if (requestId && result.importedCount === 0) {
     throw new Error("The completed download was matched but no media files were imported.");
   }
 }
@@ -380,6 +388,7 @@ async function runCompletedDownloadImportPass() {
   const engineUserIds = await listUsersWithUnimportedFinishedEngineDownloads();
   const userIds = Array.from(new Set([...activeUserIds, ...engineUserIds]));
   const failures: string[] = [];
+  const onFilesystemProgress = createWorkerFilesystemProgressHeartbeat();
 
   for (const userId of userIds) {
     // Each user is a completed unit of work. Recording it keeps a long pass
@@ -388,48 +397,14 @@ async function runCompletedDownloadImportPass() {
     // filesystem-job carve-out below exists to preserve.
     recordWorkerProgress();
 
-    // The built-in engine import never depends on SABnzbd being reachable,
-    // so it runs first in its own failure domain.
     try {
-      await importCompletedEngineDownloadsWorkflow(userId);
+      await importCompletedEngineDownloadsWorkflow(userId, {}, { onFilesystemProgress });
     } catch (error) {
       // Engine imports retry on the next worker tick, but the failure remains
       // visible to operators instead of disappearing silently.
       const message = workerErrorMessage(error);
       failures.push(`engine import for ${userId}: ${message}`);
-      console.error(`[background-worker] engine import failed for user ${userId}:`, error);
-    }
-
-    try {
-      // Order matters (legacy SABnzbd path):
-      //  1. import-completed first so SAB-history items are matched and the corresponding
-      //     download_requests are promoted to 'succeeded' before any reconciliation pass treats
-      //     their queue rows as "missing". (SAB removes a queue slot the instant post-processing
-      //     starts, so a just-completed item is absent from the queue snapshot before we have had
-      //     a chance to import it.)
-      //  2. duplicate-removal next so redundant active siblings are killed before the missing
-      //     pass observes them, preventing a retry being scheduled for a sibling we are about to
-      //     remove.
-      //  3. missing-queue-retry last; only items genuinely gone from both queue and history will
-      //     remain in the active set at this point.
-      await importCompletedDownloadsWorkflow(userId);
-      await reconcileDuplicateSabnzbdQueueItemsWorkflow(userId);
-      await reconcileMissingSabnzbdQueueItemsWorkflow(userId);
-    } catch (error) {
-      // SABnzbd is an optional legacy integration. Built-in-engine requests
-      // also appear in the active-request set, so an absent SAB connection is
-      // a normal no-op rather than a failed maintenance pass.
-      if (
-        error instanceof ImportCompletedDownloadsWorkflowError
-        && error.code === "sabnzbd_not_connected"
-      ) {
-        continue;
-      }
-
-      // Download imports retry on the next worker tick while the request remains active.
-      const message = workerErrorMessage(error);
-      failures.push(`SAB import/reconciliation for ${userId}: ${message}`);
-      console.error(`[background-worker] SAB import/reconciliation failed for user ${userId}:`, error);
+      logger.error("worker_engine_import_failed", { userId, error });
     }
   }
 
@@ -447,9 +422,18 @@ async function runMaintenancePass() {
   persistWorkerHealth();
 
   try {
+    if (
+      !sharedWorkerState.lastRetentionAt
+      || Date.now() - sharedWorkerState.lastRetentionAt.getTime() >= retentionIntervalMs
+    ) {
+      await pruneOperationalHistory();
+      sharedWorkerState.lastRetentionAt = new Date();
+      recordWorkerProgress();
+    }
+
     // Progress is recorded between steps and inside the two long ones. The
     // maintenance pass regularly outlives backgroundWorkerStaleAfterMs — the
-    // import sweep runs per user against a 20s SABnzbd timeout, and season
+    // import sweep runs per user, and season
     // recovery runs indexer searches per fulfillment — and recording only at
     // the end made a busy worker look dead, taking /api/health to 503 and the
     // container to unhealthy. Deliberately not a timer: a wedged mount must
@@ -549,7 +533,7 @@ const preMaintenanceJobTypes = new Set<JobType>([
 export async function runDueJobs() {
   // One pass owns the worker at a time. Most importantly, skipped timer ticks
   // do not refresh readiness while an earlier filesystem operation is hung.
-  if (sharedWorkerState.runningPass) {
+  if (sharedWorkerState.runningPass || sharedWorkerState.stopping) {
     return;
   }
 
@@ -596,6 +580,8 @@ export async function runDueJobs() {
     sharedWorkerState.runningPass = false;
     sharedWorkerState.activePassStartedAt = undefined;
     recordWorkerProgress();
+    for (const resolve of sharedWorkerState.drainWaiters!) resolve();
+    sharedWorkerState.drainWaiters!.clear();
   }
 }
 
@@ -614,6 +600,7 @@ export function startBackgroundWorker(options: { keepProcessAlive?: boolean } = 
 
   const startedAt = new Date();
   sharedWorkerState.started = true;
+  sharedWorkerState.stopping = false;
   sharedWorkerState.startedAt = startedAt;
   sharedWorkerState.lastProgressAt = startedAt;
   persistWorkerHealth();
@@ -628,14 +615,27 @@ export function startBackgroundWorker(options: { keepProcessAlive?: boolean } = 
   runDueJobsSafely();
 }
 
-export function stopBackgroundWorker() {
+/**
+ * Stop accepting new work and wait for the currently owned pass to reach a
+ * durable job boundary. The outer process supervisor still has a hard kill
+ * deadline for a genuinely wedged filesystem operation; healthy jobs are no
+ * longer abandoned merely because SIGTERM arrived during shutdown.
+ */
+export async function stopBackgroundWorker() {
   if (sharedWorkerState.timer) {
     clearInterval(sharedWorkerState.timer);
   }
 
   sharedWorkerState.timer = undefined;
   sharedWorkerState.started = false;
-  sharedWorkerState.runningPass = false;
+  sharedWorkerState.stopping = true;
+  recordWorkerProgress();
+
+  if (sharedWorkerState.runningPass) {
+    await new Promise<void>((resolve) => sharedWorkerState.drainWaiters!.add(resolve));
+  }
+
+  sharedWorkerState.stopping = false;
   sharedWorkerState.runningMaintenance = false;
   sharedWorkerState.activePassStartedAt = undefined;
   recordWorkerProgress();

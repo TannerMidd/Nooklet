@@ -1,13 +1,13 @@
 # Development Guide
 
-> Applies to the current `main` implementation. Last source review: 2026-07-15.
+> Applies to the current `main` implementation. Last source review: 2026-08-06.
 
 This guide describes the repository's current npm-based workflow and the architectural boundaries expected of contributions.
 
 ## Prerequisites
 
-- Node.js 24.11 or newer; `.nvmrc` tracks the Node 24 line.
-- npm, using the committed `package-lock.json`.
+- Node.js 24.15.0 or newer; `.nvmrc` pins the reproducible local baseline.
+- npm 11.16.0, using the committed `package-lock.json` and `packageManager` declaration.
 - Git.
 - Optional for native download-engine work: `par2`, `unrar`, and `7zz` on `PATH`.
 - Docker with the Compose plugin for production-image and container testing.
@@ -30,7 +30,7 @@ npm ci
 Copy-Item .env.example .env
 ```
 
-Set an independent `AUTH_SECRET` of at least 32 characters. Use a separate `BOOTSTRAP_TOKEN` when testing first-admin setup. Never commit `.env`, databases, local paths, queue payloads, or credentials.
+Set independent `AUTH_SECRET`, `BOOTSTRAP_TOKEN`, and `SECRET_BOX_KEY` values of at least 32 characters. Never commit `.env`, databases, local paths, queue payloads, or credentials.
 
 Start the development server:
 
@@ -52,10 +52,18 @@ filesystem thread pool during development.
 | `npm run typecheck` | Run TypeScript without emitting output |
 | `npm run lint` | Run ESLint across the repository |
 | `npm test` | Run Vitest in the Node environment |
+| `npm run test:scripts` | Test migration/module validators plus storage-probe and worker-watchdog infrastructure |
+| `npm run test:e2e` | Run the Chromium first-admin/login/axe smoke |
+| `npm run audit:dependencies` | Reject high/critical production dependency advisories |
+| `npm run docs:wiki:check` | Validate Wiki structure, internal links/anchors, and repository source targets |
+| `npm run docs:dossier:check` | Validate the engineering dossier and generated configurator commands |
+| `npm run docs:links:check` | Validate published README/docs/dossier source paths and reject retired external-downloader names |
+| `npm run migrations:check` | Validate journal ordering, tags, timestamps, and SQL artifacts |
+| `npm run boundaries:check` | Reject cross-module imports into repository/adapter internals |
 | `npm run build` | Build and sanitize the standalone production bundle |
 | `npm run start:web` | Start only the built Next.js web process; pair it with `start:worker` |
 | `npm run start:worker` | Start the built worker plus its disposable storage-probe coordinator |
-| `npm run check` | Typecheck, lint, test, and build |
+| `npm run check` | Validate docs/source links, migrations, module boundaries, types, lint, infrastructure/application tests, and the production build |
 | `npm run db:generate` | Generate a Drizzle migration after a schema change |
 | `npm run db:backup` | Create and verify a SQLite backup using `.env` |
 | `npm run account:recover -- --email ...` | Recover a locked-out account locally |
@@ -108,7 +116,7 @@ Follow the closest existing module pattern rather than creating empty template d
 
 1. Change [`src/lib/database/schema.ts`](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/schema.ts).
 2. Generate one logical migration with `npm run db:generate`.
-3. Inspect generated SQL and Drizzle metadata before committing.
+3. Inspect generated SQL and Drizzle metadata, then run `npm run migrations:check`.
 4. Add repository/query tests that read and write the new shape.
 5. Consider upgrade and rollback behavior for existing SQLite files.
 6. Keep migration and consumer commits separately reviewable when practical.
@@ -138,6 +146,10 @@ npm run lint
 npm test
 npm run build
 ```
+
+Run `npm run boundaries:check` after module import changes, `npm run migrations:check` after any schema/journal change, `npm run audit:dependencies` after dependency changes, and `npm run test:e2e` when bootstrap, authentication, protected navigation, or shared form semantics change.
+
+Run `npm run docs:wiki:check` and `npm run docs:links:check` after Wiki or published source-link changes; run `npm run docs:dossier:check` as well when the engineering dossier or configurator changes.
 
 Run the smallest relevant validation during iteration and the full proportional suite before handoff. Review the complete diff for secrets, generated noise, debug output, dead code, stale names, and unrelated changes. Use focused Conventional Commit subjects such as `fix(downloads): ...` or `docs(wiki): ...`.
 

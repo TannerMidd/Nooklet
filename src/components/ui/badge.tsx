@@ -11,7 +11,7 @@ const badgeVariants = {
   accent: "bg-accent/[0.14] text-accent",
   "accent-cool": "bg-accent-cool/[0.12] text-accent-cool",
   highlight: "bg-accent/[0.14] text-accent",
-  wine: "bg-accent-wine/[0.12] text-accent-wine",
+  wine: "border border-accent-wine/30 bg-accent-wine/[0.12] text-foreground",
 } satisfies Record<NonNullable<BadgeProps["variant"]>, string>;
 
 export function Badge({ className, variant = "neutral", ...props }: BadgeProps) {

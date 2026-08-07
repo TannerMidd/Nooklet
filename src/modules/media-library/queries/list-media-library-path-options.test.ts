@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
-import { users } from "@/lib/database/schema";
+import { mediaLibraries, mediaLibraryPaths, users } from "@/lib/database/schema";
 import {
   addMediaLibraryPath,
   createMediaLibrary,
@@ -35,13 +35,21 @@ async function seedUser() {
   return userId;
 }
 
+let configurationOwnerId: string;
+
+beforeAll(async () => {
+  configurationOwnerId = await seedUser();
+});
+
 beforeEach(() => {
-  ensureDatabaseReady();
+  const database = ensureDatabaseReady();
+  database.delete(mediaLibraryPaths).run();
+  database.delete(mediaLibraries).run();
 });
 
 describe("listMediaLibraryPathOptions", () => {
   it("lists active path options with their media libraries", async () => {
-    const userId = await seedUser();
+    const userId = configurationOwnerId;
     const movieLibrary = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies" });
     const tvLibrary = await createMediaLibrary({ userId, mediaType: "tv", name: "TV Shows" });
     const moviesPath = await addMediaLibraryPath({
@@ -86,7 +94,7 @@ describe("listMediaLibraryPathOptions", () => {
 
 describe("resolveMediaLibraryDownloadTarget", () => {
   it("resolves active paths matching the requested media type and library", async () => {
-    const userId = await seedUser();
+    const userId = configurationOwnerId;
     const movieLibrary = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies" });
     const moviePath = await addMediaLibraryPath({
       libraryId: movieLibrary.id,
@@ -106,7 +114,7 @@ describe("resolveMediaLibraryDownloadTarget", () => {
   });
 
   it("rejects paths for another media type or library", async () => {
-    const userId = await seedUser();
+    const userId = configurationOwnerId;
     const movieLibrary = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies" });
     const tvLibrary = await createMediaLibrary({ userId, mediaType: "tv", name: "TV Shows" });
     const tvPath = await addMediaLibraryPath({
@@ -126,7 +134,7 @@ describe("resolveMediaLibraryDownloadTarget", () => {
 
 describe("default download path", () => {
   it("keeps one default per media type and prefers it when resolving fallback targets", async () => {
-    const userId = await seedUser();
+    const userId = configurationOwnerId;
     const movieLibrary = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies", isDefault: true });
     const tvLibrary = await createMediaLibrary({ userId, mediaType: "tv", name: "TV" });
 
@@ -181,7 +189,7 @@ describe("default download path", () => {
   });
 
   it("prefers the flagged path inside an explicitly requested library", async () => {
-    const userId = await seedUser();
+    const userId = configurationOwnerId;
     const library = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies" });
     await addMediaLibraryPath({
       libraryId: library.id,
@@ -207,7 +215,7 @@ describe("default download path", () => {
   });
 
   it("refuses to flag a disabled folder", async () => {
-    const userId = await seedUser();
+    const userId = configurationOwnerId;
     const library = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies" });
     const path = await addMediaLibraryPath({
       libraryId: library.id,

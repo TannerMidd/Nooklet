@@ -1,8 +1,8 @@
 # Downloads and Import
 
-> Applies to the current `main` implementation. Last source review: 2026-07-16.
+> Applies to the current `main` implementation. Last source review: 2026-08-06.
 
-Nooklet can fetch Usenet releases directly through its built-in downloader or submit them to legacy SABnzbd. Both paths converge on Nooklet-owned request, queue, import, media-file, and audit records.
+Nooklet fetches Usenet releases through its built-in downloader. Nooklet owns the request, queue, transfer, repair, extraction, import, media-file, and audit records end to end.
 
 ## End-to-end flow
 
@@ -23,7 +23,7 @@ sequenceDiagram
   UI->>Request: Authorized typed request
   Request->>Indexer: Search configured categories
   Indexer-->>Request: Protected release candidates
-  Request->>Capacity: Check DOWNLOAD_ENGINE_DIR filesystem
+  Request->>Capacity: Check work and output filesystems
   Capacity-->>Request: Accept or explain required space
   Request->>Engine: Persist NZB and queue record
   Engine->>NNTP: Fetch and decode article segments
@@ -43,8 +43,8 @@ A complete built-in download path requires:
 
 1. A verified Usenet server connection.
 2. A verified Newznab indexer with categories for the requested media type.
-3. A reachable and writable `DOWNLOAD_ENGINE_DIR`.
-4. A reachable and writable final movie or TV library destination.
+3. Reachable and writable `DOWNLOAD_ENGINE_WORK_DIR` and `DOWNLOAD_ENGINE_DIR` locations.
+4. A reachable, readable, and writable final movie or TV library destination.
 5. A responsive background worker.
 
 TMDB is required by the current setup-readiness path for reliable discovery and title identity. AI is optional and is not required to search for or request a known title.
@@ -99,7 +99,7 @@ Source: [season fulfillment workflow](https://github.com/TannerMidd/Nooklet/blob
 
 ## Staging capacity policy
 
-The capacity gate measures the filesystem containing `DOWNLOAD_ENGINE_DIR`. Free space on a final TV or movie drive does not substitute for staging space.
+The capacity gate measures both the in-flight filesystem containing `DOWNLOAD_ENGINE_WORK_DIR` and the completed-output filesystem containing `DOWNLOAD_ENGINE_DIR`. The lower usable capacity constrains admission. Free space on a final TV or movie drive does not substitute for either engine location.
 
 For a new NZB, the request-time requirement is:
 
@@ -111,7 +111,7 @@ required bytes = 512 MiB
 
 Current free space already excludes bytes downloaded so far. Each active item therefore reserves its remaining transfer plus a complete output/post-processing copy. The new item receives room for both its assembled archive and an unpacked copy. The 512 MiB term is a fixed safety reserve. This is a conservative admission estimate, not a guarantee that every archive will expand within the estimate.
 
-Use **Settings > Storage** to see the configured path, effective path, underlying filesystem capacity, active reservation, and maximum estimated new download size. See [Storage and Path Mapping](Storage-and-Path-Mapping).
+Use **Settings > Storage** to see both configured and effective paths, their underlying filesystem capacities, active reservation, and the maximum estimated new download size. See [Storage and Path Mapping](Storage-and-Path-Mapping).
 
 Source: [enqueue capacity check](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/download-engine/workflows/enqueue-nzb-download.ts) and [storage overview](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/storage/queries/get-storage-overview.ts).
 
@@ -148,9 +148,9 @@ On process startup, rows stranded in `fetching`, `assembling`, `repairing`, or `
 - Resume returns the item to `queued` and starts the runner.
 - Remove persists cancellation, deletes engine staging/completion data in the isolated worker, and terminalizes linked request state after cleanup is verified.
 - Cancellation requested during repair or extraction waits for the current post-processing operation to return, then removes any finalized output instead of publishing it.
-- Queue-wide pause/resume and item reorder operations are source-local.
+- Queue-wide pause/resume and item reorder operations apply to the built-in queue.
 
-The browser queue API combines built-in and SABnzbd snapshots for display while preserving `source: "engine" | "sabnzbd"` for correct controls. See [HTTP API](HTTP-API).
+The authenticated browser API at `/api/downloads/queue` returns only the caller's associated built-in queue items and accepts actions without a downloader-source discriminator. See [HTTP API](HTTP-API).
 
 ## Repair and extraction
 
@@ -158,7 +158,7 @@ The Docker image includes:
 
 | Tool | Use | Missing-tool behavior on a native install |
 | --- | --- | --- |
-| `par2` | Verify, repair, and restore obfuscated names | Finalization continues with a warning and skips PAR2 verification/repair |
+| `par2` | Verify, repair, and restore obfuscated names | An intact, plainly named payload may continue with a warning; damaged or obfuscated content that depends on PAR2 fails safely |
 | `unrar` | Inspect and extract RAR sets | RAR extraction fails |
 | `7zz` | Inspect and extract ZIP/7z sets | ZIP/7z extraction fails |
 
@@ -173,35 +173,20 @@ The worker checks for completed built-in downloads on each 15-second maintenance
 3. Inspects regular media files and rejects unsafe paths.
 4. Organizes files without unsafe traversal or silent overwrite.
 5. Persists media-file and import records.
-6. Triggers library state refresh and notification/audit behavior.
+6. Queues a library scan limited to the affected active destination path IDs, then triggers notification/audit behavior.
 7. Marks the engine row imported and clears retained NZB/password material.
 
-Built-in imports run before legacy SABnzbd reconciliation, so a SAB failure cannot prevent a completed engine item from being imported.
-
-## Legacy SABnzbd path
-
-SABnzbd remains an optional downloader. Nooklet submits a server-resolved NZB, polls queue/history, maps SAB-reported completion paths when needed, imports matching files, removes duplicates, and retries genuinely missing queue entries.
-
-Use `SABNZBD_PATH_MAPPINGS` only when the path SAB reports cannot be resolved by the Nooklet process. In Docker, both sides of the mapping are container-visible paths. `APPROVED_DOWNLOAD_ROOTS` is the fallback boundary for SAB files when mappings are not used.
-
-| Capability | Built-in engine | SABnzbd |
-| --- | --- | --- |
-| Queue source of truth | Nooklet SQLite | SAB API snapshot/history |
-| Transfer transport | Direct NNTP, always TLS | SAB-managed |
-| Repair/extraction | Nooklet container tools | SAB-managed |
-| Completion import | Nooklet worker | Nooklet worker |
-| Missing/duplicate reconciliation | Not required | Required |
-| Path translation | Engine workspace is known | Sometimes requires `SABNZBD_PATH_MAPPINGS` |
+The import source must resolve inside the finalized directory recorded for the engine item. There is no external completed-path mapping setting: `DOWNLOAD_ENGINE_DIR` is the only finalized staging root.
 
 ## Failure and recovery guide
 
 | Symptom | Likely boundary | Recovery |
 | --- | --- | --- |
-| "Not enough disk space" despite free media drives | Staging filesystem | Inspect `DOWNLOAD_ENGINE_DIR` in Settings > Storage; move it to a spacious bind mount and recreate the container |
+| "Not enough disk space" despite free media drives | Engine work or completed-output filesystem | Inspect both engine locations in Settings > Storage; move the constrained location to suitable storage and recreate the container |
 | Download restarts after app restart | Current engine recovery semantics | Expected: per-segment resume is not implemented |
 | RAR/7z extraction fails on native install | Missing executable | Install `unrar` or `7zz` with the exact command name on `PATH` |
 | Import cannot reach destination | Bind mount, approved root, or permissions | Verify the container path, `APPROVED_MEDIA_ROOTS`, and write access |
-| SAB completion is never found | Reported path differs from Nooklet-visible path | Configure and verify `SABNZBD_PATH_MAPPINGS` |
+| Completed engine output is not imported | Worker, finalized staging path, or destination path is unavailable | Inspect Activity, `/health`, both engine paths, and destination permissions; retry the import after the path is healthy |
 | Queue control returns conflict | Item entered post-processing or changed state | Refresh the queue and wait for repair/extraction to complete |
 | Failed season release remains visible | Attempt history inside a recovering plan | Check the plan message in Activity; no manual retry is needed while its status is **Recovering** |
 | No season pack was found | Release availability | Expected fallback: Activity should show the individual-episode strategy and each unavailable episode will be searched again later |

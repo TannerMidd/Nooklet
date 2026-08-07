@@ -1,7 +1,5 @@
-import { decryptSecret } from "@/lib/security/secret-box";
 import {
   deferDownloadRequestCancellation,
-  findDownloadClientById,
   finalizeDownloadRequestCancellation,
   findDownloadRequestById,
   listDownloadQueueItemsForRequest,
@@ -13,19 +11,9 @@ import {
   renewDownloadRequestWorkLease,
 } from "@/modules/downloads/workflows/download-request-work-lease";
 import {
-  findEngineDownloadById,
-} from "@/modules/download-engine/queue/engine-repository";
-import {
   removeAndVerifyEngineItems,
   type VerifiedEngineRemoval,
 } from "@/modules/downloads/workflows/verified-engine-removal";
-import {
-  removeAndVerifySabnzbdItems,
-  type SabnzbdRemovalContext,
-} from "@/modules/downloads/workflows/verified-sabnzbd-removal";
-import {
-  findServiceConnectionByType,
-} from "@/modules/service-connections/repositories/service-connection-repository";
 
 export type DownloadRequestCancellationReconciliationResult = {
   attemptedCount: number;
@@ -34,49 +22,12 @@ export type DownloadRequestCancellationReconciliationResult = {
   failedCount: number;
 };
 
-const reconnectMessage =
-  "Reconnect and verify SABnzbd so Nooklet can finish cancelling this download.";
-// Keep one maintenance pass bounded by roughly one downloader timeout. The
-// durable due window handles the next retry instead of letting a large backlog
-// hold imports and recovery behind sequential network timeouts.
+// Keep one maintenance pass bounded. The durable due window handles the next
+// retry instead of letting a large backlog hold imports and recovery.
 export const DOWNLOAD_REQUEST_CANCELLATION_PASS_LIMIT = 3;
-const engineIdPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-async function resolveQueueClientType(
-  userId: string,
-  requestClientId: string | null,
-  queueItem: Awaited<ReturnType<typeof listDownloadQueueItemsForRequest>>[number],
-) {
-  const clientId = queueItem.clientId ?? requestClientId;
-  const client = clientId ? await findDownloadClientById(userId, clientId) : null;
-  if (client?.clientType) return client.clientType;
-
-  const engineDownload = await findEngineDownloadById(userId, queueItem.externalQueueId);
-  return engineDownload || engineIdPattern.test(queueItem.externalQueueId)
-    ? "nooklet" as const
-    : "sabnzbd" as const;
-}
-
-async function verifiedSabnzbdContext(userId: string): Promise<SabnzbdRemovalContext | null> {
-  const connection = await findServiceConnectionByType(userId, "sabnzbd");
-  if (
-    !connection?.secret
-    || !connection.connection.baseUrl
-    || connection.connection.status !== "verified"
-  ) {
-    return null;
-  }
-
-  return {
-    baseUrl: connection.connection.baseUrl,
-    apiKey: decryptSecret(connection.secret.encryptedValue),
-  };
-}
 
 async function reconcileRequest(
   request: Awaited<ReturnType<typeof listPendingDownloadRequestCancellations>>[number],
-  context: SabnzbdRemovalContext | null,
 ) {
   const lease = await acquireDownloadRequestWorkLease(request.userId, request.id);
   if (!lease) return "pending" as const;
@@ -103,39 +54,12 @@ async function reconcileRequest(
       workLease = renewed;
     };
     const queueItems = await listDownloadQueueItemsForRequest(current.userId, current.id);
-    const engineIds: string[] = [];
-    const sabnzbdIds: string[] = [];
-    for (const queueItem of queueItems) {
-      await renew();
-      if (
-        await resolveQueueClientType(current.userId, current.clientId, queueItem)
-        === "nooklet"
-      ) {
-        engineIds.push(queueItem.externalQueueId);
-      } else {
-        sabnzbdIds.push(queueItem.externalQueueId);
-      }
-    }
-    const removal = new Map<string, VerifiedEngineRemoval>();
-    const engineRemoval = await removeAndVerifyEngineItems(
+    const externalQueueIds = [...new Set(queueItems.map((item) => item.externalQueueId))];
+    const removal: Map<string, VerifiedEngineRemoval> = await removeAndVerifyEngineItems(
       current.userId,
-      engineIds,
+      externalQueueIds,
       { beforeExternalPhase: renew },
     );
-    for (const [id, result] of engineRemoval) removal.set(id, result);
-    if (sabnzbdIds.length > 0) {
-      if (context) {
-        const sabnzbdRemoval = await removeAndVerifySabnzbdItems(context, sabnzbdIds, {
-          beforeExternalPhase: renew,
-        });
-        for (const [id, result] of sabnzbdRemoval) removal.set(id, result);
-      } else {
-        for (const id of sabnzbdIds) {
-          removal.set(id, { removed: false, message: reconnectMessage });
-        }
-      }
-    }
-    const externalQueueIds = [...new Set([...engineIds, ...sabnzbdIds])];
     const pendingRemoval = externalQueueIds.find((id) => removal.get(id)?.removed !== true);
 
     if (pendingRemoval) {
@@ -177,22 +101,7 @@ export async function reconcilePendingDownloadRequestCancellations(
   limit = DOWNLOAD_REQUEST_CANCELLATION_PASS_LIMIT,
 ): Promise<DownloadRequestCancellationReconciliationResult> {
   const pending = await listPendingDownloadRequestCancellations(limit);
-  const contextByUserId = new Map<string, Promise<SabnzbdRemovalContext | null>>();
-  const outcomes = await Promise.all(pending.map(async (request) => {
-    let contextPromise = contextByUserId.get(request.userId);
-    if (!contextPromise) {
-      contextPromise = verifiedSabnzbdContext(request.userId);
-      contextByUserId.set(request.userId, contextPromise);
-    }
-
-    let context: SabnzbdRemovalContext | null;
-    try {
-      context = await contextPromise;
-    } catch {
-      context = null;
-    }
-    return reconcileRequest(request, context);
-  }));
+  const outcomes = await Promise.all(pending.map((request) => reconcileRequest(request)));
 
   const attemptedCount = pending.length;
   let cancelledCount = 0;

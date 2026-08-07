@@ -46,18 +46,18 @@ describe("download request cancellation persistence", () => {
       .insert(serviceConnections)
       .values({
         id: connectionId,
-        serviceType: "sabnzbd",
+        serviceType: "usenet-server",
         ownerUserId: userId,
-        displayName: "SABnzbd",
-        baseUrl: "http://sab.local",
+        displayName: "Usenet server",
+        baseUrl: "news.example.test:563",
         status: "verified",
       })
       .run();
     const client = await createDownloadClient({
       userId,
       serviceConnectionId: connectionId,
-      clientType: "sabnzbd",
-      displayName: "SABnzbd",
+      clientType: "nooklet",
+      displayName: "Built-in downloader",
     });
     if (!client) throw new Error("download client missing");
     const request = await createDownloadRequest({
@@ -71,7 +71,7 @@ describe("download request cancellation persistence", () => {
       requestId: request.id,
       userId,
       clientId: client?.id,
-      externalQueueId: "sab-arrival",
+      externalQueueId: randomUUID(),
       status: "downloading",
     });
     const requestedAt = new Date("2026-07-16T18:00:00.000Z");
@@ -97,7 +97,7 @@ describe("download request cancellation persistence", () => {
       userId,
       requestId: request.id,
       requestedAt,
-      message: "SABnzbd is temporarily unavailable.",
+      message: "The built-in downloader is temporarily unavailable.",
     })).resolves.toBe(true);
     const deferred = await findDownloadRequestById(userId, request.id);
     if (!deferred) throw new Error("deferred request missing");

@@ -16,7 +16,7 @@ Treat these as the authoritative architectural rules. Read them before drawing c
 - [docs/architecture/project-structure.md](docs/architecture/project-structure.md) — folder conventions and module template.
 - [docs/product/behavior-matrix.md](docs/product/behavior-matrix.md) — required product behavior (helps distinguish "dead" from "merely unwired").
 - [src/config/project-principles.ts](src/config/project-principles.ts) — encoded principles, if present.
-- [src/modules/registry.ts](src/modules/registry.ts) — module surface.
+- Module `public.ts` facades plus [scripts/validate-module-boundaries.mjs](scripts/validate-module-boundaries.mjs) — enforced cross-module surface.
 
 Domain modules live under `src/modules/<module>/` and own `adapters/`, `commands/`, `queries/`, `repositories/`, `schemas/`, `types/`, `workflows/`. Route handlers in `src/app/api/**` and server actions in `src/app/(workspace)/**` must stay thin and delegate to module workflows.
 
@@ -54,7 +54,7 @@ Domain modules live under `src/modules/<module>/` and own `adapters/`, `commands
    - Domain modules importing from `src/app/**` or React components.
    - Server-only code imported into client components (or vice versa).
    - Workflow phases (validation, prep, prompt, execution, normalization, persistence, feedback, retry) collapsed into a single function.
-   - Credential ownership or service-specific policy decisions made outside `service-connections` / `credential-vault`.
+   - Credential ownership or service-specific policy decisions made outside `service-connections`, its owning repository, or `src/lib/security`.
 
 ## Approach
 

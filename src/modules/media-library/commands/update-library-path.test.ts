@@ -4,10 +4,10 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 import { eq } from "drizzle-orm";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
-import { auditEvents, mediaLibraries, users } from "@/lib/database/schema";
+import { auditEvents, mediaLibraries, mediaLibraryPaths, users } from "@/lib/database/schema";
 import {
   addMediaLibraryPath,
   createMediaLibrary,
@@ -33,13 +33,22 @@ async function seedUser() {
   return userId;
 }
 
+let configurationOwnerId: string;
+
+beforeAll(async () => {
+  configurationOwnerId = await seedUser();
+});
+
 beforeEach(() => {
-  ensureDatabaseReady();
+  const database = ensureDatabaseReady();
+  database.delete(auditEvents).run();
+  database.delete(mediaLibraryPaths).run();
+  database.delete(mediaLibraries).run();
 });
 
 describe("updateLibraryPathCommand", () => {
   it("updates folder details and moves the path to a matching media library", async () => {
-    const userId = await seedUser();
+    const userId = configurationOwnerId;
     const movieFolder = fs.mkdtempSync(path.join(os.tmpdir(), "nooklet-movies-"));
     const tvFolder = fs.mkdtempSync(path.join(os.tmpdir(), "nooklet-tv-"));
     const movies = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies", isDefault: true });
@@ -78,7 +87,7 @@ describe("updateLibraryPathCommand", () => {
   });
 
   it("rejects duplicate folder paths", async () => {
-    const userId = await seedUser();
+    const userId = configurationOwnerId;
     const firstFolder = fs.mkdtempSync(path.join(os.tmpdir(), "nooklet-first-"));
     const secondFolder = fs.mkdtempSync(path.join(os.tmpdir(), "nooklet-second-"));
     const library = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies", isDefault: true });
@@ -101,7 +110,7 @@ describe("updateLibraryPathCommand", () => {
   });
 
   it("rejects unknown folders", async () => {
-    const userId = await seedUser();
+    const userId = configurationOwnerId;
 
     await expect(updateLibraryPathCommand(userId, {
       pathId: randomUUID(),

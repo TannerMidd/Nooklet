@@ -23,7 +23,7 @@ Native Usenet downloading, intelligent recommendations, and clear operational st
 | :--- | :--- | :--- |
 | Search TMDB, explore current releases, and use optional AI recommendations shaped by your taste. | Choose a movie, season, or episode and follow it from release search through download and import. | See storage readiness, downloader health, queue state, and the right recovery action when work needs attention. |
 
-Nooklet brings the full media workflow into one coherent interface. Plex, Tautulli, Trakt, SABnzbd, Discord, Apprise, and webhooks are available as integrations—not architectural requirements.
+Nooklet brings the full media workflow into one coherent interface. Plex, Tautulli, Trakt, Discord, Apprise, and webhooks are optional integrations—the download path itself is built in.
 
 ## See Nooklet in action
 
@@ -39,13 +39,13 @@ Nooklet brings the full media workflow into one coherent interface. Plex, Tautul
 | TMDB discovery, search, artwork, cast, trailers, and watch-provider context | Direct Newznab search with movie, season, and episode request flows |
 | Optional recommendations from any OpenAI-compatible provider | Native NNTP downloading with persisted queue state, pause/resume, verified cancellation, and restart-safe recovery |
 | Movie and TV library views with scanning, monitoring, and file awareness | PAR2 verification and repair, archive extraction, and organized imports |
-| Guided setup, storage preflight, diagnostics, audit history, and recovery actions | Optional SABnzbd fallback plus Plex, Tautulli, and Trakt context |
+| Guided setup, storage preflight, diagnostics, audit history, and recovery actions | One built-in downloader plus optional Plex, Tautulli, and Trakt context |
 
 ## Run Nooklet
 
 Docker Compose is the recommended installation path. It packages the web app, background worker, SQLite database, downloader, PAR2, UnRAR, and 7-Zip into one reproducible deployment.
 
-Prerequisites: Docker Engine with Docker Compose v2, Git, and writable host folders for download staging and media libraries.
+Prerequisites: Docker Engine with Docker Compose v2, Git, writable media-library folders, and enough Docker or host storage for downloader work. A dedicated bind-mounted staging folder is recommended when the Docker data volume is not large enough.
 
 ### 1. Clone and prepare the environment
 
@@ -70,7 +70,7 @@ services:
       - "/srv/nooklet-downloads:/downloads"
 ```
 
-Use quoted forward-slash paths on Windows, such as `"F:/Nooklet/Downloads:/downloads"`. Then set `DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine`, `APPROVED_MEDIA_ROOTS=/media`, and `APPROVED_DOWNLOAD_ROOTS=/downloads` in `.env`.
+Use quoted forward-slash paths on Windows, such as `"F:/Nooklet/Downloads:/downloads"`. Then set `DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine` and `APPROVED_MEDIA_ROOTS=/media` in `.env`.
 
 ### 3. Start the app
 
@@ -89,11 +89,11 @@ After the administrator exists, clear `BOOTSTRAP_TOKEN` in `.env` and recreate t
 ## Storage paths, without surprises
 
 > [!IMPORTANT]
-> Nooklet runs inside Docker, so the app uses container paths—not Windows drive letters or host paths. If `F:/Nooklet/Downloads` is mounted as `/downloads`, configure Nooklet with `/downloads`. Free-space checks run against `DOWNLOAD_ENGINE_DIR`, the download staging workspace, rather than the final movie or TV destination.
+> Nooklet runs inside Docker, so the app uses container paths—not Windows drive letters or host paths. If `F:/Nooklet/Downloads` is mounted as `/downloads`, configure Nooklet with `/downloads`. The built-in engine checks both its in-flight workspace (`DOWNLOAD_ENGINE_WORK_DIR`) and completed-output staging (`DOWNLOAD_ENGINE_DIR`); the filesystem with less usable capacity limits admission. Neither is the final movie or TV destination.
 
-If a request reports insufficient space, open **Settings → Storage** and confirm that the effective staging path points at the intended mounted drive. Environment or bind-mount changes require `docker compose up -d --force-recreate`.
+If a request reports insufficient space, open **Settings → Storage** and inspect both effective engine paths. Environment or bind-mount changes require `docker compose up -d --force-recreate`.
 
-See [Storage and path mapping](https://github.com/TannerMidd/Nooklet/wiki/Storage-and-Path-Mapping) for capacity rules, NAS examples, permissions, and SAB path translation.
+See [Storage and path mapping](https://github.com/TannerMidd/Nooklet/wiki/Storage-and-Path-Mapping) for capacity rules, NAS examples, engine staging, and permissions.
 
 ## Documentation and architecture
 
@@ -106,7 +106,7 @@ See [Storage and path mapping](https://github.com/TannerMidd/Nooklet/wiki/Storag
 
 ## Development
 
-Nooklet requires Node.js `>=24.11.0` and npm for local development.
+Nooklet requires Node.js `>=24.15.0` and npm for local development.
 
 ```bash
 npm ci
@@ -114,7 +114,7 @@ npm run dev
 npm test
 ```
 
-Use `npm run check` for the complete documentation, type, lint, test, and production-build gate. Contributor conventions and migration guidance live in the [development guide](https://github.com/TannerMidd/Nooklet/wiki/Development-Guide).
+Use `npm run check` for the complete documentation, migration-history, module-boundary, type, lint, test, and production-build gate. `npm run test:e2e` exercises first-admin bootstrap, login, and a serious/critical accessibility smoke in Chromium. Contributor conventions and migration guidance live in the [development guide](https://github.com/TannerMidd/Nooklet/wiki/Development-Guide).
 
 ## Security and license
 

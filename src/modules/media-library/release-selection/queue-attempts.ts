@@ -54,8 +54,8 @@ export type QueueFailureKind =
  * back off for everything else.
  */
 const terminalInfrastructureErrorCodes = new Set([
-  "sabnzbd_not_connected",
-  "sabnzbd_not_verified",
+  "downloader_not_connected",
+  "downloader_not_verified",
   "target_path_not_found",
 ]);
 
@@ -149,9 +149,8 @@ function queueFailureKind(error: QueueIndexerResultWorkflowError): QueueFailureK
     return "infrastructure";
   }
   if ([
-    "sabnzbd_not_connected",
-    "sabnzbd_not_verified",
-    "sabnzbd_enqueue_failed",
+    "downloader_not_connected",
+    "downloader_not_verified",
     "indexer_unavailable",
     "target_path_not_found",
   ].includes(error.code)) return "infrastructure";

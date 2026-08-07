@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { type UpdatePreferencesActionState } from "@/app/(workspace)/settings/preferences/action-state";
-import { auth } from "@/auth";
+import { getProtectedActionSession as auth } from "@/modules/identity-access/workflows/get-protected-action-session";
 import { updatePreferencesInputSchema } from "@/modules/preferences/schemas/preferences";
 import { updatePreferences } from "@/modules/preferences/workflows/update-preferences";
 

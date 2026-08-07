@@ -57,7 +57,7 @@ Use plain language first, then the exact configuration name, state, or type. Dis
 - Date repository counts and generated metrics; avoid undated numbers that will silently drift.
 - Separate a successful unit/build/smoke check from production, scale, security, or accessibility certification.
 - Mark inferences as inferences.
-- Preserve honest limitations such as one-process topology, missing segment resume, or unsupported torrent transport.
+- Preserve honest limitations such as the single-container/single-instance topology, missing segment resume, or unsupported torrent transport.
 
 ## Diagrams
 
@@ -129,17 +129,13 @@ Before publishing documentation:
 - [ ] README duplication was avoided.
 - [ ] A last-reviewed date or baseline is present for time-sensitive facts.
 
-## Known documentation debt at this baseline
+## Known documentation-system debt at this baseline
 
-The following repository documents need reconciliation before being treated as current inventories:
+The current narrative sources were reconciled against implementation on 2026-08-06. Remaining drift-prevention work is mechanical:
 
-- `docs/architecture/project-structure.md` predates the current route and module tree.
-- ADR-0001 contains Jellyfin, OAuth, shadcn, conceptual-module, and illustrative-schema references that are not all implemented.
-- ADR-0002 contains planned multi-server and engine-state behavior not present in the current runner.
-- The behavior matrix mentions Jellyfin although it is not a current source type.
-- The repository API document predates the current queue `409` and coded error shapes.
-- Copilot instructions contain an older Node minimum and package-manager/stack language.
-
-These caveats should be corrected at their owning sources; the Wiki must not repeat them as shipped behavior.
+- Repository metrics in the engineering dossier are copied values rather than generated or source-validated values.
+- `.env.example`/environment-schema parity and public API examples are not contract-tested.
+- Documentation validators check structure, safety, internal anchors, retired integration names, and current-main source-path existence, but do not prove runtime semantics or arbitrary external URL availability.
+- Historical ADR bodies intentionally preserve superseded context; their status and amendment notes, not isolated old paragraphs, state current alignment.
 
 Related: [Architecture Decisions](Architecture-Decisions) | [Development Guide](Development-Guide) | [Testing and CI](Testing-and-CI)

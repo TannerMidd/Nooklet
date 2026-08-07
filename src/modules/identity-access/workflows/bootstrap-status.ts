@@ -1,4 +1,4 @@
-import { countAdminUsers } from "@/modules/users/repositories/user-repository";
+import { countAdminUsers } from "@/modules/users/public";
 
 export type BootstrapStatus = {
   isOpen: boolean;

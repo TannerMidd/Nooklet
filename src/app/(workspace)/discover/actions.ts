@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { auth } from "@/auth";
+import { getProtectedActionSession as auth } from "@/modules/identity-access/workflows/get-protected-action-session";
 import {
   RequestMediaTitleCommandError,
 } from "@/modules/media-library/commands/request-media-title";

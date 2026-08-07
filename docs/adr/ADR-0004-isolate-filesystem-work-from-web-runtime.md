@@ -6,7 +6,13 @@ Accepted
 
 ## Date
 
-2026-07-20
+2026-07-20; current-alignment update 2026-08-06.
+
+> Current alignment: the supervisors now monitor the persisted worker
+> heartbeat and recycle a stale worker after 120 seconds by default when the
+> operating system can terminate it. A child blocked in uninterruptible kernel
+> sleep may still be impossible to reap; in that case the web process remains
+> available and health stays stale until the host filesystem recovers.
 
 ## Context
 

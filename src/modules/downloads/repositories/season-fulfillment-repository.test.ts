@@ -372,7 +372,7 @@ describe("season-fulfillment-repository", () => {
     // Partial transfer: consumes budget.
     await seedPackAttempt({ guid: "pack-partial", attemptNumber: 2, engine: { downloadedBytes: 1024, failureKind: "content" } });
     // No engine telemetry: consumes budget conservatively.
-    await seedPackAttempt({ guid: "pack-sab", attemptNumber: 3, engine: null });
+    await seedPackAttempt({ guid: "pack-untracked", attemptNumber: 3, engine: null });
 
     expect(await countDownloadFulfillmentAttempts({
       userId: owner.userId,

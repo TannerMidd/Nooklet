@@ -1,4 +1,4 @@
-import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+import { createAuditEvent } from "@/modules/users/public";
 import { type ManualWatchHistorySyncInput } from "@/modules/watch-history/schemas/manual-watch-history-sync";
 import { parseManualWatchHistoryEntries } from "@/modules/watch-history/normalization";
 import {

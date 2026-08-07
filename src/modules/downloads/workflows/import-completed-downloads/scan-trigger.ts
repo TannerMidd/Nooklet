@@ -17,7 +17,9 @@ export async function triggerCompletedDownloadDiscovery(
   }
 
   try {
-    await scanMediaLibraryWorkflow(userId, {});
+    await scanMediaLibraryWorkflow(userId, {
+      pathIds: persisted.affectedLibraryPathIds,
+    });
 
     return { attempted: true, ok: true, message: null };
   } catch (error) {

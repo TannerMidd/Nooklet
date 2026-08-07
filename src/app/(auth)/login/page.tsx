@@ -12,6 +12,7 @@ type LoginPageProps = {
   searchParams?: Promise<{
     bootstrapped?: string;
     callbackUrl?: string;
+    passwordChanged?: string;
   }>;
 };
 
@@ -45,6 +46,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       <LoginForm
         callbackUrl={callbackUrl}
         showBootstrapSuccess={resolvedSearchParams?.bootstrapped === "1"}
+        showPasswordChangedSuccess={resolvedSearchParams?.passwordChanged === "1"}
       />
     </div>
   );

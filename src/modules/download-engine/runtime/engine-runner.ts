@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { type EngineDownloadFailureKind, type EngineDownloadState } from "@/lib/database/schema";
 import { env } from "@/lib/env";
+import { logger } from "@/lib/observability/logger";
 import { SafeFetchAbortError, SsrfBlockedError } from "@/lib/security/safe-fetch";
 import {
   resolveUsenetServer,
@@ -486,7 +487,7 @@ async function runEngineLoop() {
   try {
     recordDownloadEngineLoopStarted();
   } catch (error) {
-    console.error("[download-engine] could not persist loop start:", error);
+    logger.error("download_engine_loop_start_persistence_failed", { error });
   }
 
   try {
@@ -531,13 +532,13 @@ async function runEngineLoop() {
     try {
       recordDownloadEngineLoopSucceeded();
     } catch (error) {
-      console.error("[download-engine] could not persist loop success:", error);
+      logger.error("download_engine_loop_success_persistence_failed", { error });
     }
   } catch (error) {
     try {
       recordDownloadEngineLoopFailed(error);
     } catch (heartbeatError) {
-      console.error("[download-engine] could not persist loop failure:", heartbeatError);
+      logger.error("download_engine_loop_failure_persistence_failed", { error: heartbeatError });
     }
     throw error;
   } finally {
@@ -563,6 +564,6 @@ export async function ensureEngineRunnerStarted() {
 
   runtime.running = true;
   void runEngineLoop().catch((error) => {
-    console.error("[download-engine] runner stopped unexpectedly:", error);
+    logger.error("download_engine_runner_stopped", { error });
   });
 }

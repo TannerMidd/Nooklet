@@ -1,8 +1,8 @@
 import { listPlexHistory } from "@/lib/integrations/plex";
 import { decryptSecret } from "@/lib/security/secret-box";
 import { parsePlexMetadata } from "@/modules/service-connections/plex-metadata";
-import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
-import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+import { findServiceConnectionByType } from "@/modules/service-connections/public";
+import { createAuditEvent } from "@/modules/users/public";
 import { type PlexWatchHistorySyncInput } from "@/modules/watch-history/schemas/plex-watch-history-sync";
 import {
   completeWatchHistorySyncRun,

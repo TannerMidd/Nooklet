@@ -1,4 +1,5 @@
 import { encryptSecret, maskSecret } from "@/lib/security/secret-box";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
   saveIndexerSecret,
   setIndexerMediaCategories,
@@ -9,7 +10,7 @@ import {
   updateIndexerInputSchema,
   type UpdateIndexerInput,
 } from "@/modules/indexers/schemas/indexer-input";
-import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+import { createAuditEvent } from "@/modules/users/public";
 
 export class UpdateIndexerCommandError extends Error {
   constructor(
@@ -26,8 +27,9 @@ export async function updateIndexerCommand(
   input: UpdateIndexerInput,
 ): Promise<IndexerRecord> {
   const parsed = updateIndexerInputSchema.parse(input);
+  const ownerUserId = await resolveInstanceConfigurationOwnerId(userId);
   const indexer = await updateIndexer({
-    userId,
+    userId: ownerUserId,
     id: parsed.id,
     name: parsed.name,
     protocol: parsed.protocol,

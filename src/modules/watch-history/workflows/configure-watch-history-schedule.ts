@@ -1,7 +1,7 @@
 import {
   saveRecurringJob,
-} from "@/modules/jobs/repositories/job-repository";
-import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+} from "@/modules/jobs/public";
+import { createAuditEvent } from "@/modules/users/public";
 import { findWatchHistorySourceByType } from "@/modules/watch-history/repositories/watch-history-repository";
 import { type WatchHistoryScheduleInput } from "@/modules/watch-history/schemas/watch-history-schedule";
 

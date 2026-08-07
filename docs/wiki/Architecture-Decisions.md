@@ -7,7 +7,7 @@
 | ADR | Status | Decision | Current implementation note |
 | --- | --- | --- | --- |
 | [ADR-0001: Architecture Principles](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0001-architecture-principles.md) | Accepted | Domain-oriented, workflow-oriented Next.js application with one-container deployment | Core dependency direction remains active; several inventory examples predate the current module tree and integrations |
-| [ADR-0002: In-House Download Engine](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0002-in-house-download-engine.md) | Accepted | Native Usenet engine behind Nooklet-owned queue state, with SABnzbd retained as legacy fallback | Native transfer/repair/extraction is implemented; some planned state and multi-server behavior is not |
+| [ADR-0002: In-House Download Engine](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0002-in-house-download-engine.md) | Accepted | Native Usenet engine as Nooklet's sole download client | Native transfer, queue control, repair, extraction, import, and caller-scoped queue presentation are implemented; multi-server behavior is not |
 | [ADR-0003: Durable Season Fulfillment](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0003-durable-season-fulfillment.md) | Accepted | Persist season intent above physical pack/episode attempts, with classified recovery and restart-safe fallback | Implemented by fulfillment tables, worker maintenance, grouped Activity, and plan-scoped release exclusions |
 | [ADR-0004: Isolate Filesystem Work from the Web Runtime](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0004-isolate-filesystem-work-from-web-runtime.md) | Accepted | Separate web and worker OS processes; serve pages from durable snapshots and queue mount work | Implemented by the container supervisor, standalone worker, disposable storage probe, persisted engine controls, and request-path containment tests |
 
@@ -29,7 +29,7 @@ Inventory drift that should not be presented as current behavior:
 - `credential-vault` and `metadata` are conceptual ownership areas, not physical module directories.
 - The current schema uses JWT sessions and does not implement the ADR's illustrative `sessions`, `oauth_accounts`, or separate service-user-selection tables.
 - The dependency list does not show shadcn/Radix packages; UI primitives are repository components styled with Tailwind.
-- The project-structure inventory predates current routes and 17 physical modules.
+- ADR-0001's illustrative project-structure inventory predates the current routes and 17 physical modules; the separate current [project-structure note](https://github.com/TannerMidd/Nooklet/blob/main/docs/architecture/project-structure.md) has been reconciled.
 
 ## ADR-0002 implementation alignment
 
@@ -40,7 +40,7 @@ Implemented:
 - Persisted engine queue, progress, priority, pause/resume/remove/reorder controls.
 - PAR2 verification/repair, name restoration, guarded RAR/7z/ZIP extraction.
 - Worker-backed completion import.
-- Built-in queue presentation alongside legacy SABnzbd.
+- Caller-scoped built-in queue presentation at `/api/downloads/queue`.
 - Conservative staging-capacity admission check.
 
 Planned language that is not current runtime behavior:

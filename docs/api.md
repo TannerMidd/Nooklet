@@ -27,7 +27,9 @@ cookies between requests.
 
 The app uses JWT sessions with a 24 hour maximum age. Disabled accounts and
 password changes invalidate existing sessions on subsequent authenticated
-requests.
+requests. An authenticated account that must replace an administrator-issued
+or recovery password receives `403 password_change_required` from protected
+API routes until that password is changed.
 
 ## Route Summary
 
@@ -35,7 +37,7 @@ requests.
 | --- | --- | --- | --- | --- |
 | `/api/health` | `GET` | None | Readiness check for database migrations, the background worker, and built-in engine progress. | `src/app/api/health/route.ts` |
 | `/api/auth/[...nextauth]` | `GET`, `POST` | Auth.js-managed | Credentials login, logout, session, CSRF, and provider endpoints. | `src/app/api/auth/[...nextauth]/route.ts` |
-| `/api/service-connections/sabnzbd/queue` | `GET`, `POST` | Required | Read and mutate source-aware built-in and legacy SABnzbd queues. | `src/app/api/service-connections/sabnzbd/queue/route.ts` |
+| `/api/downloads/queue` | `GET`, `POST` | Required | Read and control the caller's built-in download queue. | `src/app/api/downloads/queue/route.ts` |
 
 ## Common Error Shape
 
@@ -43,6 +45,7 @@ Application-owned endpoints use this shape for most client-visible errors:
 
 ```ts
 type ApiError = {
+  code?: string;
   message: string;
 };
 ```
@@ -78,23 +81,7 @@ Content-Type: application/json
     "database": "ok",
     "backgroundWorker": "ok",
     "downloadEngine": "idle"
-  },
-  "worker": {
-    "started": true,
-    "runningMaintenance": false,
-    "lastTickAt": "2026-07-14T18:30:00.000Z",
-    "lastSuccessAt": "2026-07-14T18:30:00.000Z",
-    "hasError": false
-  },
-  "downloadEngine": {
-    "activeCount": 0,
-    "stalledCount": 0,
-    "failedCount": 0,
-    "activeStage": null,
-    "lastProgressAt": null,
-    "hasLoopError": false
-  },
-  "timestamp": "2026-07-14T18:30:01.000Z"
+  }
 }
 ```
 
@@ -110,16 +97,9 @@ Content-Type: application/json
   "status": "degraded",
   "checks": {
     "database": "ok",
-    "backgroundWorker": "error"
-  },
-  "worker": {
-    "started": true,
-    "runningMaintenance": false,
-    "lastTickAt": "2026-07-14T18:20:00.000Z",
-    "lastSuccessAt": "2026-07-14T18:19:59.000Z",
-    "hasError": true
-  },
-  "timestamp": "2026-07-14T18:30:01.000Z"
+    "backgroundWorker": "error",
+    "downloadEngine": "idle"
+  }
 }
 ```
 
@@ -157,8 +137,11 @@ type CredentialsLoginInput = {
 
 Additional login behavior:
 
-- Login attempts are rate limited to 10 attempts per normalized email in a five
-  minute window.
+- With a trusted client address, login uses a 30-attempt per-source bucket and
+  a 10-attempt per-source-plus-normalized-email bucket, both over five minutes.
+  Without a trustworthy source address, Nooklet avoids a globally abusable
+  account lock and instead uses a high global circuit breaker plus bounded
+  candidate shards.
 - Credentials login is disabled while first-admin bootstrap is still open.
 - Successful app login returns to the same-origin protected URL supplied in
   `callbackUrl`; invalid, external, login, and bootstrap targets fall back to
@@ -181,12 +164,11 @@ Auth.js may redirect or return different payloads depending on request headers
 and query parameters. Treat this route as the Auth.js protocol surface rather
 than an application-specific JSON API.
 
-## `GET /api/service-connections/sabnzbd/queue`
+## `GET /api/downloads/queue`
 
-Returns the signed-in user's built-in downloader and legacy SABnzbd queues as
-separate sources plus an aggregate snapshot used by badges and title progress.
-This endpoint never exposes saved connection secrets and does not mutate queue
-state while reading it.
+Returns the signed-in user's built-in downloader queue. The response is scoped
+to the caller's request associations, never exposes the configured Usenet
+credential, and does not mutate queue state while reading it.
 
 Authentication: required.
 
@@ -198,6 +180,7 @@ Status codes:
 | --- | --- | --- |
 | `200` | `ActiveDownloadQueueState` | Returned for authenticated callers, including disconnected sources. |
 | `401` | `ApiError` | Returned when no valid app session exists. |
+| `403` | `ApiError` | The account must replace its temporary password before using protected APIs. |
 | `503` | `ApiError` | Queue sources could not be read. |
 
 Response type:
@@ -206,20 +189,16 @@ Response type:
 type ActiveDownloadQueueState = {
   connectionStatus: "disconnected" | "configured" | "verified" | "error";
   statusMessage: string;
-  snapshot: SabnzbdQueueSnapshot | null;
-  sources: DownloadQueueSourceState[];
+  snapshot: DownloadQueueSnapshot | null;
+  // POST responses may include this outcome.
+  action?: {
+    status: "applied" | "pending";
+    message: string;
+  };
 };
 
-type DownloadQueueSourceState = {
-  source: "engine" | "sabnzbd";
-  label: string;
-  connectionStatus: "disconnected" | "configured" | "verified" | "error";
-  statusMessage: string;
-  snapshot: SabnzbdQueueSnapshot | null;
-};
-
-type SabnzbdQueueSnapshot = {
-  version: string | null;
+type DownloadQueueSnapshot = {
+  version: string;
   queueStatus: string | null;
   paused: boolean;
   speed: string | null;
@@ -227,10 +206,10 @@ type SabnzbdQueueSnapshot = {
   timeLeft: string | null;
   activeQueueCount: number;
   totalQueueCount: number;
-  items: SabnzbdQueueItem[];
+  items: DownloadQueueItem[];
 };
 
-type SabnzbdQueueItem = {
+type DownloadQueueItem = {
   id: string;
   title: string;
   status: string;
@@ -251,9 +230,9 @@ Example success response with an idle built-in downloader:
 ```json
 {
   "connectionStatus": "verified",
-  "statusMessage": "Built-in downloader: No active built-in downloads right now.",
+  "statusMessage": "No active downloads right now.",
   "snapshot": {
-    "version": null,
+    "version": "nooklet-engine",
     "queueStatus": "Idle",
     "paused": false,
     "speed": null,
@@ -262,26 +241,7 @@ Example success response with an idle built-in downloader:
     "activeQueueCount": 0,
     "totalQueueCount": 0,
     "items": []
-  },
-  "sources": [
-    {
-      "source": "engine",
-      "label": "Built-in downloader",
-      "connectionStatus": "verified",
-      "statusMessage": "No active built-in downloads right now.",
-      "snapshot": {
-        "version": "nooklet-engine",
-        "queueStatus": "Idle",
-        "paused": false,
-        "speed": null,
-        "kbPerSec": null,
-        "timeLeft": null,
-        "activeQueueCount": 0,
-        "totalQueueCount": 0,
-        "items": []
-      }
-    }
-  ]
+  }
 }
 ```
 
@@ -290,21 +250,20 @@ Example response when no downloader is configured:
 ```json
 {
   "connectionStatus": "disconnected",
-  "statusMessage": "Add a usenet server under Settings → Connections to download releases with the built-in downloader.",
-  "snapshot": null,
-  "sources": []
+  "statusMessage": "Add a Usenet server under Settings → Connections to download releases.",
+  "snapshot": null
 }
 ```
 
 Browser example:
 
 ```ts
-const response = await fetch("/api/service-connections/sabnzbd/queue", {
+const response = await fetch("/api/downloads/queue", {
   cache: "no-store",
 });
 
 if (!response.ok) {
-  throw new Error("Unable to load the download queues.");
+  throw new Error("Unable to load the download queue.");
 }
 
 const queueState = (await response.json()) as ActiveDownloadQueueState;
@@ -313,42 +272,44 @@ const queueState = (await response.json()) as ActiveDownloadQueueState;
 `curl` example using a previously authenticated cookie jar:
 
 ```bash
-curl -b cookies.txt http://localhost:42021/api/service-connections/sabnzbd/queue
+curl -b cookies.txt http://localhost:42021/api/downloads/queue
 ```
 
-## `POST /api/service-connections/sabnzbd/queue`
+## `POST /api/downloads/queue`
 
-Applies a queue action to one explicitly selected source, then returns the
-refreshed source-aware queue state. Ordering and queue-wide pause controls are
-local to that source; items cannot be moved between downloaders.
+Applies an action to the built-in queue, then returns the refreshed queue
+state.
 
 Authentication: required.
 
 Content type: `application/json`.
+
+The response is the refreshed `ActiveDownloadQueueState`. A built-in-engine
+action may add `action: { status: "applied" | "pending", message: string }`;
+pending outcomes also expose the message as the top-level `statusMessage`.
 
 Status codes:
 
 | Status | Body | Notes |
 | --- | --- | --- |
 | `200` | `ActiveDownloadQueueState` | Action succeeded. |
-| `400` | `ApiError` | JSON, source, or action fields are invalid. |
+| `400` | `ApiError` | JSON or action fields are invalid. |
 | `401` | `ApiError` | Returned when no valid app session exists. |
-| `500` | `ApiError` | The selected downloader rejected or failed the action. |
+| `403` | `ApiError` | The account must replace its temporary password before using protected APIs. |
+| `409` | `ApiError` | A built-in-engine action conflicts with the item's current stage or state. |
+| `500` | `ApiError` | The built-in downloader rejected or failed the action. |
 
 Request body:
 
 ```ts
-type DownloadQueueActionInput = {
-  source: "engine" | "sabnzbd";
-} & (
+type DownloadQueueActionInput =
   | { type: "pauseQueue" }
   | { type: "resumeQueue" }
   | { type: "pause"; itemId: string }
   | { type: "resume"; itemId: string }
   | { type: "remove"; itemId: string }
   | { type: "move"; itemId: string; direction: "up" | "down" }
-  | { type: "moveToIndex"; itemId: string; targetIndex: number }
-);
+  | { type: "moveToIndex"; itemId: string; targetIndex: number };
 ```
 
 Validation rules:
@@ -362,11 +323,11 @@ Action behavior:
 
 | Action | Effect |
 | --- | --- |
-| `pauseQueue` | Pauses the selected source's queue activity. |
-| `resumeQueue` | Resumes the selected source's queue activity. |
+| `pauseQueue` | Pauses queue activity. |
+| `resumeQueue` | Resumes queue activity. |
 | `pause` | Pauses one queue item. |
 | `resume` | Resumes one queue item. |
-| `remove` | Cancels one item in the selected source. Built-in-engine working/completed files are deleted; SABnzbd already-completed files are retained. |
+| `remove` | Cancels one item and removes its built-in-engine working/completed files after the action is verified. |
 | `move` | Moves one queue item up or down by one position. |
 | `moveToIndex` | Moves one queue item to a zero-based queue position. |
 
@@ -374,9 +335,9 @@ Example request:
 
 ```bash
 curl -b cookies.txt \
-  -X POST http://localhost:42021/api/service-connections/sabnzbd/queue \
+  -X POST http://localhost:42021/api/downloads/queue \
   -H "Content-Type: application/json" \
-  -d '{"source":"sabnzbd","type":"move","itemId":"SABnzbd_nzo_id","direction":"up"}'
+  -d '{"type":"move","itemId":"engine-download-id","direction":"up"}'
 ```
 
 Example invalid body response:
@@ -397,7 +358,8 @@ Example action failure response:
 
 ```json
 {
-  "message": "That SABnzbd queue item is already at the top."
+  "code": "queue_action_conflict",
+  "message": "That download is no longer in the queue."
 }
 ```
 

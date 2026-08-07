@@ -1,14 +1,14 @@
 # Copilot Instructions — nooklet
 
-Nooklet is a self-hosted Next.js app that turns a media stack plus an OpenAI-compatible model into TV/movie recommendations. Architecture comes from [ADR-0001](../docs/adr/ADR-0001-architecture-principles.md), product scope from the [behavior matrix](../docs/product/behavior-matrix.md), and folder shape from [project-structure.md](../docs/architecture/project-structure.md). When those three documents disagree with anything below, they win.
+Nooklet is a self-hosted Next.js app that turns a media stack plus an OpenAI-compatible model into TV/movie recommendations. For observed behavior, current code, schema, migrations, tests, and the [Architecture Wiki](../docs/wiki/Architecture.md) are authoritative. The [ADRs](../docs/adr/), [behavior matrix](../docs/product/behavior-matrix.md), and [project structure](../docs/architecture/project-structure.md) define decisions, acceptance status, and target conventions; read their historical/current-alignment notes rather than treating old inventories as runtime fact.
 
 ## Stack
 
-Next.js (App Router) + React 19 + TypeScript strict, Drizzle ORM on SQLite (WAL), Auth.js, Zod, TanStack Query, Tailwind + shadcn/ui, Vitest. Node ≥ 20. Single-container deployment is a hard constraint.
+Next.js (App Router) + React 19 + TypeScript strict, Drizzle ORM on SQLite (WAL), Auth.js, Zod, Tailwind CSS, and Vitest. Node ≥ 24.15.0. One application container with separately supervised web and worker processes is the supported deployment.
 
-## Architecture rules (non-negotiable)
+## Architecture direction and guardrails
 
-These come straight from ADR-0001. Treat each as a hard rule:
+These began in ADR-0001 and remain the direction for new work. Existing code has documented boundary debt, so do not assume every item is already enforced:
 
 1. UI does **not** own multi-workflow orchestration. Screens stay route-scoped and delegate behavior to module workflows.
 2. The HTTP and server-action surface is **workflow-shaped, not CRUD-shaped**. Routes describe a task and delegate to a module entry point.
@@ -16,7 +16,7 @@ These come straight from ADR-0001. Treat each as a hard rule:
 4. **No** generic save-setting endpoints (`{key, value}` write APIs). Settings writes go through a typed, purpose-specific command.
 5. **No** generic proxy endpoint (forwarding arbitrary URLs/paths to upstream services).
 6. UI must **never** call raw service clients or adapters. UI → server action / route → module command/query/workflow → adapter.
-7. Credential ownership rules live in `service-connections` / `credential-vault`. Never branch on `service === 'plex'` etc. in UI code to decide policy.
+7. Credential ownership rules live in `service-connections`, `indexers`, and shared security helpers. Never branch on `service === 'plex'` etc. in UI code to decide policy.
 8. No root component or layout orchestrating multiple workflows.
 9. Recommendation generation, watch-history sync, onboarding, connection verification, and admin actions must be **explicit workflows with separate phase files**. Do not collapse phases into one function.
 10. Server-only adapters expose **typed capabilities**, not ad hoc service-specific methods. No screen imports an adapter.
@@ -34,18 +34,18 @@ schemas/     types/       workflows/
 
 Create folders only when real code lands. No placeholder folders.
 
-Public surface of a module is its `commands/`, `queries/`, and `workflows/` exports. Repositories and adapters are internal — other modules reach them via a query/command/workflow, never by direct import.
+The cross-module public surface is the target module's `public.ts` facade. Repositories and adapters are internal to their owning module; `npm run boundaries:check` rejects production cross-module imports that bypass the facade. Commands, queries, and workflows remain the task-shaped implementation entry points exported by those facades.
 
 Route handlers in `src/app/api/**` and server actions in `src/app/(workspace)/**` stay thin: parse + authorize + delegate to a module entry point + shape response. No business logic.
 
 ## Workflow phases
 
-When implementing a workflow, create one file per phase under `src/modules/<module>/workflows/<workflow>/`:
+For a multi-phase workflow, prefer one file per meaningful phase under `src/modules/<module>/workflows/<workflow>/`:
 
 - **Recommendation generation:** request-validation → source-preparation → prompt-construction → model-execution → normalization → persistence → feedback-capture → retry-handling.
 - **Watch-history sync:** source-validation → source-fetch → normalization → merge-deduplication → sync-metadata-persistence → query-surface.
 
-`index.ts` is a thin orchestrator that calls phases in order and owns nothing else. Add a wiring test that mocks each phase and asserts order + propagation.
+Keep `index.ts` focused on orchestration and add a wiring test that asserts phase order and propagation. A small cohesive workflow may remain one file; split by responsibility when complexity warrants it.
 
 ## Validation, types, errors
 
@@ -57,8 +57,9 @@ When implementing a workflow, create one file per phase under `src/modules/<modu
 
 - Schema is normalized around workflows and records (see ADR §"Data design rules"). No JSON columns that aggregate unrelated concerns.
 - One Drizzle migration = one logical change. Migration first, consumer code second (separate commits).
+- Run `npm run migrations:check`; journal indexes/tags are contiguous, SQL artifacts are append-only, and new timestamps must be monotonic. Do not rewrite the two explicit historical timestamp exceptions.
 - Add an index whenever you add a `where` / `orderBy` / `join` predicate over a column without one.
-- Keep SQLite-only assumptions out of domain logic so a Postgres swap is mechanical.
+- Treat synchronous SQLite/WAL as an explicit current deployment constraint. Keep new database-specific details behind repositories; do not claim a PostgreSQL swap is mechanical without migration evidence.
 
 ## Security
 
@@ -69,8 +70,10 @@ When implementing a workflow, create one file per phase under `src/modules/<modu
 ## Testing
 
 - `vitest run --environment node` is the test command. Co-locate tests with the code they cover (`*.test.ts`).
-- Every workflow orchestrator has a wiring test.
-- Every route handler / server action has at least one auth-failure test plus a happy-path test.
+- `npm run test:e2e` runs the Playwright first-admin/login/accessibility smoke; install the Chromium runtime before the first local run.
+- `npm run audit:dependencies` rejects high/critical production dependency advisories.
+- Add a wiring test for every new or materially changed multi-phase workflow orchestrator.
+- Add auth-failure and happy-path coverage for every new or materially changed route handler/server action. Existing boundary coverage is incomplete; do not infer coverage from this instruction.
 - Schema changes ship with a repository or query test that reads/writes the new column(s).
 
 ## Commit-as-you-go (mandatory)
@@ -121,7 +124,7 @@ The `Commit Slicer` agent (`.github/agents/commit-slicer.agent.md`) can plan sli
 - Implement rather than only suggest. Make the minimal change asked for; don't refactor adjacent code, add comments to untouched code, or invent abstractions for one-time use.
 - Read files before editing them. Read large ranges over many small reads.
 - Prefer editing existing files over creating new ones. Don't create markdown summaries of changes unless asked.
-- Run `pnpm typecheck` (or `npm run typecheck`) and the relevant `vitest` files after non-trivial edits. Fix what you broke before moving on.
+- Use the npm lockfile and scripts: run `npm run typecheck` and the relevant Vitest files after non-trivial edits. Fix what you broke before moving on.
 - When unsure between two designs, pick the one that matches an existing module in this repo.
 
 ## Specialized agents available
@@ -141,9 +144,9 @@ Delegate when the task fits:
 Before the final response after file changes, verify and report:
 
 1. `git status --short` result.
-2. Typecheck result (`tsc --noEmit`, usually via `pnpm typecheck` or `npm run typecheck`).
-3. Lint result (`eslint .`, usually via `pnpm lint` or `npm run lint`), including warnings.
-4. Relevant test result (`vitest run --environment node`, usually via `pnpm test` or `npm run test`).
+2. Typecheck result (`tsc --noEmit`, via `npm run typecheck`).
+3. Lint result (`eslint .`, via `npm run lint`), including warnings.
+4. Relevant test result (`vitest run --environment node`, via `npm test`).
 5. Pre-commit review result: scope reviewed, dead-code/stale-pattern check complete, and any cleanup either included or deliberately split.
 6. ADR result: checked by the `ADR Compliance Checker`, manually judged not applicable, or blocked with a reason.
 7. Commit result: small ordered commit hash(es), or an explicit reason commits were not created.

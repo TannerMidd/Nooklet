@@ -9,7 +9,7 @@ import {
   type TraktWatchHistoryActionState,
   type WatchHistoryScheduleActionState,
 } from "@/app/(workspace)/settings/history/action-state";
-import { auth } from "@/auth";
+import { getProtectedActionSession as auth } from "@/modules/identity-access/workflows/get-protected-action-session";
 import { manualWatchHistorySyncInputSchema } from "@/modules/watch-history/schemas/manual-watch-history-sync";
 import { plexWatchHistorySyncInputSchema } from "@/modules/watch-history/schemas/plex-watch-history-sync";
 import { watchHistoryScheduleInputSchema } from "@/modules/watch-history/schemas/watch-history-schedule";

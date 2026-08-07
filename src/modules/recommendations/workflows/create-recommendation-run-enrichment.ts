@@ -9,7 +9,7 @@ import { CURRENT_PROVIDER_METADATA_VERSION } from "@/modules/recommendations/pro
 import {
   lookupTmdbTitleDetails,
   type TmdbTitleDetails,
-} from "@/modules/service-connections/adapters/tmdb";
+} from "@/modules/service-connections/public";
 import { type VerifiedTmdbConnection } from "@/modules/service-connections/queries/get-verified-tmdb-connection";
 
 export type GeneratedRecommendationItem = Awaited<

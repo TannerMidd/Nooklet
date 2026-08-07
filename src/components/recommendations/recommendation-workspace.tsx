@@ -9,7 +9,7 @@ import { RecommendationPendingTimer } from "@/components/recommendations/recomme
 import { RecommendationRequestForm } from "@/components/recommendations/recommendation-request-form";
 import { RecommendationRetryForm } from "@/components/recommendations/recommendation-retry-form";
 import { RecommendationRunAutoRefresh } from "@/components/recommendations/recommendation-run-auto-refresh";
-import { RecommendationSabnzbdStatus } from "@/components/recommendations/recommendation-sabnzbd-status";
+import { RecommendationDownloadStatus } from "@/components/recommendations/recommendation-download-status";
 import { RecommendationTitleOverviewDialog } from "@/components/recommendations/recommendation-title-overview-dialog";
 import { RecommendationWatchHistoryModeToggle } from "@/components/recommendations/recommendation-watch-history-mode-toggle";
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
@@ -278,7 +278,7 @@ export async function RecommendationWorkspace({
             <p className="max-w-[540px] text-[15px] leading-[25px] text-foreground/80">
               {heroItem.rationale}
             </p>
-            <RecommendationSabnzbdStatus
+            <RecommendationDownloadStatus
               title={heroItem.title}
               year={heroItem.year}
               mediaType={heroItem.mediaType}

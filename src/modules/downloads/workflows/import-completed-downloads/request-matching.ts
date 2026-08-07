@@ -1,57 +1,25 @@
-import {
-  findDownloadRequestById,
-  listActiveDownloadRequestsForImport,
-  listDownloadQueueItemsForRequest,
-} from "@/modules/downloads/repositories/download-repository";
+import { type DownloadFailureKind } from "@/modules/downloads/workflows/download-failure-classification";
+import { listActiveDownloadRequestsForImport } from "@/modules/downloads/repositories/download-repository";
 
-import { type ResolvedImportSabnzbdClient } from "./client-resolution";
-import { type FinishedSabnzbdHistoryItem, type FinishedSabnzbdHistory } from "./history-fetch";
+type ActiveDownloadRequest = Awaited<
+  ReturnType<typeof listActiveDownloadRequestsForImport>
+>[number];
 
-type ActiveDownloadRequest = Awaited<ReturnType<typeof listActiveDownloadRequestsForImport>>[number];
-
-export type MatchedCompletedDownload = ActiveDownloadRequest & {
-  historyItem: FinishedSabnzbdHistoryItem;
+export type FinishedDownloadRecord = {
+  id: string;
+  title: string;
+  status: string;
+  category: string | null;
+  storagePath: string | null;
+  completedAt: Date | null;
+  failMessage: string | null;
+  failureKind?: DownloadFailureKind | null;
+  downloadedBytes?: number | null;
+  sizeLabel: string | null;
+  totalMb: number | null;
+  statusKind: "completed" | "failed";
 };
 
-export async function matchFinishedHistoryToDownloads(
-  userId: string,
-  client: ResolvedImportSabnzbdClient,
-  history: FinishedSabnzbdHistory,
-  options: {
-    requestId?: string;
-  } = {},
-): Promise<MatchedCompletedDownload[]> {
-  if (options.requestId) {
-    const request = await findDownloadRequestById(userId, options.requestId);
-    if (
-      !request
-      || request.cancellationRequestedAt
-    ) {
-      return [];
-    }
-    const queueItems = await listDownloadQueueItemsForRequest(userId, request.id);
-    const queueItemByExternalId = new Map(
-      queueItems
-        .filter((queueItem) => (
-          (queueItem.clientId ?? request.clientId) === client.client.id
-        ))
-        .map((queueItem) => [queueItem.externalQueueId, queueItem]),
-    );
-
-    return history.items.flatMap((historyItem) => {
-      const queueItem = queueItemByExternalId.get(historyItem.id);
-      return queueItem ? [{ request, queueItem, historyItem }] : [];
-    });
-  }
-
-  const activeRequests = await listActiveDownloadRequestsForImport(userId, client.client.id);
-  const activeRequestByQueueId = new Map(
-    activeRequests.map((entry) => [entry.queueItem.externalQueueId, entry]),
-  );
-
-  return history.items.flatMap((historyItem) => {
-    const activeRequest = activeRequestByQueueId.get(historyItem.id);
-
-    return activeRequest ? [{ ...activeRequest, historyItem }] : [];
-  });
-}
+export type MatchedCompletedDownload = ActiveDownloadRequest & {
+  historyItem: FinishedDownloadRecord;
+};

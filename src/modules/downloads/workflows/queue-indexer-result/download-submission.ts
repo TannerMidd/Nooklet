@@ -1,4 +1,3 @@
-import { addSabnzbdUrlToQueue, removeSabnzbdQueueItem } from "@/lib/integrations/sabnzbd";
 import { safeFetch } from "@/lib/security/safe-fetch";
 import { decryptSecret } from "@/lib/security/secret-box";
 import {
@@ -12,11 +11,10 @@ import { releaseIsWhollyUnavailable } from "@/modules/download-engine/scheduler/
 import {
   detectNewznabErrorDocument,
   formatNewznabErrorDocument,
-} from "@/modules/indexers/adapters/newznab-error-document";
-import { findIndexerById } from "@/modules/indexers/repositories/indexer-repository";
+} from "@/modules/indexers/public";
+import { findIndexerById } from "@/modules/indexers/public";
 
 import { QueueIndexerResultWorkflowError } from "./errors";
-import { type ResolvedDownloadClient } from "./client-resolution";
 import { type ResolvedQueueIndexerResult } from "./result-resolution";
 
 export type QueueIndexerResultSubmission = {
@@ -189,53 +187,16 @@ async function submitToEngine(
   }
 }
 
-async function submitToSabnzbd(
-  resolvedResult: ResolvedQueueIndexerResult,
-  downloadClient: Extract<ResolvedDownloadClient, { kind: "sabnzbd" }>,
-): Promise<QueueIndexerResultSubmission> {
-  const category = getDownloadCategory(resolvedResult);
-
-  try {
-    const submission = await addSabnzbdUrlToQueue({
-      baseUrl: downloadClient.baseUrl,
-      apiKey: downloadClient.apiKey,
-      url: decryptSecret(resolvedResult.secret.encryptedDownloadUrl),
-      title: resolvedResult.result.title,
-      category,
-    });
-
-    if (submission.queueIds.length === 0) {
-      throw new Error("SABnzbd accepted the request but returned no queue id.");
-    }
-
-    return { ...submission, category };
-  } catch {
-    throw new QueueIndexerResultWorkflowError(
-      "sabnzbd_enqueue_failed",
-      "SABnzbd could not queue the selected release.",
-    );
-  }
-}
-
-/** Best-effort rollback when the remote enqueue succeeded but local persistence failed. */
+/** Best-effort rollback when enqueue succeeded but local persistence failed. */
 export async function compensateIndexerResultSubmission(
   userId: string,
-  downloadClient: ResolvedDownloadClient,
   submission: QueueIndexerResultSubmission,
 ) {
   const failures: unknown[] = [];
 
   for (const queueId of submission.queueIds) {
     try {
-      if (downloadClient.kind === "nooklet") {
-        await applyEngineQueueAction(userId, { type: "remove", itemId: queueId });
-      } else {
-        await removeSabnzbdQueueItem({
-          baseUrl: downloadClient.baseUrl,
-          apiKey: downloadClient.apiKey,
-          itemId: queueId,
-        });
-      }
+      await applyEngineQueueAction(userId, { type: "remove", itemId: queueId });
     } catch (error) {
       failures.push(error);
     }
@@ -248,9 +209,6 @@ export async function compensateIndexerResultSubmission(
 
 export async function submitIndexerResultToDownloadClient(
   resolvedResult: ResolvedQueueIndexerResult,
-  downloadClient: ResolvedDownloadClient,
 ): Promise<QueueIndexerResultSubmission> {
-  return downloadClient.kind === "nooklet"
-    ? submitToEngine(resolvedResult)
-    : submitToSabnzbd(resolvedResult, downloadClient);
+  return submitToEngine(resolvedResult);
 }

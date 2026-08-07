@@ -1,8 +1,8 @@
 # Testing and CI
 
-> Applies to the current `main` implementation. Last source review: 2026-07-15.
+> Applies to the current `main` implementation. Last source review: 2026-08-06.
 
-Nooklet uses TypeScript, ESLint, Vitest, a production Next.js build, and a hardened Docker smoke test as its current verification ladder.
+Nooklet uses documentation validators, dependency and migration policy checks, a module-boundary check, TypeScript, ESLint, Vitest, a Playwright browser smoke, a production Next.js build, and a hardened Docker smoke test as its verification ladder.
 
 ## Local verification
 
@@ -11,9 +11,15 @@ Nooklet uses TypeScript, ESLint, Vitest, a production Next.js build, and a harde
 | Type safety | `npm run typecheck` | Type errors across application and tests |
 | Static analysis | `npm run lint` | ESLint and Next.js rule violations |
 | Unit/integration tests | `npm test` | Domain, repository, adapter, route, and component-core behavior |
+| Node script tests | `npm run test:scripts` | Migration validator, module-boundary validator, storage probe, and worker watchdog behavior |
+| Browser smoke | `npm run test:e2e` | First-admin bootstrap, credentials login, protected home navigation, and serious/critical axe violations in Chromium |
+| Dependency advisory gate | `npm run audit:dependencies` | High/critical advisories in production dependencies |
 | Production build | `npm run build` | App Router compilation and standalone bundle generation |
-| Wiki source | `npm run docs:wiki:check` | Required pages, headings, balanced fences, and internal Wiki link targets |
-| Full repository check | `npm run check` | Wiki validation, typecheck, lint, tests, then production build |
+| Wiki source | `npm run docs:wiki:check` | Required pages/headings, balanced fences, internal links/anchors, and current-main repository source targets |
+| Published documentation links | `npm run docs:links:check` | Missing current-main source targets and retired external-downloader names across README, docs, and the dossier |
+| Migration history | `npm run migrations:check` | Contiguous journal indexes/tags, SQL artifact presence, timestamp policy, and explicit historical exceptions |
+| Module boundaries | `npm run boundaries:check` | Cross-module production imports that bypass a target module's public API for repositories/adapters |
+| Full repository check | `npm run check` | Documentation/source links, migrations, boundaries, types, lint, infrastructure/application tests, and the production build |
 | Container smoke | `docker build ...` plus health probe | Image construction, startup, migrations, worker readiness, hardening compatibility |
 
 Source: [package scripts](https://github.com/TannerMidd/Nooklet/blob/main/package.json).
@@ -38,20 +44,29 @@ Tests that mutate process environment or singleton state must restore it. Filesy
 | Background job | Claim eligibility, lease/run-token ownership, success/failure scheduling, retry semantics |
 | Download engine | Parser/CRC fixtures, fake NNTP transport, progress, recovery, unsafe archive entries |
 | UI behavior | Empty/loading/error/success states and accessible interaction semantics |
+| Accessibility | Labeled semantics plus focused axe assertions; run the browser smoke for complete bootstrap/login navigation |
 | Documentation | Links, commands, generic examples, source claims, no private data |
 
 ## GitHub Actions pipeline
 
 The [CI workflow](https://github.com/TannerMidd/Nooklet/blob/main/.github/workflows/ci.yml) runs for pull requests and pushes to `main`.
 
+The committed Dependabot configuration proposes weekly npm and GitHub Actions updates. CI still decides whether an update satisfies the lockfile, advisory, type, test, build, and container gates.
+
+Dependency lifecycle scripts are denied unless their exact reviewed package version appears in `package.json#allowScripts`; `.npmrc` makes an unreviewed script a hard install failure. CI also publishes a CycloneDX production dependency SBOM. SemVer tags run the separate release workflow, which publishes the GHCR image with BuildKit SBOM and provenance attestations.
+
 ```mermaid
 flowchart LR
   Checkout["Checkout"] --> Install["npm ci on Node 24"]
-  Install --> Docs["Validate Wiki source"]
-  Docs --> Lint["Lint"]
+  Install --> Audit["Audit production dependencies"]
+  Audit --> Docs["Validate Wiki + dossier + published source links"]
+  Docs --> Migrations["Validate migration history"]
+  Migrations --> Boundaries["Validate module boundaries"]
+  Boundaries --> Lint["Lint"]
   Lint --> Types["Typecheck"]
   Types --> Tests["Vitest"]
-  Tests --> Build["Standalone build"]
+  Tests --> Browser["Playwright + axe"]
+  Browser --> Build["Standalone build"]
   Build --> Image["Build Docker image"]
   Image --> Smoke["Hardened container health smoke"]
 ```
@@ -60,6 +75,8 @@ The Docker job runs only after the application verification job succeeds. It bui
 
 - all Linux capabilities dropped;
 - `no-new-privileges` enabled;
+- a read-only root filesystem with bounded writable `tmpfs` mounts;
+- PID and memory limits plus bounded JSON-file logs;
 - generated test-only secrets;
 - loopback-only dynamic port publication;
 - an approved temporary media root.
@@ -77,29 +94,31 @@ The [Wiki publishing workflow](https://github.com/TannerMidd/Nooklet/blob/main/.
 3. Replaces its Markdown pages with the files under `docs/wiki`.
 4. Commits and pushes only when the synchronized content changed.
 
-The validator requires `Home.md`, `_Sidebar.md`, and `_Footer.md`; rejects empty pages, unbalanced code fences, pages without a level-one heading, repository-relative links that will break in the separate Wiki repository, and internal links without a matching page. It does not prove that external URLs respond or that Mermaid semantics render, so those remain review responsibilities.
+The Wiki validator requires `Home.md`, `_Sidebar.md`, and `_Footer.md`; rejects empty pages, unbalanced code fences, pages without a level-one heading, repository-relative links that will break in the separate Wiki repository, internal links/anchors without a matching target, and current-main repository links whose local source target is missing. The separate published-documentation validator applies the current-main source-target and retired-name checks across README, all docs, and the dossier. Neither validator proves that arbitrary external URLs respond or that Mermaid semantics render, so those remain review responsibilities.
 
 GitHub Wiki content lives in a separate Git repository when published. The workflow keeps the reviewable source under `docs/wiki` on `main` and mirrors it rather than creating an unreviewed second authority. The repository Wiki must already be enabled and initialized for the clone step to succeed.
 
 ## What current CI proves
 
 - Dependencies install under Node 24.
+- Production dependencies pass the high-severity advisory gate.
+- CI emits a CycloneDX production-dependency SBOM artifact retained for 14 days.
+- Wiki, dossier/configurator, published source-link/name, migration-history, and module-boundary validators pass.
 - TypeScript and ESLint pass.
-- The Vitest suite passes against isolated SQLite state.
+- The Vitest suite, including focused component accessibility checks, passes against isolated SQLite state.
+- Chromium completes first-admin bootstrap, sign-out, password sign-in, protected navigation, and serious/critical axe scans.
 - The Next.js standalone bundle builds.
-- The production Docker image starts with the declared hardening flags.
+- The production image starts non-root with capabilities dropped, `no-new-privileges`, a read-only root filesystem, bounded writable tmpfs paths, PID/memory limits, and bounded container logs.
 - Database initialization and worker readiness can satisfy the public health probe.
 
 ## What current CI does not prove
 
-- A live request against real TMDB, AI, indexer, Usenet, Plex, Tautulli, Trakt, SABnzbd, or notification services.
-- End-to-end browser behavior in an automated CI browser.
+- A live request against real TMDB, AI, indexer, Usenet, Plex, Tautulli, Trakt, or notification services.
 - Performance, sustained download throughput, or large-library scale.
-- Backup restoration through an automated drill.
 - Multi-platform native downloader tooling behavior on Windows and macOS.
 - Horizontal multi-process safety.
-- Formal security, accessibility, or compliance certification.
-- SBOM generation, artifact signing, or image provenance attestation.
+- Formal security, accessibility, or compliance certification; the axe smoke is focused evidence, not a certification.
+- Cryptographic image signing; release images carry BuildKit SBOM/provenance attestations, but no separate signing key is configured.
 
 Do not convert the existence of a CI workflow into a claim that branch protection is enabled; repository policy is separate from workflow source.
 

@@ -222,9 +222,12 @@ describe("queueRequestedTitleRelease", () => {
     });
   });
 
-  it("does not try another release when SABnzbd enqueueing is uncertain", async () => {
+  it("does not try another release when downloader submission is uncertain", async () => {
     queueMock.mockRejectedValue(
-      new QueueIndexerResultWorkflowError("sabnzbd_enqueue_failed", "SABnzbd could not queue the selected release."),
+      new QueueIndexerResultWorkflowError(
+        "indexer_unavailable",
+        "Nooklet could not queue the selected release.",
+      ),
     );
 
     const queued = await queueRequestedTitleRelease(userId, request, title, {
@@ -240,7 +243,7 @@ describe("queueRequestedTitleRelease", () => {
     expect(queued).toMatchObject({
       queued: false,
       reason: "queue_failed",
-      message: "SABnzbd could not queue the selected release.",
+      message: "Nooklet could not queue the selected release.",
       rejectedResultIds: [],
     });
   });
@@ -258,7 +261,10 @@ describe("queueRequestedTitleRelease", () => {
 
   it("stops when the download client cannot queue any release", async () => {
     queueMock.mockRejectedValue(
-      new QueueIndexerResultWorkflowError("sabnzbd_not_connected", "Connect SABnzbd before queueing releases."),
+      new QueueIndexerResultWorkflowError(
+        "downloader_not_connected",
+        "Add a Usenet server before queueing releases.",
+      ),
     );
 
     const queued = await queueRequestedTitleRelease(userId, request, title, {
@@ -274,7 +280,7 @@ describe("queueRequestedTitleRelease", () => {
     expect(queued).toMatchObject({
       queued: false,
       reason: "queue_failed",
-      message: "Connect SABnzbd before queueing releases.",
+      message: "Add a Usenet server before queueing releases.",
       rejectedResultIds: [],
     });
   });

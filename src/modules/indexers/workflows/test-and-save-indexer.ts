@@ -11,7 +11,7 @@ import {
   type AddIndexerInput,
   type UpdateIndexerInput,
 } from "@/modules/indexers/schemas/indexer-input";
-import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+import { createAuditEvent } from "@/modules/users/public";
 
 export class TestAndSaveIndexerError extends Error {
   constructor(
@@ -85,7 +85,7 @@ export async function testAndSaveIndexer(
   const statusMessage = `Connection succeeded${resultCount > 0 ? ` with ${resultCount} sample result${resultCount === 1 ? "" : "s"}` : ""}.`;
 
   await updateIndexerConnectionStatus({
-    userId,
+    userId: saved.userId,
     id: saved.id,
     status: input.isEnabled ? "verified" : "disabled",
     statusMessage: input.isEnabled ? statusMessage : `${statusMessage} Indexer is disabled.`,

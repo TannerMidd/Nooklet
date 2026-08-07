@@ -1,6 +1,6 @@
 # Automation and notifications
 
-Nooklet persists recurring work in SQLite and executes it through the in-process worker. Notifications are optional, user-scoped fan-out channels triggered by selected product events.
+Nooklet persists recurring work in SQLite and executes it through a separately supervised worker process. Notifications are optional, user-scoped fan-out channels triggered by selected product events.
 
 ## Scheduled job types
 
@@ -48,4 +48,4 @@ An HTTP 200 from `/api/health` can still contain `"status":"degraded"` when the 
 
 ---
 
-Last reviewed: **July 15, 2026**.
+Last reviewed: **August 6, 2026**.

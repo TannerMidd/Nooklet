@@ -7,7 +7,7 @@ Discovery works with TMDB alone. AI recommendations are a separate, optional cap
 | Experience | Required | Optional |
 | --- | --- | --- |
 | Search, trending, details, artwork, cast, trailers, providers | Verified TMDB connection | None |
-| Generate personalized recommendations | TMDB and an enabled OpenAI-compatible connection | Watch history and preference context |
+| Generate personalized recommendations | A verified OpenAI-compatible connection and healthy worker | TMDB enrichment (required for strict original-language filtering), watch history, and preference context |
 | Request a discovered or recommended title | A ready request path for that media type | Notifications |
 
 ## Configure discovery
@@ -30,6 +30,8 @@ If artwork or results do not load, retest TMDB and inspect [Health and diagnosti
 Recommendation work is persisted and executed by the background worker. A slow local or reasoning model can legitimately take several minutes; `AI_RECOMMENDATIONS_TIMEOUT_MS` controls the upper bound and defaults to 30 minutes. See [Configuration reference](Configuration-Reference).
 
 Nooklet records the run, candidate items, feedback, and timeline state. A request started from a recommendation enters the same download and import workflow as a request started elsewhere.
+
+Past Picks filtering, total/filtered counts, and page boundaries execute in SQLite so large histories are not materialized in application memory. The operational-retention job may prune old recommendation timeline events, but it does not delete recommendation runs or items.
 
 ## Privacy and provider boundaries
 
@@ -54,4 +56,4 @@ The selected AI provider receives the prompt and the context assembled for the r
 
 ---
 
-Last reviewed: **July 15, 2026**.
+Last reviewed: **August 6, 2026**.

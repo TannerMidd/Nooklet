@@ -2,7 +2,7 @@ import {
   type TmdbDiscoverCategory,
   type TmdbDiscoverTitle,
   listTmdbDiscoverTitles,
-} from "@/modules/service-connections/adapters/tmdb";
+} from "@/modules/service-connections/public";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { getVerifiedTmdbConnection } from "@/modules/service-connections/queries/get-verified-tmdb-connection";
 

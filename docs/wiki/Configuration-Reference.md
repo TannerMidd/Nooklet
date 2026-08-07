@@ -6,7 +6,7 @@ Start from the annotated [`.env.example`](https://github.com/TannerMidd/Nooklet/
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `APP_URL` | Recommended | `http://localhost:42021` | The canonical origin users open. Set the exact external HTTPS origin behind a reverse proxy. |
+| `APP_URL` | Recommended | `http://localhost:42021` | The canonical HTTP(S) origin users open. Credentials, paths, queries, and fragments are rejected. Set the exact external HTTPS origin behind a reverse proxy. |
 | `DATABASE_URL` | No | `file:./data/nooklet.db` | SQLite database URL. Compose overrides it to `file:/app/data/nooklet.db` so the database remains in the named volume. |
 | `AUTH_SECRET` | Yes | None | Authentication signing secret, 32 characters minimum. Generate a unique random value for every installation. |
 | `NODE_ENV` | No | `development` | Runtime mode: `development`, `test`, or `production`. The Docker image sets `production`. |
@@ -49,15 +49,14 @@ Keep a verified database backup before key rotation. Losing both the active and 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `APPROVED_MEDIA_ROOTS` | Empty in the application; `/media` in the example | Semicolon- or newline-separated directories Nooklet may use for library scanning and file operations. Empty fails closed outside tests. |
-| `APPROVED_DOWNLOAD_ROOTS` | Empty in the application; `/downloads` in the example | Semicolon- or newline-separated completed-download roots trusted for SAB imports when no explicit mapping is configured. Empty fails closed. |
-| `DOWNLOAD_ENGINE_DIR` | `./data/downloads`; image default `/app/data/downloads` | Working root for incomplete, completed, repair, and extraction activity in the built-in downloader. |
-| `SABNZBD_PATH_MAPPINGS` | Empty | Maps paths reported by SABnzbd to paths Nooklet can read. Format: `<reported-prefix>=<nooklet-visible-prefix>`. Separate mappings by semicolons or new lines. |
+| `DOWNLOAD_ENGINE_WORK_DIR` | `./data/engine-work`; same image default under `/app/data` | Scratch root for incomplete articles, assembly, repair, and extraction. Docker users should normally keep it on the Linux-native data volume. |
+| `DOWNLOAD_ENGINE_DIR` | `./data/downloads`; image default `/app/data/downloads` | Completed-output staging root for the built-in downloader. It may point at a spacious bind mount. |
 
 Docker configuration must use container paths. A spacious host staging disk mounted as `/downloads` should normally use:
 
 ```dotenv
 APPROVED_MEDIA_ROOTS=/media
-APPROVED_DOWNLOAD_ROOTS=/downloads
+DOWNLOAD_ENGINE_WORK_DIR=/app/data/engine-work
 DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine
 ```
 
@@ -89,23 +88,13 @@ Boolean environment variables accept `true`/`false`, `1`/`0`, `yes`/`no`, and `o
 
 The 30-minute default accommodates slower local and reasoning models. Lower it only when the configured provider should fail faster. Connection verification uses its own shorter operational timeout.
 
-## SABnzbd path translation examples
+## Operational-history retention
 
-SAB and Nooklet may mount the same host folder at different container paths:
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `OPERATIONAL_RETENTION_DAYS` | `365` | Retains audit, notification-dispatch audit, recommendation timeline, and completed watch-history sync-run records for 30–3650 days. |
 
-```dotenv
-# SAB reports /sab-downloads/complete/Title
-# Nooklet sees that host directory at /downloads/complete/Title
-SABNZBD_PATH_MAPPINGS=/sab-downloads=/downloads
-```
-
-Windows SAB reporting a Windows path to a Dockerized Nooklet:
-
-```dotenv
-SABNZBD_PATH_MAPPINGS=D:\SAB\Complete=/downloads
-```
-
-When any mapping is configured, each SAB-reported completed path must match a mapping and remain inside the mapped target root after canonical resolution. Without mappings, the completed path must remain inside `APPROVED_DOWNLOAD_ROOTS`.
+The worker evaluates pruning at most once per day. Recommendation items and watch-history content are not deleted by this setting, and backup-file retention remains operator-managed.
 
 ## Applying changes
 
@@ -136,7 +125,7 @@ BOOTSTRAP_TOKEN=<unique-one-time-value>
 SECRET_BOX_KEY=<unique-random-encryption-key>
 
 APPROVED_MEDIA_ROOTS=/media
-APPROVED_DOWNLOAD_ROOTS=/downloads
+DOWNLOAD_ENGINE_WORK_DIR=/app/data/engine-work
 DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine
 
 TRUST_PROXY_HEADERS=false
@@ -144,6 +133,7 @@ PRIVATE_SERVICE_HOST_ALLOWLIST=
 ALLOW_PRIVATE_SERVICE_HOSTS=false
 
 AI_RECOMMENDATIONS_TIMEOUT_MS=1800000
+OPERATIONAL_RETENTION_DAYS=365
 ```
 
 Remove `BOOTSTRAP_TOKEN` and recreate the container after the first administrator is created.

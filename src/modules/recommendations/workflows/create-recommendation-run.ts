@@ -1,6 +1,6 @@
 import { decryptSecret } from "@/lib/security/secret-box";
-import { createImmediateJob } from "@/modules/jobs/repositories/job-repository";
-import { getPreferencesByUserId } from "@/modules/preferences/repositories/preferences-repository";
+import { createImmediateJob } from "@/modules/jobs/public";
+import { getPreferencesByUserId } from "@/modules/preferences/public";
 import {
   generateOpenAiCompatibleRecommendations,
   type AiUsageMetrics,
@@ -18,7 +18,7 @@ import {
 } from "@/modules/recommendations/repositories/recommendation-repository";
 import { type RecommendationRequestInput } from "@/modules/recommendations/schemas/recommendation-request";
 import { buildLibraryTasteItemKey } from "@/modules/recommendations/library-taste-key";
-import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+import { createAuditEvent } from "@/modules/users/public";
 import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
 import { generateBackfilledRecommendationItems } from "@/modules/recommendations/workflows/recommendation-generation";
 import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";

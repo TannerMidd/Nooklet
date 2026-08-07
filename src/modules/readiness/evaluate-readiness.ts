@@ -78,8 +78,7 @@ export function evaluateReadiness(input: ReadinessEvaluationInput): ReadinessEva
   const tmdbReady = verified("tmdb");
   const aiReady = verified("ai-provider");
   const builtInDownloaderReady = verified("usenet-server");
-  const legacyDownloaderReady = verified("sabnzbd");
-  const downloaderReady = builtInDownloaderReady || legacyDownloaderReady;
+  const downloaderReady = builtInDownloaderReady;
   const workspaceReady = input.downloadWorkspace.reachable
     && input.downloadWorkspace.writable
     && input.downloadWorkspace.availableForNewDownloadsBytes !== null
@@ -95,12 +94,12 @@ export function evaluateReadiness(input: ReadinessEvaluationInput): ReadinessEva
       && destination.reachable
       && destination.writable,
   );
-  const builtInStorageReady = !builtInDownloaderReady || legacyDownloaderReady || workspaceReady;
+  const builtInStorageReady = !builtInDownloaderReady || workspaceReady;
 
   const downloadCapability = (mediaType: RecommendationMediaType): ReadinessCapability => {
     const title = mediaType === "movie" ? "Movie downloads" : "TV downloads";
     const missing: string[] = [];
-    if (!downloaderReady) missing.push("Connect either the built-in Usenet downloader or SABnzbd.");
+    if (!downloaderReady) missing.push("Connect and verify a Usenet server for the built-in downloader.");
     if (!indexerReady(mediaType)) missing.push(`Verify an indexer with ${mediaType === "movie" ? "movie" : "TV"} categories.`);
     if (!destinationReady(mediaType)) missing.push(`Add a reachable, writable ${mediaType === "movie" ? "movie" : "TV"} library destination.`);
     if (!builtInStorageReady) missing.push("Make the built-in download workspace writable and free enough space.");
@@ -136,7 +135,7 @@ export function evaluateReadiness(input: ReadinessEvaluationInput): ReadinessEva
   const anyIndexerReady = indexerReady("movie") || indexerReady("tv");
   const finalDestinationsHealthy = input.destinations.length > 0
     && input.destinations.every((destination) => destination.reachable && destination.writable);
-  const workspaceRequired = !legacyDownloaderReady;
+  const workspaceRequired = true;
   const storageReady = (!workspaceRequired || workspaceReady) && finalDestinationsHealthy;
 
   const capabilities: ReadinessCapability[] = [

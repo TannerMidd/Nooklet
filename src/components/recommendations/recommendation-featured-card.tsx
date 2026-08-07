@@ -4,7 +4,7 @@ import Link from "next/link";
 import { RecommendationAddForm } from "@/components/recommendations/recommendation-add-form";
 import { RecommendationFeedbackActions } from "@/components/recommendations/recommendation-feedback-actions";
 import { RecommendationPoster } from "@/components/recommendations/recommendation-poster";
-import { RecommendationSabnzbdStatus } from "@/components/recommendations/recommendation-sabnzbd-status";
+import { RecommendationDownloadStatus } from "@/components/recommendations/recommendation-download-status";
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { type RecommendationMediaType, type RecommendationFeedbackValue } from "@/lib/database/schema";
 import { type RecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
@@ -117,7 +117,7 @@ export function RecommendationFeaturedCard({
         </div>
       </Link>
 
-      <RecommendationSabnzbdStatus
+      <RecommendationDownloadStatus
         title={title}
         year={year}
         mediaType={mediaType}

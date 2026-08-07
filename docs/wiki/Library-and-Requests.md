@@ -9,7 +9,7 @@ For each media type you plan to request:
 1. Bind-mount the host library into Docker.
 2. Approve its container parent with `APPROVED_MEDIA_ROOTS`.
 3. Add the movie or TV destination in **Settings** using the container-side path.
-4. Verify that the destination is reachable and writable.
+4. Verify that the destination is reachable, readable, and writable.
 5. Scan the destination and confirm existing titles appear in **Library**.
 
 Read-only access is enough for browsing an existing tree, but imports require write access. See [Storage and path mapping](Storage-and-Path-Mapping).
@@ -76,7 +76,7 @@ Library scans reconcile the configured filesystem with stored media state. Autom
 | A season pack fails | Open **Activity**. A **Recovering** plan is already trying an alternate or individual episodes; no manual retry is needed. |
 | No season pack exists | Confirm the plan switched to individual episodes. Episodes without releases remain scheduled for a later search. |
 | Season recovery says blocked | Read the corrective message, fix storage, destination, downloader, or credentials, then use **Resume season recovery**. |
-| Completed download remains in progress | Inspect the import worker, path mapping, archive tools, and destination permissions. |
+| Completed download remains in progress | Inspect the import worker, engine and destination mounts, archive tools, and destination permissions. |
 
 ## Source references
 
@@ -88,4 +88,4 @@ Library scans reconcile the configured filesystem with stored media state. Autom
 
 ---
 
-Last reviewed: **July 16, 2026**.
+Last reviewed: **August 6, 2026**.

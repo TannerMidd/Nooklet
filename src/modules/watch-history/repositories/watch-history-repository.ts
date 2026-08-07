@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
@@ -46,19 +46,6 @@ function serializeMetadata(metadata: Record<string, unknown> | null | undefined)
   }
 
   return JSON.stringify(metadata);
-}
-
-function dedupeWatchHistoryItems(items: StoredWatchHistoryItem[]) {
-  const seenKeys = new Set<string>();
-
-  return items.filter((item) => {
-    if (seenKeys.has(item.normalizedKey)) {
-      return false;
-    }
-
-    seenKeys.add(item.normalizedKey);
-    return true;
-  });
 }
 
 export async function findWatchHistorySourceByType(
@@ -237,7 +224,7 @@ export async function listRecentWatchHistoryItems(
     return [];
   }
 
-  const items = database
+  const rankedItems = database
     .select({
       id: watchHistoryItems.id,
       sourceId: watchHistoryItems.sourceId,
@@ -248,6 +235,10 @@ export async function listRecentWatchHistoryItems(
       normalizedKey: watchHistoryItems.normalizedKey,
       watchedAt: watchHistoryItems.watchedAt,
       createdAt: watchHistoryItems.createdAt,
+      recencyRank: sql<number>`row_number() over (
+        partition by ${watchHistoryItems.mediaType}, ${watchHistoryItems.normalizedKey}
+        order by ${watchHistoryItems.watchedAt} desc, ${watchHistoryItems.id} desc
+      )`.as("recency_rank"),
     })
     .from(watchHistoryItems)
     .innerJoin(watchHistorySources, eq(watchHistoryItems.sourceId, watchHistorySources.id))
@@ -260,10 +251,25 @@ export async function listRecentWatchHistoryItems(
           : []),
       ),
     )
-    .orderBy(desc(watchHistoryItems.watchedAt))
-    .all();
+    .as("ranked_watch_history_items");
 
-  return dedupeWatchHistoryItems(items).slice(0, limit);
+  return database
+    .select({
+      id: rankedItems.id,
+      sourceId: rankedItems.sourceId,
+      userId: rankedItems.userId,
+      mediaType: rankedItems.mediaType,
+      title: rankedItems.title,
+      year: rankedItems.year,
+      normalizedKey: rankedItems.normalizedKey,
+      watchedAt: rankedItems.watchedAt,
+      createdAt: rankedItems.createdAt,
+    })
+    .from(rankedItems)
+    .where(eq(rankedItems.recencyRank, 1))
+    .orderBy(desc(rankedItems.watchedAt))
+    .limit(Math.max(0, limit))
+    .all();
 }
 
 export async function getWatchHistoryItemCounts(userId: string) {
@@ -271,19 +277,19 @@ export async function getWatchHistoryItemCounts(userId: string) {
 
   const [tvItems, movieItems] = await Promise.all([
     database
-      .select({ normalizedKey: watchHistoryItems.normalizedKey })
+      .select({ count: sql<number>`count(distinct ${watchHistoryItems.normalizedKey})` })
       .from(watchHistoryItems)
       .where(and(eq(watchHistoryItems.userId, userId), eq(watchHistoryItems.mediaType, "tv")))
-      .all(),
+      .get(),
     database
-      .select({ normalizedKey: watchHistoryItems.normalizedKey })
+      .select({ count: sql<number>`count(distinct ${watchHistoryItems.normalizedKey})` })
       .from(watchHistoryItems)
       .where(and(eq(watchHistoryItems.userId, userId), eq(watchHistoryItems.mediaType, "movie")))
-      .all(),
+      .get(),
   ]);
 
-  const resolvedTvCount = new Set(tvItems.map((item) => item.normalizedKey)).size;
-  const resolvedMovieCount = new Set(movieItems.map((item) => item.normalizedKey)).size;
+  const resolvedTvCount = tvItems?.count ?? 0;
+  const resolvedMovieCount = movieItems?.count ?? 0;
 
   return {
     tvCount: resolvedTvCount,

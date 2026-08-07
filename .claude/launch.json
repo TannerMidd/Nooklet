@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dossier",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "http-server@14.1.1", "engineering-dossier", "-p", "42055", "-c-1"],
+      "port": 42055
+    }
+  ]
+}

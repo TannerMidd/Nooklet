@@ -1,4 +1,5 @@
-import { findJobByTarget } from "@/modules/jobs/repositories/job-repository";
+import { findJobByTarget } from "@/modules/jobs/public";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import { defaultMissingSearchIntervalMinutes } from "@/modules/media-library/schemas/missing-search-schedule";
 
 export type MissingSearchSettings = {
@@ -11,7 +12,13 @@ export type MissingSearchSettings = {
 };
 
 export async function getMissingSearchSettings(userId: string): Promise<MissingSearchSettings> {
-  const job = await findJobByTarget(userId, "missing-content-search", "media-library", "all");
+  const jobOwnerUserId = await resolveInstanceConfigurationOwnerId(userId);
+  const job = await findJobByTarget(
+    jobOwnerUserId,
+    "missing-content-search",
+    "media-library",
+    "all",
+  );
 
   return {
     enabled: job?.isEnabled ?? false,

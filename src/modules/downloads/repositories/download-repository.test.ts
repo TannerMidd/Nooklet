@@ -72,7 +72,7 @@ async function seedUser() {
   return userId;
 }
 
-function seedSabnzbdConnection(userId: string) {
+function seedUsenetServerConnection(userId: string) {
   const database = ensureDatabaseReady();
   const connectionId = randomUUID();
 
@@ -80,10 +80,10 @@ function seedSabnzbdConnection(userId: string) {
     .insert(serviceConnections)
     .values({
       id: connectionId,
-      serviceType: "sabnzbd",
+      serviceType: "usenet-server",
       ownerUserId: userId,
-      displayName: "SABnzbd",
-      baseUrl: "http://localhost:8080",
+      displayName: "Usenet server",
+      baseUrl: "news.example.test:563",
       status: "verified",
     })
     .run();
@@ -336,12 +336,12 @@ describe("download-repository", () => {
 
   it("publishes a pending request and all downloader queue ids atomically", async () => {
     const userId = await seedUser();
-    const serviceConnectionId = seedSabnzbdConnection(userId);
+    const serviceConnectionId = seedUsenetServerConnection(userId);
     const client = await createDownloadClient({
       userId,
       serviceConnectionId,
-      clientType: "sabnzbd",
-      displayName: "SABnzbd",
+      clientType: "nooklet",
+      displayName: "Built-in downloader",
     });
     const request = await createDownloadRequest({
       userId,
@@ -355,20 +355,20 @@ describe("download-repository", () => {
       userId,
       requestId: request.id,
       clientId: client?.id,
-      externalQueueIds: ["nzo-1", "nzo-2"],
+      externalQueueIds: ["engine-1", "engine-2"],
       sizeBytes: 1234,
       category: "movies",
-      statusMessage: "Queued in SABnzbd.",
+      statusMessage: "Queued in the built-in downloader.",
     });
 
     expect(submitted.request.status).toBe("queued");
-    expect(submitted.request.externalJobId).toBe("nzo-1");
-    expect(submitted.queueItems.map((item) => item.externalQueueId).sort()).toEqual(["nzo-1", "nzo-2"]);
+    expect(submitted.request.externalJobId).toBe("engine-1");
+    expect(submitted.queueItems.map((item) => item.externalQueueId).sort()).toEqual(["engine-1", "engine-2"]);
     await expect(recordSubmittedDownload({
       userId,
       requestId: request.id,
       clientId: client?.id,
-      externalQueueIds: ["nzo-3"],
+      externalQueueIds: ["engine-3"],
       statusMessage: "Queued again.",
     })).rejects.toThrow(/no longer pending/);
     expect(ensureDatabaseReady()
@@ -380,12 +380,12 @@ describe("download-repository", () => {
 
   it("persists a download client, request, and queue item", async () => {
     const userId = await seedUser();
-    const serviceConnectionId = seedSabnzbdConnection(userId);
+    const serviceConnectionId = seedUsenetServerConnection(userId);
     const client = await createDownloadClient({
       userId,
       serviceConnectionId,
-      clientType: "sabnzbd",
-      displayName: "SABnzbd",
+      clientType: "nooklet",
+      displayName: "Built-in downloader",
       status: "verified",
       isDefault: true,
     });
@@ -405,8 +405,8 @@ describe("download-repository", () => {
       userId,
       requestId: request.id,
       status: "queued",
-      externalJobId: "sab-job-1",
-      statusMessage: "Queued in SABnzbd",
+      externalJobId: "engine-job-1",
+      statusMessage: "Queued in the built-in downloader",
     });
     if (!queuedRequest) throw new Error("queued request missing");
 
@@ -414,7 +414,7 @@ describe("download-repository", () => {
       requestId: request.id,
       userId,
       clientId: client.id,
-      externalQueueId: "sab-queue-1",
+      externalQueueId: "engine-queue-1",
       status: "downloading",
       progressPercent: 42.5,
       sizeBytes: 20_000_000_000,
@@ -435,7 +435,7 @@ describe("download-repository", () => {
     expect(reloadedClient?.serviceConnectionId).toBe(serviceConnectionId);
     expect(reloadedClientByConnection?.id).toBe(client.id);
     expect(reloadedClient?.isDefault).toBe(true);
-    expect(queuedRequest.externalJobId).toBe("sab-job-1");
+    expect(queuedRequest.externalJobId).toBe("engine-job-1");
     expect(queuedRequests.map((entry) => entry.id)).toEqual([request.id]);
     expect(storedQueueItem?.progressPercent).toBe(42.5);
     expect(storedQueueItem?.category).toBe("nooklet-movies");
@@ -460,43 +460,23 @@ describe("download-repository", () => {
     expect(missingRequest).toBeNull();
     expect(recentActivity).toHaveLength(1);
     expect(recentActivity[0]?.request?.id).toBe(request.id);
-    expect(recentActivity[0]?.queueItem?.externalQueueId).toBe("sab-queue-1");
+    expect(recentActivity[0]?.queueItem?.externalQueueId).toBe("engine-queue-1");
   });
 
-  it("lists active and failed local-import requests that can be matched to SABnzbd history", async () => {
+  it("lists active and failed local-import requests for one download client", async () => {
     const userId = await seedUser();
     const otherUserId = await seedUser();
-    const serviceConnectionId = seedSabnzbdConnection(userId);
+    const serviceConnectionId = seedUsenetServerConnection(userId);
     const client = await createDownloadClient({
       userId,
       serviceConnectionId,
-      clientType: "sabnzbd",
-      displayName: "SABnzbd",
+      clientType: "nooklet",
+      displayName: "Built-in downloader",
       status: "verified",
       isDefault: true,
     });
 
     if (!client) throw new Error("download client missing");
-    const engineConnectionId = randomUUID();
-    ensureDatabaseReady()
-      .insert(serviceConnections)
-      .values({
-        id: engineConnectionId,
-        serviceType: "usenet-server",
-        ownerUserId: userId,
-        displayName: "Built-in downloader",
-        baseUrl: "news.example.test",
-        status: "verified",
-      })
-      .run();
-    const engineClient = await createDownloadClient({
-      userId,
-      serviceConnectionId: engineConnectionId,
-      clientType: "nooklet",
-      displayName: "Built-in downloader",
-      status: "verified",
-    });
-    if (!engineClient) throw new Error("built-in download client missing");
 
     const request = await createDownloadRequest({
       userId,
@@ -509,14 +489,7 @@ describe("download-repository", () => {
       requestId: request.id,
       userId,
       clientId: client.id,
-      externalQueueId: "SABnzbd_nzo_1",
-      status: "queued",
-    });
-    const mixedClientQueueItem = await recordDownloadQueueItem({
-      requestId: request.id,
-      userId,
-      clientId: engineClient.id,
-      externalQueueId: randomUUID(),
+      externalQueueId: "engine-download-1",
       status: "queued",
     });
     const completedRequest = await createDownloadRequest({
@@ -530,7 +503,7 @@ describe("download-repository", () => {
       requestId: completedRequest.id,
       userId,
       clientId: client.id,
-      externalQueueId: "SABnzbd_nzo_2",
+      externalQueueId: "engine-download-2",
       status: "completed",
     });
     const failedImportRequest = await createDownloadRequest({
@@ -544,7 +517,7 @@ describe("download-repository", () => {
       requestId: failedImportRequest.id,
       userId,
       clientId: client.id,
-      externalQueueId: "SABnzbd_nzo_3",
+      externalQueueId: "engine-download-3",
       status: "completed",
     });
     ensureDatabaseReady()
@@ -563,7 +536,7 @@ describe("download-repository", () => {
       requestId: recentFailedImportRequest.id,
       userId,
       clientId: client.id,
-      externalQueueId: "SABnzbd_nzo_4",
+      externalQueueId: "engine-download-4",
       status: "completed",
     });
     const requeuingRequest = await createDownloadRequest({
@@ -577,7 +550,7 @@ describe("download-repository", () => {
       requestId: requeuingRequest.id,
       userId,
       clientId: client.id,
-      externalQueueId: "SABnzbd_nzo_5",
+      externalQueueId: "engine-download-5",
       status: "queued",
     });
     await createDownloadRequest({
@@ -597,7 +570,6 @@ describe("download-repository", () => {
     expect(activeRequests.map((entry) => entry.queueItem.id)).toContain(failedImportQueueItem.id);
     expect(activeRequests.map((entry) => entry.request.id)).toContain(requeuingRequest.id);
     expect(activeRequests.map((entry) => entry.request.id)).not.toContain(recentFailedImportRequest.id);
-    expect(activeRequests.map((entry) => entry.queueItem.id)).not.toContain(mixedClientQueueItem.id);
     expect(activeUserIds).toEqual(expect.arrayContaining([userId, otherUserId]));
   });
 
@@ -773,7 +745,7 @@ describe("download-repository", () => {
         await recordDownloadQueueItem({
           requestId: request.id,
           userId,
-          externalQueueId: `sab-${randomUUID()}`,
+          externalQueueId: `untracked-${randomUUID()}`,
           status: "failed",
         });
       }
@@ -791,10 +763,10 @@ describe("download-repository", () => {
       guid: "indexer1:arrival-partial",
       engine: { state: "failed", failureKind: "content", downloadedBytes: 512 * 1024 * 1024 },
     });
-    // External client attempt without engine telemetry: consumes budget.
+    // A queue record without engine telemetry consumes budget conservatively.
     await seedAttempt({
-      title: "Arrival 2016 1080p SAB",
-      guid: "indexer1:arrival-sab",
+      title: "Arrival 2016 1080p UNTRACKED",
+      guid: "indexer1:arrival-untracked",
       engine: null,
     });
 
@@ -999,7 +971,7 @@ describe("download-repository", () => {
     const submitted = await markDownloadRequestSubmitted({
       userId,
       requestId: request.id,
-      externalJobId: "sab-job-x",
+      externalJobId: "engine-job-x",
     });
     if (!submitted) throw new Error("submitted request missing");
     expect(submitted.status).toBe("queued");

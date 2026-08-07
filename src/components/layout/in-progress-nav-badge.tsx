@@ -1,9 +1,9 @@
 "use client";
 
-import { useSabnzbdQueue } from "@/components/recommendations/sabnzbd-queue-provider";
+import { useDownloadQueue } from "@/components/recommendations/download-queue-provider";
 
 export function InProgressNavBadge() {
-  const { queueState } = useSabnzbdQueue();
+  const { queueState } = useDownloadQueue();
   const activeQueueCount = queueState?.snapshot?.activeQueueCount ?? 0;
 
   if (activeQueueCount < 1) {

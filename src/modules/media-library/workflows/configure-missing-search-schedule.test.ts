@@ -3,20 +3,26 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/modules/jobs/repositories/job-repository", () => ({
   saveRecurringJob: vi.fn(),
 }));
+vi.mock("@/modules/instance-config/resolve-instance-configuration-owner", () => ({
+  resolveInstanceConfigurationOwnerId: vi.fn(),
+}));
 vi.mock("@/modules/users/commands/record-audit-event", () => ({
   recordAuditEvent: vi.fn(),
 }));
 
 import { saveRecurringJob } from "@/modules/jobs/repositories/job-repository";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import { recordAuditEvent } from "@/modules/users/commands/record-audit-event";
 
 import { configureMissingSearchSchedule } from "./configure-missing-search-schedule";
 
 const saveRecurringJobMock = vi.mocked(saveRecurringJob);
+const resolveInstanceConfigurationOwnerIdMock = vi.mocked(resolveInstanceConfigurationOwnerId);
 const recordAuditEventMock = vi.mocked(recordAuditEvent);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resolveInstanceConfigurationOwnerIdMock.mockResolvedValue("configuration-owner");
 });
 
 describe("configureMissingSearchSchedule", () => {
@@ -29,7 +35,7 @@ describe("configureMissingSearchSchedule", () => {
     });
 
     expect(saveRecurringJobMock).toHaveBeenCalledWith({
-      userId: "user1",
+      userId: "configuration-owner",
       jobType: "missing-content-search",
       targetType: "media-library",
       targetKey: "all",

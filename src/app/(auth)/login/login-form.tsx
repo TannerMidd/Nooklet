@@ -12,9 +12,14 @@ import { submitLoginAction } from "./actions";
 type LoginFormProps = {
   callbackUrl: string;
   showBootstrapSuccess: boolean;
+  showPasswordChangedSuccess: boolean;
 };
 
-export function LoginForm({ callbackUrl, showBootstrapSuccess }: LoginFormProps) {
+export function LoginForm({
+  callbackUrl,
+  showBootstrapSuccess,
+  showPasswordChangedSuccess,
+}: LoginFormProps) {
   const [state, formAction] = useActionState(submitLoginAction, initialLoginActionState);
 
   return (
@@ -23,6 +28,11 @@ export function LoginForm({ callbackUrl, showBootstrapSuccess }: LoginFormProps)
       {showBootstrapSuccess ? (
         <p role="status" className="rounded-lg border border-accent-cool/30 bg-accent-cool/10 px-3.5 py-2 text-sm text-foreground">
           First-admin bootstrap is complete. Sign in with the account you just created.
+        </p>
+      ) : null}
+      {showPasswordChangedSuccess ? (
+        <p role="status" className="rounded-lg border border-accent-cool/30 bg-accent-cool/10 px-3.5 py-2 text-sm text-foreground">
+          Password updated. Sign in with your new password to continue.
         </p>
       ) : null}
 

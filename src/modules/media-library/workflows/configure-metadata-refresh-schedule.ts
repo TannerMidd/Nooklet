@@ -1,4 +1,5 @@
-import { saveRecurringJob } from "@/modules/jobs/repositories/job-repository";
+import { saveRecurringJob } from "@/modules/jobs/public";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
   type MetadataRefreshScheduleInput,
   metadataRefreshScheduleInputSchema,
@@ -15,9 +16,10 @@ export async function configureMetadataRefreshSchedule(
   input: MetadataRefreshScheduleInput,
 ): Promise<ConfigureMetadataRefreshScheduleResult> {
   const parsed = metadataRefreshScheduleInputSchema.parse(input);
+  const jobOwnerUserId = await resolveInstanceConfigurationOwnerId(userId);
 
   await saveRecurringJob({
-    userId,
+    userId: jobOwnerUserId,
     jobType: "metadata-refresh",
     targetType: "media-library",
     targetKey: "all",

@@ -1,7 +1,7 @@
 import { type RecommendationMediaType } from "@/lib/database/schema";
 
 import { parseRecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
-import { listRecommendationHistoryRows } from "@/modules/recommendations/repositories/recommendation-repository";
+import { getRecommendationHistoryPageRows } from "@/modules/recommendations/repositories/recommendation-repository";
 
 type HistoryFilters = {
   mediaType: RecommendationMediaType | "all";
@@ -18,47 +18,27 @@ function clampPositiveInteger(value: number, fallback: number) {
 }
 
 export async function listRecommendationHistory(userId: string, filters: HistoryFilters) {
-  const rawRows = await listRecommendationHistoryRows(
+  const pageSize = Math.min(clampPositiveInteger(filters.pageSize, 12), 48);
+  const page = await getRecommendationHistoryPageRows({
     userId,
-    filters.mediaType === "all" ? undefined : filters.mediaType,
-  );
-
-  const filteredItems = rawRows.filter((row) => {
-    if (filters.hideExisting && row.existingInLibrary) {
-      return false;
-    }
-
-    if (filters.hideLiked && row.feedback === "like") {
-      return false;
-    }
-
-    if (filters.hideDisliked && row.feedback === "dislike") {
-      return false;
-    }
-
-    if (filters.hideHidden && row.isHidden) {
-      return false;
-    }
-
-    return true;
+    mediaType: filters.mediaType === "all" ? undefined : filters.mediaType,
+    hideExisting: filters.hideExisting,
+    hideLiked: filters.hideLiked,
+    hideDisliked: filters.hideDisliked,
+    hideHidden: filters.hideHidden,
+    page: clampPositiveInteger(filters.page, 1),
+    pageSize,
   });
 
-  const pageSize = Math.min(clampPositiveInteger(filters.pageSize, 12), 48);
-  const filteredCount = filteredItems.length;
-  const totalPages = Math.max(1, Math.ceil(filteredCount / pageSize));
-  const currentPage = Math.min(clampPositiveInteger(filters.page, 1), totalPages);
-  const pageStartIndex = filteredCount === 0 ? 0 : (currentPage - 1) * pageSize;
-  const pagedItems = filteredItems.slice(pageStartIndex, pageStartIndex + pageSize);
-
   return {
-    totalCount: rawRows.length,
-    filteredCount,
-    currentPage,
-    totalPages,
+    totalCount: page.totalCount,
+    filteredCount: page.filteredCount,
+    currentPage: page.currentPage,
+    totalPages: page.totalPages,
     pageSize,
-    pageStart: filteredCount === 0 ? 0 : pageStartIndex + 1,
-    pageEnd: filteredCount === 0 ? 0 : pageStartIndex + pagedItems.length,
-    items: pagedItems.map((row) => ({
+    pageStart: page.filteredCount === 0 ? 0 : page.offset + 1,
+    pageEnd: page.filteredCount === 0 ? 0 : page.offset + page.rows.length,
+    items: page.rows.map((row) => ({
       ...row,
       providerMetadata: parseRecommendationProviderMetadata(row.providerMetadataJson),
     })),

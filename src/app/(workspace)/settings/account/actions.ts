@@ -1,7 +1,7 @@
 "use server";
 
 import { type ChangePasswordActionState } from "@/app/(workspace)/settings/account/action-state";
-import { auth } from "@/auth";
+import { auth, signOut } from "@/auth";
 import { changePasswordInputSchema } from "@/modules/users/schemas/change-password";
 import { changePassword } from "@/modules/users/workflows/change-password";
 
@@ -52,8 +52,16 @@ export async function submitChangePasswordAction(
     };
   }
 
+  // Changing the password advances the account's password-version timestamp,
+  // intentionally invalidating every JWT issued before this write—including
+  // the current one. End this session explicitly instead of allowing a stale
+  // cookie to fail later on an unrelated request.
+  await signOut({
+    redirectTo: "/login?passwordChanged=1&callbackUrl=%2Fhome",
+  });
+
   return {
     status: "success",
-    message: "Password updated.",
+    message: "Password updated. Sign in again with your new password.",
   };
 }

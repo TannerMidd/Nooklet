@@ -36,4 +36,4 @@ Every operational change should update the code, tests, `.env.example` when rele
 
 ---
 
-Last reviewed: **July 17, 2026**.
+Last reviewed: **August 6, 2026**.

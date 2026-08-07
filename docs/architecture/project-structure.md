@@ -28,29 +28,49 @@ src/
       login/
     (workspace)/
       admin/
+      analytics/
+      discover/
+      health/
       history/
+      home/
+      in-progress/
       library/
       movies/
-      settings/
-        account/
-        connections/
-        indexers/
-        preferences/
+      recommendations/
       search/
+      settings/
+      setup/
       tv/
     api/
   components/
+    discover/
     layout/
     library/
+    media-library/
     recommendations/
+    setup/
+    storage/
     ui/
   config/
   lib/
   modules/
+    admin/
+    discover/
+    download-engine/
     downloads/
+    identity-access/
     indexers/
+    instance-config/
+    jobs/
     media-library/
-    metadata/
+    notifications/
+    preferences/
+    readiness/
+    recommendations/
+    service-connections/
+    storage/
+    users/
+    watch-history/
 ```
 
 ## Module template
@@ -59,6 +79,7 @@ Each module under `src/modules/<module>/` keeps its internals local:
 
 ```text
 src/modules/<module>/
+  public.ts        # present when the module exposes a narrow facade
   adapters/
   commands/
   queries/
@@ -70,14 +91,21 @@ src/modules/<module>/
 
 Folders are created only when real code lands. No placeholder folders.
 
-The public surface of a module is its `commands/`, `queries/`, and
-`workflows/` exports. Repositories and adapters are internal — other modules
-reach them via a query/command/workflow, never by direct import.
+Cross-module consumers use the target module's `public.ts` facade when one is
+present. Those facades export the typed commands, queries, workflows, and
+narrow capabilities that other domains need. Modules without a facade may
+expose a workflow, query, or type directly, but their `repositories/` and
+`adapters/` folders remain private to that module.
+
+`npm run boundaries:check` scans production module sources and rejects direct
+cross-module imports into another module's `repositories/` or `adapters/`
+folders. This is a focused import-boundary invariant, not a claim that every
+possible module cycle or database access pattern is statically proved.
 
 ## Workflow layout
 
-Workflows live at `src/modules/<module>/workflows/<workflow>/` with one file
-per phase plus a thin orchestrator and a wiring test:
+Larger workflows generally live at `src/modules/<module>/workflows/<workflow>/`
+with one file per phase plus an orchestrator and wiring tests:
 
 ```text
 workflows/<workflow>/
@@ -89,4 +117,7 @@ workflows/<workflow>/
   ...
 ```
 
-Phase lists for the major workflows are fixed in the ADR.
+Smaller workflows may remain a single `.ts` file with a colocated test. Some
+older, high-complexity workflows have not yet been decomposed to this target
+shape; the current filesystem and imports are authoritative when this guide and
+implementation differ.

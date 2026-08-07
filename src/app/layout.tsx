@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { Fraunces, Instrument_Sans } from "next/font/google";
 import { type ReactNode } from "react";
 
-import { AppProviders } from "@/app/providers";
-
 import "./globals.css";
 
 const headingFont = Fraunces({
@@ -36,7 +34,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html lang="en">
       <body className={`${headingFont.variable} ${bodyFont.variable}`}>
         <div id="app-root">
-          <AppProviders>{children}</AppProviders>
+          {children}
         </div>
       </body>
     </html>

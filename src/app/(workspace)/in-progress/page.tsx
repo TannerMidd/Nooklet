@@ -3,13 +3,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { getActiveDownloadQueueView } from "@/app/api/service-connections/sabnzbd/queue/queue-view";
+import { getActiveDownloadQueue } from "@/modules/download-engine/queries/get-active-download-queue";
 import {
   ActivityAutoRefresh,
   DownloadActivityPanel,
   ImportNowButton,
 } from "@/app/(workspace)/in-progress/download-activity-panel";
-import { SabnzbdActivityPanel } from "@/components/recommendations/sabnzbd-activity-panel";
+import { DownloadQueuePanel } from "@/components/recommendations/download-queue-panel";
 import { PageHeader } from "@/components/ui/page-header";
 import { SegmentedLinks } from "@/components/ui/segmented-control";
 import {
@@ -46,7 +46,7 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
     : "active";
   const requestedPage = Number.parseInt(resolvedSearchParams?.page ?? "1", 10);
   const [activeQueue, activity] = await Promise.all([
-    getActiveDownloadQueueView(session.user.id),
+    getActiveDownloadQueue(session.user.id),
     getDownloadActivityPage({
       userId: session.user.id,
       view: currentView,
@@ -105,7 +105,7 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
         <button type="submit" className="min-h-11 rounded-lg border border-cream/[0.14] px-5 text-sm font-semibold text-foreground hover:bg-cream/[0.06]">Search history</button>
       </form>
 
-      {currentView === "active" ? <SabnzbdActivityPanel initialState={activeQueue} /> : null}
+      {currentView === "active" ? <DownloadQueuePanel initialState={activeQueue} /> : null}
 
       <section className="space-y-4">
         <h2 className="font-heading text-2xl text-foreground">

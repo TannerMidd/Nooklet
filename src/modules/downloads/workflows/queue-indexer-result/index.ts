@@ -17,7 +17,7 @@ import {
   failReservedDownloadRequest,
   persistQueuedIndexerResultDownload,
 } from "./persistence";
-import { ensureSabnzbdCompatibleResult } from "./protocol-guard";
+import { ensureUsenetCompatibleResult } from "./protocol-guard";
 import {
   validateQueueIndexerResultRequest,
   type QueueIndexerResultInput,
@@ -82,7 +82,7 @@ export async function queueIndexerResultWorkflow(
   const resolvedResult = await resolveQueueIndexerResult(userId, request);
   await validateQueueIndexerResultAssociations(userId, request, resolvedResult);
   await ensureNoActiveDownloadRequest(userId, request);
-  ensureSabnzbdCompatibleResult(resolvedResult);
+  ensureUsenetCompatibleResult(resolvedResult);
   const target = await resolveQueueIndexerResultTarget(userId, request, resolvedResult);
   const downloadClient = await resolveDownloadClient(userId);
   await ensureSeasonSubmissionLease(userId, context, validatedContext.fulfillmentId);
@@ -98,7 +98,7 @@ export async function queueIndexerResultWorkflow(
   let submission;
   try {
     await ensureSeasonSubmissionLease(userId, context, validatedContext.fulfillmentId);
-    submission = await submitIndexerResultToDownloadClient(resolvedResult, downloadClient);
+    submission = await submitIndexerResultToDownloadClient(resolvedResult);
   } catch (error) {
     const discarded = error instanceof QueueIndexerResultWorkflowError
       && submissionErrorDoesNotConsumeAttempt(error)
@@ -126,7 +126,7 @@ export async function queueIndexerResultWorkflow(
     let compensationFailed = false;
 
     try {
-      await compensateIndexerResultSubmission(userId, downloadClient, submission);
+      await compensateIndexerResultSubmission(userId, submission);
     } catch {
       compensationFailed = true;
     }

@@ -6,8 +6,7 @@
  * the small budget that guards against expensive partial-download loops. The
  * release itself stays excluded from future searches either way.
  *
- * Attempts without engine telemetry — external clients such as SABnzbd, or
- * engine rows that no longer exist — count conservatively as consuming.
+ * Attempts without engine telemetry count conservatively as consuming.
  */
 export function isBudgetFreeDownloadAttempt(engine: {
   state: string | null;

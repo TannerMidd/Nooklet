@@ -109,7 +109,7 @@ Add another Newznab indexer with a later search order. Nooklet retains a per-pro
 
 ## Security notes
 
-- Indexers are instance configuration managed by administrators and shared with users.
+- Indexers are consumed across the instance and editable only by administrators. Every administrator reads and edits the same rows through the stable instance-configuration owner.
 - API keys and stored download URLs are encrypted at rest.
 - Outbound requests use the same private-host and redirect restrictions as other service connections.
 - Prefer HTTPS and never post an API key in an issue, log excerpt, or screenshot.

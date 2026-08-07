@@ -1,4 +1,5 @@
-import { saveRecurringJob } from "@/modules/jobs/repositories/job-repository";
+import { saveRecurringJob } from "@/modules/jobs/public";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
   type LibraryScanScheduleInput,
   libraryScanScheduleInputSchema,
@@ -15,9 +16,10 @@ export async function configureLibraryScanSchedule(
   input: LibraryScanScheduleInput,
 ): Promise<ConfigureLibraryScanScheduleResult> {
   const parsed = libraryScanScheduleInputSchema.parse(input);
+  const jobOwnerUserId = await resolveInstanceConfigurationOwnerId(userId);
 
   await saveRecurringJob({
-    userId,
+    userId: jobOwnerUserId,
     jobType: "media-library-scan",
     targetType: "media-library",
     targetKey: "all",

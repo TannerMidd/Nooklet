@@ -28,14 +28,36 @@ export const users = sqliteTable(
   (table) => [uniqueIndex("users_email_unique").on(table.email)],
 );
 
-export const auditEvents = sqliteTable("audit_events", {
+export const auditEvents = sqliteTable(
+  "audit_events",
+  {
+    id: text("id").primaryKey(),
+    actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    eventType: text("event_type").notNull(),
+    subjectType: text("subject_type").notNull(),
+    subjectId: text("subject_id"),
+    payloadJson: text("payload_json"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("audit_events_actor_created_idx").on(table.actorUserId, table.createdAt),
+    index("audit_events_type_created_idx").on(table.eventType, table.createdAt),
+    index("audit_events_created_idx").on(table.createdAt),
+  ],
+);
+
+/** Stable identity for configuration shared by every account in the instance. */
+export const instanceConfiguration = sqliteTable("instance_configuration", {
   id: text("id").primaryKey(),
-  actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
-  eventType: text("event_type").notNull(),
-  subjectType: text("subject_type").notNull(),
-  subjectId: text("subject_id"),
-  payloadJson: text("payload_json"),
+  ownerUserId: text("owner_user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "restrict" }),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .default(sql`(unixepoch() * 1000)`),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
     .default(sql`(unixepoch() * 1000)`),
 });
@@ -127,6 +149,9 @@ export const preferences = sqliteTable("preferences", {
     .default(sql`(unixepoch() * 1000)`),
 });
 
+// `sabnzbd` remains in the persisted discriminator solely so pre-removal rows
+// can be read during upgrade checks. New runtime writes must use supported
+// service schemas, which intentionally exclude it.
 export const serviceConnectionTypes = ["ai-provider", "tautulli", "plex", "sabnzbd", "usenet-server", "tmdb", "tvdb", "trakt"] as const;
 export const serviceConnectionScopes = ["user", "shared"] as const;
 export const serviceConnectionStatuses = ["configured", "verified", "error"] as const;
@@ -187,6 +212,8 @@ export const mediaScanRunStatuses = ["pending", "running", "succeeded", "failed"
 export const indexerProtocols = ["newznab", "torznab"] as const;
 export const indexerConnectionStatuses = ["configured", "verified", "error", "disabled"] as const;
 export const indexerSearchRunStatuses = ["pending", "running", "succeeded", "failed"] as const;
+// Historical compatibility only; active work attributed to `sabnzbd` is
+// rejected by the startup preflight before migrations or workers can run.
 export const downloadClientTypes = ["sabnzbd", "nooklet"] as const;
 export const downloadClientStatuses = ["configured", "verified", "error", "disabled"] as const;
 export const downloadFulfillmentStrategies = ["season_pack", "episodes"] as const;
@@ -663,7 +690,10 @@ export const downloadClients = sqliteTable(
       .default(sql`(unixepoch() * 1000)`),
   },
   (table) => [
-    uniqueIndex("download_clients_connection_unique").on(table.serviceConnectionId),
+    uniqueIndex("download_clients_user_connection_unique").on(
+      table.userId,
+      table.serviceConnectionId,
+    ),
     uniqueIndex("download_clients_user_type_name_unique").on(
       table.userId,
       table.clientType,
@@ -1024,25 +1054,29 @@ export const watchHistorySources = sqliteTable(
   (table) => [uniqueIndex("watch_history_sources_user_type_unique").on(table.userId, table.sourceType)],
 );
 
-export const watchHistorySyncRuns = sqliteTable("watch_history_sync_runs", {
-  id: text("id").primaryKey(),
-  sourceId: text("source_id")
-    .notNull()
-    .references(() => watchHistorySources.id, { onDelete: "cascade" }),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  mediaType: text("media_type", { enum: recommendationMediaTypes }).notNull(),
-  status: text("status", { enum: watchHistorySyncStatuses })
-    .notNull()
-    .default("pending"),
-  itemCount: integer("item_count").notNull().default(0),
-  errorMessage: text("error_message"),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
-    .notNull()
-    .default(sql`(unixepoch() * 1000)`),
-  completedAt: integer("completed_at", { mode: "timestamp_ms" }),
-});
+export const watchHistorySyncRuns = sqliteTable(
+  "watch_history_sync_runs",
+  {
+    id: text("id").primaryKey(),
+    sourceId: text("source_id")
+      .notNull()
+      .references(() => watchHistorySources.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mediaType: text("media_type", { enum: recommendationMediaTypes }).notNull(),
+    status: text("status", { enum: watchHistorySyncStatuses })
+      .notNull()
+      .default("pending"),
+    itemCount: integer("item_count").notNull().default(0),
+    errorMessage: text("error_message"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [index("watch_history_sync_runs_user_created_idx").on(table.userId, table.createdAt)],
+);
 
 export const watchHistoryItems = sqliteTable(
   "watch_history_items",
@@ -1066,6 +1100,16 @@ export const watchHistoryItems = sqliteTable(
   (table) => [
     uniqueIndex("watch_history_items_source_media_key_unique").on(
       table.sourceId,
+      table.mediaType,
+      table.normalizedKey,
+    ),
+    index("watch_history_items_user_media_watched_idx").on(
+      table.userId,
+      table.mediaType,
+      table.watchedAt,
+    ),
+    index("watch_history_items_user_media_key_idx").on(
+      table.userId,
       table.mediaType,
       table.normalizedKey,
     ),
@@ -1146,7 +1190,13 @@ export const recommendationRuns = sqliteTable("recommendation_runs", {
   updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
     .default(sql`(unixepoch() * 1000)`),
-});
+}, (table) => [
+  index("recommendation_runs_user_media_created_idx").on(
+    table.userId,
+    table.mediaType,
+    table.createdAt,
+  ),
+]);
 
 export const recommendationItems = sqliteTable("recommendation_items", {
   id: text("id").primaryKey(),
@@ -1166,7 +1216,7 @@ export const recommendationItems = sqliteTable("recommendation_items", {
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .default(sql`(unixepoch() * 1000)`),
-});
+}, (table) => [index("recommendation_items_run_position_idx").on(table.runId, table.position)]);
 
 export const recommendationRunMetrics = sqliteTable("recommendation_run_metrics", {
   runId: text("run_id")
@@ -1189,7 +1239,7 @@ export const recommendationRunMetrics = sqliteTable("recommendation_run_metrics"
   updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
     .default(sql`(unixepoch() * 1000)`),
-});
+}, (table) => [index("recommendation_run_metrics_user_created_idx").on(table.userId, table.createdAt)]);
 
 export const recommendationItemTimelineEvents = sqliteTable("recommendation_item_timeline_events", {
   id: text("id").primaryKey(),
@@ -1207,7 +1257,13 @@ export const recommendationItemTimelineEvents = sqliteTable("recommendation_item
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .default(sql`(unixepoch() * 1000)`),
-});
+}, (table) => [
+  index("recommendation_timeline_user_item_created_idx").on(
+    table.userId,
+    table.itemId,
+    table.createdAt,
+  ),
+]);
 
 export const recommendationFeedback = sqliteTable(
   "recommendation_feedback",

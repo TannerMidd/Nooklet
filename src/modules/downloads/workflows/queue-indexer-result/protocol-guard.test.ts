@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { QueueIndexerResultWorkflowError } from "./errors";
-import { ensureSabnzbdCompatibleResult } from "./protocol-guard";
+import { ensureUsenetCompatibleResult } from "./protocol-guard";
 
-describe("ensureSabnzbdCompatibleResult", () => {
+describe("ensureUsenetCompatibleResult", () => {
   it("allows newznab releases", () => {
     expect(() =>
-      ensureSabnzbdCompatibleResult({ indexerProtocol: "newznab" } as never),
+      ensureUsenetCompatibleResult({ indexerProtocol: "newznab" } as never),
     ).not.toThrow();
   });
 
@@ -14,7 +14,7 @@ describe("ensureSabnzbdCompatibleResult", () => {
     let caught: unknown;
 
     try {
-      ensureSabnzbdCompatibleResult({ indexerProtocol: "torznab" } as never);
+      ensureUsenetCompatibleResult({ indexerProtocol: "torznab" } as never);
     } catch (error) {
       caught = error;
     }

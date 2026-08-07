@@ -7,7 +7,7 @@ Docker Compose is the recommended way to run Nooklet. It provides the supported 
 - Docker Desktop, or Docker Engine with Compose v2
 - Git
 - Existing host folders for the media libraries you want Nooklet to manage
-- A host folder for download staging when using the built-in downloader
+- Enough Docker or host storage for downloader work; a dedicated host staging folder is recommended for larger queues
 
 Confirm that Compose is available:
 
@@ -22,7 +22,7 @@ git clone https://github.com/TannerMidd/Nooklet.git
 cd Nooklet
 ```
 
-Nooklet currently builds a local image from source. The supported start command is therefore `docker compose up -d --build` rather than pulling a prebuilt registry image.
+The shipped Compose file builds `nooklet:local` from the checked-out source, so this guide uses `docker compose up -d --build`. SemVer tags also publish attested Linux/AMD64 images to `ghcr.io/tannermidd/nooklet`, but the default Compose service does not pull those images automatically; using a specific registry tag requires an explicit operator override.
 
 ## 2. Create the environment file
 
@@ -112,11 +112,11 @@ For these examples, set:
 
 ```dotenv
 APPROVED_MEDIA_ROOTS=/media
-APPROVED_DOWNLOAD_ROOTS=/downloads
+DOWNLOAD_ENGINE_WORK_DIR=/app/data/engine-work
 DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine
 ```
 
-If you use only SABnzbd, `DOWNLOAD_ENGINE_DIR` is not part of SAB's download execution, but leaving a valid local value is harmless. SAB imports may additionally need `SABNZBD_PATH_MAPPINGS`; see [Storage and path mapping](Storage-and-Path-Mapping).
+The work directory normally stays on Docker's Linux-native data volume while completed output uses the bind mount. Both paths belong to the built-in downloader and must be reachable and writable; see [Storage and path mapping](Storage-and-Path-Mapping).
 
 ## 4. Build and start
 
@@ -135,6 +135,8 @@ The Compose deployment:
 - starts as the non-root `node` user;
 - drops all Linux capabilities;
 - enables `no-new-privileges`;
+- keeps the root filesystem read-only and grants bounded writable tmpfs paths only where the runtime needs them;
+- applies PID and memory ceilings plus bounded JSON-file log rotation;
 - restarts unless explicitly stopped.
 
 Database migrations run automatically during application startup. There is no separate migration command for a normal installation or upgrade.

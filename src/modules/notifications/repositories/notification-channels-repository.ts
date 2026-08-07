@@ -337,7 +337,17 @@ export async function updateNotificationChannel(
     updates.isEnabled = input.isEnabled;
   }
 
-  database.transaction((tx) => {
+  const updated = database.transaction((tx) => {
+    const ownedChannel = tx
+      .select({ id: notificationChannels.id })
+      .from(notificationChannels)
+      .where(and(eq(notificationChannels.userId, input.userId), eq(notificationChannels.id, input.id)))
+      .get();
+
+    if (!ownedChannel) {
+      return false;
+    }
+
     tx
       .update(notificationChannels)
       .set(updates)
@@ -358,7 +368,13 @@ export async function updateNotificationChannel(
           .run();
       }
     }
+
+    return true;
   });
+
+  if (!updated) {
+    return null;
+  }
 
   return findNotificationChannelById(input.userId, input.id);
 }

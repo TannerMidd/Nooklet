@@ -115,7 +115,7 @@ function friendlyFailure(message: string | null) {
       href: "/settings/indexers",
     };
   }
-  if (value.includes("usenet") || value.includes("sabnzbd") || value.includes("queue")) {
+  if (value.includes("usenet") || value.includes("queue")) {
     return {
       summary: "The downloader connection or queue needs attention.",
       action: "Review downloads",

@@ -2,154 +2,125 @@
 
 ## Status
 
-Accepted
+Accepted and implemented; runtime placement amended by ADR-0004.
 
 ## Date
 
-2026-07-11
+2026-07-11; current-alignment update 2026-08-06.
 
 ## Context
 
-Nooklet's product goal is to replace the Sonarr + Radarr + SABnzbd stack with a
-single application. Indexer management, library management, monitoring, release
-selection, and import are already native. The one remaining external organ is
-the downloader: `download_clients` supports exactly one `clientType`
-(`"sabnzbd"`), and the download pipeline is shaped around polling an external
-queue (`externalJobId`, queue refresh, missing/duplicate reconciliation
-workflows).
+Nooklet's standalone product goal requires the application to own the path from
+a protected Newznab result to an imported media file. Delegating transfer,
+queue state, repair, extraction, and completion reporting to a second download
+application created another credential boundary and required polling and
+reconciliation against an external queue.
 
-Replacing SABnzbd requires a native usenet download engine: NNTP article
-fetching, NZB parsing, yEnc decoding, integrity verification and repair (PAR2),
-archive extraction (RAR/7z/zip), and a queue the app owns directly instead of
-reconciling against someone else's.
+The required native capability includes NNTP article fetching, NZB parsing,
+yEnc decoding, integrity verification and repair (PAR2), archive extraction,
+durable queue state, restart recovery, cancellation, capacity admission, and
+safe import.
 
-Torrent support is explicitly out of scope for the first engine. The
-`download_clients` abstraction leaves room for a future torrent engine or a
-qBittorrent adapter if that need materializes.
+Torrent support remains outside this decision.
 
 ## Decision
 
-Build a native usenet download engine as a new domain module,
-`src/modules/download-engine/`, developed in verifiable slices behind the
-existing `download_clients` abstraction. SABnzbd remains a supported client
-type during the transition and becomes optional once the engine reaches
-parity.
+The built-in Usenet engine under `src/modules/download-engine/` is Nooklet's
+only download client. New requests fetch and validate NZBs server-side, enqueue
+durable engine rows, and expose caller-scoped queue state through
+`/api/downloads/queue`. Completed output is imported through Nooklet-owned
+request, media-file, and audit records.
+
+The external compatibility client, its connection type, queue route, path
+translation settings, polling, duplicate/missing reconciliation, and import
+workflows have been removed. Historical database discriminator values may
+remain readable only where an upgrade must safely reject or preserve old data;
+they are not configurable or executable runtime paths.
 
 ### Module shape
 
-```
+```text
 src/modules/download-engine/
-  nzb/          NZB XML parsing + normalization (pure)
-  yenc/         yEnc decoding + CRC32 (pure)
-  nntp/         NNTP client: connect, auth, TLS, BODY/ARTICLE, pipelining
-  scheduler/    segment scheduler: connection pool, retries, per-server limits
-  assembly/     article → segment file → assembled output file on disk
-  repair/       PAR2 verify/repair (slice 4)
-  extract/      RAR/7z/zip extraction (slice 4)
-  queue/        engine queue state machine + persistence
-  workflows/    enqueue-nzb, process-queue-item, finalize-download
+  assembly/     output-name sanitization
+  config/       verified Usenet-server resolution
+  finalize/     PAR2, name restoration, guarded extraction, and final move
+  nntp/         TLS NNTP connection, authentication, and article fetch
+  nzb/          NZB XML parsing and normalization
+  queries/      caller queue projection and engine health
+  queue/        durable engine rows, public queue model, and actions
+  runtime/      worker-owned drain loop, capacity recheck, and heartbeat
+  scheduler/    segment scheduling, retry, and connection limits
+  testing/      local TLS and yEnc test fixtures
+  workflows/    enqueue and persisted queue-control intent
+  yenc/         yEnc decoding and CRC32
 ```
 
-Rules follow ADR-0001: pure phases in separate files, thin orchestrators,
-wiring tests per workflow, no UI access to the engine except through
-module workflows.
+Completed-download import remains in the `downloads` module because it owns the
+outer request/import lifecycle and destination association. Rules follow
+ADR-0001: pure phases stay separate from I/O, orchestrators are thin, private
+repository/adapter folders are not imported across module boundaries, and
+workflow wiring has focused tests.
 
-### Configuration
+### Configuration and ownership
 
-Usenet servers are instance-level infrastructure, configured as a new
-service-connection type `usenet-server` (host, port, TLS, max connections,
-username; password in `service_secrets`, encrypted). Multiple servers with
-priorities (primary + block accounts) are supported by the scheduler from the
-start; the settings UI may expose a single server first.
+The `usenet-server` service connection is instance-level infrastructure. It
+stores the host, port, TLS policy, connection count, username, and encrypted
+password. Shared configuration resolves through the persisted
+`instance_configuration` owner so every administrator sees the same effective
+server, indexers, and library paths.
 
-### Queue ownership
+`DOWNLOAD_ENGINE_WORK_DIR` contains incomplete articles, assembly, repair, and
+extraction work. `DOWNLOAD_ENGINE_DIR` contains finalized staging output before
+import. Both are revalidated by the worker; the lower effective capacity limits
+admission.
 
-The engine owns download state directly:
+### Queue ownership and runtime
 
-- `download_requests` keeps its role as the user-facing request record.
-- A new `engine_downloads` table (one per accepted NZB) tracks: source NZB
-  blob/path, state (`queued → fetching → assembling → repairing → extracting →
-  importing → completed | failed`), byte counters for progress/speed, priority,
-  and error detail. Segments are tracked in `engine_segments` only while a
-  download is active; completed segment rows are pruned.
-- `downloadClientTypes` gains `"nooklet"`. `queue-indexer-result` resolves to
-  the built-in client when a usenet server is configured; SABnzbd submission
-  stays as the fallback path until parity.
-- The SABnzbd-emulation workflows (missing/duplicate queue reconciliation,
-  queue polling) do not apply to the built-in client — engine state is the
-  source of truth, so the In Progress screen reads it directly instead of a
-  polled snapshot.
-
-### Runtime model
-
-The in-process worker keeps its 15s tick for orchestration (claiming queued
-downloads, retrying failures, kicking imports), but active transfers run in a
-long-lived engine loop owned by a process-wide singleton (same pattern as the
-current worker global). The engine holds NNTP connections open across ticks,
-writes segments to a working directory under the app data path
-(`data/downloads/incomplete/<downloadId>/`), and moves finished output to
-`data/downloads/complete/<downloadId>/` where the existing
-`import-completed-downloads` workflow picks it up (its history-fetch phase
-gains an engine-backed source alongside the SABnzbd one).
-
-Single-container deployment is unchanged; the engine is in-process and its
-state is recoverable from SQLite + the working directory on restart.
-
-### Delivery slices
-
-1. **Pure core (this ADR's first commit):** `nzb/` parsing + `yenc/` decoding
-   with unit tests. No I/O, no schema changes.
-2. **Transport:** `nntp/` client + `scheduler/` + `assembly/`; verified against
-   a scripted fake NNTP server in tests.
-3. **Queue + wiring:** schema migration (`usenet-server` connection type,
-   `engine_downloads`, `"nooklet"` client type), enqueue/process/finalize
-   workflows, worker loop, In Progress UI reads engine state.
-4. **Integrity:** PAR2 verify/repair and archive extraction, with quarantine on
-   unrecoverable damage.
-5. **Parity flip:** built-in engine becomes the default download client;
-   SABnzbd demoted to optional legacy integration.
+- `download_requests` remains the user-facing request record.
+- `engine_downloads` and active segment rows are the durable transfer source of
+  truth.
+- The authenticated queue API filters items through the caller's download
+  associations.
+- The separately supervised worker owns transfer, finalization, import, and
+  cancellation. The web process never performs media-filesystem work.
+- Process shutdown stops new passes and drains the active pass to a durable
+  boundary. A supervisor watchdog recycles a worker whose persisted heartbeat
+  stops advancing.
+- Imports trigger a scan limited to the affected active library path IDs.
 
 ### Security
 
-- Server passwords live in `service_secrets`, encrypted at rest, never logged.
-- NZB content and article bodies are treated as untrusted input: parsers are
-  pure and size-bounded, extraction runs with path-traversal guards
-  (no absolute paths, no `..`, symlinks skipped), and assembled files only
-  land inside the engine working directory.
-- Outbound NNTP connections go only to explicitly configured servers — the
-  SSRF guard model from `safe-fetch` applies to host resolution.
+- Server passwords live in encrypted service secrets and are never returned in
+  queue or health responses.
+- NZB content, article bodies, archive names, and output paths are untrusted,
+  size-bounded inputs.
+- Extraction rejects absolute paths, traversal, and symlink escapes.
+- NNTP connections use TLS with certificate verification and target only the
+  explicitly configured server.
+- Public health exposes component status only; detailed stages and errors are
+  available to authenticated operators.
 
 ## Consequences
 
 ### Positive
 
-- Removes the last external dependency between "user clicks request" and
-  "file lands in the library," completing the standalone product goal.
-- Engine-owned state kills the polling/reconciliation complexity
-  (`missingTickCount`, duplicate-queue workflows) for built-in downloads.
-- Pure-core-first slicing keeps every step unit-testable without a usenet
-  account.
+- One application owns request, transfer, repair, extraction, queue, import,
+  and audit state.
+- Durable engine state eliminates external queue polling and reconciliation.
+- Authorization can be enforced against Nooklet-owned request associations.
+- Capacity, cancellation, and restart behavior are testable without another
+  application's API.
 
-### Negative
+### Costs and constraints
 
-- PAR2 repair and RAR extraction are substantial native-format work; until
-  slice 4, damaged posts fail instead of self-repairing, which is below
-  SABnzbd parity.
-- The in-process engine adds long-lived state to the Next.js server process;
-  restart-safety must be exercised deliberately in tests.
-
-### Risks to manage
-
-- Memory discipline: decode and write segments as streams; never buffer a
-  whole file.
-- Disk-space guards must check the working directory volume before accepting
-  an NZB (reuse the drive-overview readings).
-- Windows/Linux path semantics differ across dev (Windows) and deploy
-  (Linux container); assembly and extraction tests must cover both separators.
+- Native PAR2 and archive tooling remain container/runtime dependencies.
+- Transfer code requires strict streaming and disk-space discipline.
+- The supported topology is one web process and one worker process against one
+  SQLite database; this ADR does not claim horizontal scaling.
+- Windows and Linux path semantics require dedicated containment tests.
 
 ## Related
 
 - [`ADR-0001-architecture-principles.md`](ADR-0001-architecture-principles.md)
-- [`docs/product/behavior-matrix.md`](../product/behavior-matrix.md) — the
-  "Download enqueue and import" row is superseded by engine-owned wording once
-  slice 5 lands.
+- [`ADR-0004-isolate-filesystem-work-from-web-runtime.md`](ADR-0004-isolate-filesystem-work-from-web-runtime.md)
+- [`docs/product/behavior-matrix.md`](../product/behavior-matrix.md)

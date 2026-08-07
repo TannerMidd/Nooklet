@@ -1,5 +1,6 @@
 import { deleteIndexer, findIndexerById } from "@/modules/indexers/repositories/indexer-repository";
-import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
+import { createAuditEvent } from "@/modules/users/public";
 
 export class RemoveIndexerCommandError extends Error {
   constructor(message: string) {
@@ -9,12 +10,13 @@ export class RemoveIndexerCommandError extends Error {
 }
 
 export async function removeIndexerCommand(userId: string, id: string) {
-  const indexer = await findIndexerById(userId, id);
-  if (!indexer || indexer.userId !== userId) {
+  const ownerUserId = await resolveInstanceConfigurationOwnerId(userId);
+  const indexer = await findIndexerById(ownerUserId, id);
+  if (!indexer || indexer.userId !== ownerUserId) {
     throw new RemoveIndexerCommandError("Indexer not found.");
   }
 
-  if (!deleteIndexer(userId, id)) {
+  if (!deleteIndexer(ownerUserId, id)) {
     throw new RemoveIndexerCommandError("Indexer could not be removed.");
   }
 

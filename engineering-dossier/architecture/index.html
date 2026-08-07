@@ -104,7 +104,7 @@
             <div><dt>Breakdowns</dt><dd>12 self-contained</dd></div>
             <div><dt>Diagrams</dt><dd>Inline SVG, no runtime dependencies</dd></div>
             <div><dt>Modules</dt><dd>17 under <code>src/modules</code></dd></div>
-            <div><dt>Tables</dt><dd>43 in one SQLite file</dd></div>
+            <div><dt>Tables</dt><dd>44 in one SQLite file</dd></div>
             <div><dt>Baseline</dt><dd>current <code>main</code></dd></div>
           </dl>
           <div class="commit-stamp">
@@ -139,13 +139,14 @@
             <div class="section-heading section-heading-split" data-reveal>
               <div>
                 <p class="eyebrow">Breakdown 01</p>
-                <h2 id="bd01-title">Every write is a server action, not an endpoint.</h2>
+                <h2 id="bd01-title">Writes re-establish trust at their entry point.</h2>
               </div>
               <p>
-                Nooklet exposes three HTTP route handlers in total, and none of them mutate domain
-                state. Mutations travel through sixteen <code>"use server"</code> files, each one
-                re-establishing identity, re-validating input, and delegating to a module workflow
-                before a repository is allowed to touch SQLite.
+                Nooklet exposes three HTTP route files. Most mutations travel through sixteen
+                <code>"use server"</code> files across <code>src</code>: fifteen under <code>src/app</code>, plus the
+                layout sign-out action. The built-in queue's authenticated <code>POST</code> handler is the
+                deliberate HTTP exception. Each protected entry point authenticates, validates its input,
+                and delegates to a focused module operation.
               </p>
             </div>
 
@@ -242,7 +243,7 @@
 
                     <rect class="cpd-node cpd-node-data" x="90" y="736" width="400" height="76" rx="10" />
                     <text class="cpd-kicker" x="108" y="759">REPOSITORY</text>
-                    <text class="cpd-title" x="108" y="780">The only write path to the database</text>
+                    <text class="cpd-title" x="108" y="780">Transaction owner for this write</text>
                     <text class="cpd-path" x="108" y="799">service-connections/repositories/</text>
 
                     <path class="cpd-edge" d="M 290,812 V 838" />
@@ -271,17 +272,18 @@
                   performs no authorization. The server action then calls auth() and checks the role,
                   parses the FormData with a Zod schema, and consumes a rate limit. Each of those three
                   steps can short-circuit to a typed error state without writing anything. On success the
-                  action calls a module workflow, which calls a repository, which is the only layer that
-                  writes to SQLite through Drizzle. The action finishes with revalidatePath, and the
+                  action calls a module workflow, which calls the repository that owns this transaction
+                  through Drizzle. The action finishes with revalidatePath, and the
                   server re-renders the affected route.
                 </p>
               </div>
 
               <figcaption>
                 <span>Trace 01.</span> The proxy redirects; it does not authorize. A server action is a
-                directly callable POST endpoint, so every one of the sixteen action files re-establishes
-                identity with <code>auth()</code> rather than trusting that the request passed through the
-                matcher. Authorization, validation, and rate limiting are per-action responsibilities.
+                directly callable POST endpoint, so protected action files re-establish identity rather
+                than trusting that the request passed through the matcher. Login and bootstrap use their own
+                pre-session validation and rate limits; the queue <code>POST</code> authenticates and delegates its
+                validated control request to a workflow.
               </figcaption>
             </figure>
 
@@ -302,13 +304,13 @@
             <div class="section-heading section-heading-split" data-reveal>
               <div>
                 <p class="eyebrow">Breakdown 02</p>
-                <h2 id="bd02-title">Reads never make an HTTP hop.</h2>
+                <h2 id="bd02-title">Server-rendered reads do not make an HTTP hop.</h2>
               </div>
               <p>
                 A server component imports a module query as an ordinary function and calls it during
                 render. There is no fetch, no serialization boundary, and no endpoint in between. The
-                three route handlers that do exist serve authentication callbacks, the container health
-                probe, and one client-polled queue snapshot.
+                three route files that do exist serve authentication callbacks, the container health probe,
+                and the caller-scoped queue API used for polling and controls.
               </p>
             </div>
 
@@ -352,10 +354,10 @@
 
                     <rect class="cpd-node cpd-node-external" x="550" y="264" width="340" height="120" rx="10" />
                     <text class="cpd-kicker" x="568" y="287">THE ONLY ROUTE HANDLERS</text>
-                    <text class="cpd-title" x="568" y="308">Three, none serve pages</text>
+                    <text class="cpd-title" x="568" y="308">Three narrow HTTP files</text>
                     <text class="cpd-path" x="568" y="327">api/auth/[...nextauth]</text>
                     <text class="cpd-path" x="568" y="345">api/health</text>
-                    <text class="cpd-path" x="568" y="363">api/service-connections/sabnzbd/queue</text>
+                    <text class="cpd-path" x="568" y="363">api/downloads/queue</text>
 
                     <path class="cpd-edge" d="M 290,364 V 390" />
                     <path class="cpd-head" d="M 284.5,390 L 295.5,390 L 290,400 Z" />
@@ -378,16 +380,17 @@
                   A server component marked force-dynamic awaits auth(), then calls a module query as an
                   ordinary imported function. The query calls ensureDatabaseReady and runs a Drizzle select
                   in the same process, and the component streams HTML back. Alongside the spine, an aside
-                  notes the only three route handlers in the application: the Auth.js catch-all, the health
-                  probe, and the SABnzbd queue endpoint. None of them serve page data.
+                  notes the only three route files in the application: the Auth.js catch-all, the health
+                  probe, and the authenticated built-in queue API. Server-rendered page data stays on the
+                  direct query path; the queue is the explicit client-polled exception.
                 </p>
               </div>
 
               <figcaption>
-                <span>Trace 02.</span> Twenty-four query files call <code>ensureDatabaseReady()</code>
+                <span>Trace 02.</span> Fourteen production query files call <code>ensureDatabaseReady()</code>
                 directly rather than going through a repository. That is an accepted variance from the
-                documented layering, not an accident: repositories remain the only <em>write</em> path,
-                while reads are allowed to shape a result for one screen without a repository round trip.
+                documented layering, not an accident: reads may shape a result for one screen without a
+                repository round trip, while most writes use repository-owned transaction seams.
               </figcaption>
             </figure>
 
@@ -397,7 +400,7 @@
                 <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/src/app/%28workspace%29/library/page.tsx"><code>src/app/(workspace)/library/page.tsx</code></a></li>
                 <li><a href="https://github.com/TannerMidd/Nooklet/tree/main/src/modules/media-library/queries"><code>src/modules/media-library/queries/</code></a></li>
                 <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/src/app/api/health/route.ts"><code>src/app/api/health/route.ts</code></a></li>
-                <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/src/app/api/service-connections/sabnzbd/queue/route.ts"><code>src/app/api/service-connections/sabnzbd/queue/route.ts</code></a></li>
+                <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/src/app/api/downloads/queue/route.ts"><code>src/app/api/downloads/queue/route.ts</code></a></li>
               </ul>
             </div>
           </section>
@@ -488,36 +491,34 @@
                     <path class="cpd-edge cpd-edge-fail" d="M 245,62 H 30 V 334 H 46" />
                     <path class="cpd-head cpd-head-fail" d="M 46,328.5 L 46,339.5 L 56,334 Z" />
 
-                    <text class="cpd-lane" x="40" y="426">DOCUMENTED EXCEPTIONS</text>
+                    <text class="cpd-lane" x="40" y="426">ENFORCED PUBLIC SURFACE</text>
 
                     <rect class="cpd-node cpd-node-terminal" x="40" y="440" width="420" height="76" rx="10" />
-                    <text class="cpd-kicker" x="58" y="463">READS BYPASS REPOSITORIES</text>
-                    <text class="cpd-title" x="58" y="484">24 query files open the database</text>
-                    <text class="cpd-path" x="58" y="503">heaviest in media-library/queries/</text>
+                    <text class="cpd-kicker" x="58" y="463">CROSS-MODULE CONSUMERS</text>
+                    <text class="cpd-title" x="58" y="484">Import target public.ts facades</text>
+                    <text class="cpd-path" x="58" y="503">repositories and adapters stay internal</text>
 
                     <rect class="cpd-node cpd-node-terminal" x="470" y="440" width="420" height="76" rx="10" />
-                    <text class="cpd-kicker" x="488" y="463">NO WORKFLOW FOLDER</text>
-                    <text class="cpd-title" x="488" y="484">18 files import jobs/repositories</text>
-                    <text class="cpd-path" x="488" y="503">it is the de facto scheduling API</text>
+                    <text class="cpd-kicker" x="488" y="463">REPOSITORY CHECK</text>
+                    <text class="cpd-title" x="488" y="484">boundaries:check rejects bypasses</text>
+                    <text class="cpd-path" x="488" y="503">production modules are scanned</text>
                   </svg>
                 </div>
                 <p class="sr-only" id="bd03-fig-desc">
                   A caller in src/app imports from a module's public surface: commands, queries, or
                   workflows. Inside the module boundary sit four internal folders that callers must not
                   import directly: repositories, adapters, schemas, and types. A forbidden-import edge is
-                  drawn piercing the module boundary straight into repositories. Below the boundary, two
-                  documented exceptions: twenty-four query files open the database directly, and eighteen
-                  files outside the jobs module import its repository because that module has no workflows
-                  folder.
+                  drawn piercing the module boundary straight into repositories. Below the boundary, target
+                  modules expose explicit public.ts facades and a repository validator rejects production
+                  cross-module imports into repository or adapter internals.
                 </p>
               </div>
 
               <figcaption>
-                <span>Trace 03.</span> The rule holds almost everywhere, and the two places it bends are
-                worth knowing before you copy a pattern. <code>src/modules/jobs/</code> ships only
-                <code>queries/</code> and <code>repositories/</code>, so its repository <em>is</em> the
-                public API for scheduling &mdash; including from two server actions, which is deliberate:
-                a web action enqueues a job rather than doing filesystem work itself.
+                <span>Trace 03.</span> Cross-module production code imports target module facades instead of
+                repository or adapter internals. <code>npm run boundaries:check</code> makes that rule executable;
+                server actions still enqueue durable work through the jobs module's public API instead of doing
+                filesystem work in the request process.
               </figcaption>
             </figure>
 
@@ -525,7 +526,8 @@
               <p class="card-kicker">Owning source</p>
               <ul>
                 <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/docs/architecture/project-structure.md"><code>docs/architecture/project-structure.md</code></a></li>
-                <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/src/modules/jobs/repositories/job-repository.ts"><code>src/modules/jobs/repositories/job-repository.ts</code></a></li>
+                <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/src/modules/jobs/public.ts"><code>src/modules/jobs/public.ts</code></a></li>
+                <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/scripts/validate-module-boundaries.mjs"><code>scripts/validate-module-boundaries.mjs</code></a></li>
                 <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/src/app/%28workspace%29/library/actions.ts"><code>src/app/(workspace)/library/actions.ts</code></a></li>
                 <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/web-action-offload.test.ts"><code>src/lib/jobs/web-action-offload.test.ts</code></a></li>
               </ul>
@@ -609,7 +611,7 @@
 
                     <rect class="cpd-node cpd-node-domain" x="500" y="176" width="390" height="76" rx="10" />
                     <text class="cpd-kicker" x="518" y="199">SAME SHAPE, LARGER</text>
-                    <text class="cpd-title" x="518" y="220">16 phase files</text>
+                    <text class="cpd-title" x="518" y="220">13 phase/helper files</text>
                     <text class="cpd-path" x="518" y="239">downloads/import-completed-downloads/</text>
 
                     <rect class="cpd-node cpd-node-terminal" x="500" y="288" width="390" height="76" rx="10" />
@@ -624,7 +626,7 @@
                   normalization, filtering-scoring, persistence, and audit. Beside it, three examples of
                   how consistently the pattern is applied across the repository: search-indexers with
                   eight phase files behind a thirty-three line index, import-completed-downloads with
-                  sixteen phase files in the same shape, and season-fulfillment which is a single file
+                  thirteen phase/helper files in the same shape, and season-fulfillment which is a single file
                   with no phase folder at all.
                 </p>
               </div>
@@ -652,7 +654,7 @@
             <div class="section-heading section-heading-split" data-reveal>
               <div>
                 <p class="eyebrow">Breakdown 05</p>
-                <h2 id="bd05-title">One container, four processes, asymmetric restarts.</h2>
+                <h2 id="bd05-title">One container, one supervisor, three long-lived children.</h2>
               </div>
               <p>
                 A wedged bind mount blocks in the kernel and cannot be cancelled from JavaScript. Enough
@@ -751,8 +753,9 @@
                   and then runs the worker bundle once with --migrate-only, awaiting its exit so migrations
                   complete before any long-lived process opens SQLite. It then spawns three children: the
                   Next.js web server, the background worker, and a disposable storage probe. If the web
-                  process exits, the supervisor shuts the whole container down. If the worker exits, it is
-                  restarted with exponential backoff starting at one second and capped at thirty seconds.
+                process exits, the supervisor shuts the whole container down. If the worker exits or its persisted
+                heartbeat stops advancing, it is restarted with exponential backoff starting at one second and capped
+                at thirty seconds. Normal termination first asks the worker to drain its active pass.
                 </p>
               </div>
 
@@ -761,7 +764,8 @@
                 recoverable, so it backs off and restarts, and the failure counter resets to one once the
                 worker has survived sixty seconds. A web failure is not recoverable in place, so the
                 container exits and the orchestrator restarts it cleanly rather than serving a
-                half-dead runtime.
+                half-dead runtime. A watchdog also recycles a child whose heartbeat is stale for 120 seconds by
+                default; <code>SIGTERM</code> drains healthy in-flight work before the ten-second kill ceiling.
               </figcaption>
             </figure>
 
@@ -769,6 +773,7 @@
               <p class="card-kicker">Owning source</p>
               <ul>
                 <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/scripts/container-supervisor.mjs"><code>scripts/container-supervisor.mjs</code></a></li>
+                <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/scripts/lib/worker-heartbeat-watchdog.mjs"><code>scripts/lib/worker-heartbeat-watchdog.mjs</code></a></li>
                 <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/scripts/lib/storage-probe-coordinator.mjs"><code>scripts/lib/storage-probe-coordinator.mjs</code></a></li>
                 <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker-entry.ts"><code>src/lib/jobs/worker-entry.ts</code></a></li>
                 <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0004-isolate-filesystem-work-from-web-runtime.md"><code>docs/adr/ADR-0004-isolate-filesystem-work-from-web-runtime.md</code></a></li>
@@ -793,7 +798,7 @@
               <header class="tech-figure-header">
                 <div>
                   <p class="figure-id">TRACE 06 &middot; WORKER PASS ORDER</p>
-                  <h3 id="bd06-fig-title">One tick, seven lanes, two concurrency rules</h3>
+                  <h3 id="bd06-fig-title">One tick, seven job lanes plus maintenance</h3>
                 </div>
               </header>
 
@@ -841,7 +846,7 @@
                     <rect class="cpd-node cpd-node-domain" x="265" y="272" width="400" height="76" rx="10" />
                     <text class="cpd-kicker" x="283" y="295">ALONE, NO OVERLAP</text>
                     <text class="cpd-title" x="283" y="316">runMaintenancePass()</text>
-                    <text class="cpd-path" x="283" y="335">engine runner, imports, season plans</text>
+                    <text class="cpd-path" x="283" y="335">retention, engine, imports, season plans</text>
 
                     <path class="cpd-edge" d="M 465,348 V 366" />
                     <path class="cpd-edge" d="M 465,366 H 135 V 374" />
@@ -1314,12 +1319,12 @@
             <div class="section-heading section-heading-split" data-reveal>
               <div>
                 <p class="eyebrow">Breakdown 09</p>
-                <h2 id="bd09-title">Forty-three tables in one SQLite file.</h2>
+                <h2 id="bd09-title">Forty-four tables in one SQLite file.</h2>
               </div>
               <p>
-                One schema file declares every table. Each uses a text primary key, millisecond timestamps,
-                and cascade deletes to <code>users</code> for user-scoped rows. Secrets never sit inline on
-                a parent row; they live in dedicated side tables.
+                One schema file declares every table. Most entity rows use text identifiers and millisecond
+                timestamps; relationship tables use composite or parent keys, and foreign keys declare explicit
+                delete behavior. Service credentials live in dedicated side tables instead of parent rows.
               </p>
             </div>
 
@@ -1393,8 +1398,8 @@
                     <text class="cpd-path" x="640" y="358">watch_history_sync_runs</text>
                     <text class="cpd-path" x="640" y="376">watch_history_items</text>
 
-                    <rect class="cpd-zone" x="30" y="478" width="275" height="182" rx="12" />
-                    <text class="cpd-lane" x="46" y="504">PLATFORM &middot; 7</text>
+                    <rect class="cpd-zone" x="30" y="478" width="275" height="200" rx="12" />
+                    <text class="cpd-lane" x="46" y="504">PLATFORM &middot; 8</text>
                     <text class="cpd-path" x="46" y="528">service_connections</text>
                     <text class="cpd-path" x="46" y="546">service_secrets</text>
                     <text class="cpd-path" x="46" y="564">storage_snapshots</text>
@@ -1402,6 +1407,7 @@
                     <text class="cpd-path" x="46" y="600">notification_channels</text>
                     <text class="cpd-path" x="46" y="618">notification_channel_events</text>
                     <text class="cpd-path" x="46" y="636">notification_dispatch_audit</text>
+                    <text class="cpd-path" x="46" y="654">instance_configuration</text>
 
                     <rect class="cpd-zone" x="327" y="478" width="275" height="74" rx="12" />
                     <text class="cpd-lane" x="343" y="504">DOWNLOAD ENGINE &middot; 1</text>
@@ -1415,12 +1421,12 @@
                   </svg>
                 </div>
                 <p class="sr-only" id="bd09-fig-desc">
-                  Forty-three tables grouped by owning domain: four for identity and access, nine for the
+                  Forty-four tables grouped by owning domain: four for identity and access, nine for the
                   media library, seven for downloads, six for indexers, six for recommendations, three for
-                  watch history, seven platform tables covering service connections, storage snapshots,
+                  watch history, eight platform tables covering stable instance ownership, service connections, storage snapshots,
                   jobs and notifications, and one for the download engine. There is no sessions table
                   because Auth.js uses a JWT strategy and its jwt callback re-reads the live user on every
-                  request.
+                  request while requiring the token's password-version claim.
                 </p>
               </div>
 
@@ -1428,7 +1434,8 @@
                 <span>Trace 09.</span> The missing sessions table is the interesting one. Because the
                 <code>jwt</code> callback re-reads the user row on every request, disabling an account or
                 forcing a password change invalidates an already-issued token without any server-side
-                session store to purge. The <code>engine_downloads</code> row also carries the full NZB
+                session store to purge. Tokens issued before the password-version claim existed fail closed once
+                and require a fresh sign-in. The <code>engine_downloads</code> row also carries the full NZB
                 payload, which is what lets a restart re-run a transfer without returning to the indexer.
               </figcaption>
             </figure>
@@ -1840,18 +1847,13 @@
                 <tbody>
                   <tr>
                     <td><code>credential-vault</code> is a core module</td>
-                    <td>ADR-0001, <code>registry.ts</code> type union</td>
+                    <td>ADR-0001's historical module list</td>
                     <td>No such directory. Secret handling is split across <code>src/lib/security/</code>, service connections, and indexer repositories.</td>
                   </tr>
                   <tr>
                     <td><code>metadata</code> is a core module</td>
-                    <td>ADR-0001, <code>project-structure.md</code></td>
+                    <td>ADR-0001</td>
                     <td>No such directory. Metadata adapters live inside <code>service-connections</code>.</td>
-                  </tr>
-                  <tr>
-                    <td><code>registry.ts</code> lists the modules</td>
-                    <td>Implied by the file name</td>
-                    <td>It is a ten-entry catalog used to render placeholder screens. There are seventeen module directories.</td>
                   </tr>
                   <tr>
                     <td><code>engine_segments</code> stores per-segment progress</td>
@@ -1864,19 +1866,19 @@
                     <td>Nothing writes it. Assembly happens in place during <code>fetching</code>.</td>
                   </tr>
                   <tr>
-                    <td>Repositories are module-internal</td>
-                    <td><code>project-structure.md</code></td>
-                    <td>Holds except for <code>jobs</code>, whose repository is imported by eighteen files outside the module because it has no <code>workflows/</code> folder.</td>
+                    <td>Repositories and adapters are module-internal</td>
+                    <td><code>public.ts</code> facades plus <code>boundaries:check</code></td>
+                    <td>Enforced for production cross-module imports. The focused validator does not claim to prove every possible cycle or direct database read.</td>
                   </tr>
                   <tr>
-                    <td>Queries go through repositories</td>
+                    <td>Database access stays behind repositories</td>
                     <td>Layering convention</td>
-                    <td>Twenty-four query files call <code>ensureDatabaseReady()</code> directly. Reads may; writes may not.</td>
+                    <td>Fourteen production query files select directly. Four focused workflow/configuration files outside <code>repositories/</code> also own direct writes or transactions.</td>
                   </tr>
                   <tr>
                     <td>Multiple Usenet servers with priorities</td>
                     <td>ADR-0002</td>
-                    <td>A single <code>usenet-server</code> connection is resolved per user.</td>
+                    <td>One canonical instance-wide <code>usenet-server</code> connection is shared; each requesting user gets a distinct native <code>download_clients</code> row linked to it.</td>
                   </tr>
                 </tbody>
               </table>
@@ -1887,7 +1889,7 @@
               <ul>
                 <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0001-architecture-principles.md"><code>docs/adr/ADR-0001-architecture-principles.md</code></a></li>
                 <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0002-in-house-download-engine.md"><code>docs/adr/ADR-0002-in-house-download-engine.md</code></a></li>
-                <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/src/modules/registry.ts"><code>src/modules/registry.ts</code></a></li>
+                <li><a href="https://github.com/TannerMidd/Nooklet/tree/main/src/modules"><code>src/modules/</code></a></li>
                 <li><a href="https://github.com/TannerMidd/Nooklet/blob/main/docs/wiki/Documentation-Policy.md"><code>docs/wiki/Documentation-Policy.md</code></a></li>
               </ul>
             </div>

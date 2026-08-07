@@ -63,7 +63,7 @@ describe("disconnectServiceConnection", () => {
     ["ai-provider"],
     ["tautulli"],
     ["plex"],
-    ["sabnzbd"],
+    ["usenet-server"],
   ] as const)("forwards the %s service type to the repository and audit subject", async (serviceType) => {
     deleteMock.mockResolvedValue(true);
 

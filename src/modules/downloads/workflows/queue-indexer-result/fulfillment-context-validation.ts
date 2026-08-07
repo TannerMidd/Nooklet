@@ -1,4 +1,4 @@
-import { findTvEpisodeByIdForUser } from "@/modules/media-library/repositories/media-library-repository";
+import { findTvEpisodeByIdForUser } from "@/modules/media-library/public";
 import {
   findDownloadFulfillmentById,
   listDownloadFulfillmentEpisodes,

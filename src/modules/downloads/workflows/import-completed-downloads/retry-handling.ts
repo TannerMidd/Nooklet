@@ -15,7 +15,7 @@ import {
   reconcileSeasonCoverage,
 } from "@/modules/downloads/workflows/season-fulfillment";
 import { ensureSeasonFulfillmentForRequest } from "@/modules/downloads/workflows/season-fulfillment-adoption";
-import { findTvEpisodeByIdForUser } from "@/modules/media-library/repositories/media-library-repository";
+import { findTvEpisodeByIdForUser } from "@/modules/media-library/public";
 import { searchLibraryItemReleasesWorkflow } from "@/modules/media-library/workflows/search-library-item-releases";
 
 import { isRetryableCompletedMediaFailure } from "./file-inspection";

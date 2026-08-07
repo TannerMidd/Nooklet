@@ -100,9 +100,15 @@ export async function createDownloadClient(input: {
       statusMessage: input.statusMessage ?? null,
       isDefault: input.isDefault ?? false,
     })
+    .onConflictDoNothing({
+      target: [downloadClients.userId, downloadClients.serviceConnectionId],
+    })
     .run();
 
-  return findDownloadClientById(input.userId, id);
+  // Concurrent queue requests can both observe a missing client before either
+  // insert commits. The composite unique index elects one row; every caller
+  // then resolves that durable winner instead of surfacing a constraint error.
+  return findDownloadClientByServiceConnectionId(input.userId, input.serviceConnectionId);
 }
 
 export async function findDownloadClientById(userId: string, id: string) {

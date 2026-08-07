@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { type ConnectionActionState } from "@/app/(workspace)/settings/connections/action-state";
 import { prepareConnectionFormValues } from "@/app/(workspace)/settings/connections/connection-form-values";
-import { auth } from "@/auth";
+import { getProtectedActionSession as auth } from "@/modules/identity-access/workflows/get-protected-action-session";
 import { consumeRateLimit, formatRetryAfter } from "@/lib/security/rate-limit";
 import {
   apiKeyServiceConnectionSchema,

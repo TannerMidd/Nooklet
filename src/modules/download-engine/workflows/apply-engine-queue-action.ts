@@ -1,7 +1,7 @@
 import {
   checkpointDownloadRequestCancellation,
   listActiveRequestsForExternalQueueId,
-} from "@/modules/downloads/repositories/download-repository";
+} from "@/modules/downloads/public";
 import {
   findEngineDownloadById,
   isEngineDownloadPostProcessing,
@@ -11,7 +11,7 @@ import {
   setEngineDownloadPriority,
   setEngineDownloadState,
 } from "@/modules/download-engine/queue/engine-repository";
-import { type SabnzbdQueueActionInput } from "@/modules/service-connections/sabnzbd-queue-actions";
+import { type DownloadQueueActionInput } from "@/modules/download-engine/queue/download-queue-actions";
 import {
   checkpointSeasonFulfillmentCancellation,
   rollbackSeasonFulfillmentCancellation,
@@ -226,7 +226,7 @@ async function reorderToIndex(userId: string, orderedIds: string[], fromIndex: n
 
 export async function applyEngineQueueAction(
   userId: string,
-  action: SabnzbdQueueActionInput,
+  action: DownloadQueueActionInput,
 ): Promise<EngineQueueActionOutcome> {
   switch (action.type) {
     case "pauseQueue": {
@@ -275,10 +275,4 @@ export async function applyEngineQueueAction(
       return appliedOutcome;
     }
   }
-}
-
-/** True when the action's item id belongs to an engine download for the user. */
-export async function isEngineQueueItem(userId: string, action: SabnzbdQueueActionInput) {
-  if (action.type === "pauseQueue" || action.type === "resumeQueue") return false;
-  return Boolean(await findEngineDownloadById(userId, action.itemId));
 }

@@ -53,6 +53,12 @@ const standaloneTraceExcludes = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Local browser tests bind the dev server to the loopback address. Next's
+  // development asset guard otherwise rejects hydration requests even though
+  // the page and assets never leave the host.
+  ...(process.env.NODE_ENV === "development"
+    ? { allowedDevOrigins: ["127.0.0.1", "localhost"] }
+    : {}),
   // Emit a self-contained Node.js server bundle under .next/standalone for the
   // Docker runtime stage. See Dockerfile for how this is consumed.
   output: "standalone",

@@ -11,7 +11,7 @@ import {
   QuickActionTrigger,
 } from "@/components/layout/quick-action-palette";
 import { SignOutForm } from "@/components/layout/sign-out-form";
-import { SabnzbdQueueProvider } from "@/components/recommendations/sabnzbd-queue-provider";
+import { DownloadQueueProvider } from "@/components/recommendations/download-queue-provider";
 import { Drawer } from "@/components/ui/drawer";
 import { navigationGroups, type NavigationGroup } from "@/config/navigation";
 
@@ -103,7 +103,7 @@ export function AppShell({ children, user }: AppShellProps) {
   );
 
   return (
-    <SabnzbdQueueProvider>
+    <DownloadQueueProvider>
       <a
         href="#main-content"
         className="fixed left-3 top-3 z-[70] -translate-y-24 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-background transition focus:translate-y-0"
@@ -176,6 +176,6 @@ export function AppShell({ children, user }: AppShellProps) {
           onNavigate={closeMobileNav}
         />
       </Drawer>
-    </SabnzbdQueueProvider>
+    </DownloadQueueProvider>
   );
 }

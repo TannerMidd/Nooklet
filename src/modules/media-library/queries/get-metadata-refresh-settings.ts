@@ -1,4 +1,5 @@
-import { findJobByTarget } from "@/modules/jobs/repositories/job-repository";
+import { findJobByTarget } from "@/modules/jobs/public";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import { defaultMetadataRefreshIntervalMinutes } from "@/modules/media-library/schemas/metadata-refresh-schedule";
 
 export type MetadataRefreshSettings = {
@@ -11,7 +12,13 @@ export type MetadataRefreshSettings = {
 };
 
 export async function getMetadataRefreshSettings(userId: string): Promise<MetadataRefreshSettings> {
-  const job = await findJobByTarget(userId, "metadata-refresh", "media-library", "all");
+  const jobOwnerUserId = await resolveInstanceConfigurationOwnerId(userId);
+  const job = await findJobByTarget(
+    jobOwnerUserId,
+    "metadata-refresh",
+    "media-library",
+    "all",
+  );
 
   return {
     enabled: job?.isEnabled ?? false,

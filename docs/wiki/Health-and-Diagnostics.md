@@ -35,12 +35,12 @@ Interpret the result before restarting anything:
 
 | HTTP | `status` | Meaning | First action |
 | --- | --- | --- | --- |
-| `200` | `ok` | SQLite is ready and the worker has ticked recently without a recorded error. | No runtime recovery is required. Check the feature-specific screen if one operation still fails. |
+| `200` | `ok` | SQLite is ready, the worker has ticked recently without a recorded error, and the built-in engine is idle or healthy. | No runtime recovery is required. Check the feature-specific screen if one operation still fails. |
 | `200` | `degraded` | SQLite is ready and the worker is responsive, but a worker pass failed or the built-in download engine has a stalled/failed stage. | Open `/health`, then inspect `docker compose logs --tail=200 app` for the private error detail. |
 | `503` | `degraded` | SQLite is ready, but the isolated worker has not started or has made no proven progress for more than 60 seconds. | The web UI should remain available. Inspect worker/storage logs and host-drive health before recreating the container. |
 | `503` | `error` | Database initialization, migration, or readiness failed. | Do not delete the volume. Capture logs and make a verified backup before attempting repair. |
 
-The response has `Cache-Control: no-store`. A recent worker error is represented only as `worker.hasError: true`; its text remains in the server logs.
+The response has `Cache-Control: no-store`. It exposes only the overall status and three component status values; timestamps, counts, stages, and error text remain on the authenticated operator screen and in server logs.
 
 ## Probe contract
 
@@ -53,31 +53,11 @@ A healthy response resembles:
     "database": "ok",
     "backgroundWorker": "ok",
     "downloadEngine": "idle"
-  },
-  "worker": {
-    "started": true,
-    "runningPass": false,
-    "runningMaintenance": false,
-    "startedAt": "2026-07-20T17:00:00.000Z",
-    "activePassStartedAt": null,
-    "lastProgressAt": "2026-07-20T17:00:00.000Z",
-    "lastTickAt": "2026-07-20T17:00:00.000Z",
-    "lastSuccessAt": "2026-07-20T17:00:00.000Z",
-    "hasError": false
-  },
-  "downloadEngine": {
-    "activeCount": 0,
-    "stalledCount": 0,
-    "failedCount": 0,
-    "activeStage": null,
-    "lastProgressAt": null,
-    "hasLoopError": false
-  },
-  "timestamp": "2026-07-20T17:00:01.000Z"
+  }
 }
 ```
 
-The worker normally ticks every 15 seconds. Nooklet considers it unresponsive after 60 seconds without proven progress. `lastSuccessAt` is the most recent pass in which all worker lanes succeeded; `runningPass` and `activePassStartedAt` prevent a later timer tick from hiding a still-unresolved pass. `runningMaintenance` identifies active download/import maintenance.
+The worker normally ticks every 15 seconds. Nooklet considers it unresponsive after 60 seconds without proven persisted progress. The authenticated `/health` view shows the latest tick/success timestamps and maintenance state; the public response intentionally exposes only the compact readiness projection.
 
 `checks.downloadEngine` is `idle`, `ok`, or `degraded`. It is derived from durable engine rows and a small loop-error heartbeat stored beside SQLite. Fetching is considered stalled only after 15 minutes without persisted segment progress. Queue-only work uses a five-minute window, while assembly, repair, and extraction use much longer size-scaled windows. These thresholds are diagnostics: engine degradation remains HTTP 200 while the database and scheduler are responsive, and Nooklet does not kill or restart an active download because of this check.
 
@@ -99,17 +79,19 @@ docker compose logs --since=15m app
 docker compose logs -f app
 ```
 
-Useful log prefixes include:
+Useful structured event families include:
 
-- `[health]` — database readiness or migration failure while serving the probe.
-- `[background-worker]` — scheduled job, download import, reconciliation, or lease-heartbeat failure.
-- `[download-engine]` — detached engine-loop, transfer, or diagnostic persistence failure.
-- `[supervisor]` — child startup/restart, shutdown, or storage-probe deadline events.
-- Next.js startup output — invalid environment values, bind failures, or server startup failures.
+- `health_database_probe_failed` for database readiness or migration failure while serving the probe;
+- `worker_pass_error`, `worker_heartbeat_persistence_failed`, and `worker_engine_import_failed` for scheduled/maintenance work;
+- `download_engine_*` for runner and engine-heartbeat persistence failures;
+- `supervisor_*` and `worker_supervisor_*` for child startup, recycling, and shutdown; and
+- `[storage-probe]` or `[worker-watchdog]` helper output, plus Next.js startup output, for process-boundary failures that occur outside the application logger.
 
 Stop following logs with `Ctrl+C`; this does not stop the container.
 
 Treat logs as confidential. Although the public health response suppresses raw errors, service libraries and upstream tools can still include hostnames, paths, or operational details in server logs.
+
+Core health, worker, engine, and queue events use structured JSON in production and redact fields whose names or values look like credentials, tokens, authorization headers, or secret-bearing URLs. Supervisor prefixes and third-party runtime output remain separate log sources.
 
 ## Database readiness
 
@@ -134,17 +116,19 @@ Use a new filename on every run; the backup tool refuses to overwrite an existin
 
 ## Worker diagnostics
 
-The worker handles scheduled jobs, built-in download processing, completed-download imports, SABnzbd reconciliation, library scans, metadata refreshes, missing-content searches, watch-history syncs, and AI recommendation runs.
+The worker handles scheduled jobs, built-in download processing and imports, library scans, metadata refreshes, missing-content searches, watch-history syncs, AI recommendation runs, and operational-history retention.
 
 For a responsive but degraded worker:
 
 1. Open `/health` to confirm the failure is current.
-2. Inspect the latest `[background-worker]` entry.
+2. Inspect the latest `worker_pass_error`, `worker_heartbeat_persistence_failed`, or related worker event.
 3. Test the named integration from **Settings > Connections**, **Settings > Indexers**, or **Settings > Notifications**.
 4. Check **Settings > Storage** if the error concerns downloads or imports.
 5. Allow the next 15-second pass to retry transient import and integration failures.
 
 Restart only after checking the error. A restart clears the in-memory health summary, but it does not correct an unreachable service, bad credential, full staging drive, or invalid path mapping.
+
+The supervisors also watch the persisted worker heartbeat. If it has not advanced for 120 seconds (configurable with `NOOKLET_WORKER_STALE_AFTER_MS`, minimum 60 seconds), they terminate and restart only the worker child. Normal `SIGINT`/`SIGTERM` shutdown stops new passes and waits for the active pass to drain before the worker exits; a ten-second supervisor ceiling still prevents shutdown from hanging forever.
 
 The **Built-in download engine** card distinguishes idle, active, and degraded operation. It shows the persisted stage and progress time, unresolved infrastructure failures, and any unexpected detached-loop failure. Bad individual releases classified as content failures remain in Activity rather than degrading the engine as a whole.
 

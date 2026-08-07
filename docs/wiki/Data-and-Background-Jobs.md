@@ -1,6 +1,6 @@
 # Data and Background Jobs
 
-> Applies to the current `main` implementation. Last source review: 2026-07-20.
+> Applies to the current `main` implementation. Last source review: 2026-08-06.
 
 Nooklet uses one SQLite database for durable application state and a separately supervised worker process for scheduled workflows. The worker does not rely on an in-memory queue for ownership: schedules, claims, run tokens, heartbeats, and leases are persisted in the `jobs` table. Production web requests never start the worker or download runner in their own process.
 
@@ -21,16 +21,16 @@ The shipped Compose file overrides the container database URL to `file:/app/data
 
 ## Schema domains
 
-The current [schema](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/schema.ts) defines 42 SQLite tables. The grouping below is conceptual; foreign keys cross several groups.
+The current [schema](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/schema.ts) defines the SQLite tables below. The grouping is conceptual; foreign keys cross several groups, and the schema remains the count and column-level authority.
 
-| Domain | Tables | Purpose |
-| --- | ---: | --- |
-| Identity and configuration | 5 | Users, audit events, preferences, service connections, encrypted service secrets |
-| Library and indexers | 14 | Libraries, folders, titles, episodes, files, scans, indexers, categories, secrets, searches, protected search results |
-| Downloads | 8 | Download clients, durable season/episode fulfillments, physical requests, queue items, import runs/files, built-in engine records |
-| Watch history and jobs | 4 | History sources/runs/items and persisted jobs |
-| Recommendations | 6 | Runs, items, metrics, timeline events, feedback, hidden state |
-| Security and notifications | 5 | Rate limits, request-attempt guards, notification channels/events/delivery audit |
+| Domain | Purpose |
+| --- | --- |
+| Identity and configuration | Users, the stable instance-configuration owner, audit events, preferences, service connections, and encrypted service secrets |
+| Library and indexers | Libraries, folders, titles, episodes, files, scans, indexers, categories, secrets, searches, and protected search results |
+| Downloads | Durable season/episode fulfillments, physical requests, queue items, import runs/files, and built-in engine records |
+| Watch history and jobs | History sources/runs/items and persisted jobs |
+| Recommendations | Runs, items, metrics, timeline events, feedback, and hidden state |
+| Security and notifications | Rate limits, request-attempt guards, notification channels/events, and delivery audit |
 
 ```mermaid
 erDiagram
@@ -68,18 +68,20 @@ Seven persisted job types are supported:
 - `download-import`
 - `media-title-delete`
 
-Cancellation reconciliation, download imports, legacy SABnzbd reconciliation, and due season-fulfillment recovery are maintenance work run on each worker pass. User-requested scans, import retries, file deletions, and safe stop-then-remove title requests are also persisted as immediate jobs so their filesystem work never executes in the web process. A safe title-removal job re-enables its unique immediate job while downloader verification is pending and deletes only the library record after active associations clear. The built-in engine runner is kicked from maintenance and drains its own persisted queue.
+Cancellation reconciliation, built-in download imports, operational-history retention, and due season-fulfillment recovery are maintenance work run by the worker. User-requested scans, import retries, file deletions, and safe stop-then-remove title requests are also persisted as immediate jobs so their filesystem work never executes in the web process. A safe title-removal job re-enables its unique immediate job while downloader verification is pending and deletes only the library record after active associations clear. The built-in engine runner is kicked from maintenance and drains its own persisted queue.
 
 Filesystem-backed immediate jobs run serially first (`download-import`, `media-title-delete`, then `media-library-scan`). They do not use lease heartbeats as proof of worker progress, so a wedged mount cannot be hidden by an unrelated network job. Maintenance runs next, in this deliberate order:
 
-1. Start or wake the built-in engine runner.
-2. Reconcile due season-plan cancellations.
-3. Reconcile up to three due standalone request cancellations concurrently.
-4. Import completed built-in downloads.
-5. Import completed SABnzbd downloads, then reconcile duplicate and missing SAB queue rows.
+1. Prune due operational records once per day.
+2. Start or wake the built-in engine runner.
+3. Reconcile due season-plan cancellations.
+4. Reconcile up to three due standalone request cancellations concurrently.
+5. Import completed built-in downloads.
 6. Resume due season plans after cancellation, import, and failure evidence has been persisted.
 
-Cancellation intent is checkpointed in SQLite before external cleanup. A request or plan lease owns each reconciliation attempt, downloader queue/history IDs and files are removed and verified, and finalization uses the exact checkpoint timestamp as a compare-and-set fence. Failed verification is due again after five minutes rather than consuming every worker tick. Season cancellation enumerates every linked historical attempt; standalone cancellation is bounded and least-recently-attempted first so an unreachable client cannot starve import work.
+Cancellation intent is checkpointed in SQLite before cleanup. A request or plan lease owns each reconciliation attempt, built-in queue rows and files are removed and verified, and finalization uses the exact checkpoint timestamp as a compare-and-set fence. Failed verification is due again after five minutes rather than consuming every worker tick. Season cancellation enumerates every linked historical attempt; standalone cancellation is bounded and least-recently-attempted first so failed cleanup cannot starve import work.
+
+After an import, Nooklet queues a targeted library scan containing only the affected configured path IDs. The scan workflow revalidates those IDs as active paths owned by the stable instance configuration and fails closed on invalid input. Manual and scheduled scans may still cover every configured path.
 
 ## Season-plan recovery protocol
 
@@ -122,7 +124,7 @@ sequenceDiagram
   Repo->>DB: transactional eligibility check
   DB-->>Repo: row + unique run token + 5-minute lease
   Repo-->>Lane: claimed job
-  par Every 60 seconds while running
+  par Every 30 seconds while running
     Lane->>Repo: heartbeat(job id, run token)
     Repo->>DB: extend matching lease
   and Execute
@@ -148,15 +150,22 @@ Key timing values:
 | Season work lease | 15 minutes, renewed during work | [fulfillment work lease](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/season-fulfillment-work-lease.ts) |
 | Health stale threshold | 60 seconds | [worker readiness](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker-readiness.ts) |
 | Storage snapshot refresh / kill ceiling | 60 seconds / 30 seconds | [probe coordinator](https://github.com/TannerMidd/Nooklet/blob/main/scripts/lib/storage-probe-coordinator.mjs) |
+| Worker supervisor stale threshold | 120 seconds by default | [heartbeat watchdog](https://github.com/TannerMidd/Nooklet/blob/main/scripts/lib/worker-heartbeat-watchdog.mjs) |
 
 After filesystem work and maintenance finish, unrelated network/AI job types may run concurrently while only one job of a given type is claimed by this process at a time. The persisted run token prevents a stale claimant from completing a row it no longer owns. The overall pass is serialized: a timer tick that arrives while the previous pass is unresolved cannot update success or freshness.
+
+On `SIGINT` or `SIGTERM`, the worker stops accepting new passes and waits for its active pass to reach a durable boundary. The supervisor retains a ten-second termination ceiling for a genuinely wedged child. Separately, the supervisor recycles a child whose persisted heartbeat has not advanced within the configured stale window.
+
+## Operational retention
+
+Once per day, the worker removes audit events, notification dispatch audit rows, recommendation timeline events, and non-pending watch-history sync runs older than `OPERATIONAL_RETENTION_DAYS` (default 365; accepted range 30–3650). It does not delete recommendation items or watch-history content. Backup retention remains an operator responsibility.
 
 ## Health semantics
 
 The public `/api/health` route executes a real SQLite query and checks the atomically persisted worker heartbeat:
 
-- HTTP 200 with `status: "ok"` means the database is ready and the latest responsive worker pass has no recorded failure.
-- HTTP 200 with `status: "degraded"` means the worker is still ticking but a workload failed. This is intentionally considered container-responsive.
+- HTTP 200 with `status: "ok"` means the database is ready, the worker is responsive without a recorded pass failure, and the built-in engine is not degraded.
+- HTTP 200 with `status: "degraded"` means the worker is still responsive, but its latest pass failed or the built-in engine reported a stalled/unresolved infrastructure stage. This is intentionally considered container-responsive.
 - HTTP 503 means the worker is stopped/stale or database readiness failed.
 
 Authenticated operators can inspect capability blockers, the technical worker error, and job outcomes on `/health`. See [Health and Diagnostics](Health-and-Diagnostics) and [HTTP API](HTTP-API).
@@ -180,6 +189,6 @@ See [Backup, Restore, and Upgrades](Backup-Restore-and-Upgrades).
 - An uninterruptible host-mount syscall may require Docker or host repair. The process boundary keeps it from consuming the web process's event loop or libuv pool.
 - The public health probe reports worker responsiveness, not the success of every optional integration.
 - Migrations run at application startup. Back up before upgrading because rollback may require restoring the pre-upgrade database.
-- There is no automated restore drill in the current CI workflow.
+- Migration ordering and artifact presence are validated by `npm run migrations:check`; published migration files are append-only, including the two explicitly documented historical timestamp exceptions.
 
 Related: [Architecture](Architecture) | [Testing and CI](Testing-and-CI) | [Troubleshooting](Troubleshooting)

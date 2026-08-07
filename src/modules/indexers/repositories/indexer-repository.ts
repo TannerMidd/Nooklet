@@ -338,13 +338,8 @@ export async function listEnabledIndexersForMedia(
     .orderBy(asc(indexers.priority), asc(indexers.name))
     .all();
 
-  let rows = loadRows(userId);
-  if (rows.length === 0) {
-    const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
-    if (instanceOwnerId !== userId) {
-      rows = loadRows(instanceOwnerId);
-    }
-  }
+  const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
+  const rows = loadRows(instanceOwnerId);
 
   return Array.from(new Map(rows.map((row) => [row.indexer.id, row.indexer])).values());
 }

@@ -3,9 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/modules/downloads/queries/list-users-with-active-download-requests", () => ({
   listUsersWithActiveDownloadRequestsForImport: vi.fn(),
 }));
-vi.mock("@/modules/downloads/workflows/import-completed-downloads", () => ({
-  importCompletedDownloadsWorkflow: vi.fn(),
-}));
 vi.mock("@/modules/downloads/workflows/import-completed-engine-downloads", () => ({
   importCompletedEngineDownloadsWorkflow: vi.fn(),
 }));
@@ -20,12 +17,6 @@ vi.mock("@/modules/downloads/workflows/reconcile-season-fulfillment-cancellation
 }));
 vi.mock("@/modules/downloads/workflows/reconcile-download-request-cancellations", () => ({
   reconcilePendingDownloadRequestCancellations: vi.fn(),
-}));
-vi.mock("@/modules/downloads/workflows/reconcile-duplicate-queue-items", () => ({
-  reconcileDuplicateSabnzbdQueueItemsWorkflow: vi.fn(),
-}));
-vi.mock("@/modules/downloads/workflows/reconcile-missing-queue-items", () => ({
-  reconcileMissingSabnzbdQueueItemsWorkflow: vi.fn(),
 }));
 vi.mock("@/modules/jobs/repositories/job-repository", () => ({
   claimDueJobs: vi.fn(),
@@ -52,14 +43,10 @@ vi.mock("@/lib/jobs/worker-heartbeat", async (importOriginal) => {
 });
 
 import { listUsersWithActiveDownloadRequestsForImport } from "@/modules/downloads/queries/list-users-with-active-download-requests";
-import { importCompletedDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-downloads";
 import { importCompletedEngineDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-engine-downloads";
 import { ensureEngineRunnerStarted } from "@/modules/download-engine/runtime/engine-runner";
-import { ImportCompletedDownloadsWorkflowError } from "@/modules/downloads/workflows/import-completed-downloads/errors";
 import { reconcilePendingSeasonFulfillmentCancellations } from "@/modules/downloads/workflows/reconcile-season-fulfillment-cancellations";
 import { reconcilePendingDownloadRequestCancellations } from "@/modules/downloads/workflows/reconcile-download-request-cancellations";
-import { reconcileDuplicateSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-duplicate-queue-items";
-import { reconcileMissingSabnzbdQueueItemsWorkflow } from "@/modules/downloads/workflows/reconcile-missing-queue-items";
 import {
   claimDueJobs,
   completeJobRun,
@@ -73,16 +60,18 @@ import { searchMissingMonitoredContentWorkflow } from "@/modules/media-library/w
 
 import { backgroundWorkerStaleAfterMs } from "@/lib/jobs/worker-readiness";
 
-import { getBackgroundWorkerHealth, runDueJobs } from "./worker";
+import {
+  createWorkerFilesystemProgressHeartbeat,
+  getBackgroundWorkerHealth,
+  runDueJobs,
+  stopBackgroundWorker,
+} from "./worker";
 
 const listActiveUsersMock = vi.mocked(listUsersWithActiveDownloadRequestsForImport);
-const importCompletedDownloadsMock = vi.mocked(importCompletedDownloadsWorkflow);
 const importCompletedEngineDownloadsMock = vi.mocked(importCompletedEngineDownloadsWorkflow);
 const ensureEngineRunnerMock = vi.mocked(ensureEngineRunnerStarted);
 const reconcileCancellationsMock = vi.mocked(reconcilePendingSeasonFulfillmentCancellations);
 const reconcileRequestCancellationsMock = vi.mocked(reconcilePendingDownloadRequestCancellations);
-const reconcileDuplicateQueueMock = vi.mocked(reconcileDuplicateSabnzbdQueueItemsWorkflow);
-const reconcileMissingQueueMock = vi.mocked(reconcileMissingSabnzbdQueueItemsWorkflow);
 const claimDueJobsMock = vi.mocked(claimDueJobs);
 const completeJobRunMock = vi.mocked(completeJobRun);
 const createImmediateJobMock = vi.mocked(createImmediateJob);
@@ -96,29 +85,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   listActiveUsersMock.mockResolvedValue([]);
   importCompletedEngineDownloadsMock.mockResolvedValue(null);
-  importCompletedDownloadsMock.mockResolvedValue({
-    matchedCount: 0,
-    importedCount: 0,
-    failedCount: 0,
-    importedFileCount: 0,
-    affectedLibraryPathIds: [],
-    retry: { attemptedCount: 0, queuedCount: 0, failedCount: 0 },
-    discovery: { attempted: false, ok: true, message: null },
-  });
-  reconcileMissingQueueMock.mockResolvedValue({
-    missingCount: 0,
-    attemptedCount: 0,
-    queuedCount: 0,
-    failedCount: 0,
-    graceCount: 0,
-    awaitingImportCount: 0,
-  });
-  reconcileDuplicateQueueMock.mockResolvedValue({
-    duplicateGroupCount: 0,
-    keptCount: 0,
-    removedCount: 0,
-    failedCount: 0,
-  });
   claimDueJobsMock.mockResolvedValue([]);
   scanMediaLibraryMock.mockResolvedValue({ discoveredFileCount: 0, matchedTitleCount: 0 } as never);
   searchMissingContentMock.mockResolvedValue({ searchedCount: 0, queuedCount: 0, unmatchedCount: 0 });
@@ -140,15 +106,21 @@ describe("runDueJobs", () => {
 
     await runDueJobs();
 
-    expect(importCompletedDownloadsMock).toHaveBeenNthCalledWith(1, "user1");
-    expect(importCompletedDownloadsMock).toHaveBeenNthCalledWith(2, "user2");
+    expect(importCompletedEngineDownloadsMock).toHaveBeenNthCalledWith(
+      1,
+      "user1",
+      {},
+      { onFilesystemProgress: expect.any(Function) },
+    );
+    expect(importCompletedEngineDownloadsMock).toHaveBeenNthCalledWith(
+      2,
+      "user2",
+      {},
+      { onFilesystemProgress: expect.any(Function) },
+    );
     expect(reconcileRequestCancellationsMock).toHaveBeenCalledTimes(1);
     expect(reconcileRequestCancellationsMock.mock.invocationCallOrder[0])
-      .toBeLessThan(importCompletedDownloadsMock.mock.invocationCallOrder[0]);
-    expect(reconcileMissingQueueMock).toHaveBeenNthCalledWith(1, "user1");
-    expect(reconcileMissingQueueMock).toHaveBeenNthCalledWith(2, "user2");
-    expect(reconcileDuplicateQueueMock).toHaveBeenNthCalledWith(1, "user1");
-    expect(reconcileDuplicateQueueMock).toHaveBeenNthCalledWith(2, "user2");
+      .toBeLessThan(importCompletedEngineDownloadsMock.mock.invocationCallOrder[0]);
     expect(claimDueJobsMock).toHaveBeenCalledWith("watch-history-sync", expect.any(Date), 1);
     expect(claimDueJobsMock).toHaveBeenCalledWith("media-library-scan", expect.any(Date), 1);
     expect(claimDueJobsMock).toHaveBeenCalledWith("recommendation-run", expect.any(Date), 1);
@@ -156,29 +128,16 @@ describe("runDueJobs", () => {
 
   it("continues scheduled jobs when a completed-download import fails", async () => {
     listActiveUsersMock.mockResolvedValue(["user1", "user2"]);
-    importCompletedDownloadsMock.mockImplementation(async (userId) => {
+    importCompletedEngineDownloadsMock.mockImplementation(async (userId: string) => {
       if (userId === "user1") {
-        throw new Error("SABnzbd is unavailable.");
+        throw new Error("Engine output is unavailable.");
       }
-
-      return {
-        matchedCount: 0,
-        importedCount: 0,
-        failedCount: 0,
-        importedFileCount: 0,
-        affectedLibraryPathIds: [],
-        retry: { attemptedCount: 0, queuedCount: 0, failedCount: 0 },
-        discovery: { attempted: false, ok: true, message: null },
-      };
+      return null;
     });
 
     await runDueJobs();
 
-    expect(importCompletedDownloadsMock).toHaveBeenCalledTimes(2);
-    expect(reconcileMissingQueueMock).toHaveBeenCalledTimes(1);
-    expect(reconcileMissingQueueMock).toHaveBeenCalledWith("user2");
-    expect(reconcileDuplicateQueueMock).toHaveBeenCalledTimes(1);
-    expect(reconcileDuplicateQueueMock).toHaveBeenCalledWith("user2");
+    expect(importCompletedEngineDownloadsMock).toHaveBeenCalledTimes(2);
     expect(claimDueJobsMock).toHaveBeenCalledWith("watch-history-sync", expect.any(Date), 1);
     expect(claimDueJobsMock).toHaveBeenCalledWith("media-library-scan", expect.any(Date), 1);
     expect(claimDueJobsMock).toHaveBeenCalledWith("recommendation-run", expect.any(Date), 1);
@@ -194,27 +153,6 @@ describe("runDueJobs", () => {
     cancelledCount: 0,
     pendingCount: 0,
     failedCount: 0,
-  });
-
-  it("treats an absent optional SABnzbd connection as a successful no-op", async () => {
-    listActiveUsersMock.mockResolvedValue(["user1"]);
-    importCompletedDownloadsMock.mockRejectedValue(
-      new ImportCompletedDownloadsWorkflowError(
-        "sabnzbd_not_connected",
-        "Connect SABnzbd before importing completed downloads.",
-      ),
-    );
-
-    await runDueJobs();
-
-    expect(reconcileDuplicateQueueMock).not.toHaveBeenCalled();
-    expect(reconcileMissingQueueMock).not.toHaveBeenCalled();
-    expect(claimDueJobsMock).toHaveBeenCalledWith("watch-history-sync", expect.any(Date), 1);
-    expect(claimDueJobsMock).toHaveBeenCalledWith("media-library-scan", expect.any(Date), 1);
-    expect(claimDueJobsMock).toHaveBeenCalledWith("recommendation-run", expect.any(Date), 1);
-    expect(getBackgroundWorkerHealth()).toMatchObject({
-      lastError: null,
-    });
   });
 
   it("does not refresh its tick when a prior maintenance pass is still stuck", async () => {
@@ -241,6 +179,36 @@ describe("runDueJobs", () => {
 
     releaseCancellationPass();
     await firstPass;
+  });
+
+  it("stops accepting passes and drains the active pass before shutdown resolves", async () => {
+    let releaseCancellationPass!: () => void;
+    reconcileCancellationsMock.mockImplementationOnce(() => new Promise((resolve) => {
+      releaseCancellationPass = () => resolve({
+        attemptedCount: 0,
+        cancelledCount: 0,
+        pendingCount: 0,
+        failedCount: 0,
+      });
+    }));
+
+    const activePass = runDueJobs();
+    await vi.waitFor(() => expect(reconcileCancellationsMock).toHaveBeenCalled());
+    const claimCountAtShutdown = claimDueJobsMock.mock.calls.length;
+    let drainResolved = false;
+    const drain = stopBackgroundWorker().then(() => {
+      drainResolved = true;
+    });
+
+    await Promise.resolve();
+    expect(drainResolved).toBe(false);
+    await runDueJobs();
+    expect(claimDueJobsMock).toHaveBeenCalledTimes(claimCountAtShutdown);
+
+    releaseCancellationPass();
+    await activePass;
+    await drain;
+    expect(drainResolved).toBe(true);
   });
 
   it("does not let other lane heartbeats mask a wedged filesystem scan", async () => {
@@ -280,7 +248,7 @@ describe("runDueJobs", () => {
     expect(ensureEngineRunnerMock).toHaveBeenCalledOnce();
   });
 
-  it("routes a request-scoped completed import through both downloaders before maintenance", async () => {
+  it("routes a request-scoped completed import through the built-in downloader", async () => {
     const requestId = "11111111-1111-4111-8111-111111111111";
     claimDueJobsMock.mockImplementation(async (jobType) => jobType === "download-import"
       ? [{
@@ -297,21 +265,38 @@ describe("runDueJobs", () => {
       importedCount: 1,
       failedCount: 0,
     } as never);
-    importCompletedDownloadsMock.mockRejectedValue(new ImportCompletedDownloadsWorkflowError(
-      "sabnzbd_not_connected",
-      "SABnzbd is not connected.",
-    ));
-
     await runDueJobs();
 
-    expect(importCompletedEngineDownloadsMock).toHaveBeenCalledWith("user1", { requestId });
-    expect(importCompletedDownloadsMock).toHaveBeenCalledWith("user1", { requestId });
+    expect(importCompletedEngineDownloadsMock).toHaveBeenCalledWith(
+      "user1",
+      { requestId },
+      { onFilesystemProgress: expect.any(Function) },
+    );
     expect(completeJobRunMock).toHaveBeenCalledWith("job-import", "run-import");
     expect(failJobRunMock).not.toHaveBeenCalledWith(
       "job-import",
       "run-import",
       expect.any(String),
     );
+  });
+
+  it("keeps a long import live only when its filesystem operation advances", () => {
+    let now = 0;
+    const recordedAt: number[] = [];
+    const reportProgress = createWorkerFilesystemProgressHeartbeat({
+      now: () => now,
+      intervalMs: 5_000,
+      record: (at) => recordedAt.push(at.getTime()),
+    });
+
+    for (now = 0; now <= 180_000; now += 30_000) {
+      reportProgress();
+      reportProgress();
+    }
+
+    expect(recordedAt).toEqual([0, 30_000, 60_000, 90_000, 120_000, 150_000, 180_000]);
+    expect(Math.max(...recordedAt.slice(1).map((at, index) => at - recordedAt[index])))
+      .toBeLessThan(backgroundWorkerStaleAfterMs);
   });
 
   it("fails an invalid or unmatched request-scoped import instead of reporting false success", async () => {
@@ -468,7 +453,7 @@ describe("runDueJobs", () => {
   });
 
   // The maintenance pass routinely outlives backgroundWorkerStaleAfterMs: the
-  // import sweep runs per user against a 20s SABnzbd timeout, and season
+  // import sweep runs per user against a bounded downloader timeout, and season
   // recovery runs indexer searches per fulfillment. Recording progress only at
   // the end made a busy worker read as dead, which took /api/health to 503 and
   // the container to unhealthy.

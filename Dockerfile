@@ -1,9 +1,17 @@
 # syntax=docker/dockerfile:1.7
 
+# ---------- build base ----------
+# Pin npm separately because the Node image's bundled npm can lag the project
+# package-manager contract and silently ignore strict install-script policy.
+FROM node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d AS build-base
+ARG NPM_VERSION=11.16.0
+RUN npm install --global "npm@${NPM_VERSION}" \
+  && test "$(npm --version)" = "${NPM_VERSION}"
+
 # ---------- deps ----------
 # Install dependencies with build tools available so better-sqlite3 can compile
 # native bindings if no prebuilt binary matches the runtime platform.
-FROM node:24-bookworm-slim AS deps
+FROM build-base AS deps
 WORKDIR /app
 
 RUN apt-get update \
@@ -11,10 +19,10 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json* ./
-RUN npm ci --include=dev
+RUN npm ci --include=dev --strict-allow-scripts
 
 # ---------- builder ----------
-FROM node:24-bookworm-slim AS builder
+FROM build-base AS builder
 WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -32,7 +40,7 @@ COPY . .
 RUN npm run build
 
 # ---------- runner ----------
-FROM node:24-bookworm-slim AS runner
+FROM node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d AS runner
 WORKDIR /app
 
 # The built-in download engine shells out to par2 (repair + obfuscated-name
@@ -66,6 +74,8 @@ COPY --from=builder /app/scripts/backup-database.mjs ./scripts/backup-database.m
 COPY --from=builder /app/scripts/recover-account.mjs ./scripts/recover-account.mjs
 COPY --from=builder /app/scripts/container-supervisor.mjs ./scripts/container-supervisor.mjs
 COPY --from=builder /app/scripts/lib/storage-probe-coordinator.mjs ./scripts/lib/storage-probe-coordinator.mjs
+COPY --from=builder /app/scripts/lib/worker-heartbeat-watchdog.mjs ./scripts/lib/worker-heartbeat-watchdog.mjs
+COPY --from=builder /app/scripts/lib/structured-log.mjs ./scripts/lib/structured-log.mjs
 COPY --from=builder /app/scripts/validate-media-directory.mjs ./scripts/validate-media-directory.mjs
 
 # Persist data outside the image. The volume is mounted here in compose.

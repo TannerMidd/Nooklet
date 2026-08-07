@@ -3,7 +3,7 @@ import {
   findRecommendationItemForUser,
   upsertRecommendationItemHiddenState,
 } from "@/modules/recommendations/repositories/recommendation-repository";
-import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+import { createAuditEvent } from "@/modules/users/public";
 
 export async function updateRecommendationHiddenState(
   userId: string,

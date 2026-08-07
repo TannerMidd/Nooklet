@@ -1,13 +1,14 @@
-import { type SabnzbdQueueItem, type SabnzbdQueueSnapshot } from "@/lib/integrations/sabnzbd";
+import {
+  type DownloadQueueItem,
+  type DownloadQueueSnapshot,
+} from "@/modules/download-engine/queue/download-queue";
 import {
   listActiveEngineDownloads,
   type EngineDownloadRecord,
 } from "@/modules/download-engine/queue/engine-repository";
 
 /**
- * Maps engine queue state onto the download-queue snapshot shape the UI
- * already renders, so In Progress, the nav badge, and per-title status chips
- * work identically for the built-in engine and legacy SABnzbd.
+ * Maps persisted engine state onto the browser-facing download queue shape.
  */
 
 function formatBytes(value: number) {
@@ -66,7 +67,7 @@ function stateLabel(record: EngineDownloadRecord) {
   }
 }
 
-function toQueueItem(record: EngineDownloadRecord): SabnzbdQueueItem {
+function toQueueItem(record: EngineDownloadRecord): DownloadQueueItem {
   const progressPercent = record.totalSegments > 0
     ? Math.min(100, (record.completedSegments / record.totalSegments) * 100)
     : 0;
@@ -93,7 +94,7 @@ function toQueueItem(record: EngineDownloadRecord): SabnzbdQueueItem {
   };
 }
 
-export async function getEngineQueueSnapshot(userId: string): Promise<SabnzbdQueueSnapshot> {
+export async function getEngineQueueSnapshot(userId: string): Promise<DownloadQueueSnapshot> {
   const records = await listActiveEngineDownloads(userId);
   const fetching = records.find((record) => record.state === "fetching");
   const speed = fetching?.bytesPerSecond ?? null;

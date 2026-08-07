@@ -11,7 +11,8 @@ Nooklet stores application state in SQLite. In the standard Docker deployment, t
 | --- | --- | --- | --- |
 | Users, settings, requests, history, jobs, and audit events | `/app/data/nooklet.db` | Yes | Run the Nooklet backup tool and copy the result off the container host. |
 | Authentication and encryption keys | `.env` on the host | No | Back up securely and separately; never commit it. |
-| Built-in download workspace | `/app/data/downloads` by image default, or `DOWNLOAD_ENGINE_DIR` | No | Preserve only if resuming active downloads matters. A bind-mounted staging drive needs its own backup policy. |
+| Built-in in-flight workspace | `/app/data/engine-work` by default, or `DOWNLOAD_ENGINE_WORK_DIR` | No | Preserve only if attempting low-level recovery of active downloads; per-segment resume is not currently supported. |
+| Built-in completed-output staging | `/app/data/downloads` by image default, or `DOWNLOAD_ENGINE_DIR` | No | Preserve unimported completed output. A bind-mounted staging drive needs its own backup policy. |
 | Final movie and TV files | Operator-defined bind mounts | No | Protect with the media storage system's backup or redundancy plan. |
 | Compose overrides and reverse-proxy configuration | Host files | No | Store sanitized templates in version control; protect live secrets separately. |
 
@@ -75,7 +76,7 @@ A backup policy is incomplete until restoration has been rehearsed on an isolate
 
 Restoration replaces users, configuration, history, jobs, and request state with the backup's point-in-time contents. It does not roll back media files or downloads. Reconcile any files created after the backup manually.
 
-The repository provides a backup creator that runs SQLite `quick_check`, but it does **not** provide an automated restore tool, recovery orchestrator, or end-to-end restore-verification script. The commands below are a manual operator procedure. Rehearse them on an isolated instance and verify the recovered application yourself.
+The repository provides a backup creator that runs SQLite `quick_check` and an automated test that copies a real online backup into a fresh database and verifies exact rows, blobs, `quick_check`, and `integrity_check`. It does **not** provide an operator-facing restore command or production recovery orchestrator. The commands below remain a manual operator procedure: rehearse them on an isolated instance and verify the recovered application yourself.
 
 ### Preflight
 
@@ -117,6 +118,9 @@ If startup fails, preserve the restored file and logs. Do not repeatedly downgra
 ## Safe upgrade runbook
 
 Use this sequence for routine source-based Docker deployments:
+
+> [!IMPORTANT]
+> When upgrading from a release that still offered an external compatibility downloader, finish or cancel every active external-client request before pulling the native-engine-only release. Startup now performs a fail-closed preflight before migrations and reports the blocking request IDs. Return to the previous release to finish/cancel those rows, then retry the upgrade. Terminal historical rows are preserved; obsolete external connection/path settings are no longer runtime configuration.
 
 1. Review the release/change scope and verify the current instance is healthy.
 2. Record the current revision:
@@ -199,6 +203,7 @@ Retention is an operator responsibility; the repository does not install a sched
 ## Source references
 
 - [Database backup implementation](https://github.com/TannerMidd/Nooklet/blob/main/scripts/backup-database.mjs)
+- [Automated backup/restore integrity drill](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/backup-database-drill.test.ts)
 - [Database initialization and automatic migrations](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/client.ts)
 - [Docker Compose storage](https://github.com/TannerMidd/Nooklet/blob/main/docker-compose.yml)
 - [Docker runtime](https://github.com/TannerMidd/Nooklet/blob/main/Dockerfile)

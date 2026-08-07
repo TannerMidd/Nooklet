@@ -139,3 +139,31 @@ export async function hasActiveDownloadAssociationForLibraryPath(
     .limit(1)
     .get());
 }
+
+/** Instance library paths are shared, so management must consider every user's work. */
+export async function hasAnyActiveDownloadAssociationForLibraryPath(pathId: string) {
+  const database = ensureDatabaseReady();
+
+  return Boolean(database
+    .select({ id: downloadRequests.id })
+    .from(downloadRequests)
+    .leftJoin(downloadQueueItems, eq(downloadQueueItems.requestId, downloadRequests.id))
+    .leftJoin(engineDownloads, eq(engineDownloads.id, downloadQueueItems.externalQueueId))
+    .leftJoin(downloadImportRuns, eq(downloadImportRuns.requestId, downloadRequests.id))
+    .where(or(
+      and(
+        eq(downloadRequests.targetLibraryPathId, pathId),
+        or(
+          inArray(downloadRequests.status, [...activeDownloadRequestStatuses]),
+          inArray(downloadQueueItems.status, [...activeQueueItemStatuses]),
+          inArray(engineDownloads.state, [...activeEngineDownloadStates]),
+        ),
+      ),
+      and(
+        eq(downloadImportRuns.libraryPathId, pathId),
+        inArray(downloadImportRuns.status, [...activeImportRunStatuses]),
+      ),
+    ))
+    .limit(1)
+    .get());
+}

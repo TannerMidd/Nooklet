@@ -425,14 +425,17 @@ describe("queueIndexerResultAction", () => {
   it("maps queue workflow errors to the action state", async () => {
     authMock.mockResolvedValue({ user: { id: "u1" } } as never);
     queueMock.mockRejectedValue(
-      new QueueIndexerResultWorkflowError("sabnzbd_not_connected", "Connect SABnzbd before queueing releases."),
+      new QueueIndexerResultWorkflowError(
+        "downloader_not_connected",
+        "Add a Usenet server before queueing releases.",
+      ),
     );
 
     const result = await queueIndexerResultAction(initialQueueIndexerResultActionState, validForm());
 
     expect(result).toEqual({
       status: "error",
-      message: "Connect SABnzbd before queueing releases.",
+      message: "Add a Usenet server before queueing releases.",
       downloadRequestId: null,
     });
   });

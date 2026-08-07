@@ -9,7 +9,7 @@ import {
   findUserByEmail,
   recordFailedLogin,
   updateUserPassword,
-} from "@/modules/users/repositories/user-repository";
+} from "@/modules/users/public";
 
 const dummyPasswordHash = `scrypt$2$32768$8$3$${"0".repeat(32)}$${"0".repeat(128)}`;
 

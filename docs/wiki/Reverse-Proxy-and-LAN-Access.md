@@ -143,12 +143,12 @@ These settings solve different problems:
 | `PRIVATE_SERVICE_HOST_ALLOWLIST` | Outbound | Exact private hosts Nooklet may contact for integrations. |
 | `ALLOW_PRIVATE_SERVICE_HOSTS` | Outbound | Broad private-host permission for a tightly trusted LAN. |
 
-A reverse proxy does not automatically authorize Nooklet to contact SABnzbd, Plex, Tautulli, an AI server, or a private indexer.
+A reverse proxy does not automatically authorize Nooklet to contact Plex, Tautulli, an AI server, or a private indexer.
 
 For an exact outbound allowlist:
 
 ```dotenv
-PRIVATE_SERVICE_HOST_ALLOWLIST=sabnzbd;plex.local;192.168.1.25
+PRIVATE_SERVICE_HOST_ALLOWLIST=plex.local;tautulli.local;192.168.1.25
 ALLOW_PRIVATE_SERVICE_HOSTS=false
 ```
 

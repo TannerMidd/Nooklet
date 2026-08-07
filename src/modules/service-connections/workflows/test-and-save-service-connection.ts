@@ -10,7 +10,7 @@ import {
   type ApiKeyServiceConnectionInput,
 } from "@/modules/service-connections/schemas/service-connection";
 import { getServiceConnectionDefinition } from "@/modules/service-connections/service-definitions";
-import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+import { createAuditEvent } from "@/modules/users/public";
 
 type TestAndSaveInput = AiProviderConnectionInput | ApiKeyServiceConnectionInput;
 

@@ -10,7 +10,7 @@ import {
   downloadEngineWorkSnapshotId,
   downloadWorkspaceSnapshotId,
   findStorageSnapshot,
-} from "@/modules/storage/repositories/storage-snapshot-repository";
+} from "@/modules/storage/public";
 import { getStorageSnapshotStatus } from "@/modules/storage/storage-snapshot-status";
 
 export type EnqueueNzbDownloadErrorCode =

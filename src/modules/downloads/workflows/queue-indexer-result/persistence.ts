@@ -40,9 +40,7 @@ export async function persistQueuedIndexerResultDownload(input: {
     externalQueueIds: input.submission.queueIds,
     sizeBytes: input.resolvedResult.result.sizeBytes,
     category: input.submission.category,
-    statusMessage: input.downloadClient.kind === "nooklet"
-      ? "Queued in the Nooklet downloader."
-      : "Queued in SABnzbd.",
+    statusMessage: "Queued in the Nooklet downloader.",
   });
 
   return {

@@ -1,7 +1,7 @@
 import { encryptSecret, maskSecret } from "@/lib/security/secret-box";
 import {
   createAuditEvent,
-} from "@/modules/users/repositories/user-repository";
+} from "@/modules/users/public";
 import {
   type AiProviderConnectionInput,
   type ApiKeyServiceConnectionInput,

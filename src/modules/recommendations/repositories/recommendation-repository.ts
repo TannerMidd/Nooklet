@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
@@ -386,13 +386,72 @@ export async function listRecommendationExclusionItems(
     .all();
 }
 
-export async function listRecommendationHistoryRows(
-  userId: string,
-  mediaType?: RecommendationMediaType,
-) {
+export async function getRecommendationHistoryPageRows(input: {
+  userId: string;
+  mediaType?: RecommendationMediaType;
+  hideExisting: boolean;
+  hideLiked: boolean;
+  hideDisliked: boolean;
+  hideHidden: boolean;
+  page: number;
+  pageSize: number;
+}) {
   const database = ensureDatabaseReady();
+  const mediaConditions = [eq(recommendationRuns.userId, input.userId)];
+  if (input.mediaType) mediaConditions.push(eq(recommendationItems.mediaType, input.mediaType));
 
-  return database
+  const filteredConditions = [...mediaConditions];
+  if (input.hideExisting) filteredConditions.push(eq(recommendationItems.existingInLibrary, false));
+  if (input.hideLiked) {
+    filteredConditions.push(or(
+      isNull(recommendationFeedback.feedback),
+      ne(recommendationFeedback.feedback, "like"),
+    )!);
+  }
+  if (input.hideDisliked) {
+    filteredConditions.push(or(
+      isNull(recommendationFeedback.feedback),
+      ne(recommendationFeedback.feedback, "dislike"),
+    )!);
+  }
+  if (input.hideHidden) {
+    filteredConditions.push(or(
+      isNull(recommendationItemStates.isHidden),
+      eq(recommendationItemStates.isHidden, false),
+    )!);
+  }
+
+  const totalCount = database
+    .select({ value: count(recommendationItems.id) })
+    .from(recommendationItems)
+    .innerJoin(recommendationRuns, eq(recommendationRuns.id, recommendationItems.runId))
+    .where(and(...mediaConditions))
+    .get()?.value ?? 0;
+  const filteredCount = database
+    .select({ value: count(recommendationItems.id) })
+    .from(recommendationItems)
+    .innerJoin(recommendationRuns, eq(recommendationRuns.id, recommendationItems.runId))
+    .leftJoin(
+      recommendationFeedback,
+      and(
+        eq(recommendationFeedback.itemId, recommendationItems.id),
+        eq(recommendationFeedback.userId, input.userId),
+      ),
+    )
+    .leftJoin(
+      recommendationItemStates,
+      and(
+        eq(recommendationItemStates.itemId, recommendationItems.id),
+        eq(recommendationItemStates.userId, input.userId),
+      ),
+    )
+    .where(and(...filteredConditions))
+    .get()?.value ?? 0;
+  const totalPages = Math.max(1, Math.ceil(filteredCount / input.pageSize));
+  const currentPage = Math.min(input.page, totalPages);
+  const offset = filteredCount === 0 ? 0 : (currentPage - 1) * input.pageSize;
+
+  const rows = database
     .select({
       itemId: recommendationItems.id,
       runId: recommendationRuns.id,
@@ -416,26 +475,23 @@ export async function listRecommendationHistoryRows(
       recommendationFeedback,
       and(
         eq(recommendationFeedback.itemId, recommendationItems.id),
-        eq(recommendationFeedback.userId, userId),
+        eq(recommendationFeedback.userId, input.userId),
       ),
     )
     .leftJoin(
       recommendationItemStates,
       and(
         eq(recommendationItemStates.itemId, recommendationItems.id),
-        eq(recommendationItemStates.userId, userId),
+        eq(recommendationItemStates.userId, input.userId),
       ),
     )
-    .where(
-      mediaType
-        ? and(
-            eq(recommendationRuns.userId, userId),
-            eq(recommendationItems.mediaType, mediaType),
-          )
-        : eq(recommendationRuns.userId, userId),
-    )
+    .where(and(...filteredConditions))
     .orderBy(desc(recommendationRuns.createdAt), asc(recommendationItems.position))
+    .limit(input.pageSize)
+    .offset(offset)
     .all();
+
+  return { totalCount, filteredCount, totalPages, currentPage, offset, rows };
 }
 
 export async function findRecommendationItemForUser(userId: string, itemId: string) {

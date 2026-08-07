@@ -1,6 +1,6 @@
 # Architecture
 
-> Applies to the current `main` implementation. Last source review: 2026-07-20.
+> Applies to the current `main` implementation. Last source review: 2026-08-06.
 
 Nooklet is a supervised, single-container application with separate Node.js processes for the Next.js web server and background worker. SQLite is the durable system of record and the cross-process coordination boundary; media and download files remain on operator-controlled filesystems. This separation keeps the UI available when an unhealthy Docker Desktop bind mount blocks a worker-side filesystem call.
 
@@ -15,14 +15,13 @@ flowchart LR
   App["Nooklet web\nNext.js request process"]
   Worker["Nooklet worker\njobs + downloads + imports"]
   DB[("SQLite\n/app/data/nooklet.db")]
-  Stage["Download staging\nDOWNLOAD_ENGINE_DIR"]
+  Stage["Download work + completed staging\nDOWNLOAD_ENGINE_WORK_DIR / DOWNLOAD_ENGINE_DIR"]
   Media["TV and movie libraries\napproved roots"]
   AI["OpenAI-compatible provider"]
   Metadata["TMDB / TVDB"]
   History["Plex / Tautulli / Trakt"]
   Indexers["Newznab indexers"]
   News["Usenet server"]
-  SAB["SABnzbd\nlegacy optional"]
   Notify["Discord / Apprise / webhook"]
 
   Person --> Proxy --> App
@@ -30,17 +29,19 @@ flowchart LR
   Worker <--> DB
   Worker <--> Stage
   Worker <--> Media
-  App --> Worker
   App --> AI
   App --> Metadata
   App --> History
   App --> Indexers
+  Worker --> AI
+  Worker --> Metadata
+  Worker --> History
+  Worker --> Indexers
   Worker --> News
-  Worker --> SAB
   Worker --> Notify
 ```
 
-The reverse proxy is not included in the shipped container. Operators exposing Nooklet beyond loopback are responsible for TLS, ingress restrictions, and correct proxy-header handling. See [Security Model](Security-Model).
+The web and worker do not use a direct in-process or HTTP control channel: web requests persist state and job/control intent in SQLite, and the worker claims it there. Both processes can call remote services for the workflows they own. The reverse proxy is not included in the shipped container. Operators exposing Nooklet beyond loopback are responsible for TLS, ingress restrictions, and correct proxy-header handling. See [Security Model](Security-Model).
 
 ## Internal dependency direction
 
@@ -64,7 +65,7 @@ flowchart TD
   Ports --> Files
 ```
 
-The architectural rule is that UI code delegates work through a server action or route boundary and does not call vendor adapters directly. Workflows own orchestration, validation, persistence, and failure semantics. The governing intent is recorded in [ADR-0001](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0001-architecture-principles.md).
+The architectural rule is that UI code delegates work through a server action or route boundary and does not call vendor adapters directly. Workflows own orchestration, validation, persistence, and failure semantics. Cross-module production code must not import another module's `repositories/` or `adapters/` internals; modules with a `public.ts` facade expose narrow capabilities there. `npm run boundaries:check` enforces that focused private-folder rule, but does not prove every possible module cycle or internal boundary. The governing intent is recorded in [ADR-0001](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0001-architecture-principles.md).
 
 ## Request execution
 
@@ -75,7 +76,7 @@ sequenceDiagram
   participant Boundary as Server action / route
   participant Auth as Auth and validation
   participant Workflow as Domain workflow
-  participant Data as SQLite / filesystem
+  participant Data as SQLite / durable job intent
   participant Adapter as External adapter
 
   User->>UI: Submit a task
@@ -141,17 +142,17 @@ The physical modules under [`src/modules`](https://github.com/TannerMidd/Nooklet
 | `admin` | Administrative queries and operational views |
 | `discover` | TMDB-backed discovery rails and title search |
 | `download-engine` | NZB parsing, NNTP transfer, repair, extraction, and engine queue |
-| `downloads` | Durable season fulfillment, request association, enqueue, import, retry, and legacy reconciliation |
+| `downloads` | Durable season fulfillment, request association, enqueue, built-in import, retry, and cancellation reconciliation |
 | `identity-access` | Login, authorization, and first-admin bootstrap |
 | `indexers` | Indexer configuration, search, normalization, and protected result storage |
-| `instance-config` | Resolution of shared instance configuration ownership |
+| `instance-config` | Persisted stable ownership for shared instance configuration |
 | `jobs` | Persisted schedules, claims, leases, and job history |
 | `media-library` | Libraries, folders, titles, episodes, scans, monitoring, and release selection |
 | `notifications` | Channel configuration, dispatch, and delivery audit |
 | `preferences` | Per-user recommendation and history defaults |
 | `readiness` | Capability-level setup and health evaluation |
 | `recommendations` | AI runs, enrichment, history, feedback, and analytics |
-| `service-connections` | External connection configuration, verification, secrets, and queue views |
+| `service-connections` | External connection configuration, verification, and encrypted secrets |
 | `storage` | Persisted staging/destination snapshots and isolated capacity inspection |
 | `users` | Accounts, roles, password hashing, and recovery state |
 | `watch-history` | Manual, Plex, Tautulli, and Trakt history synchronization |
@@ -191,6 +192,8 @@ The shipped Compose configuration persists `/app/data` in a named volume and pub
 - SQLite and durable control rows coordinate the two children. Process-local import locks remain worker-only implementation details and are not distributed coordination primitives.
 - A process restart reclaims persisted jobs through leases, but an interrupted native download restarts from its stored NZB rather than resuming individual segments.
 - Season recovery schedules and renewable per-plan work leases survive restart in SQLite. The maintenance loop is serialized inside the single supported worker process.
+- The worker drains an active pass during normal termination; the supervisor recycles it if its persisted heartbeat stops advancing beyond the watchdog threshold.
+- Shared service, indexer, library, and path configuration resolves through one persisted instance owner and does not change merely because that user's role or enabled state changes.
 - Media-mount failures are contained from ordinary web navigation, but Nooklet cannot repair a damaged host disk or cancel a filesystem syscall already in uninterruptible kernel sleep.
 - A single Usenet service connection is currently resolved. Multi-server priority and block-account scheduling described in ADR-0002 are not implemented.
 - Current authentication is local credentials only. Trakt accepts an OAuth access token as connection data, but Nooklet does not expose Trakt as an Auth.js sign-in provider.

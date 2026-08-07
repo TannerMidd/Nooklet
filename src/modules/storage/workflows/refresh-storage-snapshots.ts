@@ -7,14 +7,14 @@ import {
   listActiveMediaLibraryPaths,
   updateMediaLibraryPathSpace,
   type ActiveMediaLibraryPathRecord,
-} from "@/modules/media-library/repositories/media-library-repository";
+} from "@/modules/media-library/public";
 import {
   downloadEngineWorkSnapshotId,
   downloadWorkspaceSnapshotId,
   libraryDestinationSnapshotId,
   upsertStorageSnapshot,
 } from "@/modules/storage/repositories/storage-snapshot-repository";
-import { listUsers } from "@/modules/users/repositories/user-repository";
+import { listUsers } from "@/modules/users/public";
 
 function isMissingPathError(error: unknown) {
   return Boolean(error && typeof error === "object" && "code" in error && error.code === "ENOENT");

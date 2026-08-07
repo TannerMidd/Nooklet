@@ -31,7 +31,7 @@ beforeEach(() => {
 });
 
 describe("listIndexerSettings", () => {
-  it("returns user-scoped indexer settings without encrypted secrets", async () => {
+  it("returns instance-scoped indexer settings without encrypted secrets", async () => {
     const userId = await seedUser();
     const otherUserId = await seedUser();
 
@@ -61,8 +61,8 @@ describe("listIndexerSettings", () => {
 
     const settings = await listIndexerSettings(userId);
 
-    expect(settings).toHaveLength(1);
-    expect(settings[0]).toMatchObject({
+    expect(settings).toHaveLength(2);
+    expect(settings.find((setting) => setting.name === "Main indexer")).toMatchObject({
       name: "Main indexer",
       maskedApiKey: "ma*******et",
       categories: [
@@ -71,5 +71,6 @@ describe("listIndexerSettings", () => {
       ],
     });
     expect(JSON.stringify(settings)).not.toContain("main-secret");
+    expect(JSON.stringify(settings)).not.toContain("other-secret");
   });
 });

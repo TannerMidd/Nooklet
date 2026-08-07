@@ -5,7 +5,7 @@ import {
   updateDownloadQueueItemStatus,
   updateDownloadRequestStatus,
 } from "@/modules/downloads/repositories/download-repository";
-import { setTvEpisodeHasFile } from "@/modules/media-library/repositories/media-library-repository";
+import { setTvEpisodeHasFile } from "@/modules/media-library/public";
 import { scheduleSeasonFulfillmentAfterRequest } from "@/modules/downloads/workflows/season-fulfillment-terminal-scheduling";
 import {
   acquireSeasonFulfillmentWorkLease,

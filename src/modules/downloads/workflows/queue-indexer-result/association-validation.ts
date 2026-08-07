@@ -2,7 +2,7 @@ import {
   findMediaTitleByIdForUser,
   findTvEpisodeByIdForUser,
   findTvSeasonByIdForUser,
-} from "@/modules/media-library/repositories/media-library-repository";
+} from "@/modules/media-library/public";
 
 import { QueueIndexerResultWorkflowError } from "./errors";
 import { type QueueIndexerResultInput } from "./request-validation";

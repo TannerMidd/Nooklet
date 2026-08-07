@@ -234,17 +234,8 @@ export async function listActiveMediaLibraryPaths(userId: string): Promise<Activ
     .where(and(eq(mediaLibraryPaths.userId, ownerUserId), eq(mediaLibraryPaths.status, "active")))
     .all();
 
-  const ownedRows = loadRows(userId);
-  const ownedTypes = new Set(ownedRows.map(({ library }) => library.mediaType));
   const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
-  if (instanceOwnerId === userId || ownedTypes.size === 2) {
-    return ownedRows;
-  }
-
-  return [
-    ...ownedRows,
-    ...loadRows(instanceOwnerId).filter(({ library }) => !ownedTypes.has(library.mediaType)),
-  ];
+  return loadRows(instanceOwnerId);
 }
 
 export async function markMediaLibraryPathScanned(pathId: string, scannedAt: Date = new Date()) {

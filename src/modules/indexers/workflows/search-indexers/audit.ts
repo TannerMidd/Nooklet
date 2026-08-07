@@ -1,4 +1,4 @@
-import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+import { createAuditEvent } from "@/modules/users/public";
 import { type ScoredIndexerSearchExecution } from "./filtering-scoring";
 import { type PersistedIndexerSearch } from "./persistence";
 import { type ValidatedIndexerSearchRequest } from "./request-validation";

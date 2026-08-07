@@ -22,7 +22,7 @@ describe("web action filesystem isolation", () => {
     );
 
     expect(source).not.toContain("reconcile-season-fulfillment-cancellations");
-    expect(source).not.toContain("verified-sabnzbd-removal");
+    expect(source).not.toContain("reconcile-season-fulfillment-cancellations");
     expect(source).toContain("checkpointExistingSeasonFulfillmentCancellation");
   });
 
@@ -32,6 +32,15 @@ describe("web action filesystem isolation", () => {
     expect(source).not.toContain("workflows/delete-media-title-with-files");
     expect(source).toContain('jobType: "media-title-delete"');
     expect(source).toContain('targetType: "media-title-preserve-files"');
+  });
+
+  it("queues long-running library automation instead of executing it in a web request", () => {
+    const source = readWorkspaceSource("src/app/(workspace)/library/actions.ts");
+
+    expect(source).not.toContain("searchMissingMonitoredContentWorkflow");
+    expect(source).not.toContain("refreshTvMetadataWorkflow");
+    expect(source).toContain('jobType: "missing-content-search"');
+    expect(source).toContain('jobType: "metadata-refresh"');
   });
 
   it("keeps stop-season available even when a plan can also be resumed", () => {

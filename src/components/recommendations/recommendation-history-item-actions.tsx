@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { RecommendationFeedbackActions } from "@/components/recommendations/recommendation-feedback-actions";
 import { RecommendationHiddenToggleButton } from "@/components/recommendations/recommendation-hidden-toggle-button";
-import { RecommendationSabnzbdStatus } from "@/components/recommendations/recommendation-sabnzbd-status";
+import { RecommendationDownloadStatus } from "@/components/recommendations/recommendation-download-status";
 import {
   type RecommendationFeedbackValue,
   type RecommendationMediaType,
@@ -41,7 +41,7 @@ export function RecommendationHistoryItemActions({
 
   return (
     <div className="mt-4">
-      <RecommendationSabnzbdStatus
+      <RecommendationDownloadStatus
         title={title}
         year={year}
         mediaType={mediaType}

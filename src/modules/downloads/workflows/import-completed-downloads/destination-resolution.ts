@@ -6,10 +6,10 @@ import {
 import {
   listTvEpisodesForTitle,
   type TvEpisodeRecord,
-} from "@/modules/media-library/repositories/media-library-repository";
+} from "@/modules/media-library/public";
 
 import { type MatchedCompletedDownload } from "./request-matching";
-import { resolveCompletedDownloadSourcePath } from "./source-path-mapping";
+import { resolveCompletedDownloadSourcePath } from "./source-path";
 
 export type FailedCompletedDownloadResolution = {
   kind: "failed";
@@ -33,7 +33,6 @@ export type ResolvedCompletedDownload = FailedCompletedDownloadResolution | Impo
 export async function resolveCompletedDownloadDestinations(
   userId: string,
   matches: MatchedCompletedDownload[],
-  options: { sourcePathKind?: "sabnzbd" | "local" } = {},
 ): Promise<ResolvedCompletedDownload[]> {
   const resolvedDownloads: ResolvedCompletedDownload[] = [];
 
@@ -42,7 +41,7 @@ export async function resolveCompletedDownloadDestinations(
       resolvedDownloads.push({
         kind: "failed",
         match,
-        message: match.historyItem.failMessage ?? "SABnzbd reported that the download failed.",
+        message: match.historyItem.failMessage ?? "The downloader reported that the download failed.",
       });
       continue;
     }
@@ -51,7 +50,7 @@ export async function resolveCompletedDownloadDestinations(
       resolvedDownloads.push({
         kind: "failed",
         match,
-        message: "SABnzbd did not report a completed download folder.",
+        message: "The downloader did not report a completed download folder.",
       });
       continue;
     }
@@ -97,10 +96,7 @@ export async function resolveCompletedDownloadDestinations(
         title: importItem.title,
         episode: importItem.episode,
         titleEpisodes,
-        sourceRootPath: await resolveCompletedDownloadSourcePath(
-          match.historyItem.storagePath,
-          { trustedLocalSource: options.sourcePathKind === "local" },
-        ),
+        sourceRootPath: await resolveCompletedDownloadSourcePath(match.historyItem.storagePath),
       });
     } catch (error) {
       resolvedDownloads.push({

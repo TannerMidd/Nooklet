@@ -22,19 +22,48 @@ jobs:
       SECRET_BOX_KEY: ci-secret-box-key-that-is-at-least-thirty-two-characters
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
+
+      - name: Use the pinned npm release
+        run: npm install --global npm@11.16.0
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Audit production dependencies
+        run: npm run audit:dependencies
+
+      - name: Generate production dependency SBOM
+        run: npm sbom --omit=dev --sbom-format=cyclonedx > nooklet-sbom.cdx.json
+
+      - name: Upload dependency SBOM
+        uses: actions/upload-artifact@v7
+        with:
+          name: nooklet-sbom-${{ github.run_id }}-${{ github.run_attempt }}
+          path: nooklet-sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Validate Wiki source
         run: npm run docs:wiki:check
+
+      - name: Validate engineering dossier and generated setup commands
+        run: npm run docs:dossier:check
+
+      - name: Validate documentation links
+        run: npm run docs:links:check
+
+      - name: Validate migration history
+        run: npm run migrations:check
+
+      - name: Validate module boundaries
+        run: npm run boundaries:check
 
       - name: Prepare runtime directories
         run: mkdir -p data /tmp/nooklet-media
@@ -45,8 +74,17 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Test
+      - name: Test Node.js infrastructure scripts
+        run: npm run test:scripts
+
+      - name: Test application
         run: npm test
+
+      - name: Install Chromium for browser smoke
+        run: npx playwright install --with-deps chromium
+
+      - name: Test first-run and authenticated browser flow
+        run: npm run test:e2e
 
       - name: Build standalone production bundle
         run: npm run build
@@ -60,7 +98,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Build production image
         run: docker build --tag nooklet-ci:${{ github.sha }} .
@@ -89,6 +127,15 @@ jobs:
             --name "$container" \
             --cap-drop ALL \
             --security-opt no-new-privileges:true \
+            --read-only \
+            --tmpfs /app/data:rw,noexec,nosuid,nodev,uid=1000,gid=1000,mode=0700,size=1g \
+            --tmpfs /app/.next/cache:rw,noexec,nosuid,nodev,uid=1000,gid=1000,mode=0700,size=128m \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,mode=1777,size=512m \
+            --pids-limit 512 \
+            --memory 3g \
+            --log-driver json-file \
+            --log-opt max-size=10m \
+            --log-opt max-file=3 \
             --publish 127.0.0.1::42021 \
             --env APP_URL=http://127.0.0.1:42021 \
             --env AUTH_SECRET="$auth_secret" \

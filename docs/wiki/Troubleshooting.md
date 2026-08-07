@@ -34,18 +34,18 @@ Use [Health and diagnostics](Health-and-Diagnostics) to interpret `ok`, HTTP-200
 | Symptom | Most likely boundary | Start here |
 | --- | --- | --- |
 | Container exits immediately | Invalid/missing environment value or startup error | Validate Compose quietly, then inspect the first startup error in logs. |
-| Container is `unhealthy` | Database failed or worker stopped/stale | Query `/api/health`; preserve the volume and inspect `[health]`/`[background-worker]` logs. |
-| Probe is `200` but `degraded` | Recent worker workload failure | Read `/health` and logs; test the named integration/storage path. |
+| Container is `unhealthy` | Database failed or worker stopped/stale | Query `/api/health`; preserve the volume and inspect `health_*`, `worker_*`, and supervisor events. |
+| Probe is `200` but `degraded` | Recent worker workload failure or degraded built-in engine | Read `/health` and logs; follow the named integration, storage, or engine recovery detail. |
 | Browser cannot connect | Wrong bind address/port, stopped container, or firewall | Compare `.env`, `docker compose ps`, and `docker compose port app 42021`. |
 | Proxy returns `502` | Wrong upstream or Nooklet is unavailable | Query the probe directly from the proxy host/network. |
 | Sign-in redirects to `localhost` | Incorrect `APP_URL` or stale container environment | Set the canonical browser origin and force-recreate. |
-| “Not enough free disk space” despite a spacious media drive | Built-in staging workspace is on another filesystem | Inspect **Settings > Storage** and move/bind `DOWNLOAD_ENGINE_DIR` to the spacious staging drive. |
+| “Not enough free disk space” despite a spacious media drive | Engine work or completed-output staging is on a constrained filesystem | Inspect both locations in **Settings > Storage** and move or expand the constrained one. |
 | Host path such as `F:\Movies` is not found | A Docker install needs container-side paths | Bind the host folder, then configure the right-hand container path such as `/media/movies`. |
 | Library path is outside approved roots | Path and `APPROVED_MEDIA_ROOTS` disagree | Approve the container root, recreate, then register a contained directory. |
 | Storage is reachable but read-only | Host permissions or mount mode deny the unprivileged container user | Correct host permissions/mount flags; do not make the container privileged. |
 | Private service host is blocked | SSRF policy denied a LAN/loopback target | Add the exact hostname/IP to `PRIVATE_SERVICE_HOST_ALLOWLIST` and recreate. |
 | Service test rejects a redirect | Outbound redirects are intentionally refused | Configure the final direct endpoint URL. |
-| SAB download finishes but will not import | SAB path is not visible/mapped inside Nooklet | Bind the completed folder and configure `SABNZBD_PATH_MAPPINGS` or approved roots. |
+| Built-in download finishes but will not import | Worker, completed-output staging, or destination is unavailable | Inspect Activity and `/health`; verify `DOWNLOAD_ENGINE_DIR`, the selected active library path, and both mounts' permissions. |
 | Environment/mount edit has no effect | Container was restarted, not recreated | Run `docker compose up -d --build --force-recreate`. |
 | “Container name is already in use” | Another Nooklet project uses the base fixed name | Assign unique project/container/image names; see [Multi-instance deployments](Multi-Instance-Deployments). |
 | Docker reports `OCI runtime exec failed`, `setns`, or a defunct container | Stale Docker runtime/container namespace rather than an application error | Preserve the mount inventory, remove only the identified service container without `-v`, restart the Docker engine if required, and recreate. |
@@ -111,7 +111,7 @@ For database failure:
 
 For a stale worker:
 
-1. inspect `[background-worker]` messages;
+1. inspect `worker_*`, `download_engine_*`, and supervisor events;
 2. look for a blocked event loop, repeated database contention, or startup failure;
 3. confirm the container has adequate CPU/memory; and
 4. recreate only after correcting configuration or resource pressure.
@@ -120,28 +120,30 @@ An HTTP-200 `degraded` response is different: the worker is responsive and Docke
 
 ## “Not enough free disk space”
 
-The built-in downloader checks the filesystem containing `DOWNLOAD_ENGINE_DIR`, not the final movie/TV library drive. It keeps headroom for active data, assembly/unpacking, and a safety reserve.
+The built-in downloader checks both the in-flight filesystem containing `DOWNLOAD_ENGINE_WORK_DIR` and the completed-output filesystem containing `DOWNLOAD_ENGINE_DIR`, not the final movie/TV library drive. It keeps headroom for active data, assembly/unpacking, and a safety reserve; the more constrained engine filesystem limits admission.
 
 For a new NZB, required free space is:
 
 ```text
-512 MiB + (2 × remaining bytes in active built-in downloads) + (2 × the NZB's declared bytes)
+512 MiB + sum(total bytes + remaining bytes for active built-in downloads) + (2 x the NZB's declared bytes)
 ```
 
-That means a 10 GiB release with no active downloads needs about 20.5 GiB free in the staging workspace even when the final media destination has much more space.
+That means a 10 GiB release with no active downloads needs about 20.5 GiB free on both engine filesystems even when the final media destination has much more space.
 
 ### Diagnose
 
 1. Open **Settings > Storage**.
-2. Read the download workspace's **effective path**, free space, active reservation, and maximum new download size.
+2. Read the engine work and completed-output **effective paths**, free space, active reservation, and maximum new download size.
 3. Remember that Docker displays paths inside the container.
-4. Compare the workspace mount with `docker compose.yml` and your override.
+4. Compare both locations with `docker compose.yml`, `.env`, and your override.
 
-### Move staging to a spacious host drive
+### Move a constrained engine location
 
 In `.env`:
 
 ```dotenv
+# Normally keep scratch work on Docker's Linux-native data volume.
+DOWNLOAD_ENGINE_WORK_DIR=/app/data/engine-work
 DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine
 ```
 
@@ -169,7 +171,7 @@ Then recreate and re-check **Settings > Storage**:
 docker compose up -d --build --force-recreate
 ```
 
-Deleting the 512 MiB reserve or pointing staging directly at the final library is not the fix; the workspace needs room for incomplete, assembled, repaired, and unpacked data.
+If `DOWNLOAD_ENGINE_WORK_DIR` is the constrained location, expand Docker's data storage or move it to a suitable fast filesystem. Avoid a slow Docker Desktop host bind for high-concurrency scratch I/O. Deleting the 512 MiB reserve or pointing either engine location directly at the final library is not the fix.
 
 ## Container paths, approved roots, and permissions
 
@@ -181,7 +183,7 @@ F:/Media/Movies            ->     /media/movies
 /mnt/storage/downloads     ->     /downloads
 ```
 
-Only the right-hand path belongs in Nooklet settings and `DOWNLOAD_ENGINE_DIR`.
+Only the right-hand path belongs in Nooklet settings and path-valued environment variables such as `DOWNLOAD_ENGINE_DIR` or `DOWNLOAD_ENGINE_WORK_DIR`.
 
 ### Media root checklist
 
@@ -209,7 +211,7 @@ Nooklet blocks private/loopback outbound destinations by default.
 2. Put only its exact hostname or IP in `.env`:
 
    ```dotenv
-   PRIVATE_SERVICE_HOST_ALLOWLIST=sabnzbd;plex.local;192.168.1.25
+   PRIVATE_SERVICE_HOST_ALLOWLIST=plex.local;tautulli.local;192.168.1.25
    ALLOW_PRIVATE_SERVICE_HOSTS=false
    ```
 
@@ -221,26 +223,17 @@ If a hostname resolves to both public and disallowed addresses, validation fails
 
 For Docker Desktop services on the host, an exact `host.docker.internal` allowlist may be appropriate if that is the hostname used in the URL. On Linux, define an explicit Docker network or controlled host-gateway mapping instead of assuming that hostname exists.
 
-## SABnzbd completes but Nooklet cannot import
+## Built-in download completes but Nooklet cannot import
 
-SAB reports a path from SAB's own filesystem namespace. Nooklet must be able to resolve the same files inside its container.
+The worker imports only finalized output recorded under the engine item's `DOWNLOAD_ENGINE_DIR` and only into an active library destination inside `APPROVED_MEDIA_ROOTS`.
 
-Example:
+1. Open Activity and confirm the item reached completed/finalized state rather than failed repair or extraction.
+2. Open `/health` and inspect the authenticated worker/import error.
+3. In **Settings > Storage**, confirm the completed-output staging path and selected library destination are fresh, reachable, and writable.
+4. Verify the host directories are mounted at the exact container paths configured in `DOWNLOAD_ENGINE_DIR` and the library path.
+5. Recreate the container after an environment or mount change, then retry the import.
 
-```text
-SAB reports:       /sab-downloads/complete/Movie.Name
-Nooklet sees:      /downloads/complete/Movie.Name
-```
-
-Bind the host completed-download folder at `/downloads`, then configure:
-
-```dotenv
-SABNZBD_PATH_MAPPINGS=/sab-downloads=/downloads
-```
-
-With mappings configured, every reported path must match a configured source prefix and remain within its mapped local target. Without mappings, set a non-root `APPROVED_DOWNLOAD_ROOTS` such as `/downloads`; empty configuration fails closed.
-
-After an environment/mount change, recreate. Confirm the completed directory exists from Nooklet's perspective before retrying the request.
+An import-triggered library scan is limited to the affected active destination path. If files were moved outside Nooklet, run a manual library scan after restoring the configured path.
 
 ## Cannot sign in
 
@@ -347,7 +340,7 @@ Checking out older code against a forward-migrated database is not a safe genera
 
 ## AI recommendation takes too long or times out
 
-Recommendation work runs on the background worker. The default request ceiling is 30 minutes to accommodate local and reasoning models. Configure a positive integer in milliseconds only when the provider should fail faster or needs more time:
+Recommendation work runs on the background worker. The default request ceiling is 30 minutes to accommodate local and reasoning models. Configure a positive integer in milliseconds, no greater than 24 hours, only when the provider should fail faster or needs more time:
 
 ```dotenv
 AI_RECOMMENDATIONS_TIMEOUT_MS=1800000
@@ -375,5 +368,5 @@ Never attach `.env`, a database/backup, API keys, webhook URLs, credentials, NZB
 - [Environment schema](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/env.ts)
 - [Built-in download capacity check](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/download-engine/workflows/enqueue-nzb-download.ts)
 - [Storage overview](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/storage/queries/get-storage-overview.ts)
-- [Completed-download path policy](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/import-completed-downloads/source-path-mapping.ts)
+- [Completed-download path policy](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/import-completed-downloads/source-path.ts)
 - [Health route](https://github.com/TannerMidd/Nooklet/blob/main/src/app/api/health/route.ts)

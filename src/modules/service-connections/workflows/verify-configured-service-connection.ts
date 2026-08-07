@@ -1,5 +1,5 @@
 import { decryptSecret } from "@/lib/security/secret-box";
-import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+import { createAuditEvent } from "@/modules/users/public";
 import { verifyServiceConnection } from "@/modules/service-connections/adapters/verify-service-connection";
 import { getServiceConnectionDefinition } from "@/modules/service-connections/service-definitions";
 import {

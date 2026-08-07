@@ -1,4 +1,5 @@
-import { findJobByTarget } from "@/modules/jobs/repositories/job-repository";
+import { findJobByTarget } from "@/modules/jobs/public";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import { defaultLibraryScanIntervalMinutes } from "@/modules/media-library/schemas/library-scan-schedule";
 
 export type LibraryScanSettings = {
@@ -11,7 +12,13 @@ export type LibraryScanSettings = {
 };
 
 export async function getLibraryScanSettings(userId: string): Promise<LibraryScanSettings> {
-  const job = await findJobByTarget(userId, "media-library-scan", "media-library", "all");
+  const jobOwnerUserId = await resolveInstanceConfigurationOwnerId(userId);
+  const job = await findJobByTarget(
+    jobOwnerUserId,
+    "media-library-scan",
+    "media-library",
+    "all",
+  );
 
   return {
     enabled: job?.isEnabled ?? false,

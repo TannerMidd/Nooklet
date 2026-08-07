@@ -15,13 +15,15 @@ Each user owns their history sources and sync status. Shared instance connection
 
 ## Add and verify a source
 
-1. Configure and test the relevant service under **Settings → Connections**.
+1. For Plex, Tautulli, or Trakt, configure and test the relevant service under **Settings → Connections**. Manual history needs no service connection.
 2. Open the watch-history settings for the signed-in user.
 3. Add the source and choose the external identity when the connector requires one.
 4. Run a sync.
 5. Confirm the most recent sync succeeded and inspect imported titles.
 
 Scheduled `watch-history-sync` jobs run through the persisted background worker. A failed sync is recorded without making the main request path unavailable.
+
+Repository queries deduplicate and limit history in SQLite rather than loading an unbounded user history before slicing it. Operational retention removes only old non-pending sync-run records; imported watch-history items remain available for recommendation context.
 
 ## Docker networking
 
@@ -45,4 +47,4 @@ Scheduled `watch-history-sync` jobs run through the persisted background worker.
 
 ---
 
-Last reviewed: **July 15, 2026**.
+Last reviewed: **August 6, 2026**.

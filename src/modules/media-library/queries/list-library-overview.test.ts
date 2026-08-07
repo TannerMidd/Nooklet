@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import { users } from "@/lib/database/schema";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
   addMediaLibraryPath,
   createMediaLibrary,
@@ -38,6 +39,7 @@ beforeEach(() => {
 describe("listLibraryOverview", () => {
   it("returns user-scoped library path and media totals", async () => {
     const userId = await seedUser();
+    await resolveInstanceConfigurationOwnerId(userId);
     const otherUserId = await seedUser();
     const library = await createMediaLibrary({ userId, mediaType: "movie", name: "Movies" });
     await createMediaLibrary({ userId, mediaType: "movie", name: "Detached" });

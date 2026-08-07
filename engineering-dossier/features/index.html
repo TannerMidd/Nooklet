@@ -145,7 +145,7 @@
             </li>
             <li data-reveal>
               <span>03</span>
-              <div><strong>Acquire</strong><p>Search verified Newznab sources and send a compatible release to the native engine or SABnzbd.</p></div>
+              <div><strong>Acquire</strong><p>Search verified Newznab sources and send a compatible release to Nooklet's built-in engine.</p></div>
             </li>
             <li data-reveal>
               <span>04</span>
@@ -255,7 +255,7 @@
               <li>Direct NNTP with TLS support</li>
               <li>Pause, resume, and cancellation controls</li>
                 <li>Persisted queue state and failure reasons</li>
-              <li>Optional SABnzbd alternative</li>
+              <li>Caller-scoped built-in queue controls</li>
             </ul>
           </article>
 
@@ -265,7 +265,8 @@
             <h3>Paths and capacity are explicit.</h3>
             <p>
               See the effective staging filesystem, available space, active reservation, and final destinations.
-              Imports remain inside approved canonical roots and refuse unsafe traversal or silent overwrite.
+              Imports remain inside approved canonical roots, refuse unsafe traversal or silent overwrite, and
+              recover claimed cross-filesystem partials without deleting unrelated replacements.
             </p>
             <ul class="check-list">
               <li>Container-path guidance</li>
@@ -296,8 +297,9 @@
             <p class="card-kicker">Shared instance</p>
             <h3>Useful for a household, controlled by an admin.</h3>
             <p>
-              Administrators own infrastructure and shared services. Managed users can discover and request without
-              receiving access to service credentials or instance-wide configuration.
+              Every administrator edits one canonical infrastructure configuration and shared-service set. Managed
+              users can discover and request without receiving access to service credentials or instance-wide
+              configuration; personal services such as Trakt remain user-scoped.
             </p>
             <ul class="check-list">
               <li>Local accounts and role boundaries</li>
@@ -384,7 +386,7 @@
             <tbody>
               <tr><th scope="row">Identity + discovery</th><td>TMDB</td><td><span class="requirement required">Core</span></td><td>Title identity, search, artwork, genres, cast, trailers, and discovery.</td></tr>
               <tr><th scope="row">Release search</th><td>Newznab indexer</td><td><span class="requirement required">Core</span></td><td>Movie, season, and episode acquisition candidates.</td></tr>
-              <tr><th scope="row">Download</th><td>Usenet server or SABnzbd</td><td><span class="requirement required">Core</span></td><td>Native NNTP transfer or compatibility with an existing SAB installation.</td></tr>
+              <tr><th scope="row">Download</th><td>Usenet server</td><td><span class="requirement required">Core</span></td><td>Native TLS NNTP transfer through Nooklet's built-in downloader.</td></tr>
               <tr><th scope="row">TV metadata</th><td>TVDB</td><td><span class="requirement optional">Optional</span></td><td>Additional TV identity and episode metadata.</td></tr>
               <tr><th scope="row">Recommendations</th><td>OpenAI-compatible provider</td><td><span class="requirement optional">Optional</span></td><td>Personalized ideas using a hosted or local compatible model.</td></tr>
               <tr><th scope="row">Watch context</th><td>Plex, Tautulli, or Trakt</td><td><span class="requirement optional">Optional</span></td><td>Viewing history and improved recommendation context.</td></tr>
@@ -458,7 +460,7 @@
           <a href="https://github.com/TannerMidd/Nooklet">Repository</a>
           <a href="https://github.com/TannerMidd/Nooklet/issues">Support</a>
         </nav>
-        <p class="revision">Feature guide<br />Reviewed July 17, 2026</p>
+        <p class="revision">Feature guide<br />Reviewed August 6, 2026</p>
       </div>
     </footer>
 

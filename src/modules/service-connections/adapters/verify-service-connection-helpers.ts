@@ -1,4 +1,3 @@
-import { type SabnzbdMetadata } from "@/modules/service-connections/sabnzbd-metadata";
 import { type AiProviderFlavor } from "@/modules/service-connections/ai-provider-endpoints";
 
 export type AiProviderModelEntry = {
@@ -26,7 +25,6 @@ function extractModelId(entry: AiProviderModelEntry | string | null | undefined)
   const candidate = entry.id ?? entry.key;
   return typeof candidate === "string" ? candidate.trim() : "";
 }
-
 export function normalizeAiProviderModelIds(payload: AiProviderModelPayload) {
   const modelIds = new Set<string>();
 
@@ -78,15 +76,5 @@ export function buildAiProviderVerificationResult(input: {
       availableModels: input.availableModels,
       aiProviderFlavor: input.flavor,
     },
-  };
-}
-
-export function buildSabnzbdVerificationResult(metadata: SabnzbdMetadata) {
-  return {
-    ok: true,
-    message: metadata.version
-      ? `Connected to SABnzbd ${metadata.version}. ${metadata.activeQueueCount} active queue item${metadata.activeQueueCount === 1 ? "" : "s"}.`
-      : `Connected to SABnzbd. ${metadata.activeQueueCount} active queue item${metadata.activeQueueCount === 1 ? "" : "s"}.`,
-    metadata,
   };
 }

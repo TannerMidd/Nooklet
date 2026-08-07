@@ -272,9 +272,12 @@ describe("queueLibraryItemRelease", () => {
     });
   });
 
-  it("does not try another release when SABnzbd enqueueing is uncertain", async () => {
+  it("does not try another release when downloader submission is uncertain", async () => {
     queueMock.mockRejectedValue(
-      new QueueIndexerResultWorkflowError("sabnzbd_enqueue_failed", "SABnzbd could not queue the selected release."),
+      new QueueIndexerResultWorkflowError(
+        "indexer_unavailable",
+        "Nooklet could not queue the selected release.",
+      ),
     );
 
     const queued = await queueLibraryItemRelease("u1", item, {
@@ -291,7 +294,7 @@ describe("queueLibraryItemRelease", () => {
     expect(queued).toMatchObject({
       queued: false,
       reason: "queue_failed",
-      message: "SABnzbd could not queue the selected release.",
+      message: "Nooklet could not queue the selected release.",
       rejectedResultIds: [],
     });
   });

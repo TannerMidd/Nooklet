@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { auth } from "@/auth";
+import { getProtectedActionSession as auth } from "@/modules/identity-access/workflows/get-protected-action-session";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { addIndexerCommand } from "@/modules/indexers/commands/add-indexer";
 import {

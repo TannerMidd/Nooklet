@@ -66,7 +66,9 @@ describe("health API", () => {
       backgroundWorker: "ok",
       downloadEngine: "idle",
     });
-    expect(body.worker.hasError).toBe(false);
+    expect(body).not.toHaveProperty("worker");
+    expect(body).not.toHaveProperty("downloadEngine");
+    expect(body).not.toHaveProperty("timestamp");
     expect(databaseProbeMock).toHaveBeenCalledTimes(1);
   });
 
@@ -82,7 +84,6 @@ describe("health API", () => {
     expect(response.status).toBe(200);
     expect(body.status).toBe("degraded");
     expect(body.checks.backgroundWorker).toBe("degraded");
-    expect(body.worker.hasError).toBe(true);
     expect(JSON.stringify(body)).not.toContain("secret downloader response");
   });
 
@@ -100,7 +101,6 @@ describe("health API", () => {
     expect(response.status).toBe(503);
     expect(body.status).toBe("degraded");
     expect(body.checks.backgroundWorker).toBe("error");
-    expect(body.worker.hasError).toBe(true);
     expect(JSON.stringify(body)).not.toContain("secret downloader response");
   });
 
@@ -122,7 +122,7 @@ describe("health API", () => {
     expect(response.status).toBe(200);
     expect(body.status).toBe("degraded");
     expect(body.checks).toMatchObject({ backgroundWorker: "ok", downloadEngine: "degraded" });
-    expect(body.downloadEngine).toMatchObject({ stalledCount: 1, activeStage: "fetching" });
+    expect(body).not.toHaveProperty("downloadEngine");
     expect(JSON.stringify(body)).not.toContain("private engine detail");
   });
 

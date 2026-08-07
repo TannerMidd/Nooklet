@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
   setDefaultDownloadPath,
 } from "@/modules/media-library/repositories/media-library-repository";
@@ -23,7 +24,8 @@ export async function setDefaultDownloadPathCommand(
   input: SetDefaultDownloadPathInput,
 ) {
   const parsed = setDefaultDownloadPathInputSchema.parse(input);
-  const updated = await setDefaultDownloadPath({ userId, pathId: parsed.pathId });
+  const ownerUserId = await resolveInstanceConfigurationOwnerId(userId);
+  const updated = await setDefaultDownloadPath({ userId: ownerUserId, pathId: parsed.pathId });
 
   if (!updated) {
     throw new SetDefaultDownloadPathCommandError(

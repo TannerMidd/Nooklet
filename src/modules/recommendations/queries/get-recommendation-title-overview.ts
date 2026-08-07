@@ -8,7 +8,7 @@ import {
   updateRecommendationItemProviderMetadata,
 } from "@/modules/recommendations/repositories/recommendation-repository";
 import { listRecommendationItemTimeline } from "@/modules/recommendations/queries/list-recommendation-item-timeline";
-import { lookupTmdbTitleDetails } from "@/modules/service-connections/adapters/tmdb";
+import { lookupTmdbTitleDetails } from "@/modules/service-connections/public";
 import { getVerifiedTmdbConnection } from "@/modules/service-connections/queries/get-verified-tmdb-connection";
 
 function parseProviderMetadataRecord(metadataJson: string | null): Record<string, unknown> {

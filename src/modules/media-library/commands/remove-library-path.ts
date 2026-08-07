@@ -2,11 +2,12 @@ import {
   deleteMediaLibraryPath,
   type MediaLibraryPathRecord,
 } from "@/modules/media-library/repositories/media-library-repository";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
   type RemoveLibraryPathInput,
   removeLibraryPathInputSchema,
 } from "@/modules/media-library/schemas/library-path";
-import { hasActiveDownloadAssociationForLibraryPath } from "@/modules/downloads/queries/has-active-download-association";
+import { hasAnyActiveDownloadAssociationForLibraryPath } from "@/modules/downloads/queries/has-active-download-association";
 import { recordAuditEvent } from "@/modules/users/commands/record-audit-event";
 
 export class RemoveLibraryPathCommandError extends Error {
@@ -24,15 +25,16 @@ export async function removeLibraryPathCommand(
   input: RemoveLibraryPathInput,
 ): Promise<MediaLibraryPathRecord> {
   const parsed = removeLibraryPathInputSchema.parse(input);
+  const ownerUserId = await resolveInstanceConfigurationOwnerId(userId);
 
-  if (await hasActiveDownloadAssociationForLibraryPath(userId, parsed.pathId)) {
+  if (await hasAnyActiveDownloadAssociationForLibraryPath(parsed.pathId)) {
     throw new RemoveLibraryPathCommandError(
       "This library folder is being used by an active download or import. Let it finish or cancel it in Activity before removing the folder.",
       "active_download",
     );
   }
 
-  const removedPath = await deleteMediaLibraryPath(userId, parsed.pathId);
+  const removedPath = await deleteMediaLibraryPath(ownerUserId, parsed.pathId);
 
   if (!removedPath) {
     throw new RemoveLibraryPathCommandError("Library folder was not found.", "path_not_found");

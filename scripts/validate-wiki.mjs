@@ -1,8 +1,9 @@
-import { readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
 const wikiDirectory = path.resolve("docs/wiki");
+const repositoryRoot = path.resolve(".");
 const requiredFiles = ["Home.md", "_Sidebar.md", "_Footer.md"];
 const files = (await readdir(wikiDirectory))
   .filter((file) => file.endsWith(".md"))
@@ -34,6 +35,44 @@ function collectHeadingSlugs(source) {
   }
 
   return slugs;
+}
+
+function resolveRepositorySourceTarget(target) {
+  let url;
+  try {
+    url = new URL(target);
+  } catch {
+    return null;
+  }
+
+  const prefixes = [
+    "/TannerMidd/Nooklet/blob/main/",
+    "/TannerMidd/Nooklet/tree/main/",
+  ];
+  const prefix = prefixes.find((candidate) => url.pathname.startsWith(candidate));
+  if (url.hostname.toLocaleLowerCase() !== "github.com" || !prefix) {
+    return null;
+  }
+
+  let repositoryPath;
+  try {
+    repositoryPath = decodeURIComponent(url.pathname.slice(prefix.length));
+  } catch {
+    return { error: "contains invalid percent encoding" };
+  }
+
+  const absoluteTarget = path.resolve(repositoryRoot, repositoryPath);
+  const relativeTarget = path.relative(repositoryRoot, absoluteTarget);
+  if (
+    relativeTarget.length === 0
+    || relativeTarget === ".."
+    || relativeTarget.startsWith(`..${path.sep}`)
+    || path.isAbsolute(relativeTarget)
+  ) {
+    return { error: "escapes the repository or names its root" };
+  }
+
+  return { absoluteTarget, repositoryPath };
 }
 
 for (const requiredFile of requiredFiles) {
@@ -78,6 +117,18 @@ for (const file of files) {
       target.startsWith("http://") ||
       target.startsWith("mailto:")
     ) {
+      const repositoryTarget = resolveRepositorySourceTarget(target);
+      if (repositoryTarget?.error) {
+        problems.push(`${file}: repository source link '${target}' ${repositoryTarget.error}`);
+      } else if (repositoryTarget) {
+        try {
+          await access(repositoryTarget.absoluteTarget);
+        } catch {
+          problems.push(
+            `${file}: repository source link '${target}' targets missing path '${repositoryTarget.repositoryPath}'`,
+          );
+        }
+      }
       continue;
     }
 

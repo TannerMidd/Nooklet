@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/security/secret-box", () => ({
-  decryptSecret: vi.fn((value: string) => `decrypted:${value}`),
-}));
 vi.mock("@/modules/downloads/repositories/download-repository", () => ({
-  findDownloadClientById: vi.fn(),
   listDownloadRequestsForFulfillment: vi.fn(),
   listRequestsForFulfillment: vi.fn(),
   updateDownloadQueueItemStatus: vi.fn(),
@@ -19,20 +15,12 @@ vi.mock("@/modules/download-engine/queue/engine-repository", () => ({
   findEngineDownloadById: vi.fn(),
   requestEngineDownloadControl: vi.fn(),
 }));
-vi.mock("@/modules/service-connections/repositories/service-connection-repository", () => ({
-  findServiceConnectionByType: vi.fn(),
-}));
 vi.mock("@/modules/downloads/workflows/season-fulfillment-work-lease", () => ({
   acquireSeasonFulfillmentWorkLease: vi.fn(),
   releaseSeasonFulfillmentWorkLease: vi.fn(),
   renewSeasonFulfillmentWorkLease: vi.fn(),
 }));
-vi.mock("@/modules/downloads/workflows/verified-sabnzbd-removal", () => ({
-  removeAndVerifySabnzbdItems: vi.fn(),
-}));
-
 import {
-  findDownloadClientById,
   listDownloadRequestsForFulfillment,
   listRequestsForFulfillment,
   updateDownloadQueueItemStatus,
@@ -47,13 +35,11 @@ import {
   findEngineDownloadById,
   requestEngineDownloadControl,
 } from "@/modules/download-engine/queue/engine-repository";
-import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import {
   acquireSeasonFulfillmentWorkLease,
   releaseSeasonFulfillmentWorkLease,
   renewSeasonFulfillmentWorkLease,
 } from "@/modules/downloads/workflows/season-fulfillment-work-lease";
-import { removeAndVerifySabnzbdItems } from "@/modules/downloads/workflows/verified-sabnzbd-removal";
 
 import { reconcilePendingSeasonFulfillmentCancellations } from "./reconcile-season-fulfillment-cancellations";
 
@@ -62,16 +48,13 @@ const findFulfillmentMock = vi.mocked(findDownloadFulfillmentById);
 const updateFulfillmentMock = vi.mocked(updateDownloadFulfillment);
 const listEntriesMock = vi.mocked(listRequestsForFulfillment);
 const listRequestsMock = vi.mocked(listDownloadRequestsForFulfillment);
-const findClientMock = vi.mocked(findDownloadClientById);
 const updateQueueMock = vi.mocked(updateDownloadQueueItemStatus);
 const updateRequestMock = vi.mocked(updateDownloadRequestStatus);
 const findEngineMock = vi.mocked(findEngineDownloadById);
 const controlMock = vi.mocked(requestEngineDownloadControl);
-const findConnectionMock = vi.mocked(findServiceConnectionByType);
 const acquireLeaseMock = vi.mocked(acquireSeasonFulfillmentWorkLease);
 const releaseLeaseMock = vi.mocked(releaseSeasonFulfillmentWorkLease);
 const renewLeaseMock = vi.mocked(renewSeasonFulfillmentWorkLease);
-const verifiedSabRemovalMock = vi.mocked(removeAndVerifySabnzbdItems);
 
 const requestedAt = new Date("2026-07-20T12:00:00.000Z");
 const lease = {
@@ -109,13 +92,10 @@ beforeEach(() => {
   updateFulfillmentMock.mockResolvedValue(fulfillment as never);
   listEntriesMock.mockResolvedValue([entry] as never);
   listRequestsMock.mockResolvedValue([entry.request] as never);
-  findClientMock.mockResolvedValue({ id: "client-1", clientType: "nooklet" } as never);
   findEngineMock.mockResolvedValue({ id: "engine-1", state: "queued" } as never);
   controlMock.mockResolvedValue({ id: "engine-1", controlIntent: "cancel" } as never);
   updateQueueMock.mockResolvedValue({} as never);
   updateRequestMock.mockResolvedValue({} as never);
-  findConnectionMock.mockResolvedValue(null);
-  verifiedSabRemovalMock.mockResolvedValue(new Map());
   acquireLeaseMock.mockResolvedValue(lease);
   renewLeaseMock.mockResolvedValue(lease);
   releaseLeaseMock.mockResolvedValue(true);
@@ -162,27 +142,5 @@ describe("reconcilePendingSeasonFulfillmentCancellations", () => {
       status: "cancelled",
       cancellationRequestedAt: null,
     }));
-  });
-
-  it("still delegates SAB removals through their verified external path", async () => {
-    findClientMock.mockResolvedValue({ id: "client-1", clientType: "sabnzbd" } as never);
-    listEntriesMock.mockResolvedValue([{
-      ...entry,
-      queueItem: { ...entry.queueItem, externalQueueId: "sab-1" },
-    }] as never);
-    findConnectionMock.mockResolvedValue({
-      connection: { baseUrl: "http://sab.local", status: "verified" },
-      secret: { encryptedValue: "secret" },
-    } as never);
-    verifiedSabRemovalMock.mockResolvedValue(new Map([["sab-1", { removed: true }]]));
-
-    const result = await reconcilePendingSeasonFulfillmentCancellations();
-
-    expect(result.cancelledCount).toBe(1);
-    expect(verifiedSabRemovalMock).toHaveBeenCalledWith(
-      { baseUrl: "http://sab.local", apiKey: "decrypted:secret" },
-      ["sab-1"],
-      expect.objectContaining({ beforeExternalPhase: expect.any(Function) }),
-    );
   });
 });

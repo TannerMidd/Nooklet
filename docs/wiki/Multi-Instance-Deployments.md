@@ -55,7 +55,7 @@ SECRET_BOX_KEY=
 BOOTSTRAP_TOKEN=
 
 APPROVED_MEDIA_ROOTS=/media/movies;/media/tv
-APPROVED_DOWNLOAD_ROOTS=/downloads
+DOWNLOAD_ENGINE_WORK_DIR=/app/data/engine-work
 DOWNLOAD_ENGINE_DIR=/downloads/engine
 ```
 
@@ -96,7 +96,7 @@ AUTH_SECRET=
 SECRET_BOX_KEY=
 BOOTSTRAP_TOKEN=
 APPROVED_MEDIA_ROOTS=/media/movies;/media/tv
-APPROVED_DOWNLOAD_ROOTS=/downloads
+DOWNLOAD_ENGINE_WORK_DIR=/app/data/engine-work
 DOWNLOAD_ENGINE_DIR=/downloads/engine
 ```
 
@@ -153,11 +153,11 @@ Each container's `/app/data` mount must point to a different named volume. Stop 
 
 The same container paths may be reused across instances because they resolve inside different containers. The **host** sources behind those paths determine whether data is actually isolated.
 
-- Give every built-in engine a separate host staging directory. Sharing it can mix incomplete files, queue state, repairs, and imports.
+- Give every built-in engine separate `DOWNLOAD_ENGINE_WORK_DIR` and `DOWNLOAD_ENGINE_DIR` locations. Sharing either can mix incomplete work, repairs, completed output, or imports.
 - Prefer separate writable movie/TV roots. Two instances importing or deleting within one library can race or produce inconsistent database state.
 - If a common media collection must be visible to a test instance, mount it read-only and do not configure download/import operations against it.
-- Keep `APPROVED_MEDIA_ROOTS` and `APPROVED_DOWNLOAD_ROOTS` minimal in each instance.
-- Never share one SABnzbd category/completed folder unless its routing and Nooklet path mappings are uniquely partitioned.
+- Keep `APPROVED_MEDIA_ROOTS` minimal in each instance.
+- Never share `DOWNLOAD_ENGINE_WORK_DIR` or `DOWNLOAD_ENGINE_DIR` between instances.
 
 ## Reverse proxy routing
 
@@ -212,15 +212,15 @@ Restoring production data into a network-enabled test instance without these con
 | Both instances show the same users/settings | They share the same `nooklet-data` volume. | Stop both, preserve/backup the volume, then restore each instance into a distinct project volume. |
 | Rebuilding one instance changes the other's code | Both use the shared `nooklet:local` image tag. | Assign a unique image tag in each override and rebuild both deliberately. |
 | Port already allocated | Both publish the same `APP_PORT`/address. | Assign a unique host port and matching `APP_URL`. |
-| Downloads appear in the wrong instance | Host staging roots or SAB categories/path mappings overlap. | Separate host paths and client categories, then review active requests before resuming. |
+| Downloads appear in the wrong instance | Built-in work or completed-output roots overlap. | Separate both engine paths, then review active requests before resuming. |
 
 ## Why not horizontal scaling?
 
-The supplied deployment couples a single Next.js process, an in-process background worker, local SQLite/WAL state, and local/mounted download processing. Job leases protect scheduled work from stale claims, but they are not a statement of clustered deployment support. Run exactly one app process/container for each database and data volume.
+The supplied deployment couples separately supervised Next.js web and background-worker processes to one local SQLite/WAL database and local or mounted download processing. Job leases protect scheduled work from stale claims, but they are not a statement of clustered deployment support. Run exactly one app container for each database and data volume.
 
 ## Source references
 
 - [Base Compose identity and volume](https://github.com/TannerMidd/Nooklet/blob/main/docker-compose.yml)
 - [SQLite initialization](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/client.ts)
-- [In-process worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts)
+- [Background worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts)
 - [Job lease repository](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/jobs/repositories/job-repository.ts)

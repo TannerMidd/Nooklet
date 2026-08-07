@@ -4,7 +4,7 @@ Native installation is intended for development and advanced operators who prefe
 
 ## Requirements
 
-- Node.js `>=24.11.0`
+- Node.js `>=24.15.0`
 - npm
 - Git
 - Build support for native Node dependencies if a matching binary is unavailable
@@ -53,7 +53,7 @@ AUTH_SECRET=<independent-random-value>
 BOOTSTRAP_TOKEN=<independent-random-value>
 SECRET_BOX_KEY=<independent-random-value>
 APPROVED_MEDIA_ROOTS=/srv/media
-APPROVED_DOWNLOAD_ROOTS=/srv/downloads
+DOWNLOAD_ENGINE_WORK_DIR=/srv/nooklet/engine-work
 DOWNLOAD_ENGINE_DIR=/srv/downloads/nooklet-engine
 ```
 
@@ -61,7 +61,7 @@ On Windows, use normal absolute host paths and separate multiple approved roots 
 
 ```dotenv
 APPROVED_MEDIA_ROOTS=D:\Media;E:\Archive
-APPROVED_DOWNLOAD_ROOTS=F:\Downloads
+DOWNLOAD_ENGINE_WORK_DIR=F:\NookletData\EngineWork
 DOWNLOAD_ENGINE_DIR=F:\Downloads\Nooklet
 ```
 
@@ -115,8 +115,8 @@ Open the application, create the first administrator, then follow [First-time se
 
 - Relative paths are resolved from the process working directory. Absolute paths are safer for supervised deployments.
 - `DATABASE_URL=file:./data/nooklet.db` creates the database beneath the repository working directory.
-- `DOWNLOAD_ENGINE_DIR` is the staging filesystem checked for built-in download capacity.
-- `APPROVED_MEDIA_ROOTS` and `APPROVED_DOWNLOAD_ROOTS` fail closed when empty.
+- `DOWNLOAD_ENGINE_WORK_DIR` holds incomplete, assembled, repaired, and extracted data; `DOWNLOAD_ENGINE_DIR` holds completed output awaiting import. Both filesystems are checked for built-in download capacity, and the tighter one limits admission.
+- `APPROVED_MEDIA_ROOTS` fails closed when empty; engine completion paths are constrained by `DOWNLOAD_ENGINE_DIR` and the persisted engine item.
 - Windows UNC, device, and raw filesystem paths are rejected as media roots. Mount network storage through the operating system or container host and expose a normal local path instead.
 - Symlinks do not bypass the canonical approved-root checks.
 

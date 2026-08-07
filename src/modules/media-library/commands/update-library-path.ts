@@ -2,6 +2,7 @@ import {
   IsolatedFilesystemPolicyError,
   resolveApprovedMediaDirectoryIsolated,
 } from "@/lib/security/isolated-filesystem-policy";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
   createMediaLibrary,
   findMediaLibraryByName,
@@ -31,7 +32,8 @@ export async function updateLibraryPathCommand(
   input: UpdateLibraryPathInput,
 ): Promise<MediaLibraryPathRecord> {
   const parsed = updateLibraryPathInputSchema.parse(input);
-  const existingPath = await findMediaLibraryPathByIdForUser(userId, parsed.pathId);
+  const ownerUserId = await resolveInstanceConfigurationOwnerId(userId);
+  const existingPath = await findMediaLibraryPathByIdForUser(ownerUserId, parsed.pathId);
 
   if (!existingPath) {
     throw new UpdateLibraryPathCommandError("Library folder was not found.", "path_not_found");
@@ -47,7 +49,7 @@ export async function updateLibraryPathCommand(
     throw error;
   }
 
-  const duplicatePath = await findMediaLibraryPathByUserPath(userId, canonicalPath);
+  const duplicatePath = await findMediaLibraryPathByUserPath(ownerUserId, canonicalPath);
 
   if (duplicatePath && duplicatePath.id !== parsed.pathId) {
     throw new UpdateLibraryPathCommandError(
@@ -56,16 +58,16 @@ export async function updateLibraryPathCommand(
     );
   }
 
-  const library = await findMediaLibraryByName(userId, parsed.mediaType, parsed.libraryName)
+  const library = await findMediaLibraryByName(ownerUserId, parsed.mediaType, parsed.libraryName)
     ?? await createMediaLibrary({
-      userId,
+      userId: ownerUserId,
       mediaType: parsed.mediaType,
       name: parsed.libraryName,
       isDefault: true,
     });
   const updatedPath = await updateMediaLibraryPath({
     id: parsed.pathId,
-    userId,
+    userId: ownerUserId,
     libraryId: library.id,
     path: canonicalPath,
     label: parsed.label || parsed.libraryName,

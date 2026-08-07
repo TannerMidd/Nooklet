@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { auth } from "@/auth";
+import { getProtectedActionSession as auth } from "@/modules/identity-access/workflows/get-protected-action-session";
 import {
   addLibraryPathCommand,
   LibraryPathCommandError,
@@ -89,12 +89,10 @@ import {
 } from "@/modules/downloads/workflows/season-fulfillment";
 import {
   createImmediateJob,
-} from "@/modules/jobs/repositories/job-repository";
+} from "@/modules/jobs/public";
 import { configureLibraryScanSchedule } from "@/modules/media-library/workflows/configure-library-scan-schedule";
 import { configureMetadataRefreshSchedule } from "@/modules/media-library/workflows/configure-metadata-refresh-schedule";
 import { configureMissingSearchSchedule } from "@/modules/media-library/workflows/configure-missing-search-schedule";
-import { searchMissingMonitoredContentWorkflow } from "@/modules/media-library/workflows/search-missing-monitored";
-import { refreshTvMetadataWorkflow } from "@/modules/media-library/workflows/refresh-tv-metadata";
 import {
   initialLibraryItemSearchActionState,
   initialLibraryMonitoringActionState,
@@ -183,6 +181,10 @@ export async function scanLibraryAction(
 
   if (!session?.user?.id) {
     return { status: "error", message: "You need to sign in again." };
+  }
+
+  if (session.user.role !== "admin") {
+    return { status: "error", message: "Only an administrator can run instance automation." };
   }
 
   try {
@@ -815,6 +817,14 @@ export async function updateLibraryScanScheduleAction(
     return { ...initialLibraryScanScheduleActionState, status: "error", message: "You need to sign in again." };
   }
 
+  if (session.user.role !== "admin") {
+    return {
+      ...initialLibraryScanScheduleActionState,
+      status: "error",
+      message: "Only an administrator can manage instance automation.",
+    };
+  }
+
   const parsed = libraryScanScheduleInputSchema.safeParse({
     intervalMinutes: formData.get("intervalMinutes"),
     enabled: formData.get("enabled") === "on",
@@ -854,6 +864,14 @@ export async function updateMissingSearchScheduleAction(
 
   if (!session?.user?.id) {
     return { ...initialMissingSearchScheduleActionState, status: "error", message: "You need to sign in again." };
+  }
+
+  if (session.user.role !== "admin") {
+    return {
+      ...initialMissingSearchScheduleActionState,
+      status: "error",
+      message: "Only an administrator can manage instance automation.",
+    };
   }
 
   const parsed = missingSearchScheduleInputSchema.safeParse({
@@ -897,6 +915,10 @@ export async function setDefaultDownloadPathAction(
     return { status: "error", message: "You need to sign in again." };
   }
 
+  if (session.user.role !== "admin") {
+    return { status: "error", message: "Only an administrator can manage library folders." };
+  }
+
   const parsed = setDefaultDownloadPathInputSchema.safeParse({
     pathId: formData.get("pathId"),
   });
@@ -933,6 +955,14 @@ export async function updateMetadataRefreshScheduleAction(
 
   if (!session?.user?.id) {
     return { ...initialMetadataRefreshScheduleActionState, status: "error", message: "You need to sign in again." };
+  }
+
+  if (session.user.role !== "admin") {
+    return {
+      ...initialMetadataRefreshScheduleActionState,
+      status: "error",
+      message: "Only an administrator can manage instance automation.",
+    };
   }
 
   const parsed = metadataRefreshScheduleInputSchema.safeParse({
@@ -1030,12 +1060,17 @@ export async function runMissingSearchNowAction(
   }
 
   try {
-    const result = await searchMissingMonitoredContentWorkflow(session.user.id);
+    await createImmediateJob({
+      userId: session.user.id,
+      jobType: "missing-content-search",
+      targetType: "media-library",
+      targetKey: "all",
+    });
     revalidatePath("/settings/automation");
     revalidatePath("/in-progress");
     return {
       status: "success",
-      message: `Search finished: ${result.searchedCount} checked, ${result.queuedCount} queued, ${result.unmatchedCount} without a match.`,
+      message: "The missing-content search was queued for the background worker.",
     };
   } catch {
     return { status: "error", message: "Nooklet could not run the missing-content search." };
@@ -1056,11 +1091,16 @@ export async function runMetadataRefreshNowAction(
   }
 
   try {
-    const result = await refreshTvMetadataWorkflow(session.user.id);
+    await createImmediateJob({
+      userId: session.user.id,
+      jobType: "metadata-refresh",
+      targetType: "media-library",
+      targetKey: "all",
+    });
     revalidatePath("/settings/automation");
     return {
       status: "success",
-      message: `Refresh finished: ${result.refreshedCount} series, ${result.newEpisodeCount} new episodes, ${result.failedCount} failed.`,
+      message: "The metadata refresh was queued for the background worker.",
     };
   } catch {
     return { status: "error", message: "Nooklet could not refresh series metadata." };

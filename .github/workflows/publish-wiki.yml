@@ -9,8 +9,7 @@ on:
       - ".github/workflows/publish-wiki.yml"
   workflow_dispatch:
 
-permissions:
-  contents: write
+permissions: {}
 
 concurrency:
   group: wiki-publish
@@ -21,9 +20,16 @@ jobs:
     name: Validate and publish
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
 
       - name: Validate Wiki source
         run: node scripts/validate-wiki.mjs

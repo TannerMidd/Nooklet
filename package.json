@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
+  "packageManager": "npm@11.16.0",
   "engines": {
-    "node": ">=24.11.0"
+    "node": ">=24.15.0",
+    "npm": ">=11.16.0 <12"
   },
   "scripts": {
     "dev": "node scripts/development-supervisor.mjs",
@@ -13,33 +15,41 @@
     "start": "node scripts/container-supervisor.mjs",
     "start:web": "next start",
     "start:worker": "node scripts/worker-supervisor.mjs",
-    "test": "vitest run --environment node",
+    "test": "vitest run --environment node --exclude=e2e/** --exclude=scripts/**/*.test.mjs",
+    "test:scripts": "node --input-type=module -e \"import { startVitest } from 'vitest/node'; const context = await startVitest('test', ['scripts/validate-migrations.test.mjs', 'scripts/lib/storage-probe-coordinator.test.mjs', 'scripts/lib/worker-heartbeat-watchdog.test.mjs'], { run: true, environment: 'node', include: ['scripts/**/*.test.mjs'], setupFiles: [] }); if (!context) process.exitCode = 1;\" && node --test scripts/validate-module-boundaries.test.mjs",
+    "test:e2e": "node scripts/run-e2e.mjs",
+    "audit:dependencies": "npm audit --omit=dev --audit-level=high",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "docs:dossier:check": "node scripts/validate-engineering-dossier.mjs && node scripts/validate-configurator.mjs",
     "docs:wiki:check": "node scripts/validate-wiki.mjs",
-    "check": "npm run docs:dossier:check && npm run docs:wiki:check && npm run typecheck && npm run lint && npm test && npm run build",
+    "docs:links:check": "node scripts/validate-documentation-links.mjs",
+    "migrations:check": "node scripts/validate-migrations.mjs",
+    "boundaries:check": "node scripts/validate-module-boundaries.mjs",
+    "check": "npm run docs:dossier:check && npm run docs:wiki:check && npm run docs:links:check && npm run migrations:check && npm run boundaries:check && npm run typecheck && npm run lint && npm run test:scripts && npm test && npm run build",
     "db:backup": "node --env-file=.env scripts/backup-database.mjs",
     "account:recover": "node --env-file=.env scripts/recover-account.mjs",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.101.2",
     "better-sqlite3": "^12.11.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
-    "fast-xml-parser": "^5.10.0",
+    "fast-xml-parser": "^5.10.1",
     "lucide-react": "^1.24.0",
-    "next": "^16.2.10",
-    "next-auth": "^5.0.0-beta.30",
+    "next": "^16.2.11",
+    "next-auth": "5.0.0-beta.32",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "tailwind-merge": "^3.6.0",
-    "undici": "^7.28.0",
+    "undici": "^7.29.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.2",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",
@@ -48,16 +58,26 @@
     "drizzle-kit": "^0.31.10",
     "esbuild": "^0.28.1",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^16.2.10",
-    "postcss": "^8.5.19",
+    "axe-core": "^4.13.0",
+    "eslint-config-next": "^16.2.11",
+    "jsdom": "^30.0.1",
+    "postcss": "^8.5.26",
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   },
   "overrides": {
+    "@auth/core": "^0.41.3",
     "next": {
-      "postcss": "^8.5.10"
+      "postcss": "^8.5.26"
     },
     "esbuild": "$esbuild"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true,
+    "esbuild@0.28.1": true,
+    "fsevents@2.3.2": true,
+    "fsevents@2.3.3": true,
+    "unrs-resolver@1.11.1": true
   }
 }

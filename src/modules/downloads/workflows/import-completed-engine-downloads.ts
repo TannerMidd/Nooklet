@@ -25,9 +25,12 @@ import { recordCompletedDownloadImportAudit } from "./import-completed-downloads
 import { resolveCompletedDownloadDestinations } from "./import-completed-downloads/destination-resolution";
 import { inspectCompletedDownloadFiles } from "./import-completed-downloads/file-inspection";
 import { organizeCompletedDownloadFiles } from "./import-completed-downloads/file-organization";
-import { type FinishedSabnzbdHistoryItem } from "./import-completed-downloads/history-fetch";
+import { type ImportFilesystemProgressReporter } from "./import-completed-downloads/file-transfer";
 import { dispatchCompletedDownloadNotifications } from "./import-completed-downloads/notifications";
-import { type MatchedCompletedDownload } from "./import-completed-downloads/request-matching";
+import {
+  type FinishedDownloadRecord,
+  type MatchedCompletedDownload,
+} from "./import-completed-downloads/request-matching";
 import { persistCompletedDownloadImports } from "./import-completed-downloads/persistence";
 import { retryFailedCompletedDownloads } from "./import-completed-downloads/retry-handling";
 import { triggerCompletedDownloadDiscovery } from "./import-completed-downloads/scan-trigger";
@@ -38,17 +41,22 @@ export type ImportCompletedEngineDownloadsInput = {
   requestId?: string;
 };
 
+export type ImportCompletedEngineDownloadsOptions = {
+  onFilesystemProgress?: ImportFilesystemProgressReporter;
+};
+
 /**
  * Import pass for the built-in download engine. The engine writes finished
  * downloads to a local output directory and records their terminal state, so
- * this workflow synthesizes the same "finished history" shape the SABnzbd
- * import phases consume and reuses them wholesale: destination resolution,
+ * this workflow maps terminal engine rows into the shared import phase shape:
+ * destination resolution,
  * media-file inspection, organization into library folders, persistence,
  * retry scheduling, and library-scan triggering.
  */
 async function runImportCompletedEngineDownloadsWorkflow(
   userId: string,
   input: ImportCompletedEngineDownloadsInput = {},
+  options: ImportCompletedEngineDownloadsOptions = {},
 ) {
   const usenetServer = await findServiceConnectionByType(userId, "usenet-server");
 
@@ -143,7 +151,7 @@ async function runImportCompletedEngineDownloadsWorkflow(
   if (finished.length === 0) {
     return null;
   }
-  const historyById = new Map<string, FinishedSabnzbdHistoryItem>(finished.map((record) => [
+  const historyById = new Map<string, FinishedDownloadRecord>(finished.map((record) => [
     record.id,
     {
       id: record.id,
@@ -191,14 +199,12 @@ async function runImportCompletedEngineDownloadsWorkflow(
   let persisted;
 
   try {
-    const resolved = await resolveCompletedDownloadDestinations(
-      userId,
-      fences.matches,
-      { sourcePathKind: "local" },
-    );
+    const resolved = await resolveCompletedDownloadDestinations(userId, fences.matches);
     const inspected = await inspectCompletedDownloadFiles(resolved);
     await fences.renew();
-    organized = await organizeCompletedDownloadFiles(inspected);
+    organized = await organizeCompletedDownloadFiles(inspected, {
+      onFilesystemProgress: options.onFilesystemProgress,
+    });
     await fences.renew();
     persisted = fences.workLeases.size > 0
       ? await persistCompletedDownloadImports(userId, organized, {
@@ -265,9 +271,10 @@ async function runImportCompletedEngineDownloadsWorkflow(
 export async function importCompletedEngineDownloadsWorkflow(
   userId: string,
   input: ImportCompletedEngineDownloadsInput = {},
+  options: ImportCompletedEngineDownloadsOptions = {},
 ) {
   return withCompletedImportLock(
     userId,
-    () => runImportCompletedEngineDownloadsWorkflow(userId, input),
+    () => runImportCompletedEngineDownloadsWorkflow(userId, input, options),
   );
 }

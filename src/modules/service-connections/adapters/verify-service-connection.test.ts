@@ -6,8 +6,8 @@ vi.mock("./verify-ai-provider", () => ({
 vi.mock("./verify-plex", () => ({
   verifyPlex: vi.fn(),
 }));
-vi.mock("./verify-sabnzbd", () => ({
-  verifySabnzbd: vi.fn(),
+vi.mock("./verify-usenet-server", () => ({
+  verifyUsenetServer: vi.fn(),
 }));
 vi.mock("./verify-tautulli", () => ({
   verifyTautulli: vi.fn(),
@@ -24,7 +24,6 @@ vi.mock("./verify-tvdb", () => ({
 
 import { verifyAiProvider } from "./verify-ai-provider";
 import { verifyPlex } from "./verify-plex";
-import { verifySabnzbd } from "./verify-sabnzbd";
 import { verifyServiceConnection } from "./verify-service-connection";
 import type {
   VerifyServiceConnectionInput,
@@ -34,23 +33,24 @@ import { verifyTautulli } from "./verify-tautulli";
 import { verifyTmdb } from "./verify-tmdb";
 import { verifyTrakt } from "./verify-trakt";
 import { verifyTvdb } from "./verify-tvdb";
+import { verifyUsenetServer } from "./verify-usenet-server";
 
 const verifyAiProviderMock = vi.mocked(verifyAiProvider);
 const verifyPlexMock = vi.mocked(verifyPlex);
-const verifySabnzbdMock = vi.mocked(verifySabnzbd);
 const verifyTautulliMock = vi.mocked(verifyTautulli);
 const verifyTmdbMock = vi.mocked(verifyTmdb);
 const verifyTraktMock = vi.mocked(verifyTrakt);
 const verifyTvdbMock = vi.mocked(verifyTvdb);
+const verifyUsenetServerMock = vi.mocked(verifyUsenetServer);
 
 const allMocks = [
   verifyAiProviderMock,
   verifyPlexMock,
-  verifySabnzbdMock,
   verifyTautulliMock,
   verifyTmdbMock,
   verifyTraktMock,
   verifyTvdbMock,
+  verifyUsenetServerMock,
 ];
 
 function buildInput(
@@ -80,7 +80,7 @@ describe("verifyServiceConnection dispatcher", () => {
     ["ai-provider" as const, () => verifyAiProviderMock],
     ["tautulli" as const, () => verifyTautulliMock],
     ["plex" as const, () => verifyPlexMock],
-    ["sabnzbd" as const, () => verifySabnzbdMock],
+    ["usenet-server" as const, () => verifyUsenetServerMock],
     ["tmdb" as const, () => verifyTmdbMock],
     ["tvdb" as const, () => verifyTvdbMock],
     ["trakt" as const, () => verifyTraktMock],
@@ -159,17 +159,17 @@ describe("verifyServiceConnection dispatcher", () => {
   });
 
   it("forwards the entire input (including baseUrl, secret, metadata) to the dispatched verifier", async () => {
-    verifySabnzbdMock.mockResolvedValue(okResult);
+    verifyUsenetServerMock.mockResolvedValue(okResult);
 
     const input = buildInput({
-      serviceType: "sabnzbd",
-      baseUrl: "https://nzb.example/",
-      secret: "api-key",
-      metadata: { selectedCategory: "tv" },
+      serviceType: "usenet-server",
+      baseUrl: "news.example.test:563",
+      secret: "usenet-password",
+      metadata: { username: "nooklet" },
     });
 
     await verifyServiceConnection(input);
 
-    expect(verifySabnzbdMock).toHaveBeenCalledWith(input);
+    expect(verifyUsenetServerMock).toHaveBeenCalledWith(input);
   });
 });

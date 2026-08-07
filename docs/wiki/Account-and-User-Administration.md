@@ -1,6 +1,6 @@
 # Account and user administration
 
-Nooklet uses local email-and-password accounts. Administrators manage instance-wide configuration and account access from `/admin`; every signed-in user manages their own password from `/settings/account`.
+Nooklet uses local email-and-password accounts. Administrators manage account access from `/admin` and configure capabilities consumed across the instance; every signed-in user manages their own password from `/settings/account`.
 
 ## Roles and boundaries
 
@@ -130,12 +130,16 @@ Operational implications:
 
 ## Administrator handoff checklist
 
+Nooklet persists one stable instance-configuration owner and resolves shared connections, indexers, libraries, and paths through it. Every administrator edits that same configuration, and disabling or demoting the backing account does not silently select a different administrator's rows.
+
 1. Create or promote the replacement administrator.
 2. Have them sign in, replace any temporary password, and verify `/admin` access.
-3. Confirm they can reach the operational configuration they are expected to own.
-4. From the replacement account, demote or disable the old administrator.
+3. From the replacement account, verify shared connections, indexers, storage, Setup Center, and one representative regular-user request path.
+4. Demote or disable the old administrator.
 5. Rotate shared credentials if the old administrator should no longer know them.
 6. Preserve the audit record and a verified database backup.
+
+The migration that introduced the stable owner consolidates non-conflicting shared rows under it and preserves conflicting legacy rows rather than overwriting secrets or paths. A follow-up migration keeps one deterministic instance-wide library scan, missing-content search, and metadata-refresh schedule under that owner; duplicate legacy schedules are disabled without deleting their last-run history. After upgrading a multi-admin installation, review the effective shared configuration before removing old accounts.
 
 ## Account incident response
 

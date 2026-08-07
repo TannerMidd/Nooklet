@@ -40,14 +40,8 @@ export async function listIndexerSettings(userId: string): Promise<IndexerSettin
     .where(eq(indexers.userId, ownerUserId))
     .orderBy(asc(indexers.priority), asc(indexers.name))
     .all();
-  let ownerUserId = userId;
-  let rows = loadRows(ownerUserId);
-  if (rows.length === 0) {
-    ownerUserId = await resolveInstanceConfigurationOwnerId(userId);
-    if (ownerUserId !== userId) {
-      rows = loadRows(ownerUserId);
-    }
-  }
+  const ownerUserId = await resolveInstanceConfigurationOwnerId(userId);
+  const rows = loadRows(ownerUserId);
 
   const categoryRows = database
     .select({ category: indexerMediaCategories, indexerId: indexers.id })

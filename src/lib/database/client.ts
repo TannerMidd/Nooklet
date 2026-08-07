@@ -7,6 +7,7 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 
 import { env } from "@/lib/env";
 import * as schema from "@/lib/database/schema";
+import { assertNoActiveLegacyDownloadWork } from "@/lib/database/legacy-download-preflight";
 
 type AppDatabase = BetterSQLite3Database<typeof schema>;
 
@@ -174,6 +175,9 @@ export function ensureDatabaseReady() {
   const migrationSignature = readMigrationSignature();
 
   if (sharedDatabaseState.migrationSignature !== migrationSignature) {
+    // This must run before migrate(): an unsupported external-client request
+    // needs the previous release to finish or cancel it safely.
+    assertNoActiveLegacyDownloadWork(sharedDatabaseState.sqlite!);
     migrate(database, {
       migrationsFolder: path.join(process.cwd(), "drizzle"),
     });

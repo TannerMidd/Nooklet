@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 
-import { auth } from "@/auth";
+import { getProtectedActionSession } from "@/modules/identity-access/workflows/get-protected-action-session";
 
 export async function requireAdminSession() {
-  const session = await auth();
+  const session = await getProtectedActionSession();
 
   if (!session?.user) {
     redirect("/login");

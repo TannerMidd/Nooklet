@@ -25,7 +25,7 @@ export default async function AccountSettingsPage() {
       {user?.mustChangePassword ? (
         <InlineAlert variant="warning">
           <strong>Choose your own password to continue.</strong>{" "}
-          An administrator issued the password you used to sign in. Replace it now; after it is saved, the rest of Nooklet will unlock automatically.
+          An administrator issued the password you used to sign in. Replace it now, then sign in again with your new password to continue.
         </InlineAlert>
       ) : null}
 

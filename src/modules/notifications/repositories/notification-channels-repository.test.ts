@@ -174,6 +174,31 @@ describe("notification-channels-repository", () => {
     );
   });
 
+  it("does not replace another user's event subscriptions when given their channel id", async () => {
+    const ownerUserId = await seedUser();
+    const attackerUserId = await seedUser();
+    const victim = await createNotificationChannel({
+      userId: ownerUserId,
+      channelType: "webhook",
+      displayName: "Owner alerts",
+      targetUrl: "https://example.com/owner-hook",
+      isEnabled: true,
+      events: ["recommendation_run_succeeded", "library_add_failed"],
+    });
+
+    const result = await updateNotificationChannel({
+      userId: attackerUserId,
+      id: victim.id,
+      events: ["recommendation_run_failed"],
+    });
+
+    expect(result).toBeNull();
+    const reloaded = await findNotificationChannelById(ownerUserId, victim.id);
+    expect(new Set(reloaded?.events)).toEqual(
+      new Set(["recommendation_run_succeeded", "library_add_failed"]),
+    );
+  });
+
   it("records dispatch outcomes into the audit table and returns the latest as the view's lastDispatch fields", async () => {
     const userId = await seedUser();
 

@@ -7,11 +7,14 @@ Nooklet is a self-hosted application that handles account credentials, integrati
 ```mermaid
 flowchart LR
     U["Browser user"] -->|"HTTPS recommended"| P["Reverse proxy or LAN firewall"]
-    P -->|"HTTP to private upstream"| A["Nooklet app"]
-    A -->|"SQLite / encrypted records"| D["nooklet-data volume"]
-    A -->|"Allowlisted filesystem access"| M["Media and download mounts"]
-    A -->|"Validated outbound HTTP(S)"| S["Metadata, indexers, downloaders, AI, and notifications"]
+    P -->|"HTTP to private upstream"| A["Nooklet web process"]
+    A -->|"SQLite / durable intent"| D["nooklet-data volume"]
+    W["Nooklet worker process"] -->|"SQLite / encrypted records"| D
+    W -->|"Allowlisted filesystem access"| M["Media and download mounts"]
+    A -->|"Validated outbound requests"| S["Metadata, indexers, and connection verification"]
+    W -->|"Validated outbound requests"| X["Usenet, AI, history, metadata, indexers, and notifications"]
     O["Host / Docker operator"] -->|"Full recovery authority"| A
+    O --> W
     O --> D
 ```
 
@@ -24,7 +27,7 @@ The Docker/host operator is a privileged security principal. Host access can rea
 - Password policy is 12–128 characters with lowercase, uppercase, and numeric characters.
 - Sessions are signed JWTs with a 24-hour maximum age and hourly update cadence.
 - Live account checks invalidate sessions after account disablement or a password change.
-- Temporary passwords created by an administrator or the local recovery tool must be changed on first sign-in.
+- Temporary passwords created by an administrator or the local recovery tool are restricted to password replacement. The proxy redirects protected pages, protected API routes reject the session, and shared server-action guards refuse other capabilities until the password changes.
 - Login and bootstrap attempts use SQLite-backed rate limits.
 
 See [Account and user administration](Account-and-User-Administration) for role and recovery procedures.
@@ -78,7 +81,6 @@ Use least privilege. A household member who only requests media does not need ad
 Nooklet fails closed around host paths:
 
 - `APPROVED_MEDIA_ROOTS` defines the only directory trees eligible for library operations.
-- `APPROVED_DOWNLOAD_ROOTS` defines SABnzbd completed-download trees Nooklet may import when path mappings are not used.
 - Empty approved-root configuration is rejected for production filesystem operations.
 - Filesystem roots themselves cannot be approved as media roots.
 - Media deletion is limited to regular, non-symlink files contained by a registered approved library directory.
@@ -142,7 +144,7 @@ Do not counteract these controls with `privileged: true`, a Docker socket mount,
 
 Security-sensitive workflows record audit events, including bootstrap completion, user creation, role/status changes, password resets/recovery, and password changes. Audit records support investigation but do not replace centralized immutable logging.
 
-The public health endpoint suppresses raw worker/database errors. Server logs may still contain sensitive operational context and should have restricted retention and access.
+The public health endpoint returns only component status and suppresses raw worker/database errors, counts, timestamps, and stages. Core health, worker, engine, and queue events use structured logging with secret-like keys and values redacted; other runtime and upstream tools may still emit operational context, so logs require restricted retention and access.
 
 ## Current security boundaries
 

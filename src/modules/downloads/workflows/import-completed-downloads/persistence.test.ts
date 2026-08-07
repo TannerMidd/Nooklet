@@ -77,7 +77,7 @@ describe("persistCompletedDownloadImports", () => {
     const queueItem = await recordDownloadQueueItem({
       requestId: request.id,
       userId,
-      externalQueueId: "SABnzbd_nzo_1",
+      externalQueueId: "engine-download-1",
       status: "queued",
     });
 
@@ -99,7 +99,7 @@ describe("persistCompletedDownloadImports", () => {
               request,
               queueItem,
               historyItem: {
-                id: "SABnzbd_nzo_1",
+                id: "engine-download-1",
                 statusKind: "completed",
                 completedAt: new Date("2026-05-07T00:00:00Z"),
               },
@@ -147,7 +147,7 @@ describe("persistCompletedDownloadImports", () => {
     expect(importedFiles[0]?.destinationPath).toBe("F:/Media/Movies/Arrival (2016)/Arrival (2016).mkv");
   });
 
-  it("marks failed SABnzbd history items as skipped import runs", async () => {
+  it("marks failed downloader items as skipped import runs", async () => {
     const userId = await seedUser();
     const { libraryId, libraryPathId } = seedMoviePath(userId);
     const request = await createDownloadRequest({
@@ -161,25 +161,25 @@ describe("persistCompletedDownloadImports", () => {
     const queueItem = await recordDownloadQueueItem({
       requestId: request.id,
       userId,
-      externalQueueId: "SABnzbd_nzo_failed",
+      externalQueueId: "engine-download-failed",
       status: "queued",
     });
 
     const result = await persistCompletedDownloadImports(userId, [
       {
         kind: "failed",
-        message: "Download failed in SABnzbd.",
+        message: "The download failed in the built-in downloader.",
         source: {
           kind: "failed",
-          message: "Download failed in SABnzbd.",
+          message: "The download failed in the built-in downloader.",
           source: {
             kind: "failed",
-            message: "Download failed in SABnzbd.",
+            message: "The download failed in the built-in downloader.",
             match: {
               request,
               queueItem,
               historyItem: {
-                id: "SABnzbd_nzo_failed",
+                id: "engine-download-failed",
                 title: "Arrival",
                 statusKind: "failed",
                 storagePath: null,
@@ -218,6 +218,6 @@ describe("persistCompletedDownloadImports", () => {
     expect(importRun?.sourceRootPath).toBe("Arrival");
     expect(storedQueueItem?.status).toBe("failed");
     expect(storedRequest?.status).toBe("failed");
-    expect(storedRequest?.statusMessage).toBe("Download failed in SABnzbd.");
+    expect(storedRequest?.statusMessage).toBe("The download failed in the built-in downloader.");
   });
 });

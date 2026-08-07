@@ -1,6 +1,6 @@
 # HTTP API
 
-> Applies to the current `main` implementation. Last source review: 2026-07-15.
+> Applies to the current `main` implementation. Last source review: 2026-08-06.
 
 Nooklet is primarily an interactive web application. Most product operations use Next.js server actions, which are framework-private and are not a stable external API. Only routes implemented under `src/app/api` are documented here.
 
@@ -18,7 +18,7 @@ Use the deployed Nooklet origin:
 
 Protected routes use the Auth.js session cookie created by local credentials login. Same-origin browser clients can use ordinary `fetch` after sign-in. An external client must implement the Auth.js CSRF/cookie flow and retain cookies across requests.
 
-Sessions use JWT strategy with a 24-hour maximum age. Disabled accounts and password changes are checked against the live user record on later authenticated requests.
+Sessions use JWT strategy with a 24-hour maximum age. Disabled accounts and password changes are checked against the live user record on later authenticated requests. Accounts with an administrator-issued or recovery password receive `403 password_change_required` from protected APIs until they replace that password.
 
 ## Route summary
 
@@ -26,7 +26,7 @@ Sessions use JWT strategy with a 24-hour maximum age. Disabled accounts and pass
 | --- | --- | --- | --- |
 | `/api/health` | `GET` | None | Database, worker, and built-in engine readiness |
 | `/api/auth/[...nextauth]` | `GET`, `POST` | Auth.js-managed | Login, logout, CSRF, providers, and session protocol |
-| `/api/service-connections/sabnzbd/queue` | `GET`, `POST` | Required | Source-aware built-in and legacy queue read/control |
+| `/api/downloads/queue` | `GET`, `POST` | Required | Caller-scoped built-in queue read/control |
 
 Source: [`src/app/api`](https://github.com/TannerMidd/Nooklet/tree/main/src/app/api).
 
@@ -63,23 +63,7 @@ Example responsive body:
     "database": "ok",
     "backgroundWorker": "ok",
     "downloadEngine": "idle"
-  },
-  "worker": {
-    "started": true,
-    "runningMaintenance": false,
-    "lastTickAt": "2026-07-15T18:30:00.000Z",
-    "lastSuccessAt": "2026-07-15T18:30:00.000Z",
-    "hasError": false
-  },
-  "downloadEngine": {
-    "activeCount": 0,
-    "stalledCount": 0,
-    "failedCount": 0,
-    "activeStage": null,
-    "lastProgressAt": null,
-    "hasLoopError": false
-  },
-  "timestamp": "2026-07-15T18:30:01.000Z"
+  }
 }
 ```
 
@@ -109,9 +93,9 @@ Login is disabled while first-admin bootstrap is still open. Prefer the Nooklet 
 
 Source: [Auth.js configuration](https://github.com/TannerMidd/Nooklet/blob/main/src/auth.ts).
 
-## `GET /api/service-connections/sabnzbd/queue`
+## `GET /api/downloads/queue`
 
-Returns built-in and legacy queue sources plus an aggregate snapshot used by badges and title progress. The historical route name is retained for compatibility even though it now represents both sources.
+Returns the signed-in user's built-in queue snapshot used by badges, Activity, and title progress. Queue rows are filtered through the caller's download associations.
 
 Status codes:
 
@@ -119,6 +103,7 @@ Status codes:
 | ---: | --- |
 | 200 | Queue state returned, including an empty/disconnected state |
 | 401 | No authenticated user session |
+| 403 | The account must replace its temporary password first |
 | 503 | One or more queue sources could not be read |
 
 The response shape is:
@@ -127,43 +112,36 @@ The response shape is:
 type ActiveDownloadQueueState = {
   connectionStatus: "disconnected" | "configured" | "verified" | "error";
   statusMessage: string;
-  snapshot: QueueSnapshot | null;
-  sources: Array<{
-    source: "engine" | "sabnzbd";
-    label: string;
-    connectionStatus: "disconnected" | "configured" | "verified" | "error";
-    statusMessage: string;
-    snapshot: QueueSnapshot | null;
-  }>;
+  snapshot: DownloadQueueSnapshot | null;
+  // Present on POST responses.
+  action?: {
+    status: "applied" | "pending";
+    message: string;
+  };
 };
 ```
 
-The aggregate queue sums counts and measured speeds. It exposes an ETA only when exactly one non-empty source exists because independent downloaders run concurrently.
-
 ```ts
-const response = await fetch("/api/service-connections/sabnzbd/queue", {
+const response = await fetch("/api/downloads/queue", {
   cache: "no-store",
 });
 if (!response.ok) throw new Error("Queue unavailable");
 const state = await response.json();
 ```
 
-## `POST /api/service-connections/sabnzbd/queue`
+## `POST /api/downloads/queue`
 
-Applies an action to one explicit queue source and returns the refreshed aggregate state.
+Applies an action to the built-in queue and returns its refreshed state.
 
 ```ts
-type QueueAction = {
-  source: "engine" | "sabnzbd";
-} & (
+type QueueAction =
   | { type: "pauseQueue" }
   | { type: "resumeQueue" }
   | { type: "pause"; itemId: string }
   | { type: "resume"; itemId: string }
   | { type: "remove"; itemId: string }
   | { type: "move"; itemId: string; direction: "up" | "down" }
-  | { type: "moveToIndex"; itemId: string; targetIndex: number }
-);
+  | { type: "moveToIndex"; itemId: string; targetIndex: number };
 ```
 
 Status codes:
@@ -172,23 +150,22 @@ Status codes:
 | ---: | --- | --- |
 | 200 | n/a | Action succeeded; refreshed queue returned |
 | 400 | `invalid_json` | Body was not valid JSON |
-| 400 | `invalid_action` | Source or action fields failed validation |
+| 400 | `invalid_action` | Action fields failed validation |
 | 401 | n/a | No authenticated user session |
-| 409 | `queue_action_conflict` | Built-in item changed state or entered non-cancellable post-processing |
-| 500 | `queue_action_failed` | Selected queue rejected or failed the action |
+| 403 | `password_change_required` | The account must replace its temporary password first |
+| 409 | `queue_action_conflict` | The item changed state or the requested action conflicts with its current stage |
+| 500 | `queue_action_failed` | The built-in queue operation failed |
 
 Example:
 
 ```bash
 curl -b cookies.txt \
-  -X POST http://localhost:42021/api/service-connections/sabnzbd/queue \
+  -X POST http://localhost:42021/api/downloads/queue \
   -H "Content-Type: application/json" \
-  -d '{"source":"engine","type":"pauseQueue"}'
+  -d '{"type":"pauseQueue"}'
 ```
 
-Ordering and queue-wide pause controls are local to the selected source. An item cannot be moved between the built-in engine and SABnzbd.
-
-Sources: [route handler](https://github.com/TannerMidd/Nooklet/blob/main/src/app/api/service-connections/sabnzbd/queue/route.ts), [contract](https://github.com/TannerMidd/Nooklet/blob/main/src/app/api/service-connections/sabnzbd/queue/contract.ts), and [queue view](https://github.com/TannerMidd/Nooklet/blob/main/src/app/api/service-connections/sabnzbd/queue/queue-view.ts).
+Sources: [route handler](https://github.com/TannerMidd/Nooklet/blob/main/src/app/api/downloads/queue/route.ts), [contract](https://github.com/TannerMidd/Nooklet/blob/main/src/app/api/downloads/queue/contract.ts), and [queue model](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/download-engine/queue/download-queue.ts).
 
 ## Compatibility policy
 

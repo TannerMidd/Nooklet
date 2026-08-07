@@ -16,7 +16,7 @@ import {
   findTvEpisodeByIdForUser,
   listTvEpisodesForSeasonForUser,
   type TvEpisodeRecord,
-} from "@/modules/media-library/repositories/media-library-repository";
+} from "@/modules/media-library/public";
 import {
   searchLibraryItemReleasesWorkflow,
   type SearchLibraryItemReleasesResult,
@@ -25,7 +25,7 @@ import {
   acquireMediaRequestAttempt,
   releaseMediaRequestAttempt,
   renewMediaRequestAttempt,
-} from "@/modules/media-library/repositories/media-request-attempts-repository";
+} from "@/modules/media-library/public";
 import {
   acquireSeasonFulfillmentWorkLease,
   isSeasonFulfillmentWorkLease,

@@ -47,7 +47,6 @@ Use the equivalent absolute host paths on Linux or macOS. Then set:
 
 ```dotenv
 APPROVED_MEDIA_ROOTS=/media
-APPROVED_DOWNLOAD_ROOTS=/downloads
 DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine
 ```
 
@@ -83,7 +82,7 @@ Queue-time failures are classified before recovery acts:
 - raw free and total space;
 - active-download reservation;
 - capacity available for new downloads;
-- the approximate maximum size of one additional download.
+- the approximate maximum size of one additional download;
 - snapshot freshness and the last completed check.
 
 The probe normally runs every 60 seconds in a disposable process. If a mount call does not return within 30 seconds, the supervisor kills or abandons only that probe. The page retains the last successful capacity as stale instead of joining the blocked filesystem call.
@@ -122,7 +121,7 @@ For Docker, an approved root alone does not create access. A matching volume mou
 
 ## Final library destinations
 
-Use **Settings -> Storage** to attach movie and TV folders and select default import destinations. A final destination is ready when it is reachable and writable. Nooklet evaluates movie and TV destinations separately, so a healthy movie folder does not make the TV request path ready.
+Use **Settings -> Storage** to attach movie and TV folders and select default import destinations. A final destination is ready when it is reachable, readable, and writable. Nooklet evaluates movie and TV destinations separately, so a healthy movie folder does not make the TV request path ready.
 
 Removing a folder configuration does not delete its existing media files. File deletions performed through supported workflows remain constrained to canonical files inside an approved, registered library.
 
@@ -138,33 +137,13 @@ Mount network storage on the Docker host or operating system first, then bind a 
 
 For a native Windows process, UNC and device paths are rejected as media roots. Use an operating-system-mounted local path or run Nooklet in Docker with a host-managed NAS mount.
 
-## SABnzbd completed-path mapping
+## Completed-output containment
 
-Nooklet must be able to resolve the path SAB reports for a completed download.
-
-### Same path in both containers
-
-If both containers mount the shared folder at `/downloads`, no translation is needed:
-
-```dotenv
-APPROVED_DOWNLOAD_ROOTS=/downloads
-```
-
-### Different container paths
-
-If SAB reports `/sab-downloads/...` and Nooklet sees the same host files at `/downloads/...`:
-
-```dotenv
-SABNZBD_PATH_MAPPINGS=/sab-downloads=/downloads
-```
-
-Multiple mappings use semicolons or new lines. More-specific source prefixes are evaluated first.
-
-When mappings are empty, every canonical SAB completed path must stay under `APPROVED_DOWNLOAD_ROOTS`. When mappings exist, every reported path must match a mapping and the resolved target must remain inside that mapping's local target root.
+Nooklet records finalized output under `DOWNLOAD_ENGINE_DIR`; there is no second downloader namespace or completed-path translation setting. Import validates the persisted completion path against the engine item's finalized directory and validates the destination against an active, approved library path. Keep the staging mount private to this Nooklet instance.
 
 ## Built-in data volume
 
-Compose mounts the named volume `nooklet-data` at `/app/data`. The database always lives at `/app/data/nooklet.db` in Compose, regardless of a host-style `DATABASE_URL` in `.env`. The image-default download workspace `/app/data/downloads` therefore persists across container recreation, but may share a smaller Docker-managed filesystem.
+Compose mounts the named volume `nooklet-data` at `/app/data`. The database always lives at `/app/data/nooklet.db` in Compose, regardless of a host-style `DATABASE_URL` in `.env`. The image-default in-flight workspace `/app/data/engine-work` and completed-output staging `/app/data/downloads` therefore persist across container recreation, but may share a smaller Docker-managed filesystem.
 
 Do not run `docker compose down -v` unless intentionally deleting the persistent database volume.
 
@@ -175,4 +154,4 @@ Do not run `docker compose down -v` unless intentionally deleting the persistent
 - [Isolated storage refresh](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/storage/workflows/refresh-storage-snapshots.ts)
 - [Queue-time capacity preflight](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/download-engine/workflows/enqueue-nzb-download.ts)
 - [Media-root policy](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/security/filesystem-policy.ts)
-- [SAB path translation and containment](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/import-completed-downloads/source-path-mapping.ts)
+- [Engine completion-path containment](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/import-completed-downloads/source-path.ts)

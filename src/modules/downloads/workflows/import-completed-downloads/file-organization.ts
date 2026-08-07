@@ -1,7 +1,5 @@
 import path from "node:path";
-import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { access, copyFile, mkdir, rename, stat, unlink } from "node:fs/promises";
+import { unlink } from "node:fs/promises";
 
 import {
   findSeasonFolderNumber,
@@ -9,6 +7,11 @@ import {
 } from "@/modules/media-library/filename-parsing";
 
 import { type InspectedCompletedDownload, type InspectedDownloadFile, type ReadyInspectedDownload } from "./file-inspection";
+import {
+  type ImportFilesystemProgressReporter,
+  resolveImportDestination,
+  transferImportFile,
+} from "./file-transfer";
 import {
   extraVideoFiles,
   importFileKind,
@@ -74,10 +77,6 @@ function ensureChildPath(rootPath: string, candidatePath: string) {
   );
 
   return relative.length > 0 && !relative.startsWith("..") && !path.isAbsolute(relative);
-}
-
-function hasErrorCode(error: unknown, code: string) {
-  return typeof error === "object" && error !== null && "code" in error && error.code === code;
 }
 
 function largestFile(files: InspectedDownloadFile[]) {
@@ -375,77 +374,10 @@ function planFileDestinations(download: ReadyInspectedDownload): PlannedFileDest
   return [...videoPlans, ...planCompanionDestinations(download, videoPlans)];
 }
 
-async function sha256File(filePath: string) {
-  return new Promise<string>((resolve, reject) => {
-    const hash = createHash("sha256");
-    const stream = createReadStream(filePath);
-    stream.on("error", reject);
-    stream.on("data", (chunk) => hash.update(chunk));
-    stream.on("end", () => resolve(hash.digest("hex")));
-  });
-}
-
-async function hasSameContent(sourcePath: string, destinationPath: string) {
-  const [source, destination] = await Promise.all([stat(sourcePath), stat(destinationPath)]);
-
-  if (!source.isFile() || !destination.isFile() || source.size !== destination.size) {
-    return false;
-  }
-
-  const [sourceHash, destinationHash] = await Promise.all([
-    sha256File(sourcePath),
-    sha256File(destinationPath),
-  ]);
-
-  return sourceHash === destinationHash;
-}
-
-async function resolveDestinationPath(sourcePath: string, destinationPath: string) {
-  await mkdir(path.dirname(destinationPath), { recursive: true });
-
-  try {
-    await access(destinationPath);
-  } catch (error) {
-    if (hasErrorCode(error, "ENOENT")) {
-      return { kind: "ready", destinationPath } as const;
-    }
-
-    throw error;
-  }
-
-  if (await hasSameContent(sourcePath, destinationPath)) {
-    return { kind: "already-present", destinationPath } as const;
-  }
-
-  return {
-    kind: "failed",
-    message: `Destination file already exists: ${destinationPath}`,
-  } as const;
-}
-
-async function moveFile(sourcePath: string, destinationPath: string) {
-  await mkdir(path.dirname(destinationPath), { recursive: true });
-
-  if (
-    path.resolve(/* turbopackIgnore: true */ sourcePath)
-    === path.resolve(/* turbopackIgnore: true */ destinationPath)
-  ) {
-    return;
-  }
-
-  try {
-    await rename(sourcePath, destinationPath);
-  } catch (error) {
-    if (!hasErrorCode(error, "EXDEV")) {
-      throw error;
-    }
-
-    await copyFile(sourcePath, destinationPath);
-    await unlink(sourcePath);
-  }
-}
-
-async function organizeReadyDownload(download: ReadyInspectedDownload): Promise<OrganizedCompletedDownload> {
+async function organizeReadyDownload(
+  download: ReadyInspectedDownload,
+  onFilesystemProgress?: ImportFilesystemProgressReporter,
+): Promise<OrganizedCompletedDownload> {
   const targetRoot = download.source.target.path.path;
   const importedFiles: ImportedDownloadFile[] = [];
   const resolvedPlans: Array<{
@@ -478,7 +410,11 @@ async function organizeReadyDownload(download: ReadyInspectedDownload): Promise<
     }
 
     for (const planned of plans) {
-      const destination = await resolveDestinationPath(planned.file.sourcePath, planned.destinationPath);
+      const destination = await resolveImportDestination(
+        planned.file.sourcePath,
+        planned.destinationPath,
+        { onProgress: onFilesystemProgress },
+      );
 
       if (destination.kind === "failed") {
         return { kind: "failed", source: download, message: destination.message };
@@ -495,7 +431,11 @@ async function organizeReadyDownload(download: ReadyInspectedDownload): Promise<
     // predictable late collision leaving a partially imported pack.
     for (const resolved of resolvedPlans) {
       if (resolved.destination.kind === "ready") {
-        await moveFile(resolved.planned.file.sourcePath, resolved.destination.destinationPath);
+        await transferImportFile(
+          resolved.planned.file.sourcePath,
+          resolved.destination.destinationPath,
+          { onProgress: onFilesystemProgress },
+        );
         movedPlans.push(resolved);
       }
 
@@ -517,7 +457,9 @@ async function organizeReadyDownload(download: ReadyInspectedDownload): Promise<
 
     for (const moved of [...movedPlans].reverse()) {
       try {
-        await moveFile(moved.destination.destinationPath, moved.planned.file.sourcePath);
+        // Sources remain engine-owned until persistence succeeds, so rollback
+        // removes only destinations created by this attempt.
+        await unlink(moved.destination.destinationPath);
       } catch {
         rollbackFailed = true;
       }
@@ -534,6 +476,7 @@ async function organizeReadyDownload(download: ReadyInspectedDownload): Promise<
 
 export async function organizeCompletedDownloadFiles(
   downloads: InspectedCompletedDownload[],
+  options: { onFilesystemProgress?: ImportFilesystemProgressReporter } = {},
 ): Promise<OrganizedCompletedDownload[]> {
   const organized: OrganizedCompletedDownload[] = [];
 
@@ -541,7 +484,7 @@ export async function organizeCompletedDownloadFiles(
     organized.push(
       download.kind === "failed"
         ? { kind: "failed", source: download, message: download.message }
-        : await organizeReadyDownload(download),
+        : await organizeReadyDownload(download, options.onFilesystemProgress),
     );
   }
 

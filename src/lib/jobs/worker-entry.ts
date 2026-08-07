@@ -1,11 +1,21 @@
 import { ensureDatabaseReady } from "@/lib/database/client";
+import { logger } from "@/lib/observability/logger";
 
-let stopWorker: (() => void) | undefined;
+let stopWorker: (() => Promise<void>) | undefined;
+let shutdownPromise: Promise<void> | undefined;
 
 function shutdown(reason: NodeJS.Signals | "parent-exit") {
-  console.info(`[background-worker] received ${reason}; stopping.`);
-  stopWorker?.();
-  process.exit(0);
+  shutdownPromise ??= (async () => {
+    logger.info("worker_shutdown_started", { reason });
+    await stopWorker?.();
+    logger.info("worker_shutdown_completed", { reason });
+    process.exit(0);
+  })().catch((error) => {
+    logger.error("worker_shutdown_failed", { reason, error });
+    process.exit(1);
+  });
+
+  return shutdownPromise;
 }
 
 function watchSupervisorProcess() {
@@ -23,7 +33,7 @@ function watchSupervisorProcess() {
       if (!error || typeof error !== "object" || !("code" in error) || error.code !== "ESRCH") {
         return;
       }
-      shutdown("parent-exit");
+      void shutdown("parent-exit");
     }
   }, 1_000);
   timer.unref();
@@ -45,16 +55,16 @@ async function main() {
     return;
   }
 
-  process.on("SIGINT", () => shutdown("SIGINT"));
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => { void shutdown("SIGINT"); });
+  process.on("SIGTERM", () => { void shutdown("SIGTERM"); });
 
   const { startBackgroundWorker, stopBackgroundWorker } = await import("@/lib/jobs/worker");
   stopWorker = stopBackgroundWorker;
   startBackgroundWorker({ keepProcessAlive: true });
-  console.info(`[background-worker] started in isolated process ${process.pid}.`);
+  logger.info("worker_started", { pid: process.pid });
 }
 
 void main().catch((error) => {
-  console.error("[background-worker] fatal startup error:", error);
+  logger.error("worker_startup_failed", { error });
   process.exitCode = 1;
 });

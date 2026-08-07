@@ -6,7 +6,7 @@ import {
   findMediaTitleByIdForUser,
   setMediaTitleExternalIds,
 } from "@/modules/media-library/repositories/media-library-repository";
-import { lookupTmdbTitleDetails } from "@/modules/service-connections/adapters/tmdb";
+import { lookupTmdbTitleDetails } from "@/modules/service-connections/public";
 import { getVerifiedTmdbConnection } from "@/modules/service-connections/queries/get-verified-tmdb-connection";
 
 export type AutoLinkMediaTitleTmdbResult =

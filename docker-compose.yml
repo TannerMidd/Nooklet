@@ -44,11 +44,11 @@ services:
       # The path on the right is what you enter in /library settings.
       # - /host/path/to/tv:/media/tv
       # - /host/path/to/movies:/media/movies
-      # Bind-mount a downloads folder for the built-in engine and/or SAB's
-      # completed downloads. The built-in engine uses it when
+      # Bind-mount a downloads folder for the built-in engine's completed
+      # output. The built-in engine uses it when
       # DOWNLOAD_ENGINE_DIR points beneath /downloads (for example, set
       # DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine in .env).
-      # - /host/path/to/sab/downloads:/downloads
+      # - /host/path/to/downloads:/downloads
 
 volumes:
   nooklet-data:

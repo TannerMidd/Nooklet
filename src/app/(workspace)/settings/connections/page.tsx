@@ -17,10 +17,9 @@ const connectionGroups = [
   },
   {
     title: "Download releases",
-    description: "Nooklet's built-in downloader needs a Usenet server. SABnzbd is available only for older installations.",
+    description: "Nooklet's built-in downloader needs a Usenet server.",
     connections: [
       { serviceType: "usenet-server", requirement: "Required for downloads" },
-      { serviceType: "sabnzbd", requirement: "Legacy alternative" },
     ],
   },
   {

@@ -29,36 +29,41 @@ export type FetchedLibrarySources = {
   failedPaths: FailedLibraryPathScan[];
 };
 
-async function walkMediaFiles(rootPath: string, currentPath: string): Promise<FetchedFileWithoutSource[]> {
+async function walkMediaFiles(rootPath: string): Promise<FetchedFileWithoutSource[]> {
   // A scan is authoritative only when every subtree was read successfully. If
   // an unreadable directory were treated as empty, the merge phase could
   // incorrectly delete every previously recorded file below that directory.
-  const entries = await readdir(currentPath, { withFileTypes: true });
   const files: FetchedFileWithoutSource[] = [];
+  const pendingDirectories = [rootPath];
 
-  for (const entry of entries) {
-    const entryPath = path.join(currentPath, entry.name);
+  while (pendingDirectories.length > 0) {
+    const currentPath = pendingDirectories.pop()!;
+    const entries = await readdir(currentPath, { withFileTypes: true });
 
-    if (entry.isDirectory()) {
-      files.push(...await walkMediaFiles(rootPath, entryPath));
-      continue;
+    for (const entry of entries) {
+      const entryPath = path.join(currentPath, entry.name);
+
+      if (entry.isDirectory()) {
+        pendingDirectories.push(entryPath);
+        continue;
+      }
+
+      if (!entry.isFile() || !mediaExtensions.has(path.extname(entry.name).toLowerCase())) {
+        continue;
+      }
+
+      // A media file whose metadata cannot be read is an uncertain
+      // observation rather than proof that the file disappeared. Fail the
+      // source so its prior inventory remains untouched.
+      const fileStat = await stat(entryPath);
+
+      files.push({
+        filePath: entryPath,
+        relativePath: path.relative(rootPath, entryPath).replaceAll(path.sep, "/"),
+        sizeBytes: fileStat.size,
+        modifiedAt: fileStat.mtime,
+      });
     }
-
-    if (!entry.isFile() || !mediaExtensions.has(path.extname(entry.name).toLowerCase())) {
-      continue;
-    }
-
-    // Likewise, a media file whose metadata cannot be read is an uncertain
-    // observation rather than proof that the file disappeared. Fail the source
-    // so its prior inventory remains untouched.
-    const fileStat = await stat(entryPath);
-
-    files.push({
-      filePath: entryPath,
-      relativePath: path.relative(rootPath, entryPath).replaceAll(path.sep, "/"),
-      sizeBytes: fileStat.size,
-      modifiedAt: fileStat.mtime,
-    });
   }
 
   return files;
@@ -78,7 +83,7 @@ export async function fetchLibrarySourceFiles(validated: ValidatedScanSources): 
         continue;
       }
 
-      const sourceFiles = await walkMediaFiles(approvedRootPath, approvedRootPath);
+      const sourceFiles = await walkMediaFiles(approvedRootPath);
       files.push(...sourceFiles.map((file) => ({ ...file, source })));
     } catch (error) {
       failedPaths.push({

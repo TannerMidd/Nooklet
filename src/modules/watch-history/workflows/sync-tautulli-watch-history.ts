@@ -1,8 +1,8 @@
 import { listTautulliHistory } from "@/lib/integrations/tautulli";
 import { decryptSecret } from "@/lib/security/secret-box";
-import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
+import { findServiceConnectionByType } from "@/modules/service-connections/public";
 import { parseTautulliMetadata } from "@/modules/service-connections/tautulli-metadata";
-import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+import { createAuditEvent } from "@/modules/users/public";
 import { type TautulliWatchHistorySyncInput } from "@/modules/watch-history/schemas/tautulli-watch-history-sync";
 import {
   completeWatchHistorySyncRun,

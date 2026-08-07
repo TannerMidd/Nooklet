@@ -1,4 +1,4 @@
-import { listUsers } from "@/modules/users/repositories/user-repository";
+import { listUsers } from "@/modules/users/public";
 
 export async function listUsersOverview() {
   const users = await listUsers();

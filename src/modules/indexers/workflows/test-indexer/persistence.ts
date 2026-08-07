@@ -8,14 +8,13 @@ export type PersistedTestIndexerResult = TestIndexerExecution & {
 };
 
 export async function persistTestIndexerResult(
-  userId: string,
   connection: ResolvedTestIndexerConnection,
   execution: TestIndexerExecution,
 ): Promise<PersistedTestIndexerResult> {
   const testedAt = new Date();
 
   await updateIndexerConnectionStatus({
-    userId,
+    userId: connection.indexer.userId,
     id: connection.indexer.id,
     status: execution.ok ? "verified" : "error",
     statusMessage: execution.message,

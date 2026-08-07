@@ -1,9 +1,8 @@
 import { type ServiceConnectionType } from "@/lib/database/schema";
 import { parsePlexMetadata } from "@/modules/service-connections/plex-metadata";
-import { parseSabnzbdMetadata } from "@/modules/service-connections/sabnzbd-metadata";
 import { serviceConnectionDefinitions } from "@/modules/service-connections/service-definitions";
 import { parseTautulliMetadata } from "@/modules/service-connections/tautulli-metadata";
-import { listServiceConnections } from "@/modules/service-connections/repositories/service-connection-repository";
+import { listServiceConnectionSummaryRecords } from "@/modules/service-connections/repositories/service-connection-repository";
 
 type RemoteUserOption = {
   id: string;
@@ -22,10 +21,6 @@ export type ServiceConnectionSummary = {
   availableModels: string[];
   serverName: string | null;
   availableUsers: RemoteUserOption[];
-  sabnzbdVersion: string | null;
-  activeQueueCount: number;
-  queuePaused: boolean;
-  queueStatus: string | null;
   lastVerifiedAt: Date | null;
 };
 
@@ -40,7 +35,7 @@ function parseAvailableModels(metadata: Record<string, unknown> | null) {
 }
 
 export async function listConnectionSummaries(userId: string) {
-  const records = await listServiceConnections(userId);
+  const records = await listServiceConnectionSummaryRecords(userId);
   const recordByType = new Map(records.map((record) => [record.connection.serviceType, record]));
 
   return serviceConnectionDefinitions.map((definition) => {
@@ -59,16 +54,11 @@ export async function listConnectionSummaries(userId: string) {
         availableModels: [],
         serverName: null,
         availableUsers: [],
-        sabnzbdVersion: null,
-        activeQueueCount: 0,
-        queuePaused: false,
-        queueStatus: null,
         lastVerifiedAt: null,
       } satisfies ServiceConnectionSummary;
     }
 
     const plexMetadata = parsePlexMetadata(record.metadata);
-    const sabnzbdMetadata = parseSabnzbdMetadata(record.metadata);
     const tautulliMetadata = parseTautulliMetadata(record.metadata);
     const traktDisplayName =
       typeof record.metadata?.displayName === "string"
@@ -84,16 +74,12 @@ export async function listConnectionSummaries(userId: string) {
       baseUrl: record.connection.baseUrl ?? definition.defaultBaseUrl,
       status: record.connection.status,
       statusMessage: record.connection.statusMessage ?? "Saved configuration.",
-      maskedSecret: record.secret?.maskedValue ?? null,
+      maskedSecret: record.maskedSecret,
       model:
         typeof record.metadata?.model === "string" ? (record.metadata.model as string) : null,
       availableModels: parseAvailableModels(record.metadata),
       serverName: tautulliMetadata?.serverName ?? plexMetadata?.serverName ?? traktDisplayName,
       availableUsers: tautulliMetadata?.availableUsers ?? plexMetadata?.availableUsers ?? [],
-      sabnzbdVersion: sabnzbdMetadata?.version ?? null,
-      activeQueueCount: sabnzbdMetadata?.activeQueueCount ?? 0,
-      queuePaused: sabnzbdMetadata?.queuePaused ?? false,
-      queueStatus: sabnzbdMetadata?.queueStatus ?? null,
       lastVerifiedAt: record.connection.lastVerifiedAt,
     } satisfies ServiceConnectionSummary;
   });

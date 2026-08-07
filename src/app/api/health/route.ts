@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import { getBackgroundWorkerReadiness } from "@/lib/jobs/worker-readiness";
+import { logger } from "@/lib/observability/logger";
 import { getDownloadEngineHealth } from "@/modules/download-engine/queries/get-download-engine-health";
 
 // Lightweight liveness/readiness probe used by container orchestrators.
@@ -17,7 +18,7 @@ export async function GET() {
     // real, side-effect-free statement so a broken SQLite volume or connection
     // cannot be reported as healthy from cached in-process state.
     database.run(sql`select 1`);
-    const { worker, responsive, degraded } = getBackgroundWorkerReadiness();
+    const { responsive, degraded } = getBackgroundWorkerReadiness();
     const downloadEngine = getDownloadEngineHealth();
     const downloadEngineDegraded = downloadEngine.status === "degraded";
 
@@ -29,22 +30,6 @@ export async function GET() {
           backgroundWorker: !responsive ? "error" : degraded ? "degraded" : "ok",
           downloadEngine: downloadEngine.status,
         },
-        worker: {
-          started: worker.started,
-          runningMaintenance: worker.runningMaintenance,
-          lastTickAt: worker.lastTickAt?.toISOString() ?? null,
-          lastSuccessAt: worker.lastSuccessAt?.toISOString() ?? null,
-          hasError: worker.lastError !== null,
-        },
-        downloadEngine: {
-          activeCount: downloadEngine.activeCount,
-          stalledCount: downloadEngine.stalledCount,
-          failedCount: downloadEngine.failedCount,
-          activeStage: downloadEngine.activeStage,
-          lastProgressAt: downloadEngine.lastProgressAt?.toISOString() ?? null,
-          hasLoopError: downloadEngine.hasLoopError,
-        },
-        timestamp: new Date().toISOString(),
       },
       {
         // A recent worker tick means the runtime is live. Individual workload
@@ -55,12 +40,11 @@ export async function GET() {
       },
     );
   } catch (error) {
-    console.error("[health] database readiness check failed", error);
+    logger.error("health_database_probe_failed", { error });
     return NextResponse.json(
       {
         status: "error",
         checks: { database: "error", backgroundWorker: "unknown", downloadEngine: "unknown" },
-        timestamp: new Date().toISOString(),
       },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );

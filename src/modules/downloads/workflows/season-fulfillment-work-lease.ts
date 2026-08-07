@@ -3,7 +3,7 @@ import {
   releaseMediaRequestAttempt,
   renewMediaRequestAttempt,
   type MediaRequestAttemptLease,
-} from "@/modules/media-library/repositories/media-request-attempts-repository";
+} from "@/modules/media-library/public";
 
 export const SEASON_FULFILLMENT_WORK_LEASE_TTL_MS = 15 * 60_000;
 

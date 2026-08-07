@@ -347,7 +347,7 @@ function TraktFields({
 }
 
 function PrivateNetworkHelp({ serviceType }: { serviceType: ServiceConnectionSummary["serviceType"] }) {
-  if (!(["plex", "tautulli", "sabnzbd"] as const).includes(serviceType as "plex" | "tautulli" | "sabnzbd")) {
+  if (!(["plex", "tautulli"] as const).includes(serviceType as "plex" | "tautulli")) {
     return null;
   }
 
@@ -368,7 +368,6 @@ export function ConnectionCard({ summary, canManage = true, requirement }: Conne
   const definition = getServiceConnectionDefinition(summary.serviceType);
   const showsModel = Boolean(definition.modelLabel);
   const showsAvailableUsers = summary.serviceType === "tautulli" || summary.serviceType === "plex";
-  const showsSabnzbdFacts = summary.serviceType === "sabnzbd";
   const availableModels = summary.availableModels ?? [];
   const [state, formAction, pending] = useActionState(
     submitConnectionAction,
@@ -421,15 +420,6 @@ export function ConnectionCard({ summary, canManage = true, requirement }: Conne
         ) : null}
         {showsAvailableUsers ? (
           <ConnectionFact label="Users" value={summary.availableUsers.length > 0 ? summary.availableUsers.length : "Run verify"} />
-        ) : null}
-        {showsSabnzbdFacts ? (
-          <ConnectionFact
-            label="Queue"
-            value={`${summary.queueStatus ?? "Run verify"}${summary.status === "verified" ? ` (${summary.activeQueueCount} active)` : ""}`}
-          />
-        ) : null}
-        {showsSabnzbdFacts ? (
-          <ConnectionFact label="Version" value={summary.sabnzbdVersion ?? "Run verify"} />
         ) : null}
         <ConnectionFact label="Verified" value={formatDate(summary.lastVerifiedAt)} />
       </dl>

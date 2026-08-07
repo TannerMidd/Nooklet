@@ -3,7 +3,7 @@ import { getVerifiedTmdbConnection } from "@/modules/service-connections/queries
 import {
   type TmdbTitleDetails,
   lookupTmdbTitleDetailsByTmdbId,
-} from "@/modules/service-connections/adapters/tmdb";
+} from "@/modules/service-connections/public";
 
 export type DiscoverTitleOverview =
   | {

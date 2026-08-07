@@ -3,7 +3,7 @@ import { AlertCircle, ArrowRight, CheckCircle2, Compass, Film, Library, Search, 
 import Link from "next/link";
 
 import { auth } from "@/auth";
-import { getActiveDownloadQueueView } from "@/app/api/service-connections/sabnzbd/queue/queue-view";
+import { getActiveDownloadQueue } from "@/modules/download-engine/queries/get-active-download-queue";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
@@ -74,7 +74,7 @@ export default async function WorkspaceHomePage() {
   const [library, activity, queue, readiness] = await Promise.all([
     listLibraryOverview(session.user.id),
     listDownloadActivity(session.user.id),
-    getActiveDownloadQueueView(session.user.id),
+    getActiveDownloadQueue(session.user.id),
     getReadiness(session.user.id),
   ]);
   const needsAttention = activity.filter((entry) => entry.status === "failed" || entry.status === "cancelled");
@@ -111,7 +111,7 @@ export default async function WorkspaceHomePage() {
           </div>
           <Link
             href="/setup"
-            className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:mt-0"
+            className="nk-button-primary mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg px-5 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:mt-0"
           >
             Open setup <ArrowRight aria-hidden="true" className="h-4 w-4" />
           </Link>

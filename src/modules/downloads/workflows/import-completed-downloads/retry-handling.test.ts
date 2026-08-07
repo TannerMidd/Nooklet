@@ -73,17 +73,17 @@ beforeEach(() => {
 });
 
 describe("retryFailedCompletedDownloads", () => {
-  it("re-searches and queues the next release after a SABnzbd failure", async () => {
+  it("re-searches and queues the next release after a downloader failure", async () => {
     const result = await retryFailedCompletedDownloads("user1", [
       {
         kind: "failed",
-        message: "SABnzbd reported that the download failed.",
+        message: "The built-in downloader reported that the download failed.",
         source: {
           kind: "failed",
-          message: "SABnzbd reported that the download failed.",
+          message: "The built-in downloader reported that the download failed.",
           source: {
             kind: "failed",
-            message: "SABnzbd reported that the download failed.",
+            message: "The built-in downloader reported that the download failed.",
             match: {
               request: {
                 mediaTitleId: "b411e2d6-3a82-4d8a-bb18-053bb6e44b29",
@@ -114,13 +114,13 @@ describe("retryFailedCompletedDownloads", () => {
   it("only retries once for duplicate failed attempts of the same item", async () => {
     const failedDownload = {
       kind: "failed",
-      message: "SABnzbd reported that the download failed.",
+      message: "The built-in downloader reported that the download failed.",
       source: {
         kind: "failed",
-        message: "SABnzbd reported that the download failed.",
+        message: "The built-in downloader reported that the download failed.",
         source: {
           kind: "failed",
-          message: "SABnzbd reported that the download failed.",
+          message: "The built-in downloader reported that the download failed.",
           match: {
             request: {
               mediaTitleId: "b411e2d6-3a82-4d8a-bb18-053bb6e44b29",
@@ -214,13 +214,13 @@ describe("retryFailedCompletedDownloads", () => {
     const mediaTitleId = "b411e2d6-3a82-4d8a-bb18-053bb6e44b29";
     const failedDuplicate = {
       kind: "failed",
-      message: "SABnzbd reported that the download failed.",
+      message: "The built-in downloader reported that the download failed.",
       source: {
         kind: "failed",
-        message: "SABnzbd reported that the download failed.",
+        message: "The built-in downloader reported that the download failed.",
         source: {
           kind: "failed",
-          message: "SABnzbd reported that the download failed.",
+          message: "The built-in downloader reported that the download failed.",
           match: {
             request: {
               mediaTitleId,
@@ -526,13 +526,13 @@ describe("retryFailedCompletedDownloads", () => {
 
     const result = await retryFailedCompletedDownloads("user1", [{
       kind: "failed",
-      message: "SABnzbd reported that the download failed.",
+      message: "The built-in downloader reported that the download failed.",
       source: {
         kind: "failed",
-        message: "SABnzbd reported that the download failed.",
+        message: "The built-in downloader reported that the download failed.",
         source: {
           kind: "failed",
-          message: "SABnzbd reported that the download failed.",
+          message: "The built-in downloader reported that the download failed.",
           match: {
             request: {
               id: "request-season1",

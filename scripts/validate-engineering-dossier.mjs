@@ -1,8 +1,9 @@
-import { readFile, readdir } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
 const siteDirectory = path.resolve("engineering-dossier");
+const repositoryRoot = path.resolve(".");
 const pagesBasePath = "/Nooklet/";
 const requiredPages = [
   "index.html",
@@ -219,6 +220,44 @@ function resolveLocalTarget(sourceFile, rawValue) {
   return { fragment, target, value };
 }
 
+function resolveRepositorySourceTarget(rawValue) {
+  let url;
+  try {
+    url = new URL(rawValue);
+  } catch {
+    return null;
+  }
+
+  const prefixes = [
+    "/TannerMidd/Nooklet/blob/main/",
+    "/TannerMidd/Nooklet/tree/main/",
+  ];
+  const prefix = prefixes.find((candidate) => url.pathname.startsWith(candidate));
+  if (url.hostname.toLocaleLowerCase() !== "github.com" || !prefix) {
+    return null;
+  }
+
+  let repositoryPath;
+  try {
+    repositoryPath = decodeURIComponent(url.pathname.slice(prefix.length));
+  } catch {
+    return { error: "contains invalid percent encoding" };
+  }
+
+  const absoluteTarget = path.resolve(repositoryRoot, repositoryPath);
+  const relativeTarget = path.relative(repositoryRoot, absoluteTarget);
+  if (
+    relativeTarget.length === 0
+    || relativeTarget === ".."
+    || relativeTarget.startsWith(`..${path.sep}`)
+    || path.isAbsolute(relativeTarget)
+  ) {
+    return { error: "escapes the repository or names its root" };
+  }
+
+  return { absoluteTarget, repositoryPath };
+}
+
 async function scanArtifact(relativeDirectory = "") {
   const absoluteDirectory = path.join(siteDirectory, ...relativeDirectory.split("/").filter(Boolean));
   let entries;
@@ -311,6 +350,21 @@ for (const htmlFile of htmlFiles) {
 
 for (const [sourceFile, document] of documents) {
   for (const link of document.links) {
+    const repositoryTarget = resolveRepositorySourceTarget(link.value);
+    if (repositoryTarget?.error) {
+      problems.push(
+        `${sourceFile}: repository source link '${link.value}' ${repositoryTarget.error}`,
+      );
+    } else if (repositoryTarget) {
+      try {
+        await access(repositoryTarget.absoluteTarget);
+      } catch {
+        problems.push(
+          `${sourceFile}: repository source link '${link.value}' targets missing path '${repositoryTarget.repositoryPath}'`,
+        );
+      }
+    }
+
     const resolved = resolveLocalTarget(sourceFile, link.value);
     if (resolved === null) {
       continue;

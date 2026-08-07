@@ -6,7 +6,9 @@ on:
     paths:
       - "engineering-dossier/**"
       - ".github/workflows/engineering-dossier-pages.yml"
+      - ".nvmrc"
       - "package.json"
+      - "scripts/validate-configurator.mjs"
       - "scripts/validate-engineering-dossier.mjs"
   workflow_dispatch:
 
@@ -25,21 +27,21 @@ jobs:
       pages: read
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
 
       - name: Validate static dossier
         run: npm run docs:dossier:check
 
       - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload dossier artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: ./engineering-dossier
 
@@ -56,4 +58,4 @@ jobs:
     steps:
       - name: Deploy GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

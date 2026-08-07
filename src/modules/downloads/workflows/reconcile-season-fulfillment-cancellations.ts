@@ -1,7 +1,5 @@
 import { activeDownloadRequestStatuses } from "@/lib/database/schema";
-import { decryptSecret } from "@/lib/security/secret-box";
 import {
-  findDownloadClientById,
   listDownloadRequestsForFulfillment,
   listRequestsForFulfillment,
   updateDownloadQueueItemStatus,
@@ -16,48 +14,21 @@ import {
   findEngineDownloadById,
   requestEngineDownloadControl,
 } from "@/modules/download-engine/queue/engine-repository";
-import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import {
   acquireSeasonFulfillmentWorkLease,
   releaseSeasonFulfillmentWorkLease,
   renewSeasonFulfillmentWorkLease,
   type SeasonFulfillmentWorkLease,
 } from "@/modules/downloads/workflows/season-fulfillment-work-lease";
-import { removeAndVerifySabnzbdItems } from "@/modules/downloads/workflows/verified-sabnzbd-removal";
 
 const openFulfillmentStatuses = ["active", "retry_wait", "partial"] as const;
 const activeQueueItemStatuses = ["queued", "downloading", "paused"] as const;
 const cancellationRetryDelayMs = 5 * 60_000;
-const engineIdPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-type FulfillmentQueueEntry =
-  Awaited<ReturnType<typeof listRequestsForFulfillment>>[number];
 
 type RemovalCheck = {
   removed: boolean;
   message?: string;
 };
-
-async function resolveEntryClientType(
-  userId: string,
-  entry: FulfillmentQueueEntry,
-) {
-  const clientId = entry.queueItem.clientId ?? entry.request.clientId;
-  const client = clientId ? await findDownloadClientById(userId, clientId) : null;
-
-  if (client?.clientType) return client.clientType;
-
-  const engineDownload = await findEngineDownloadById(
-    userId,
-    entry.queueItem.externalQueueId,
-  );
-  if (engineDownload || engineIdPattern.test(entry.queueItem.externalQueueId)) {
-    return "nooklet" as const;
-  }
-
-  return "sabnzbd" as const;
-}
 
 async function reconcileEngineRemoval(
   userId: string,
@@ -80,52 +51,6 @@ async function reconcileEngineRemoval(
     removed: false,
     message: "Built-in downloader cleanup is pending in the isolated worker.",
   };
-}
-
-async function verifiedSabnzbdContext(userId: string) {
-  const connection = await findServiceConnectionByType(userId, "sabnzbd");
-  if (
-    !connection?.secret
-    || !connection.connection.baseUrl
-    || connection.connection.status !== "verified"
-  ) {
-    return null;
-  }
-
-  return {
-    baseUrl: connection.connection.baseUrl,
-    apiKey: decryptSecret(connection.secret.encryptedValue),
-  };
-}
-
-async function reconcileSabnzbdRemovals(
-  userId: string,
-  externalQueueIds: string[],
-  beforeExternalPhase: () => Promise<void>,
-): Promise<Map<string, RemovalCheck>> {
-  const uniqueIds = Array.from(new Set(externalQueueIds));
-  const results = new Map<string, RemovalCheck>();
-  if (uniqueIds.length === 0) return results;
-
-  const context = await verifiedSabnzbdContext(userId);
-  if (!context) {
-    for (const id of uniqueIds) {
-      results.set(id, {
-        removed: false,
-        message: "Reconnect and verify SABnzbd so Nooklet can confirm the cancellation.",
-      });
-    }
-    return results;
-  }
-
-  const verified = await removeAndVerifySabnzbdItems(context, uniqueIds, {
-    beforeExternalPhase,
-  });
-  for (const [id, result] of verified) {
-    results.set(id, result);
-  }
-
-  return results;
 }
 
 async function deferCancellation(input: {
@@ -178,33 +103,14 @@ export async function reconcileSeasonFulfillmentCancellation(
       listRequestsForFulfillment(userId, fulfillmentId),
       listDownloadRequestsForFulfillment(userId, fulfillmentId),
     ]);
-    const engineEntries: FulfillmentQueueEntry[] = [];
-    const sabEntries: FulfillmentQueueEntry[] = [];
-
-    for (const entry of entries) {
-      await renewOwnedLease();
-      if (await resolveEntryClientType(userId, entry) === "nooklet") {
-        engineEntries.push(entry);
-      } else {
-        sabEntries.push(entry);
-      }
-    }
-
     const checks = new Map<string, RemovalCheck>();
-    for (const entry of engineEntries) {
+    for (const entry of entries) {
       await renewOwnedLease();
       checks.set(
         entry.queueItem.externalQueueId,
         await reconcileEngineRemoval(userId, entry.queueItem.externalQueueId),
       );
     }
-    const sabChecks = await reconcileSabnzbdRemovals(
-      userId,
-      sabEntries.map((entry) => entry.queueItem.externalQueueId),
-      renewOwnedLease,
-    );
-    for (const [id, result] of sabChecks) checks.set(id, result);
-
     const pending = entries.filter((entry) => (
       checks.get(entry.queueItem.externalQueueId)?.removed !== true
     ));

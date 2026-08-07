@@ -63,6 +63,10 @@ vi.mock("@/modules/media-library/commands/remove-media-title", () => {
     RemoveMediaTitleCommandError,
   };
 });
+vi.mock("@/modules/media-library/commands/set-default-download-path", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/modules/media-library/commands/set-default-download-path")>()),
+  setDefaultDownloadPathCommand: vi.fn(),
+}));
 vi.mock("@/modules/media-library/commands/update-library-path", () => {
   class UpdateLibraryPathCommandError extends Error {
     constructor(
@@ -123,6 +127,9 @@ vi.mock("@/modules/media-library/workflows/configure-library-scan-schedule", () 
 vi.mock("@/modules/media-library/workflows/configure-missing-search-schedule", () => ({
   configureMissingSearchSchedule: vi.fn(),
 }));
+vi.mock("@/modules/media-library/workflows/configure-metadata-refresh-schedule", () => ({
+  configureMetadataRefreshSchedule: vi.fn(),
+}));
 vi.mock("@/modules/media-library/workflows/search-library-item-releases", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/modules/media-library/workflows/search-library-item-releases")>();
   return {
@@ -157,6 +164,7 @@ import {
   removeMediaTitleCommand,
   RemoveMediaTitleCommandError,
 } from "@/modules/media-library/commands/remove-media-title";
+import { setDefaultDownloadPathCommand } from "@/modules/media-library/commands/set-default-download-path";
 import {
   updateLibraryPathCommand,
   UpdateLibraryPathCommandError,
@@ -179,6 +187,9 @@ import {
 import {
   configureMissingSearchSchedule,
 } from "@/modules/media-library/workflows/configure-missing-search-schedule";
+import {
+  configureMetadataRefreshSchedule,
+} from "@/modules/media-library/workflows/configure-metadata-refresh-schedule";
 import {
   searchLibraryItemReleasesWorkflow,
   SearchLibraryItemReleasesWorkflowError,
@@ -203,9 +214,11 @@ import {
   requestExistingTitleContentAction,
   scanLibraryAction,
   searchLibraryItemReleasesAction,
+  setDefaultDownloadPathAction,
   updateLibraryPathAction,
   updateLibraryMonitoringAction,
   updateLibraryScanScheduleAction,
+  updateMetadataRefreshScheduleAction,
   updateMediaTitlePreferencesAction,
   updateMissingSearchScheduleAction,
   updateTvEpisodeMonitoringAction,
@@ -216,7 +229,9 @@ import {
   initialLibraryScanScheduleActionState,
   initialLibraryPathActionState,
   initialLibraryPathMutationActionState,
+  initialDefaultDownloadPathActionState,
   initialMediaTitlePreferenceActionState,
+  initialMetadataRefreshScheduleActionState,
   initialMissingSearchScheduleActionState,
   initialRemoveMediaTitleActionState,
   initialRequestExistingTitleContentActionState,
@@ -236,6 +251,8 @@ const hasActiveTitleDownloadMock = vi.mocked(hasActiveDownloadAssociationForTitl
 const createImmediateJobMock = vi.mocked(createImmediateJob);
 const configureLibraryScanScheduleMock = vi.mocked(configureLibraryScanSchedule);
 const configureMissingSearchScheduleMock = vi.mocked(configureMissingSearchSchedule);
+const configureMetadataRefreshScheduleMock = vi.mocked(configureMetadataRefreshSchedule);
+const setDefaultDownloadPathMock = vi.mocked(setDefaultDownloadPathCommand);
 const searchLibraryItemMock = vi.mocked(searchLibraryItemReleasesWorkflow);
 const findTvSeasonMock = vi.mocked(findTvSeasonByIdForUser);
 const attemptSeasonPackMock = vi.mocked(attemptSeasonPack);
@@ -387,8 +404,20 @@ describe("scanLibraryAction", () => {
     expect(createImmediateJobMock).not.toHaveBeenCalled();
   });
 
+  it("does not let a regular user queue an instance library scan", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "user" } } as never);
+
+    const result = await scanLibraryAction();
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Only an administrator can run instance automation.",
+    });
+    expect(createImmediateJobMock).not.toHaveBeenCalled();
+  });
+
   it("maps queue failures to a friendly message", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     createImmediateJobMock.mockRejectedValue(new Error("database unavailable"));
 
     const result = await scanLibraryAction();
@@ -397,7 +426,7 @@ describe("scanLibraryAction", () => {
   });
 
   it("queues the scan for the isolated worker and revalidates the library page", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     createImmediateJobMock.mockResolvedValue({ id: "job-1" } as never);
 
     const result = await scanLibraryAction();
@@ -433,8 +462,20 @@ describe("updateLibraryScanScheduleAction", () => {
     expect(configureLibraryScanScheduleMock).not.toHaveBeenCalled();
   });
 
+  it("does not let a regular user change the instance library-scan schedule", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "user" } } as never);
+
+    const result = await updateLibraryScanScheduleAction(initialLibraryScanScheduleActionState, validForm());
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Only an administrator can manage instance automation.",
+    });
+    expect(configureLibraryScanScheduleMock).not.toHaveBeenCalled();
+  });
+
   it("validates interval minutes", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     const form = validForm();
     form.set("intervalMinutes", "5");
 
@@ -446,7 +487,7 @@ describe("updateLibraryScanScheduleAction", () => {
   });
 
   it("saves the schedule and revalidates the library page", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     configureLibraryScanScheduleMock.mockResolvedValue({
       ok: true,
       message: "Library scan enabled every 120 minutes.",
@@ -480,8 +521,20 @@ describe("updateMissingSearchScheduleAction", () => {
     expect(configureMissingSearchScheduleMock).not.toHaveBeenCalled();
   });
 
+  it("does not let a regular user change the instance missing-search schedule", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "user" } } as never);
+
+    const result = await updateMissingSearchScheduleAction(initialMissingSearchScheduleActionState, validForm());
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Only an administrator can manage instance automation.",
+    });
+    expect(configureMissingSearchScheduleMock).not.toHaveBeenCalled();
+  });
+
   it("validates interval minutes", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     const form = validForm();
     form.set("intervalMinutes", "5");
 
@@ -493,7 +546,7 @@ describe("updateMissingSearchScheduleAction", () => {
   });
 
   it("saves the schedule and revalidates the library page", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+    authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
     configureMissingSearchScheduleMock.mockResolvedValue({
       ok: true,
       message: "Missing-content search enabled every 720 minutes.",
@@ -507,6 +560,39 @@ describe("updateMissingSearchScheduleAction", () => {
     });
     expect(revalidateMock).toHaveBeenCalledWith("/library");
     expect(result).toEqual({ status: "success", message: "Missing-content search enabled every 720 minutes." });
+  });
+});
+
+describe("setDefaultDownloadPathAction", () => {
+  it("does not let a regular user change the instance default download path", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "user" } } as never);
+    const form = new FormData();
+    form.set("pathId", "4744741d-82b9-4b47-9f91-489e1d96ce02");
+
+    const result = await setDefaultDownloadPathAction(initialDefaultDownloadPathActionState, form);
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Only an administrator can manage library folders.",
+    });
+    expect(setDefaultDownloadPathMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateMetadataRefreshScheduleAction", () => {
+  it("does not let a regular user change the instance metadata-refresh schedule", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", role: "user" } } as never);
+    const form = new FormData();
+    form.set("enabled", "on");
+    form.set("intervalMinutes", "720");
+
+    const result = await updateMetadataRefreshScheduleAction(initialMetadataRefreshScheduleActionState, form);
+
+    expect(result).toEqual({
+      status: "error",
+      message: "Only an administrator can manage instance automation.",
+    });
+    expect(configureMetadataRefreshScheduleMock).not.toHaveBeenCalled();
   });
 });
 

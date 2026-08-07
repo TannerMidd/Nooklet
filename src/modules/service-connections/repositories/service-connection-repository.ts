@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
@@ -27,12 +27,20 @@ export type ServiceConnectionRecord = {
 const instanceServiceConnectionTypes = new Set<ServiceConnectionType>([
   "ai-provider",
   "plex",
-  "sabnzbd",
   "tautulli",
   "tmdb",
   "tvdb",
   "usenet-server",
 ]);
+
+async function resolveServiceConnectionOwnerId(
+  userId: string,
+  serviceType: ServiceConnectionType,
+) {
+  return instanceServiceConnectionTypes.has(serviceType)
+    ? resolveInstanceConfigurationOwnerId(userId)
+    : userId;
+}
 
 function parseMetadata(metadataJson: string | null) {
   if (!metadataJson) {
@@ -115,62 +123,66 @@ export async function findServiceConnectionByType(
   userId: string,
   serviceType: ServiceConnectionType,
 ) {
-  const owned = findOwnedConnectionByType(userId, serviceType);
-  if (owned) {
-    return hydrateConnection(owned);
-  }
-
-  if (!instanceServiceConnectionTypes.has(serviceType)) {
-    return null;
-  }
-
-  const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
-  if (instanceOwnerId === userId) {
-    return null;
-  }
-
-  const shared = findOwnedConnectionByType(instanceOwnerId, serviceType);
-  return shared ? hydrateConnection(shared) : null;
+  const ownerUserId = await resolveServiceConnectionOwnerId(userId, serviceType);
+  const connection = findOwnedConnectionByType(ownerUserId, serviceType);
+  return connection ? hydrateConnection(connection) : null;
 }
 
-export async function listServiceConnections(userId: string) {
+export type ServiceConnectionSummaryRecord = {
+  connection: StoredServiceConnection;
+  maskedSecret: string | null;
+  metadata: Record<string, unknown> | null;
+};
+
+/**
+ * Loads the settings projection without reading encrypted credential values.
+ * Decryption and lazy key rotation belong only on workflows that consume a
+ * specific credential, never on a summary page.
+ */
+export async function listServiceConnectionSummaryRecords(userId: string) {
   const database = ensureDatabaseReady();
+  const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
   const ownedConnections = database
     .select()
     .from(serviceConnections)
     .where(eq(serviceConnections.ownerUserId, userId))
     .all();
-
-  const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
-  const fallbackConnections = instanceOwnerId === userId
-    ? []
-    : database
-        .select()
-        .from(serviceConnections)
-        .where(eq(serviceConnections.ownerUserId, instanceOwnerId))
-        .all()
-        .filter((connection) => instanceServiceConnectionTypes.has(connection.serviceType));
-  const connectionByType = new Map(
-    fallbackConnections.map((connection) => [connection.serviceType, connection] as const),
+  const instanceConnections = database
+    .select()
+    .from(serviceConnections)
+    .where(eq(serviceConnections.ownerUserId, instanceOwnerId))
+    .all()
+    .filter((connection) => instanceServiceConnectionTypes.has(connection.serviceType));
+  const personalConnections = ownedConnections.filter(
+    (connection) => !instanceServiceConnectionTypes.has(connection.serviceType),
   );
-  for (const connection of ownedConnections) {
+  const connectionByType = new Map(
+    instanceConnections.map((connection) => [connection.serviceType, connection] as const),
+  );
+  for (const connection of personalConnections) {
     connectionByType.set(connection.serviceType, connection);
   }
   const connections = [...connectionByType.values()];
 
-  const secrets = database.select().from(serviceSecrets).all();
-  const secretByConnectionId = new Map(
-    secrets.map((secret) => {
-      const rotated = rotateStoredSecret(secret)!;
-      return [rotated.connectionId, rotated] as const;
-    }),
+  const maskedSecrets = connections.length === 0
+    ? []
+    : database
+        .select({
+          connectionId: serviceSecrets.connectionId,
+          maskedValue: serviceSecrets.maskedValue,
+        })
+        .from(serviceSecrets)
+        .where(inArray(serviceSecrets.connectionId, connections.map((connection) => connection.id)))
+        .all();
+  const maskedSecretByConnectionId = new Map(
+    maskedSecrets.map((secret) => [secret.connectionId, secret.maskedValue] as const),
   );
 
   return connections.map((connection) => ({
     connection,
-    secret: secretByConnectionId.get(connection.id) ?? null,
+    maskedSecret: maskedSecretByConnectionId.get(connection.id) ?? null,
     metadata: parseMetadata(connection.metadataJson),
-  })) satisfies ServiceConnectionRecord[];
+  })) satisfies ServiceConnectionSummaryRecord[];
 }
 
 type SaveServiceConnectionInput = {
@@ -189,7 +201,8 @@ type SaveServiceConnectionInput = {
 
 export async function saveServiceConnection(input: SaveServiceConnectionInput) {
   const database = ensureDatabaseReady();
-  const existingConnection = findOwnedConnectionByType(input.userId, input.serviceType);
+  const ownerUserId = await resolveServiceConnectionOwnerId(input.userId, input.serviceType);
+  const existingConnection = findOwnedConnectionByType(ownerUserId, input.serviceType);
   const existingRecord = existingConnection ? hydrateConnection(existingConnection) : null;
   const metadataJson = input.metadata ? JSON.stringify(input.metadata) : null;
 
@@ -228,7 +241,7 @@ export async function saveServiceConnection(input: SaveServiceConnectionInput) {
         .run();
     }
 
-    const updated = findOwnedConnectionByType(input.userId, input.serviceType);
+    const updated = findOwnedConnectionByType(ownerUserId, input.serviceType);
     return updated ? hydrateConnection(updated) : null;
   }
 
@@ -240,7 +253,7 @@ export async function saveServiceConnection(input: SaveServiceConnectionInput) {
       id: connectionId,
       serviceType: input.serviceType,
       ownershipScope: instanceServiceConnectionTypes.has(input.serviceType) ? "shared" : "user",
-      ownerUserId: input.userId,
+      ownerUserId,
       displayName: input.displayName,
       baseUrl: input.baseUrl,
       status: input.status,
@@ -260,7 +273,7 @@ export async function saveServiceConnection(input: SaveServiceConnectionInput) {
       .run();
   }
 
-  return findServiceConnectionByType(input.userId, input.serviceType);
+  return findServiceConnectionByType(ownerUserId, input.serviceType);
 }
 
 export async function updateServiceConnectionVerification(
@@ -293,7 +306,8 @@ export async function deleteServiceConnection(
   serviceType: ServiceConnectionType,
 ) {
   const database = ensureDatabaseReady();
-  const connection = findOwnedConnectionByType(userId, serviceType);
+  const ownerUserId = await resolveServiceConnectionOwnerId(userId, serviceType);
+  const connection = findOwnedConnectionByType(ownerUserId, serviceType);
   const record = connection ? hydrateConnection(connection) : null;
 
   if (!record) {

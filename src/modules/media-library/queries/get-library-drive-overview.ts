@@ -7,7 +7,7 @@ import {
 import {
   libraryDestinationSnapshotId,
   listStorageSnapshots,
-} from "@/modules/storage/repositories/storage-snapshot-repository";
+} from "@/modules/storage/public";
 import {
   getStorageSnapshotStatus,
   type StorageSnapshotStatus,

@@ -10,7 +10,7 @@ export async function testIndexerWorkflow(userId: string, input: TestIndexerInpu
   const request = validateTestIndexerRequest(input);
   const connection = await resolveTestIndexerConnection(userId, request);
   const execution = await executeTestIndexerConnection(connection);
-  const persisted = await persistTestIndexerResult(userId, connection, execution);
+  const persisted = await persistTestIndexerResult(connection, execution);
 
   await recordTestIndexerAudit(userId, connection, persisted);
 

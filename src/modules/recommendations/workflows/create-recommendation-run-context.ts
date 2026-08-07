@@ -3,7 +3,7 @@ import { type RecommendationRequestInput } from "@/modules/recommendations/schem
 import { sampleLibraryTasteFromTitles } from "@/modules/media-library/queries/sample-library-taste";
 import { type SampledLibraryTasteItem } from "@/modules/recommendations/library-taste-key";
 import { parseAiProviderFlavor } from "@/modules/service-connections/ai-provider-endpoints";
-import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
+import { findServiceConnectionByType } from "@/modules/service-connections/public";
 import { verifyConfiguredServiceConnection } from "@/modules/service-connections/workflows/verify-configured-service-connection";
 
 export type RecommendationLibraryTasteContext = {

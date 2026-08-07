@@ -1,6 +1,6 @@
 # First-time setup
 
-Setup Center evaluates the live request path. It does not mark setup complete merely because values were saved: required services must verify, paths must be reachable and writable, capacity must be available, and the background worker must be healthy.
+Setup Center evaluates the live request path. It does not mark setup complete merely because values were saved: required services must verify, library paths must be reachable, readable, and writable, capacity must be available, and the background worker must be healthy.
 
 ## 1. Create the first administrator
 
@@ -45,25 +45,17 @@ Go to **Settings -> Connections -> TMDB**.
 
 TMDB is required for reliable identity, browsing, artwork, genres, trailers, and discovery. TVDB is an optional additional TV metadata source; it does not replace the core TMDB readiness check.
 
-## 4. Choose a downloader
-
-### Built-in downloader
+## 4. Configure the built-in downloader
 
 Configure **Usenet server** under **Settings -> Connections**:
 
 1. Enter the news server hostname and port supplied by the provider.
 2. Use the provider's TLS port (usually 563); connections are always encrypted.
 3. Choose between 1 and 20 connections within the provider's account limit.
-4. Enter the provider username and password.
+4. Enter the provider username and password when the server requires authentication; leave both blank only for an anonymous server.
 5. Select **Test & save** and confirm **Verified**.
 
 The built-in engine also requires a writable staging workspace with usable capacity. Confirm it under **Settings -> Storage**. See [Storage and path mapping](Storage-and-Path-Mapping).
-
-### SABnzbd legacy alternative
-
-If an existing installation already uses SABnzbd, configure its base URL and API key instead. SAB must be reachable from Nooklet's runtime network, and its reported completed path must resolve inside Nooklet through a shared mount or `SABNZBD_PATH_MAPPINGS`.
-
-Only one downloader is required. When the built-in Usenet connection is verified, SABnzbd is optional.
 
 ## 5. Add a Newznab indexer
 
@@ -106,10 +98,10 @@ A media type is ready only when all conditions in its column pass:
 | Check | Movies | TV |
 | --- | --- | --- |
 | TMDB verified | Required for setup completion | Required for setup completion |
-| Downloader verified | Usenet or SABnzbd | Usenet or SABnzbd |
+| Downloader verified | Usenet server | Usenet server |
 | Enabled, verified indexer | Must include a movie category | Must include a TV category |
-| Final destination | Reachable and writable movie folder | Reachable and writable TV folder |
-| Built-in staging | Reachable, writable, and positive usable capacity when built-in engine is the active path | Same |
+| Final destination | Reachable, readable, and writable movie folder | Reachable, readable, and writable TV folder |
+| Built-in staging | Reachable, writable, and positive usable capacity | Same |
 | Background worker | Responsive and non-degraded | Responsive and non-degraded |
 
 Setup is complete when TMDB and the worker are healthy and at least one complete movie or TV request path is ready. You can finish the other media type later.
@@ -120,11 +112,11 @@ Setup is complete when TMDB and the worker are healthy and at least one complete
 2. Choose a small, unambiguous title.
 3. For TV, select the intended seasons or episodes.
 4. Confirm the destination shown in the request flow.
-5. Submit the request and open **In progress**.
+5. Submit the request and open **Activity**.
 6. Watch the item move through search, queue, download, processing, and import.
 7. Confirm the final file appears in the intended library folder.
 
-If Nooklet reports insufficient disk space while the media drive has space, inspect the **download workspace** in **Settings -> Storage**. The built-in engine checks `DOWNLOAD_ENGINE_DIR`, not the final movie or TV destination.
+If Nooklet reports insufficient disk space while the media drive has space, inspect both engine locations in **Settings -> Storage**. The built-in engine checks `DOWNLOAD_ENGINE_WORK_DIR` and `DOWNLOAD_ENGINE_DIR`, and the more constrained filesystem limits admission; neither is the final movie or TV destination.
 
 ## Optional finishing steps
 

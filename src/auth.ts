@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
 import { env } from "@/lib/env";
@@ -11,6 +11,53 @@ import { getBootstrapStatus } from "@/modules/identity-access/workflows/bootstra
 import { findUserById } from "@/modules/users/repositories/user-repository";
 
 process.env.AUTH_URL ??= env.APP_URL;
+
+export const authCallbacks = {
+  async jwt({ token, user }) {
+    if (user) {
+      token.role = user.role;
+      token.mustChangePassword = user.mustChangePassword;
+      token.pwdChangedAt = user.passwordChangedAt;
+      return token;
+    }
+
+    // On subsequent requests, validate the token against the live user record so
+    // disabled accounts and password changes invalidate existing sessions.
+    if (token.sub) {
+      const currentUser = await findUserById(token.sub);
+
+      if (!currentUser || currentUser.isDisabled) {
+        return null;
+      }
+
+      const currentPwdChangedAt = currentUser.passwordChangedAt.getTime();
+      const tokenPwdChangedAt = token.pwdChangedAt;
+      if (typeof tokenPwdChangedAt !== "number" || !Number.isFinite(tokenPwdChangedAt)) {
+        // Tokens issued before password-version claims existed cannot prove
+        // that they predate neither a reset nor an account takeover recovery.
+        // Fail closed once, requiring those legacy sessions to sign in again.
+        return null;
+      }
+      if (tokenPwdChangedAt < currentPwdChangedAt) {
+        return null;
+      }
+
+      token.role = currentUser.role;
+      token.mustChangePassword = currentUser.mustChangePassword;
+    }
+
+    return token;
+  },
+  session({ session, token }) {
+    if (session.user) {
+      session.user.id = token.sub ?? "";
+      session.user.role = token.role === "admin" ? "admin" : "user";
+      session.user.mustChangePassword = token.mustChangePassword === true;
+    }
+
+    return session;
+  },
+} satisfies NonNullable<NextAuthConfig["callbacks"]>;
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: env.AUTH_SECRET,
@@ -88,44 +135,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.role = user.role;
-        token.mustChangePassword = user.mustChangePassword;
-        token.pwdChangedAt = user.passwordChangedAt;
-        return token;
-      }
-
-      // On subsequent requests, validate the token against the live user record so
-      // disabled accounts and password changes invalidate existing sessions.
-      if (token.sub) {
-        const currentUser = await findUserById(token.sub);
-
-        if (!currentUser || currentUser.isDisabled) {
-          return null;
-        }
-
-        const currentPwdChangedAt = currentUser.passwordChangedAt.getTime();
-        const tokenPwdChangedAt = typeof token.pwdChangedAt === "number" ? token.pwdChangedAt : null;
-        if (tokenPwdChangedAt !== null && tokenPwdChangedAt < currentPwdChangedAt) {
-          return null;
-        }
-
-        token.role = currentUser.role;
-        token.mustChangePassword = currentUser.mustChangePassword;
-      }
-
-      return token;
-    },
-    session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.sub ?? "";
-        session.user.role = token.role === "admin" ? "admin" : "user";
-        session.user.mustChangePassword = token.mustChangePassword === true;
-      }
-
-      return session;
-    },
-  },
+  callbacks: authCallbacks,
 });

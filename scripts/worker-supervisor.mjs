@@ -9,6 +9,11 @@ import {
   defaultStorageRefreshTimeoutMs,
   positiveDuration,
 } from "./lib/storage-probe-coordinator.mjs";
+import {
+  createWorkerHeartbeatWatchdog,
+  defaultWorkerStaleAfterMs,
+} from "./lib/worker-heartbeat-watchdog.mjs";
+import { operationalLog } from "./lib/structured-log.mjs";
 
 const root = process.cwd();
 
@@ -28,6 +33,11 @@ const workerEntry = configuredWorkerEntry
     ? packagedWorkerEntry
     : path.join(root, ".next", "worker", "worker.cjs");
 const restartCeilingMs = 30_000;
+const workerStaleAfterMs = positiveDuration(
+  process.env.NOOKLET_WORKER_STALE_AFTER_MS,
+  defaultWorkerStaleAfterMs,
+  60_000,
+);
 const storageRefreshIntervalMs = positiveDuration(
   process.env.NOOKLET_STORAGE_REFRESH_INTERVAL_MS,
   defaultStorageRefreshIntervalMs,
@@ -42,6 +52,8 @@ const storageRefreshTimeoutMs = positiveDuration(
 let workerProcess;
 let migrationProcess;
 let workerRestartTimer;
+let workerForceKillTimer;
+let workerHeartbeatWatchdog;
 let workerReloadTimer;
 let workerEntryWatcher;
 let parentWatchTimer;
@@ -68,7 +80,7 @@ function clearWorkerHeartbeat() {
   try {
     rmSync(resolveHeartbeatPath(), { force: true });
   } catch (error) {
-    console.error("[worker-supervisor] could not clear the previous worker heartbeat:", error);
+    operationalLog.error("worker_supervisor_heartbeat_clear_failed", { error });
   }
 }
 
@@ -111,6 +123,8 @@ function beginShutdown(exitCode = 0) {
   shuttingDown = true;
   shutdownExitCode = exitCode;
   if (workerRestartTimer) clearTimeout(workerRestartTimer);
+  if (workerForceKillTimer) clearTimeout(workerForceKillTimer);
+  workerHeartbeatWatchdog?.stop();
   if (workerReloadTimer) clearTimeout(workerReloadTimer);
   if (parentWatchTimer) clearInterval(parentWatchTimer);
   workerEntryWatcher?.close();
@@ -161,7 +175,7 @@ function watchWorkerBundle() {
     workerReloadTimer = setTimeout(requestWorkerReload, 250);
   });
   workerEntryWatcher.on("error", (error) => {
-    console.error("[worker-supervisor] worker bundle watch failed:", error);
+    operationalLog.error("worker_supervisor_bundle_watch_failed", { error });
   });
 }
 
@@ -176,7 +190,7 @@ function watchParentSupervisor() {
       if (!error || typeof error !== "object" || !("code" in error) || error.code !== "ESRCH") {
         return;
       }
-      console.error("[worker-supervisor] parent supervisor exited; stopping children.");
+      operationalLog.warn("worker_supervisor_parent_exited");
       beginShutdown(0);
     }
   }, 1_000);
@@ -187,11 +201,29 @@ function startWorker() {
   const startedAt = Date.now();
   const child = launchWorker("worker");
   workerProcess = child;
+  workerHeartbeatWatchdog = createWorkerHeartbeatWatchdog({
+    heartbeatPath: resolveHeartbeatPath(),
+    staleAfterMs: workerStaleAfterMs,
+    onStale: () => {
+      if (shuttingDown || workerProcess !== child) return;
+      operationalLog.warn("worker_supervisor_worker_stale", { staleAfterMs: workerStaleAfterMs });
+      stopChild(child);
+      workerForceKillTimer = setTimeout(() => {
+        if (workerProcess === child) stopChild(child, "SIGKILL");
+      }, 10_000);
+      workerForceKillTimer.unref();
+    },
+  });
+  workerHeartbeatWatchdog.start();
 
   child.once("error", (error) => {
-    console.error("[worker-supervisor] unable to start background worker:", error);
+    operationalLog.error("worker_supervisor_worker_start_failed", { error });
   });
   child.once("close", (code, signal) => {
+    workerHeartbeatWatchdog?.stop();
+    workerHeartbeatWatchdog = undefined;
+    if (workerForceKillTimer) clearTimeout(workerForceKillTimer);
+    workerForceKillTimer = undefined;
     if (workerProcess === child) workerProcess = undefined;
     clearWorkerHeartbeat();
 
@@ -214,9 +246,12 @@ function startWorker() {
       restartCeilingMs,
     );
 
-    console.error(
-      `[worker-supervisor] background worker exited (${signal ?? code ?? "unknown"}); restarting in ${restartDelayMs}ms.`,
-    );
+    operationalLog.error("worker_supervisor_worker_restarting", {
+      message: `background worker exited (${signal ?? code ?? "unknown"}); restarting in ${restartDelayMs}ms.`,
+      code,
+      signal,
+      restartDelayMs,
+    });
     workerRestartTimer = setTimeout(startWorker, restartDelayMs);
   });
 }
@@ -245,6 +280,6 @@ process.on("SIGTERM", () => beginShutdown(0));
 watchParentSupervisor();
 
 void bootstrap().catch((error) => {
-  console.error("[worker-supervisor] startup failed:", error);
+  operationalLog.error("worker_supervisor_startup_failed", { error });
   beginShutdown(1);
 });

@@ -44,14 +44,6 @@ export const serviceConnectionDefinitions = [
     defaultBaseUrl: "nntps://news.example.com:563",
   },
   {
-    serviceType: "sabnzbd",
-    displayName: "SABnzbd (legacy)",
-    description:
-      "Optional legacy downloader. With a usenet server configured, Nooklet downloads releases itself and SABnzbd is no longer required.",
-    secretLabel: "API key",
-    defaultBaseUrl: "http://localhost:8080",
-  },
-  {
     serviceType: "tmdb",
     displayName: "TMDB",
     description:

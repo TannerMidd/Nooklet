@@ -3,7 +3,7 @@ import { getVerifiedTmdbConnection } from "@/modules/service-connections/queries
 import {
   searchTmdbTitles,
   type TmdbTitleSearchResult,
-} from "@/modules/service-connections/adapters/tmdb";
+} from "@/modules/service-connections/public";
 
 import {
   searchDiscoverTitlesInputSchema,

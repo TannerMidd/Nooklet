@@ -49,7 +49,7 @@ function buildWorkflowResult(libraryId: string) {
     queuedDownload: {
       queued: true,
       reason: "queued",
-      message: "Sent to SAB.",
+      message: "Sent to the downloader.",
       selectedResultId: "release-1",
       rejectedResultIds: [],
       download: null,

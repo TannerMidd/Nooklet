@@ -177,7 +177,10 @@ describe("queueReleaseCandidates", () => {
 
   it("stops on non-retryable errors", async () => {
     queueMock.mockRejectedValue(
-      new QueueIndexerResultWorkflowError("sabnzbd_enqueue_failed", "SABnzbd could not queue the selected release."),
+      new QueueIndexerResultWorkflowError(
+        "downloader_not_verified",
+        "Verify the Usenet server before queueing releases.",
+      ),
     );
 
     const outcome = await queueReleaseCandidates("u1", [{ id: "first" }, { id: "second" }], context);
@@ -187,7 +190,7 @@ describe("queueReleaseCandidates", () => {
       queued: false,
       reason: "queue_failed",
       failureKind: "infrastructure",
-      message: "SABnzbd could not queue the selected release.",
+      message: "Verify the Usenet server before queueing releases.",
       rejectedResultIds: [],
     });
   });

@@ -1,4 +1,4 @@
-import { createAuditEvent } from "@/modules/users/repositories/user-repository";
+import { createAuditEvent } from "@/modules/users/public";
 import { getServiceConnectionDefinition } from "@/modules/service-connections/service-definitions";
 import {
   deleteServiceConnection,

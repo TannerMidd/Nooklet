@@ -12,7 +12,7 @@ import {
   createSeasonFulfillment,
   markFulfillmentEpisodeFailedAndRetry,
 } from "@/modules/downloads/workflows/season-fulfillment";
-import { findTvEpisodeByIdForUser } from "@/modules/media-library/repositories/media-library-repository";
+import { findTvEpisodeByIdForUser } from "@/modules/media-library/public";
 import { searchLibraryItemReleasesWorkflow } from "@/modules/media-library/workflows/search-library-item-releases";
 
 import { buildDownloadRequestReleaseSearchInput } from "./download-request-release-search-input";

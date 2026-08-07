@@ -9,6 +9,11 @@ import {
   defaultStorageRefreshTimeoutMs,
   positiveDuration,
 } from "./lib/storage-probe-coordinator.mjs";
+import {
+  createWorkerHeartbeatWatchdog,
+  defaultWorkerStaleAfterMs,
+} from "./lib/worker-heartbeat-watchdog.mjs";
+import { operationalLog } from "./lib/structured-log.mjs";
 
 const root = process.cwd();
 // This entrypoint is the production supervisor. Do not let an env_file turn
@@ -39,6 +44,11 @@ const workerEntry = configuredWorkerEntry
     : path.join(root, ".next", "worker", "worker.cjs");
 const nextCliEntry = path.join(root, "node_modules", "next", "dist", "bin", "next");
 const restartCeilingMs = 30_000;
+const workerStaleAfterMs = positiveDuration(
+  process.env.NOOKLET_WORKER_STALE_AFTER_MS,
+  defaultWorkerStaleAfterMs,
+  60_000,
+);
 
 const storageRefreshIntervalMs = positiveDuration(
   process.env.NOOKLET_STORAGE_REFRESH_INTERVAL_MS,
@@ -55,6 +65,8 @@ let webProcess;
 let workerProcess;
 let migrationProcess;
 let workerRestartTimer;
+let workerForceKillTimer;
+let workerHeartbeatWatchdog;
 let workerFailureCount = 0;
 let shuttingDown = false;
 let shutdownExitCode = 0;
@@ -79,7 +91,7 @@ function clearWorkerHeartbeat() {
   try {
     rmSync(heartbeatPath, { force: true });
   } catch (error) {
-    console.error("[supervisor] could not clear the previous worker heartbeat:", error);
+    operationalLog.error("supervisor_heartbeat_clear_failed", { error });
   }
 }
 
@@ -137,6 +149,8 @@ function beginShutdown(exitCode = 0) {
   shuttingDown = true;
   shutdownExitCode = exitCode;
   if (workerRestartTimer) clearTimeout(workerRestartTimer);
+  if (workerForceKillTimer) clearTimeout(workerForceKillTimer);
+  workerHeartbeatWatchdog?.stop();
   stopChild(migrationProcess);
   stopChild(webProcess);
   stopChild(workerProcess);
@@ -168,11 +182,29 @@ function startWorker() {
   const startedAt = Date.now();
   const child = launch(workerEntry, "worker");
   workerProcess = child;
+  workerHeartbeatWatchdog = createWorkerHeartbeatWatchdog({
+    heartbeatPath,
+    staleAfterMs: workerStaleAfterMs,
+    onStale: () => {
+      if (shuttingDown || workerProcess !== child) return;
+      operationalLog.warn("supervisor_worker_stale", { staleAfterMs: workerStaleAfterMs });
+      stopChild(child);
+      workerForceKillTimer = setTimeout(() => {
+        if (workerProcess === child) child.kill("SIGKILL");
+      }, 10_000);
+      workerForceKillTimer.unref();
+    },
+  });
+  workerHeartbeatWatchdog.start();
 
   child.once("error", (error) => {
-    console.error("[supervisor] unable to start background worker:", error);
+    operationalLog.error("supervisor_worker_start_failed", { error });
   });
   child.once("close", (code, signal) => {
+    workerHeartbeatWatchdog?.stop();
+    workerHeartbeatWatchdog = undefined;
+    if (workerForceKillTimer) clearTimeout(workerForceKillTimer);
+    workerForceKillTimer = undefined;
     if (workerProcess === child) workerProcess = undefined;
     clearWorkerHeartbeat();
 
@@ -188,9 +220,12 @@ function startWorker() {
       restartCeilingMs,
     );
 
-    console.error(
-      `[supervisor] background worker exited (${signal ?? code ?? "unknown"}); restarting in ${restartDelayMs}ms.`,
-    );
+    operationalLog.error("supervisor_worker_restarting", {
+      message: `background worker exited (${signal ?? code ?? "unknown"}); restarting in ${restartDelayMs}ms.`,
+      code,
+      signal,
+      restartDelayMs,
+    });
     workerRestartTimer = setTimeout(startWorker, restartDelayMs);
   });
 }
@@ -200,13 +235,13 @@ function startWeb() {
   webProcess = child;
 
   child.once("error", (error) => {
-    console.error("[supervisor] unable to start web server:", error);
+    operationalLog.error("supervisor_web_start_failed", { error });
   });
   child.once("close", (code, signal) => {
     if (webProcess === child) webProcess = undefined;
 
     if (!shuttingDown) {
-      console.error(`[supervisor] web server exited (${signal ?? code ?? "unknown"}).`);
+      operationalLog.error("supervisor_web_exited", { code, signal });
       beginShutdown(typeof code === "number" ? code : 1);
       return;
     }
@@ -242,6 +277,6 @@ process.on("SIGINT", () => beginShutdown(0));
 process.on("SIGTERM", () => beginShutdown(0));
 
 void bootstrap().catch((error) => {
-  console.error("[supervisor] startup failed:", error);
+  operationalLog.error("supervisor_startup_failed", { error });
   beginShutdown(1);
 });

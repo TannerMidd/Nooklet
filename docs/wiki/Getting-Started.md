@@ -19,12 +19,9 @@ You do not need to connect every service. The smallest complete request path is:
 flowchart LR
     U["User selects a title"] --> M["Verified TMDB"]
     M --> I["Enabled, verified Newznab indexer"]
-    I --> D{"Downloader"}
-    D -->|"Built-in"| N["Verified Usenet server"]
-    D -->|"Legacy alternative"| S["Verified SABnzbd"]
+    I --> N["Verified Usenet server"]
     N --> W["Writable staging workspace"]
-    S --> F["Writable final library destination"]
-    W --> F
+    W --> F["Readable and writable final library destination"]
     F --> B["Healthy background worker"]
     B --> R["Ready for first request"]
 ```
@@ -33,10 +30,10 @@ flowchart LR
 | --- | --- | --- |
 | Browse and identify titles | Yes | A verified TMDB connection |
 | Search releases | Yes | At least one enabled and verified Newznab indexer with movie or TV categories |
-| Download | Yes | A verified Usenet server for the built-in engine, or verified SABnzbd |
-| Import | Yes | A reachable and writable movie or TV library destination |
+| Download | Yes | A verified Usenet server for the built-in engine |
+| Import | Yes | A reachable, readable, and writable movie or TV library destination |
 | Process background work | Yes | A responsive, non-degraded worker |
-| Download staging | Built-in engine only | A reachable and writable `DOWNLOAD_ENGINE_DIR` with usable capacity |
+| Download work and staging | Yes | Reachable and writable `DOWNLOAD_ENGINE_WORK_DIR` and `DOWNLOAD_ENGINE_DIR` locations with usable capacity |
 | AI recommendations | No | An OpenAI-compatible AI provider |
 | Watch history | No | Plex, Tautulli, Trakt, or manual imports |
 | Notifications | No | Discord, Apprise, or a generic webhook |
@@ -46,19 +43,19 @@ flowchart LR
 Gather the following:
 
 - A host folder for movie media and/or TV media.
-- A separate download staging folder if you will use the built-in downloader.
+- Enough Docker or host storage for the built-in downloader's work and staging data; a dedicated host staging folder is recommended when the main data volume is not suitable.
 - A TMDB API credential.
 - A Newznab indexer account and API key.
-- Usenet server credentials, or an existing SABnzbd instance.
+- Usenet server credentials.
 - Three independently generated secrets for `AUTH_SECRET`, `BOOTSTRAP_TOKEN`, and `SECRET_BOX_KEY`.
 
-The staging folder can live on the same physical disk as the media library, but it is a separate runtime path and a separate capacity check. See [Storage and path mapping](Storage-and-Path-Mapping) before starting the container.
+A bind-mounted staging folder can live on the same physical disk as the media library, but it is a separate runtime path and a separate capacity check. See [Storage and path mapping](Storage-and-Path-Mapping) before starting the container.
 
 ## Installation sequence
 
 1. Follow [Docker installation](Docker-Installation) or [Native installation](Native-Installation).
 2. Open the application and create the first administrator with the one-time bootstrap token.
-3. Use **Setup Center** to configure TMDB, a downloader, an indexer, and storage.
+3. Use **Setup Center** to configure TMDB, the built-in downloader, an indexer, and storage.
 4. Confirm at least one of **Movie downloads** or **TV downloads** is marked **Ready**.
 5. Search for a title and submit a small first request.
 6. Remove `BOOTSTRAP_TOKEN` from the environment after the administrator exists.
@@ -67,7 +64,7 @@ The detailed guided sequence is in [First-time setup](First-Time-Setup).
 
 ## How configuration is shared
 
-Instance services, indexers, storage, and download infrastructure are administered centrally and serve every user. A non-administrator can use those shared capabilities but cannot change them. Trakt is personal to the user who connects it; personal history and notification preferences remain user-scoped where the interface indicates.
+Instance services, indexers, storage, and download infrastructure serve every user, and non-administrators cannot edit them. Nooklet persists a stable instance-configuration owner so every administrator reads and edits the same shared rows; demoting or disabling the backing account does not switch the effective configuration. Trakt is personal to the user who connects it; personal history and notification preferences remain user-scoped where the interface indicates.
 
 ## Know when the instance is healthy
 

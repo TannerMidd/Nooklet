@@ -38,15 +38,8 @@ export async function listMediaLibraryPathOptions(userId: string): Promise<Media
       asc(mediaLibraryPaths.path),
     )
     .all();
-  const ownedRows = loadRows(userId);
-  const ownedTypes = new Set(ownedRows.map(({ library }) => library.mediaType));
   const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
-  const rows = instanceOwnerId === userId || ownedTypes.size === 2
-    ? ownedRows
-    : [
-        ...ownedRows,
-        ...loadRows(instanceOwnerId).filter(({ library }) => !ownedTypes.has(library.mediaType)),
-      ];
+  const rows = loadRows(instanceOwnerId);
 
   return rows
     .map(({ library, path }) => ({
@@ -86,13 +79,8 @@ export async function resolveDefaultMediaLibraryDownloadTarget(
     .orderBy(asc(mediaLibraries.name), asc(mediaLibraryPaths.label), asc(mediaLibraryPaths.path))
     .all();
 
-  let rows = loadRows(userId);
-  if (rows.length === 0) {
-    const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
-    if (instanceOwnerId !== userId) {
-      rows = loadRows(instanceOwnerId);
-    }
-  }
+  const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
+  const rows = loadRows(instanceOwnerId);
 
   if (rows.length === 0) {
     return null;
@@ -132,13 +120,8 @@ export async function resolveMediaLibraryDownloadTarget(
     ))
     .get();
 
-  let row = loadRow(userId);
-  if (!row) {
-    const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
-    if (instanceOwnerId !== userId) {
-      row = loadRow(instanceOwnerId);
-    }
-  }
+  const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
+  const row = loadRow(instanceOwnerId);
 
   if (!row || row.library.mediaType !== input.mediaType) {
     return null;

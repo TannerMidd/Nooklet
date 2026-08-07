@@ -2,18 +2,27 @@
 
 ## Status
 
-Accepted
+Accepted as the original direction; amended by ADR-0002, ADR-0003, and
+ADR-0004. Current deployment and repository details are documented in
+[`docs/wiki/Architecture.md`](../wiki/Architecture.md) and
+[`docs/architecture/project-structure.md`](../architecture/project-structure.md).
 
 ## Date
 
-2026-04-24 (last reviewed 2026-04-30)
+2026-04-24 (last reviewed 2026-08-06)
+
+> Historical note: the context and decisions below describe the architecture
+> at acceptance time. Later ADRs split the worker and download engine from the
+> Next.js web process, and the physical module/schema inventory has evolved.
+> Names such as Jellyfin, `credential-vault`, `metadata`, `oauth_accounts`, and
+> `indexer_sources` are not claims about the current implementation.
 
 ## Context
 
 Nooklet is a self-hosted application that connects an OpenAI-compatible
-chat model to a media stack (built-in TV/movie libraries, direct indexers,
-SABnzbd, Plex, Jellyfin, Tautulli, Trakt, TMDB, and TVDB) and produces TV and
-movie recommendations grounded in the user's library and watch history.
+chat model to a media stack (built-in TV/movie libraries and downloader,
+direct indexers, Plex, Jellyfin, Tautulli, Trakt, TMDB, and TVDB) and produces
+TV and movie recommendations grounded in the user's library and watch history.
 
 The product spans several non-trivial workflows — recommendation generation,
 watch-history sync, service connection setup, credential ownership, admin
@@ -136,8 +145,8 @@ surface. Indexer search uses explicit phases for request validation,
 indexer selection, credential resolution, provider search, normalization,
 filtering/scoring, safe result persistence, and audit. Download enqueue and
 import use explicit phases for request validation, release ownership checks,
-credential resolution, SABnzbd submission or status fetch, destination path
-selection, file organization, persistence, and audit.
+credential resolution, built-in queue submission and status lookup,
+destination path selection, file organization, persistence, and audit.
 
 ### Authentication and authorization
 

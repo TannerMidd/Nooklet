@@ -143,7 +143,7 @@
                 <a class="guide-topic-card" href="#docker-configurator" data-guide-item data-search="install configure docker compose drive mount path command environment secrets windows linux mac nas">
                   <span>01 · Install</span><strong>Configure and run Docker</strong><p>Map your drives, generate private files, and copy the exact build commands.</p>
                 </a>
-                <a class="guide-topic-card" href="#setup-center" data-guide-item data-search="setup first admin bootstrap tmdb usenet sab newznab indexer storage readiness worker">
+                <a class="guide-topic-card" href="#setup-center" data-guide-item data-search="setup first admin bootstrap tmdb usenet newznab indexer storage readiness worker">
                   <span>02 · Configure</span><strong>Complete Setup Center</strong><p>Verify one complete movie or TV request path.</p>
                 </a>
                 <a class="guide-topic-card" href="#first-request-checklist" data-guide-item data-search="first test request controlled movie tv import success">
@@ -225,7 +225,7 @@
             <ol class="first-request-steps">
               <li data-reveal><span>01</span><div><strong>Install</strong><p>Use the Docker setup builder to map media and staging drives, then start Compose.</p></div></li>
               <li data-reveal><span>02</span><div><strong>Create the administrator</strong><p>Use the one-time bootstrap token, then remove it and recreate the container.</p></div></li>
-              <li data-reveal><span>03</span><div><strong>Verify metadata + acquisition</strong><p>Test TMDB, one Newznab indexer, and either native Usenet or SABnzbd.</p></div></li>
+              <li data-reveal><span>03</span><div><strong>Verify metadata + acquisition</strong><p>Test TMDB, one Newznab indexer, and the built-in downloader's Usenet connection.</p></div></li>
               <li data-reveal><span>04</span><div><strong>Attach storage</strong><p>Use container-visible paths for a writable destination and, for native Usenet, staging.</p></div></li>
               <li data-reveal><span>05</span><div><strong>Confirm readiness</strong><p>Setup Center must show the intended media path and background worker as ready.</p></div></li>
               <li data-reveal><span>06</span><div><strong>Request something small</strong><p>Follow it through Activity until the final file is visible in Library.</p></div></li>
@@ -238,7 +238,7 @@
               </div>
               <ul>
                 <li><span aria-hidden="true">✓</span> TMDB is verified.</li>
-                <li><span aria-hidden="true">✓</span> Native Usenet or SABnzbd is verified.</li>
+                <li><span aria-hidden="true">✓</span> The built-in downloader's Usenet connection is verified.</li>
                 <li><span aria-hidden="true">✓</span> An enabled, verified Newznab indexer covers the media type.</li>
                 <li><span aria-hidden="true">✓</span> The final destination is reachable and writable.</li>
                 <li><span aria-hidden="true">✓</span> Native staging is writable with positive capacity when used.</li>
@@ -261,7 +261,7 @@
               <strong>Before you begin</strong>
               <p>
                 Have Docker Compose v2, Git, a media folder, a separate staging folder for native downloads, TMDB
-                credentials, a Newznab account, and either Usenet credentials or an existing SABnzbd instance.
+                credentials, a Newznab account, and Usenet server credentials.
               </p>
             </div>
 
@@ -323,7 +323,7 @@ docker compose ps</code></pre>
               </div>
               <div class="details-copy">
                 <p>Then use these container-side environment values:</p>
-                <p><code>APPROVED_MEDIA_ROOTS=/media</code><br /><code>APPROVED_DOWNLOAD_ROOTS=/downloads</code><br /><code>DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine</code></p>
+                <p><code>APPROVED_MEDIA_ROOTS=/media</code><br /><code>DOWNLOAD_ENGINE_WORK_DIR=/app/data/engine-work</code><br /><code>DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine</code></p>
               </div>
             </details>
 
@@ -495,7 +495,7 @@ docker compose ps</code></pre>
               <article data-reveal><span>01</span><h3>Create the first administrator</h3><p>Enter the exact one-time bootstrap token, a valid email, display name, and strong password.</p></article>
               <article data-reveal><span>02</span><h3>Remove bootstrap access</h3><p>Clear <code>BOOTSTRAP_TOKEN</code> in <code>.env</code>, then recreate the container so the route closes.</p></article>
               <article data-reveal><span>03</span><h3>Verify TMDB</h3><p>Open <strong>Settings → Connections</strong>, test the credential, and confirm <strong>Verified</strong>.</p></article>
-              <article data-reveal><span>04</span><h3>Choose a downloader</h3><p>Verify native Usenet (preferred) or SABnzbd. Only one is required.</p></article>
+              <article data-reveal><span>04</span><h3>Verify downloading</h3><p>Configure and verify a TLS Usenet server for the built-in downloader.</p></article>
               <article data-reveal><span>05</span><h3>Add Newznab</h3><p>Enable the provider, select Movies and/or TV categories, then use <strong>Test &amp; add</strong>.</p></article>
               <article data-reveal><span>06</span><h3>Attach a destination</h3><p>In <strong>Settings → Storage</strong>, choose a container path inside an approved root and verify write access.</p></article>
               <article data-reveal><span>07</span><h3>Check the worker</h3><p>Open <strong>Health &amp; readiness</strong>. The background worker must be responsive and non-degraded.</p></article>
@@ -624,7 +624,8 @@ docker compose ps</code></pre>
               <p>
                 The season plan, queue intent, attempts, and retry timing survive a process restart. An interrupted
                 native transfer currently restarts from the stored NZB; byte-level transfer resume is not
-                implemented.
+                implemented. Import publishing separately retains the engine-owned source and safely recovers an
+                exactly claimed partial cross-filesystem copy.
               </p>
             </div>
 
@@ -705,7 +706,7 @@ docker compose ps</code></pre>
               <article data-reveal>
                 <p class="card-kicker">Administrator</p>
                 <h3>Instance infrastructure</h3>
-                <p>Connections, indexers, storage, downloader, automation, Health &amp; readiness, and managed user access.</p>
+                <p>Connections, indexers, storage, downloader, automation, Health &amp; readiness, and managed user access. Every administrator views and updates the same canonical instance records.</p>
               </article>
             </div>
           </section>
@@ -715,8 +716,9 @@ docker compose ps</code></pre>
               <p class="eyebrow">The most common storage surprise</p>
               <h2 id="disk-space-title">“My media drive has room. Why does Nooklet say it doesn’t?”</h2>
               <p>
-                The built-in engine checks the filesystem containing <code>DOWNLOAD_ENGINE_DIR</code>. That is the
-                staging workspace for download, repair, and extraction—not the final movie or TV destination.
+                The built-in engine checks both <code>DOWNLOAD_ENGINE_WORK_DIR</code> and
+                <code>DOWNLOAD_ENGINE_DIR</code>. The first holds in-flight, repair, and extraction work; the second
+                holds completed output awaiting import. The more constrained filesystem limits admission.
               </p>
             </div>
 
@@ -724,10 +726,11 @@ docker compose ps</code></pre>
               <div>
                 <span>Check this first</span>
                 <strong>Settings → Storage → Download workspace</strong>
-                <p>Read the configured path, effective path, underlying filesystem, active reservation, and estimated capacity for new work.</p>
+                <p>Read both configured and effective paths, their underlying filesystems, active reservation, and estimated capacity for new work.</p>
               </div>
               <ol>
-                <li>Confirm the effective path is beneath the intended container mount, such as <code>/downloads/nooklet-engine</code>.</li>
+                <li>Identify whether the work or completed-output filesystem is the limiting location.</li>
+                <li>Confirm completed staging is beneath the intended container mount, such as <code>/downloads/nooklet-engine</code>.</li>
                 <li>Confirm the spacious host folder is actually bound to <code>/downloads</code>.</li>
                 <li>Review active downloads, because they reserve transfer and post-processing capacity.</li>
                 <li>Confirm the container user can write to staging.</li>
@@ -783,19 +786,19 @@ docker compose ps</code></pre>
               </details>
               <details data-reveal>
                 <summary><span>Import</span>A download completed but did not reach Library</summary>
-                <div><p>Inspect Activity, worker health, the writable approved destination, archive tooling, and—when using SABnzbd—the reported completion-path mapping.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/Downloads-and-Import">Downloads and import →</a></div>
+                <div><p>Inspect Activity, authenticated worker health, both built-in engine paths, the writable approved destination, and archive tooling.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/Downloads-and-Import">Downloads and import →</a></div>
               </details>
               <details data-reveal>
                 <summary><span>Season</span>A season child attempt failed</summary>
                 <div><p>If the group says <strong>Recovering</strong>, wait; Nooklet already moved on. If it says <strong>Blocked</strong>, repair the named boundary and choose <strong>Resume season recovery</strong>.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/Library-and-Requests">Season behavior →</a></div>
               </details>
               <details data-reveal>
-                <summary><span>Connection</span>Plex, Tautulli, SAB, or local AI cannot connect</summary>
+                <summary><span>Connection</span>Plex, Tautulli, or local AI cannot connect</summary>
                 <div><p>Address the service from inside Docker—container <code>localhost</code> is not the host. Allowlist the exact private hostname or IP, then recreate when environment values changed.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/Service-Connections">Service networking →</a></div>
               </details>
               <details data-reveal>
                 <summary><span>Health</span>The health probe says degraded or returns 503</summary>
-                <div><p>HTTP 200 with <code>degraded</code> means the worker is responsive but its latest maintenance pass recorded an error. HTTP 503 means the database is unavailable or the worker is stale.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/Health-and-Diagnostics">Interpret health →</a></div>
+                <div><p>The public probe returns component status only: HTTP 200 with <code>degraded</code> means the worker is responsive but work needs attention; HTTP 503 means the database is unavailable or the worker is stale. Sign in to Health for timestamps, stages, and private error detail.</p><a href="https://github.com/TannerMidd/Nooklet/wiki/Health-and-Diagnostics">Interpret health →</a></div>
               </details>
               <details data-reveal>
                 <summary><span>Sign in</span>An account cannot sign in</summary>
@@ -861,7 +864,7 @@ docker compose ps</code></pre>
           <a href="https://github.com/TannerMidd/Nooklet/issues">Support</a>
           <a href="https://github.com/TannerMidd/Nooklet/security/advisories/new">Security</a>
         </nav>
-        <p class="revision">User guide<br />Reviewed July 17, 2026</p>
+        <p class="revision">User guide<br />Reviewed August 6, 2026</p>
       </div>
     </footer>
 
