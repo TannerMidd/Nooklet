@@ -1542,11 +1542,12 @@ npm run account:recover -- admin@example.com</code></pre>
           <aside class="scope-note evidence-caveat" data-reveal>
             <strong>Evidence limits</strong>
             <p>
-              The repository includes a high-severity production dependency-advisory gate, a generated CycloneDX
-              production SBOM artifact, and a local Playwright bootstrap/login/accessibility smoke. It does not
-              currently evidence a signed image, automated restore drill, performance benchmark, browser E2E
-              execution in CI, or immutable action/image digests. Workflow execution does not by
-              itself prove branch-protection configuration.
+              The repository includes a high-severity production dependency-advisory gate, generated CycloneDX
+              and container SBOMs, an automated online-backup restore drill, Playwright bootstrap/login/accessibility
+              execution in CI, a hardened container smoke, BuildKit provenance attestations, and a public immutable
+              release-image digest. It does not currently evidence cryptographic image signing, a performance
+              benchmark, automated cross-browser coverage, or immutable SHA pins for every GitHub Action. Workflow
+              execution does not by itself prove branch-protection configuration.
             </p>
           </aside>
         </div>
