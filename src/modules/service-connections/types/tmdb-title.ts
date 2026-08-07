@@ -4,20 +4,20 @@
  * any consumer outside of `service-connections` should import these here.
  */
 export type {
-  TmdbCastMember,
-  TmdbDiscoverCategory,
-  TmdbDiscoverTitle,
-  TmdbSimilarTitle,
-  TmdbTitleDetails,
-  TmdbVideo,
-  TmdbVideoType,
-  TmdbWatchProvider,
-  TmdbWatchProviderCategory,
-  TmdbWatchProviders,
+    TmdbCastMember,
+    TmdbDiscoverCategory,
+    TmdbDiscoverTitle,
+    TmdbSimilarTitle,
+    TmdbTitleDetails,
+    TmdbVideo,
+    TmdbVideoType,
+    TmdbWatchProvider,
+    TmdbWatchProviderCategory,
+    TmdbWatchProviders,
 } from "@/modules/service-connections/adapters/tmdb";
 
 export {
-  tmdbDiscoverCategories,
-  tmdbVideoTypes,
-  tmdbWatchProviderCategories,
+    tmdbDiscoverCategories,
+    tmdbVideoTypes,
+    tmdbWatchProviderCategories,
 } from "@/modules/service-connections/adapters/tmdb";

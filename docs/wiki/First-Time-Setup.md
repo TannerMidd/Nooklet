@@ -95,14 +95,14 @@ curl http://localhost:42021/api/health
 
 A media type is ready only when all conditions in its column pass:
 
-| Check | Movies | TV |
-| --- | --- | --- |
-| TMDB verified | Required for setup completion | Required for setup completion |
-| Downloader verified | Usenet server | Usenet server |
-| Enabled, verified indexer | Must include a movie category | Must include a TV category |
-| Final destination | Reachable, readable, and writable movie folder | Reachable, readable, and writable TV folder |
-| Built-in staging | Reachable, writable, and positive usable capacity | Same |
-| Background worker | Responsive and non-degraded | Responsive and non-degraded |
+| Check                     | Movies                                            | TV                                          |
+| ------------------------- | ------------------------------------------------- | ------------------------------------------- |
+| TMDB verified             | Required for setup completion                     | Required for setup completion               |
+| Downloader verified       | Usenet server                                     | Usenet server                               |
+| Enabled, verified indexer | Must include a movie category                     | Must include a TV category                  |
+| Final destination         | Reachable, readable, and writable movie folder    | Reachable, readable, and writable TV folder |
+| Built-in staging          | Reachable, writable, and positive usable capacity | Same                                        |
+| Background worker         | Responsive and non-degraded                       | Responsive and non-degraded                 |
 
 Setup is complete when TMDB and the worker are healthy and at least one complete movie or TV request path is ready. You can finish the other media type later.
 

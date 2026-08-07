@@ -4,26 +4,26 @@ Service connections live under **Settings -> Connections**. Configure only the i
 
 ## Connection catalog
 
-| Connection | Role | Default base URL or endpoint | Credential |
-| --- | --- | --- | --- |
-| TMDB | Required for core discovery and setup completion | `https://api.themoviedb.org/3` | API key or read token |
-| TVDB | Optional TV identity and episode metadata | `https://api4.thetvdb.com/v4` | API key |
-| Usenet server | Built-in download transport | Provider-specific NNTP host, always TLS (usually port 563) | Username and password, when required |
-| AI provider | Optional recommendations | `https://api.openai.com/v1` | API key when required, plus model ID |
-| Plex | Optional direct watch-history import | `http://localhost:32400` placeholder | X-Plex-Token |
-| Tautulli | Optional watch-history import and Plex-user selection | `http://localhost:8181` placeholder | API key |
-| Trakt | Optional personal watch-history import | `https://api.trakt.tv` | Client ID and OAuth access token |
+| Connection    | Role                                                  | Default base URL or endpoint                               | Credential                           |
+| ------------- | ----------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------ |
+| TMDB          | Required for core discovery and setup completion      | `https://api.themoviedb.org/3`                             | API key or read token                |
+| TVDB          | Optional TV identity and episode metadata             | `https://api4.thetvdb.com/v4`                              | API key                              |
+| Usenet server | Built-in download transport                           | Provider-specific NNTP host, always TLS (usually port 563) | Username and password, when required |
+| AI provider   | Optional recommendations                              | `https://api.openai.com/v1`                                | API key when required, plus model ID |
+| Plex          | Optional direct watch-history import                  | `http://localhost:32400` placeholder                       | X-Plex-Token                         |
+| Tautulli      | Optional watch-history import and Plex-user selection | `http://localhost:8181` placeholder                        | API key                              |
+| Trakt         | Optional personal watch-history import                | `https://api.trakt.tv`                                     | Client ID and OAuth access token     |
 
 Default private-service URLs are examples. From Docker, `localhost` means the Nooklet container, not the host running Plex or Tautulli.
 
 ## Connection states
 
-| State | Meaning |
-| --- | --- |
-| **Disconnected** | No saved usable configuration exists. |
-| **Configured** | Values were saved without a successful current verification. Features that require verification remain not ready. |
-| **Verified** | Nooklet successfully tested the saved connection. |
-| **Error** | The latest test failed; the card displays a safe status message. |
+| State            | Meaning                                                                                                           |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Disconnected** | No saved usable configuration exists.                                                                             |
+| **Configured**   | Values were saved without a successful current verification. Features that require verification remain not ready. |
+| **Verified**     | Nooklet successfully tested the saved connection.                                                                 |
+| **Error**        | The latest test failed; the card displays a safe status message.                                                  |
 
 Use **Test & save** for initial setup. Nooklet tests the draft values before replacing the saved connection; if the test fails, the previously saved connection remains active. **Save without testing** is available for staged or temporarily unreachable services, but it does not satisfy readiness.
 
@@ -80,11 +80,11 @@ Choose the source you already operate; connecting all three is unnecessary.
 
 Use one of these addressing patterns:
 
-| Service location | Base URL pattern |
-| --- | --- |
-| Another service in the same Compose network | `http://<compose-service-name>:<port>` |
-| Service running on the Docker host | `http://host.docker.internal:<port>` where supported |
-| Service elsewhere on the LAN | `http://<exact-hostname-or-IP>:<port>` |
+| Service location                            | Base URL pattern                                     |
+| ------------------------------------------- | ---------------------------------------------------- |
+| Another service in the same Compose network | `http://<compose-service-name>:<port>`               |
+| Service running on the Docker host          | `http://host.docker.internal:<port>` where supported |
+| Service elsewhere on the LAN                | `http://<exact-hostname-or-IP>:<port>`               |
 
 Private and loopback targets are protected by the outbound request policy. Add only the exact hostname or IP to `PRIVATE_SERVICE_HOST_ALLOWLIST`, then recreate/restart Nooklet:
 

@@ -4,52 +4,52 @@ import { parseTvSelectionsFromFormData } from "@/modules/media-library/schemas/t
 
 import { type RecommendationLibraryActionState } from "./recommendation-action-state";
 import {
-  addRecommendationToLibrarySchema,
-  type AddRecommendationToLibraryInput,
+    addRecommendationToLibrarySchema,
+    type AddRecommendationToLibraryInput,
 } from "../../modules/recommendations/schemas/add-to-library";
 
 export const feedbackActionSchema = z.object({
-  itemId: z.string().uuid(),
-  feedback: z.enum(["like", "dislike"]),
-  returnTo: z.string().min(1),
+    itemId: z.string().uuid(),
+    feedback: z.enum(["like", "dislike"]),
+    returnTo: z.string().min(1),
 });
 
 export const hiddenStateActionSchema = z.object({
-  itemId: z.string().uuid(),
-  isHidden: z.enum(["true", "false"]),
-  returnTo: z.string().min(1),
+    itemId: z.string().uuid(),
+    isHidden: z.enum(["true", "false"]),
+    returnTo: z.string().min(1),
 });
 
 export function parseRecommendationLibraryActionFormData(formData: FormData) {
-  return addRecommendationToLibrarySchema.safeParse({
-    itemId: formData.get("itemId"),
-    libraryId: formData.get("libraryId") ?? undefined,
-    targetLibraryPathId: formData.get("targetLibraryPathId") ?? undefined,
-    qualityProfile: formData.get("qualityProfile") ?? undefined,
-    monitored: formData.get("monitored") ?? undefined,
-    downloadNow: formData.get("downloadNow") ?? undefined,
-    selections: parseTvSelectionsFromFormData(formData),
-    returnTo: formData.get("returnTo"),
-  });
+    return addRecommendationToLibrarySchema.safeParse({
+        itemId: formData.get("itemId"),
+        libraryId: formData.get("libraryId") ?? undefined,
+        targetLibraryPathId: formData.get("targetLibraryPathId") ?? undefined,
+        qualityProfile: formData.get("qualityProfile") ?? undefined,
+        monitored: formData.get("monitored") ?? undefined,
+        downloadNow: formData.get("downloadNow") ?? undefined,
+        selections: parseTvSelectionsFromFormData(formData),
+        returnTo: formData.get("returnTo"),
+    });
 }
 
 export function projectRecommendationLibraryFieldErrors(
-  error: z.ZodError<AddRecommendationToLibraryInput>,
+    error: z.ZodError<AddRecommendationToLibraryInput>,
 ): RecommendationLibraryActionState["fieldErrors"] {
-  const fieldErrors: RecommendationLibraryActionState["fieldErrors"] = {};
+    const fieldErrors: RecommendationLibraryActionState["fieldErrors"] = {};
 
-  for (const issue of error.issues) {
-    const fieldName = issue.path[0];
+    for (const issue of error.issues) {
+        const fieldName = issue.path[0];
 
-    if (
-      fieldName === "libraryId" ||
-      fieldName === "targetLibraryPathId" ||
-      fieldName === "qualityProfile" ||
-      fieldName === "monitored"
-    ) {
-      fieldErrors[fieldName] ??= issue.message;
+        if (
+            fieldName === "libraryId" ||
+            fieldName === "targetLibraryPathId" ||
+            fieldName === "qualityProfile" ||
+            fieldName === "monitored"
+        ) {
+            fieldErrors[fieldName] ??= issue.message;
+        }
     }
-  }
 
-  return fieldErrors;
+    return fieldErrors;
 }

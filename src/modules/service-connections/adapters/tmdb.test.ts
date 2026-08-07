@@ -1,633 +1,801 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/integrations/http-helpers", () => ({
-  fetchWithTimeout: vi.fn(),
-  trimTrailingSlash: (value: string) => value.replace(/\/+$/, ""),
+    fetchWithTimeout: vi.fn(),
+    trimTrailingSlash: (value: string) => value.replace(/\/+$/, ""),
 }));
 
 import { fetchWithTimeout } from "@/lib/integrations/http-helpers";
 
-import { lookupTmdbTitleDetails, listTmdbDiscoverTitles, lookupTmdbTvSeasonEpisodes, lookupTmdbTvSeasons, verifyTmdbConnection } from "./tmdb";
+import {
+    lookupTmdbTitleDetails,
+    listTmdbDiscoverTitles,
+    lookupTmdbTvSeasonEpisodes,
+    lookupTmdbTvSeasons,
+    verifyTmdbConnection,
+} from "./tmdb";
 import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 
 const fetchWithTimeoutMock = vi.mocked(fetchWithTimeout);
 
 function jsonResponse(body: unknown, init: ResponseInit = { status: 200 }) {
-  return new Response(JSON.stringify(body), {
-    ...init,
-    headers: { "content-type": "application/json", ...(init.headers ?? {}) },
-  });
+    return new Response(JSON.stringify(body), {
+        ...init,
+        headers: { "content-type": "application/json", ...(init.headers ?? {}) },
+    });
 }
 
 describe("verifyTmdbConnection", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("loads /configuration with an API key query parameter", async () => {
-    fetchWithTimeoutMock.mockResolvedValue(
-      jsonResponse({ images: { secure_base_url: "https://image.tmdb.org/t/p/" } }),
-    );
-
-    const result = await verifyTmdbConnection({
-      baseUrl: "https://api.themoviedb.org/3/",
-      secret: "tmdb-key",
-      metadata: { preserved: true },
+    beforeEach(() => {
+        vi.clearAllMocks();
     });
 
-    expect(result).toEqual({
-      ok: true,
-      message: "TMDB configuration loaded.",
-      metadata: {
-        preserved: true,
-        tmdbImageBaseUrl: "https://image.tmdb.org/t/p/",
-      },
-    });
-    expect(fetchWithTimeoutMock).toHaveBeenCalledTimes(1);
-    const [calledUrl, calledInit, calledTimeout] = fetchWithTimeoutMock.mock.calls[0]!;
-    expect(calledUrl.toString()).toBe("https://api.themoviedb.org/3/configuration?api_key=tmdb-key");
-    expect(calledInit).toMatchObject({
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
-    expect(calledInit?.headers).not.toHaveProperty("Authorization");
-    expect(calledTimeout).toBe(SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS);
-  });
+    it("loads /configuration with an API key query parameter", async () => {
+        fetchWithTimeoutMock.mockResolvedValue(
+            jsonResponse({ images: { secure_base_url: "https://image.tmdb.org/t/p/" } }),
+        );
 
-  it("uses bearer auth for TMDB read tokens", async () => {
-    const readToken = "eyJhbGciOi.token.parts";
-    fetchWithTimeoutMock.mockResolvedValue(jsonResponse({ images: {} }));
+        const result = await verifyTmdbConnection({
+            baseUrl: "https://api.themoviedb.org/3/",
+            secret: "tmdb-key",
+            metadata: { preserved: true },
+        });
 
-    await verifyTmdbConnection({
-      baseUrl: "https://api.themoviedb.org/3",
-      secret: readToken,
-    });
+        expect(result).toEqual({
+            ok: true,
+            message: "TMDB configuration loaded.",
+            metadata: {
+                preserved: true,
+                tmdbImageBaseUrl: "https://image.tmdb.org/t/p/",
+            },
+        });
+        expect(fetchWithTimeoutMock).toHaveBeenCalledTimes(1);
+        const [calledUrl, calledInit, calledTimeout] = fetchWithTimeoutMock.mock.calls[0]!;
 
-    const [calledUrl, calledInit] = fetchWithTimeoutMock.mock.calls[0]!;
-    expect(calledUrl.toString()).toBe("https://api.themoviedb.org/3/configuration");
-    expect(calledInit?.headers).toMatchObject({
-      Authorization: `Bearer ${readToken}`,
-    });
-  });
-
-  it("returns a status failure without leaking the secret", async () => {
-    fetchWithTimeoutMock.mockResolvedValue(new Response("Unauthorized", { status: 401 }));
-
-    const result = await verifyTmdbConnection({
-      baseUrl: "https://api.themoviedb.org/3",
-      secret: "do-not-leak",
+        expect(calledUrl.toString()).toBe(
+            "https://api.themoviedb.org/3/configuration?api_key=tmdb-key",
+        );
+        expect(calledInit).toMatchObject({
+            cache: "no-store",
+            headers: { Accept: "application/json" },
+        });
+        expect(calledInit?.headers).not.toHaveProperty("Authorization");
+        expect(calledTimeout).toBe(SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS);
     });
 
-    expect(result).toEqual({
-      ok: false,
-      message: "TMDB verification failed with status 401.",
-      metadata: null,
+    it("uses bearer auth for TMDB read tokens", async () => {
+        const readToken = "eyJhbGciOi.token.parts";
+
+        fetchWithTimeoutMock.mockResolvedValue(jsonResponse({ images: {} }));
+
+        await verifyTmdbConnection({
+            baseUrl: "https://api.themoviedb.org/3",
+            secret: readToken,
+        });
+
+        const [calledUrl, calledInit] = fetchWithTimeoutMock.mock.calls[0]!;
+
+        expect(calledUrl.toString()).toBe("https://api.themoviedb.org/3/configuration");
+        expect(calledInit?.headers).toMatchObject({
+            Authorization: `Bearer ${readToken}`,
+        });
     });
-    expect(JSON.stringify(result)).not.toContain("do-not-leak");
-  });
+
+    it("returns a status failure without leaking the secret", async () => {
+        fetchWithTimeoutMock.mockResolvedValue(new Response("Unauthorized", { status: 401 }));
+
+        const result = await verifyTmdbConnection({
+            baseUrl: "https://api.themoviedb.org/3",
+            secret: "do-not-leak",
+        });
+
+        expect(result).toEqual({
+            ok: false,
+            message: "TMDB verification failed with status 401.",
+            metadata: null,
+        });
+        expect(JSON.stringify(result)).not.toContain("do-not-leak");
+    });
 });
 
 describe("lookupTmdbTitleDetails", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("searches, loads details, and normalizes movie metadata", async () => {
-    fetchWithTimeoutMock
-      .mockResolvedValueOnce(
-        jsonResponse({
-          results: [
-            { id: 1, title: "Arrival", release_date: "2016-11-11", original_language: "en" },
-            { id: 2, title: "The Arrival", release_date: "1996-05-31", original_language: "en" },
-          ],
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          id: 1,
-          title: "Arrival",
-          original_title: "Arrival",
-          overview: "A linguist works with alien visitors.",
-          tagline: "Why are they here?",
-          release_date: "2016-11-11",
-          original_language: "en",
-          poster_path: "/poster.jpg",
-          backdrop_path: "/backdrop.jpg",
-          genres: [{ name: "Science Fiction" }, { name: "Drama" }, { name: "Drama" }],
-          runtime: 116,
-          status: "Released",
-          vote_average: 7.6,
-          vote_count: 18000,
-          homepage: "https://arrival.movie",
-          external_ids: { imdb_id: "tt2543164" },
-        }),
-      );
-
-    const result = await lookupTmdbTitleDetails({
-      baseUrl: "https://api.themoviedb.org/3",
-      secret: "tmdb-key",
-      metadata: { tmdbImageBaseUrl: "https://image.tmdb.org/t/p/" },
-      mediaType: "movie",
-      title: "Arrival",
-      year: 2016,
+    beforeEach(() => {
+        vi.clearAllMocks();
     });
 
-    expect(result.ok).toBe(true);
+    it("searches, loads details, and normalizes movie metadata", async () => {
+        fetchWithTimeoutMock
+            .mockResolvedValueOnce(
+                jsonResponse({
+                    results: [
+                        {
+                            id: 1,
+                            title: "Arrival",
+                            release_date: "2016-11-11",
+                            original_language: "en",
+                        },
+                        {
+                            id: 2,
+                            title: "The Arrival",
+                            release_date: "1996-05-31",
+                            original_language: "en",
+                        },
+                    ],
+                }),
+            )
+            .mockResolvedValueOnce(
+                jsonResponse({
+                    id: 1,
+                    title: "Arrival",
+                    original_title: "Arrival",
+                    overview: "A linguist works with alien visitors.",
+                    tagline: "Why are they here?",
+                    release_date: "2016-11-11",
+                    original_language: "en",
+                    poster_path: "/poster.jpg",
+                    backdrop_path: "/backdrop.jpg",
+                    genres: [{ name: "Science Fiction" }, { name: "Drama" }, { name: "Drama" }],
+                    runtime: 116,
+                    status: "Released",
+                    vote_average: 7.6,
+                    vote_count: 18000,
+                    homepage: "https://arrival.movie",
+                    external_ids: { imdb_id: "tt2543164" },
+                }),
+            );
 
-    if (!result.ok) {
-      throw new Error("Expected TMDB lookup to succeed.");
-    }
+        const result = await lookupTmdbTitleDetails({
+            baseUrl: "https://api.themoviedb.org/3",
+            secret: "tmdb-key",
+            metadata: { tmdbImageBaseUrl: "https://image.tmdb.org/t/p/" },
+            mediaType: "movie",
+            title: "Arrival",
+            year: 2016,
+        });
 
-    expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toBe(
-      "https://api.themoviedb.org/3/search/movie?api_key=tmdb-key&query=Arrival&include_adult=false&language=en-US&primary_release_year=2016",
-    );
-    expect(fetchWithTimeoutMock.mock.calls[1]?.[0].toString()).toBe(
-      "https://api.themoviedb.org/3/movie/1?api_key=tmdb-key&append_to_response=external_ids%2Cvideos%2Ccredits%2Cwatch%2Fproviders%2Crecommendations&language=en-US",
-    );
-    expect(result.details).toMatchObject({
-      source: "tmdb",
-      tmdbId: 1,
-      mediaType: "movie",
-      title: "Arrival",
-      originalTitle: "Arrival",
-      overview: "A linguist works with alien visitors.",
-      tagline: "Why are they here?",
-      year: 2016,
-      releaseDate: "2016-11-11",
-      originalLanguage: "en",
-      posterUrl: "https://image.tmdb.org/t/p/w500/poster.jpg",
-      backdropUrl: "https://image.tmdb.org/t/p/w780/backdrop.jpg",
-      genres: ["Science Fiction", "Drama"],
-      runtimeMinutes: 116,
-      seasonCount: null,
-      status: "Released",
-      voteAverage: 7.6,
-      voteCount: 18000,
-      homepage: "https://arrival.movie",
-      imdbId: "tt2543164",
-      tvdbId: null,
-    });
-  });
+        expect(result.ok).toBe(true);
 
-  it("uses TV search and first-air-date year for series metadata", async () => {
-    fetchWithTimeoutMock
-      .mockResolvedValueOnce(
-        jsonResponse({
-          results: [{ id: 99, name: "Dark", first_air_date: "2017-12-01" }],
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          id: 99,
-          name: "Dark",
-          original_name: "Dark",
-          first_air_date: "2017-12-01",
-          original_language: "de",
-          episode_run_time: [53],
-          number_of_seasons: 3,
-          external_ids: { tvdb_id: 334824 },
-        }),
-      );
+        if (!result.ok) {
+            throw new Error("Expected TMDB lookup to succeed.");
+        }
 
-    const result = await lookupTmdbTitleDetails({
-      baseUrl: "https://api.themoviedb.org/3",
-      secret: "tmdb-key",
-      mediaType: "tv",
-      title: "Dark",
-      year: 2017,
-    });
-
-    expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toContain("search/tv");
-    expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toContain("first_air_date_year=2017");
-    expect(result.ok && result.details).toMatchObject({
-      mediaType: "tv",
-      originalLanguage: "de",
-      runtimeMinutes: 53,
-      seasonCount: 3,
-      tvdbId: 334824,
-    });
-  });
-
-  it("normalizes TMDB videos to YouTube trailers/teasers ordered by official+type+date", async () => {
-    fetchWithTimeoutMock
-      .mockResolvedValueOnce(
-        jsonResponse({ results: [{ id: 1, title: "Arrival", release_date: "2016-11-11" }] }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          id: 1,
-          title: "Arrival",
-          release_date: "2016-11-11",
-          videos: {
-            results: [
-              { key: "clip1", site: "YouTube", type: "Clip", name: "Clip", official: true, published_at: "2016-09-01T00:00:00Z" },
-              { key: "trailer-old", site: "YouTube", type: "Trailer", name: "Old trailer", official: false, published_at: "2016-08-01T00:00:00Z" },
-              { key: "trailer-new", site: "YouTube", type: "Trailer", name: "Official trailer", official: true, published_at: "2016-10-01T00:00:00Z" },
-              { key: "vimeo-skip", site: "Vimeo", type: "Trailer", name: "Vimeo", official: true },
-              { key: "unknown-type", site: "YouTube", type: "Bloopers", name: "Bloopers", official: true },
-            ],
-          },
-        }),
-      );
-
-    const result = await lookupTmdbTitleDetails({
-      baseUrl: "https://api.themoviedb.org/3",
-      secret: "tmdb-key",
-      mediaType: "movie",
-      title: "Arrival",
-      year: 2016,
+        expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toBe(
+            "https://api.themoviedb.org/3/search/movie?api_key=tmdb-key&query=Arrival&include_adult=false&language=en-US&primary_release_year=2016",
+        );
+        expect(fetchWithTimeoutMock.mock.calls[1]?.[0].toString()).toBe(
+            "https://api.themoviedb.org/3/movie/1?api_key=tmdb-key&append_to_response=external_ids%2Cvideos%2Ccredits%2Cwatch%2Fproviders%2Crecommendations&language=en-US",
+        );
+        expect(result.details).toMatchObject({
+            source: "tmdb",
+            tmdbId: 1,
+            mediaType: "movie",
+            title: "Arrival",
+            originalTitle: "Arrival",
+            overview: "A linguist works with alien visitors.",
+            tagline: "Why are they here?",
+            year: 2016,
+            releaseDate: "2016-11-11",
+            originalLanguage: "en",
+            posterUrl: "https://image.tmdb.org/t/p/w500/poster.jpg",
+            backdropUrl: "https://image.tmdb.org/t/p/w780/backdrop.jpg",
+            genres: ["Science Fiction", "Drama"],
+            runtimeMinutes: 116,
+            seasonCount: null,
+            status: "Released",
+            voteAverage: 7.6,
+            voteCount: 18000,
+            homepage: "https://arrival.movie",
+            imdbId: "tt2543164",
+            tvdbId: null,
+        });
     });
 
-    expect(result.ok).toBe(true);
+    it("uses TV search and first-air-date year for series metadata", async () => {
+        fetchWithTimeoutMock
+            .mockResolvedValueOnce(
+                jsonResponse({
+                    results: [{ id: 99, name: "Dark", first_air_date: "2017-12-01" }],
+                }),
+            )
+            .mockResolvedValueOnce(
+                jsonResponse({
+                    id: 99,
+                    name: "Dark",
+                    original_name: "Dark",
+                    first_air_date: "2017-12-01",
+                    original_language: "de",
+                    episode_run_time: [53],
+                    number_of_seasons: 3,
+                    external_ids: { tvdb_id: 334824 },
+                }),
+            );
 
-    if (!result.ok) {
-      throw new Error("Expected TMDB lookup to succeed.");
-    }
+        const result = await lookupTmdbTitleDetails({
+            baseUrl: "https://api.themoviedb.org/3",
+            secret: "tmdb-key",
+            mediaType: "tv",
+            title: "Dark",
+            year: 2017,
+        });
 
-    expect(result.details.videos).toEqual([
-      {
-        key: "trailer-new",
-        site: "YouTube",
-        type: "Trailer",
-        name: "Official trailer",
-        official: true,
-        publishedAt: "2016-10-01T00:00:00Z",
-      },
-      {
-        key: "clip1",
-        site: "YouTube",
-        type: "Clip",
-        name: "Clip",
-        official: true,
-        publishedAt: "2016-09-01T00:00:00Z",
-      },
-      {
-        key: "trailer-old",
-        site: "YouTube",
-        type: "Trailer",
-        name: "Old trailer",
-        official: false,
-        publishedAt: "2016-08-01T00:00:00Z",
-      },
-    ]);
-  });
+        expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toContain("search/tv");
+        expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toContain(
+            "first_air_date_year=2017",
+        );
+        expect(result.ok && result.details).toMatchObject({
+            mediaType: "tv",
+            originalLanguage: "de",
+            runtimeMinutes: 53,
+            seasonCount: 3,
+            tvdbId: 334824,
+        });
+    });
 
-  it("normalizes cast, watch providers, and similar titles from append_to_response data", async () => {
-    fetchWithTimeoutMock
-      .mockResolvedValueOnce(
-        jsonResponse({ results: [{ id: 1, title: "Arrival", release_date: "2016-11-11" }] }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          id: 1,
-          title: "Arrival",
-          release_date: "2016-11-11",
-          credits: {
-            cast: [
-              { id: 10, name: "Amy Adams", character: "Louise Banks", profile_path: "/amy.jpg", order: 0 },
-              { id: 11, name: "Jeremy Renner", character: "Ian Donnelly", profile_path: "/jeremy.jpg", order: 1 },
-              { id: 12, name: "No Image", profile_path: null, order: 2 },
-              { id: null, name: "skip" },
-            ],
-          },
-          "watch/providers": {
-            results: {
-              US: {
-                link: "https://www.themoviedb.org/movie/329865/watch?locale=US",
-                flatrate: [
-                  { provider_id: 8, provider_name: "Netflix", logo_path: "/netflix.jpg", display_priority: 0 },
-                ],
-                rent: [
-                  { provider_id: 2, provider_name: "Apple TV", logo_path: "/apple.jpg", display_priority: 1 },
-                  { provider_id: 8, provider_name: "Netflix duplicate", logo_path: "/dupe.jpg" },
-                ],
-              },
-              GB: {
-                flatrate: [{ provider_id: 9, provider_name: "Should not appear" }],
-              },
+    it("normalizes TMDB videos to YouTube trailers/teasers ordered by official+type+date", async () => {
+        fetchWithTimeoutMock
+            .mockResolvedValueOnce(
+                jsonResponse({
+                    results: [{ id: 1, title: "Arrival", release_date: "2016-11-11" }],
+                }),
+            )
+            .mockResolvedValueOnce(
+                jsonResponse({
+                    id: 1,
+                    title: "Arrival",
+                    release_date: "2016-11-11",
+                    videos: {
+                        results: [
+                            {
+                                key: "clip1",
+                                site: "YouTube",
+                                type: "Clip",
+                                name: "Clip",
+                                official: true,
+                                published_at: "2016-09-01T00:00:00Z",
+                            },
+                            {
+                                key: "trailer-old",
+                                site: "YouTube",
+                                type: "Trailer",
+                                name: "Old trailer",
+                                official: false,
+                                published_at: "2016-08-01T00:00:00Z",
+                            },
+                            {
+                                key: "trailer-new",
+                                site: "YouTube",
+                                type: "Trailer",
+                                name: "Official trailer",
+                                official: true,
+                                published_at: "2016-10-01T00:00:00Z",
+                            },
+                            {
+                                key: "vimeo-skip",
+                                site: "Vimeo",
+                                type: "Trailer",
+                                name: "Vimeo",
+                                official: true,
+                            },
+                            {
+                                key: "unknown-type",
+                                site: "YouTube",
+                                type: "Bloopers",
+                                name: "Bloopers",
+                                official: true,
+                            },
+                        ],
+                    },
+                }),
+            );
+
+        const result = await lookupTmdbTitleDetails({
+            baseUrl: "https://api.themoviedb.org/3",
+            secret: "tmdb-key",
+            mediaType: "movie",
+            title: "Arrival",
+            year: 2016,
+        });
+
+        expect(result.ok).toBe(true);
+
+        if (!result.ok) {
+            throw new Error("Expected TMDB lookup to succeed.");
+        }
+
+        expect(result.details.videos).toEqual([
+            {
+                key: "trailer-new",
+                site: "YouTube",
+                type: "Trailer",
+                name: "Official trailer",
+                official: true,
+                publishedAt: "2016-10-01T00:00:00Z",
             },
-          },
-          recommendations: {
-            results: [
-              { id: 100, title: "Interstellar", release_date: "2014-11-07", poster_path: "/inter.jpg", vote_average: 8.4 },
-              { id: 101, title: "Dune", release_date: "2021-10-22", poster_path: "/dune.jpg", vote_average: 8.0 },
-              { id: 100, title: "Interstellar duplicate" },
-            ],
-          },
-        }),
-      );
-
-    const result = await lookupTmdbTitleDetails({
-      baseUrl: "https://api.themoviedb.org/3",
-      secret: "tmdb-key",
-      metadata: { tmdbImageBaseUrl: "https://image.tmdb.org/t/p/" },
-      mediaType: "movie",
-      title: "Arrival",
-      year: 2016,
-    });
-
-    expect(result.ok).toBe(true);
-
-    if (!result.ok) {
-      throw new Error("Expected TMDB lookup to succeed.");
-    }
-
-    expect(result.details.cast).toEqual([
-      {
-        id: 10,
-        name: "Amy Adams",
-        character: "Louise Banks",
-        profileUrl: "https://image.tmdb.org/t/p/w500/amy.jpg",
-        order: 0,
-      },
-      {
-        id: 11,
-        name: "Jeremy Renner",
-        character: "Ian Donnelly",
-        profileUrl: "https://image.tmdb.org/t/p/w500/jeremy.jpg",
-        order: 1,
-      },
-      {
-        id: 12,
-        name: "No Image",
-        character: null,
-        profileUrl: null,
-        order: 2,
-      },
-    ]);
-    expect(result.details.watchProviders).toEqual({
-      countryCode: "US",
-      link: "https://www.themoviedb.org/movie/329865/watch?locale=US",
-      providers: [
-        {
-          providerId: 8,
-          providerName: "Netflix",
-          logoUrl: "https://image.tmdb.org/t/p/w500/netflix.jpg",
-          category: "flatrate",
-          displayPriority: 0,
-        },
-        {
-          providerId: 2,
-          providerName: "Apple TV",
-          logoUrl: "https://image.tmdb.org/t/p/w500/apple.jpg",
-          category: "rent",
-          displayPriority: 1,
-        },
-      ],
-    });
-    expect(result.details.similarTitles).toEqual([
-      {
-        tmdbId: 100,
-        mediaType: "movie",
-        title: "Interstellar",
-        year: 2014,
-        posterUrl: "https://image.tmdb.org/t/p/w500/inter.jpg",
-        voteAverage: 8.4,
-      },
-      {
-        tmdbId: 101,
-        mediaType: "movie",
-        title: "Dune",
-        year: 2021,
-        posterUrl: "https://image.tmdb.org/t/p/w500/dune.jpg",
-        voteAverage: 8.0,
-      },
-    ]);
-  });
-
-  it("uses the configured tmdbWatchRegion when present", async () => {
-    fetchWithTimeoutMock
-      .mockResolvedValueOnce(
-        jsonResponse({ results: [{ id: 1, title: "Arrival", release_date: "2016-11-11" }] }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          id: 1,
-          title: "Arrival",
-          "watch/providers": {
-            results: {
-              GB: {
-                flatrate: [{ provider_id: 9, provider_name: "BBC iPlayer" }],
-              },
-              US: {
-                flatrate: [{ provider_id: 8, provider_name: "Netflix" }],
-              },
+            {
+                key: "clip1",
+                site: "YouTube",
+                type: "Clip",
+                name: "Clip",
+                official: true,
+                publishedAt: "2016-09-01T00:00:00Z",
             },
-          },
-        }),
-      );
-
-    const result = await lookupTmdbTitleDetails({
-      baseUrl: "https://api.themoviedb.org/3",
-      secret: "tmdb-key",
-      metadata: { tmdbWatchRegion: "gb" },
-      mediaType: "movie",
-      title: "Arrival",
-      year: 2016,
+            {
+                key: "trailer-old",
+                site: "YouTube",
+                type: "Trailer",
+                name: "Old trailer",
+                official: false,
+                publishedAt: "2016-08-01T00:00:00Z",
+            },
+        ]);
     });
 
-    expect(result.ok && result.details.watchProviders?.countryCode).toBe("GB");
-    expect(result.ok && result.details.watchProviders?.providers[0]?.providerName).toBe("BBC iPlayer");
-  });
+    it("normalizes cast, watch providers, and similar titles from append_to_response data", async () => {
+        fetchWithTimeoutMock
+            .mockResolvedValueOnce(
+                jsonResponse({
+                    results: [{ id: 1, title: "Arrival", release_date: "2016-11-11" }],
+                }),
+            )
+            .mockResolvedValueOnce(
+                jsonResponse({
+                    id: 1,
+                    title: "Arrival",
+                    release_date: "2016-11-11",
+                    credits: {
+                        cast: [
+                            {
+                                id: 10,
+                                name: "Amy Adams",
+                                character: "Louise Banks",
+                                profile_path: "/amy.jpg",
+                                order: 0,
+                            },
+                            {
+                                id: 11,
+                                name: "Jeremy Renner",
+                                character: "Ian Donnelly",
+                                profile_path: "/jeremy.jpg",
+                                order: 1,
+                            },
+                            { id: 12, name: "No Image", profile_path: null, order: 2 },
+                            { id: null, name: "skip" },
+                        ],
+                    },
+                    "watch/providers": {
+                        results: {
+                            US: {
+                                link: "https://www.themoviedb.org/movie/329865/watch?locale=US",
+                                flatrate: [
+                                    {
+                                        provider_id: 8,
+                                        provider_name: "Netflix",
+                                        logo_path: "/netflix.jpg",
+                                        display_priority: 0,
+                                    },
+                                ],
+                                rent: [
+                                    {
+                                        provider_id: 2,
+                                        provider_name: "Apple TV",
+                                        logo_path: "/apple.jpg",
+                                        display_priority: 1,
+                                    },
+                                    {
+                                        provider_id: 8,
+                                        provider_name: "Netflix duplicate",
+                                        logo_path: "/dupe.jpg",
+                                    },
+                                ],
+                            },
+                            GB: {
+                                flatrate: [{ provider_id: 9, provider_name: "Should not appear" }],
+                            },
+                        },
+                    },
+                    recommendations: {
+                        results: [
+                            {
+                                id: 100,
+                                title: "Interstellar",
+                                release_date: "2014-11-07",
+                                poster_path: "/inter.jpg",
+                                vote_average: 8.4,
+                            },
+                            {
+                                id: 101,
+                                title: "Dune",
+                                release_date: "2021-10-22",
+                                poster_path: "/dune.jpg",
+                                vote_average: 8.0,
+                            },
+                            { id: 100, title: "Interstellar duplicate" },
+                        ],
+                    },
+                }),
+            );
 
-  it("returns a typed failure when no scored TMDB candidate is found", async () => {
-    fetchWithTimeoutMock.mockResolvedValue(
-      jsonResponse({ results: [{ id: 1, title: "Unrelated", release_date: "2020-01-01" }] }),
-    );
+        const result = await lookupTmdbTitleDetails({
+            baseUrl: "https://api.themoviedb.org/3",
+            secret: "tmdb-key",
+            metadata: { tmdbImageBaseUrl: "https://image.tmdb.org/t/p/" },
+            mediaType: "movie",
+            title: "Arrival",
+            year: 2016,
+        });
 
-    const result = await lookupTmdbTitleDetails({
-      baseUrl: "https://api.themoviedb.org/3",
-      secret: "tmdb-key",
-      mediaType: "movie",
-      title: "Arrival",
-      year: 2016,
+        expect(result.ok).toBe(true);
+
+        if (!result.ok) {
+            throw new Error("Expected TMDB lookup to succeed.");
+        }
+
+        expect(result.details.cast).toEqual([
+            {
+                id: 10,
+                name: "Amy Adams",
+                character: "Louise Banks",
+                profileUrl: "https://image.tmdb.org/t/p/w500/amy.jpg",
+                order: 0,
+            },
+            {
+                id: 11,
+                name: "Jeremy Renner",
+                character: "Ian Donnelly",
+                profileUrl: "https://image.tmdb.org/t/p/w500/jeremy.jpg",
+                order: 1,
+            },
+            {
+                id: 12,
+                name: "No Image",
+                character: null,
+                profileUrl: null,
+                order: 2,
+            },
+        ]);
+        expect(result.details.watchProviders).toEqual({
+            countryCode: "US",
+            link: "https://www.themoviedb.org/movie/329865/watch?locale=US",
+            providers: [
+                {
+                    providerId: 8,
+                    providerName: "Netflix",
+                    logoUrl: "https://image.tmdb.org/t/p/w500/netflix.jpg",
+                    category: "flatrate",
+                    displayPriority: 0,
+                },
+                {
+                    providerId: 2,
+                    providerName: "Apple TV",
+                    logoUrl: "https://image.tmdb.org/t/p/w500/apple.jpg",
+                    category: "rent",
+                    displayPriority: 1,
+                },
+            ],
+        });
+        expect(result.details.similarTitles).toEqual([
+            {
+                tmdbId: 100,
+                mediaType: "movie",
+                title: "Interstellar",
+                year: 2014,
+                posterUrl: "https://image.tmdb.org/t/p/w500/inter.jpg",
+                voteAverage: 8.4,
+            },
+            {
+                tmdbId: 101,
+                mediaType: "movie",
+                title: "Dune",
+                year: 2021,
+                posterUrl: "https://image.tmdb.org/t/p/w500/dune.jpg",
+                voteAverage: 8.0,
+            },
+        ]);
     });
 
-    expect(result).toEqual({
-      ok: false,
-      message: "No TMDB match was found for Arrival (2016).",
+    it("uses the configured tmdbWatchRegion when present", async () => {
+        fetchWithTimeoutMock
+            .mockResolvedValueOnce(
+                jsonResponse({
+                    results: [{ id: 1, title: "Arrival", release_date: "2016-11-11" }],
+                }),
+            )
+            .mockResolvedValueOnce(
+                jsonResponse({
+                    id: 1,
+                    title: "Arrival",
+                    "watch/providers": {
+                        results: {
+                            GB: {
+                                flatrate: [{ provider_id: 9, provider_name: "BBC iPlayer" }],
+                            },
+                            US: {
+                                flatrate: [{ provider_id: 8, provider_name: "Netflix" }],
+                            },
+                        },
+                    },
+                }),
+            );
+
+        const result = await lookupTmdbTitleDetails({
+            baseUrl: "https://api.themoviedb.org/3",
+            secret: "tmdb-key",
+            metadata: { tmdbWatchRegion: "gb" },
+            mediaType: "movie",
+            title: "Arrival",
+            year: 2016,
+        });
+
+        expect(result.ok && result.details.watchProviders?.countryCode).toBe("GB");
+        expect(result.ok && result.details.watchProviders?.providers[0]?.providerName).toBe(
+            "BBC iPlayer",
+        );
     });
-    expect(fetchWithTimeoutMock).toHaveBeenCalledTimes(1);
-  });
+
+    it("returns a typed failure when no scored TMDB candidate is found", async () => {
+        fetchWithTimeoutMock.mockResolvedValue(
+            jsonResponse({ results: [{ id: 1, title: "Unrelated", release_date: "2020-01-01" }] }),
+        );
+
+        const result = await lookupTmdbTitleDetails({
+            baseUrl: "https://api.themoviedb.org/3",
+            secret: "tmdb-key",
+            mediaType: "movie",
+            title: "Arrival",
+            year: 2016,
+        });
+
+        expect(result).toEqual({
+            ok: false,
+            message: "No TMDB match was found for Arrival (2016).",
+        });
+        expect(fetchWithTimeoutMock).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe("listTmdbDiscoverTitles", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("normalizes trending titles, dedupes ids, and respects the configured page size", async () => {
-    fetchWithTimeoutMock.mockResolvedValueOnce(
-      jsonResponse({
-        results: [
-          { id: 100, title: "Interstellar", release_date: "2014-11-07", poster_path: "/inter.jpg", vote_average: 8.4 },
-          { id: 100, title: "Interstellar dupe" },
-          { id: 101, title: "Dune", release_date: "2021-10-22", poster_path: "/dune.jpg", vote_average: 8 },
-          { id: null, title: "Skip" },
-          { id: 102 },
-        ],
-      }),
-    );
-
-    const result = await listTmdbDiscoverTitles({
-      baseUrl: "https://api.themoviedb.org/3",
-      secret: "tmdb-key",
-      metadata: { tmdbImageBaseUrl: "https://image.tmdb.org/t/p/" },
-      category: "trending",
-      mediaType: "movie",
+    beforeEach(() => {
+        vi.clearAllMocks();
     });
 
-    expect(result.ok).toBe(true);
+    it("normalizes trending titles, dedupes ids, and respects the configured page size", async () => {
+        fetchWithTimeoutMock.mockResolvedValueOnce(
+            jsonResponse({
+                results: [
+                    {
+                        id: 100,
+                        title: "Interstellar",
+                        release_date: "2014-11-07",
+                        poster_path: "/inter.jpg",
+                        vote_average: 8.4,
+                    },
+                    { id: 100, title: "Interstellar dupe" },
+                    {
+                        id: 101,
+                        title: "Dune",
+                        release_date: "2021-10-22",
+                        poster_path: "/dune.jpg",
+                        vote_average: 8,
+                    },
+                    { id: null, title: "Skip" },
+                    { id: 102 },
+                ],
+            }),
+        );
 
-    if (!result.ok) {
-      throw new Error("expected ok result");
-    }
+        const result = await listTmdbDiscoverTitles({
+            baseUrl: "https://api.themoviedb.org/3",
+            secret: "tmdb-key",
+            metadata: { tmdbImageBaseUrl: "https://image.tmdb.org/t/p/" },
+            category: "trending",
+            mediaType: "movie",
+        });
 
-    expect(fetchWithTimeoutMock).toHaveBeenCalledTimes(1);
-    expect(fetchWithTimeoutMock.mock.calls[0]?.[0]?.toString()).toContain("/trending/movie/week");
-    expect(result.titles).toEqual([
-      {
-        tmdbId: 100,
-        mediaType: "movie",
-        title: "Interstellar",
-        year: 2014,
-        posterUrl: "https://image.tmdb.org/t/p/w500/inter.jpg",
-        voteAverage: 8.4,
-      },
-      {
-        tmdbId: 101,
-        mediaType: "movie",
-        title: "Dune",
-        year: 2021,
-        posterUrl: "https://image.tmdb.org/t/p/w500/dune.jpg",
-        voteAverage: 8,
-      },
-    ]);
-  });
+        expect(result.ok).toBe(true);
 
-  it("uses the on_the_air endpoint for upcoming TV", async () => {
-    fetchWithTimeoutMock.mockResolvedValueOnce(jsonResponse({ results: [] }));
+        if (!result.ok) {
+            throw new Error("expected ok result");
+        }
 
-    await listTmdbDiscoverTitles({
-      baseUrl: "https://api.themoviedb.org/3",
-      secret: "tmdb-key",
-      category: "upcoming",
-      mediaType: "tv",
+        expect(fetchWithTimeoutMock).toHaveBeenCalledTimes(1);
+        expect(fetchWithTimeoutMock.mock.calls[0]?.[0]?.toString()).toContain(
+            "/trending/movie/week",
+        );
+        expect(result.titles).toEqual([
+            {
+                tmdbId: 100,
+                mediaType: "movie",
+                title: "Interstellar",
+                year: 2014,
+                posterUrl: "https://image.tmdb.org/t/p/w500/inter.jpg",
+                voteAverage: 8.4,
+            },
+            {
+                tmdbId: 101,
+                mediaType: "movie",
+                title: "Dune",
+                year: 2021,
+                posterUrl: "https://image.tmdb.org/t/p/w500/dune.jpg",
+                voteAverage: 8,
+            },
+        ]);
     });
 
-    expect(fetchWithTimeoutMock.mock.calls[0]?.[0]?.toString()).toContain("/tv/on_the_air");
-  });
+    it("uses the on_the_air endpoint for upcoming TV", async () => {
+        fetchWithTimeoutMock.mockResolvedValueOnce(jsonResponse({ results: [] }));
 
-  it("returns a typed failure when TMDB responds with a non-2xx status", async () => {
-    fetchWithTimeoutMock.mockResolvedValueOnce(jsonResponse({}, { status: 500 }));
+        await listTmdbDiscoverTitles({
+            baseUrl: "https://api.themoviedb.org/3",
+            secret: "tmdb-key",
+            category: "upcoming",
+            mediaType: "tv",
+        });
 
-    const result = await listTmdbDiscoverTitles({
-      baseUrl: "https://api.themoviedb.org/3",
-      secret: "tmdb-key",
-      category: "popular",
-      mediaType: "movie",
+        expect(fetchWithTimeoutMock.mock.calls[0]?.[0]?.toString()).toContain("/tv/on_the_air");
     });
 
-    expect(result).toEqual({ ok: false, message: "TMDB popular lookup failed with status 500." });
-  });
+    it("returns a typed failure when TMDB responds with a non-2xx status", async () => {
+        fetchWithTimeoutMock.mockResolvedValueOnce(jsonResponse({}, { status: 500 }));
+
+        const result = await listTmdbDiscoverTitles({
+            baseUrl: "https://api.themoviedb.org/3",
+            secret: "tmdb-key",
+            category: "popular",
+            mediaType: "movie",
+        });
+
+        expect(result).toEqual({
+            ok: false,
+            message: "TMDB popular lookup failed with status 500.",
+        });
+    });
 });
 
 describe("lookupTmdbTvSeasons", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("normalizes the season list and sorts by season number", async () => {
-    fetchWithTimeoutMock.mockResolvedValueOnce(
-      jsonResponse({
-        seasons: [
-          { season_number: 2, name: "Season 2", episode_count: 10, air_date: "2020-01-01", poster_path: "/s2.jpg", overview: "" },
-          { season_number: 0, name: "Specials", episode_count: 3, air_date: null, poster_path: null, overview: "Behind the scenes" },
-          { season_number: 1, name: "Season 1", episode_count: 8, air_date: "2018-05-10", poster_path: "/s1.jpg", overview: null },
-        ],
-      }),
-    );
-
-    const result = await lookupTmdbTvSeasons({
-      baseUrl: "https://api.themoviedb.org/3",
-      secret: "tmdb-key",
-      tmdbId: 99,
-      metadata: { tmdbImageBaseUrl: "https://image.tmdb.org/t/p/" },
+    beforeEach(() => {
+        vi.clearAllMocks();
     });
 
-    expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toContain("tv/99");
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("expected ok");
-    expect(result.seasons.map((season) => season.seasonNumber)).toEqual([0, 1, 2]);
-    expect(result.seasons[1]).toMatchObject({
-      seasonNumber: 1,
-      name: "Season 1",
-      episodeCount: 8,
-      airDate: "2018-05-10",
-      posterUrl: "https://image.tmdb.org/t/p/w500/s1.jpg",
+    it("normalizes the season list and sorts by season number", async () => {
+        fetchWithTimeoutMock.mockResolvedValueOnce(
+            jsonResponse({
+                seasons: [
+                    {
+                        season_number: 2,
+                        name: "Season 2",
+                        episode_count: 10,
+                        air_date: "2020-01-01",
+                        poster_path: "/s2.jpg",
+                        overview: "",
+                    },
+                    {
+                        season_number: 0,
+                        name: "Specials",
+                        episode_count: 3,
+                        air_date: null,
+                        poster_path: null,
+                        overview: "Behind the scenes",
+                    },
+                    {
+                        season_number: 1,
+                        name: "Season 1",
+                        episode_count: 8,
+                        air_date: "2018-05-10",
+                        poster_path: "/s1.jpg",
+                        overview: null,
+                    },
+                ],
+            }),
+        );
+
+        const result = await lookupTmdbTvSeasons({
+            baseUrl: "https://api.themoviedb.org/3",
+            secret: "tmdb-key",
+            tmdbId: 99,
+            metadata: { tmdbImageBaseUrl: "https://image.tmdb.org/t/p/" },
+        });
+
+        expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toContain("tv/99");
+        expect(result.ok).toBe(true);
+
+        if (!result.ok) {
+            throw new Error("expected ok");
+        }
+
+        expect(result.seasons.map((season) => season.seasonNumber)).toEqual([0, 1, 2]);
+        expect(result.seasons[1]).toMatchObject({
+            seasonNumber: 1,
+            name: "Season 1",
+            episodeCount: 8,
+            airDate: "2018-05-10",
+            posterUrl: "https://image.tmdb.org/t/p/w500/s1.jpg",
+        });
     });
-  });
 
-  it("returns an error message on non-ok responses", async () => {
-    fetchWithTimeoutMock.mockResolvedValueOnce(new Response("not found", { status: 404 }));
+    it("returns an error message on non-ok responses", async () => {
+        fetchWithTimeoutMock.mockResolvedValueOnce(new Response("not found", { status: 404 }));
 
-    const result = await lookupTmdbTvSeasons({
-      baseUrl: "https://api.themoviedb.org/3",
-      secret: "tmdb-key",
-      tmdbId: 99,
+        const result = await lookupTmdbTvSeasons({
+            baseUrl: "https://api.themoviedb.org/3",
+            secret: "tmdb-key",
+            tmdbId: 99,
+        });
+
+        expect(result).toEqual({
+            ok: false,
+            message: "TMDB season list lookup failed with status 404.",
+        });
     });
-
-    expect(result).toEqual({ ok: false, message: "TMDB season list lookup failed with status 404." });
-  });
 });
 
 describe("lookupTmdbTvSeasonEpisodes", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("returns episodes sorted by episode number with the resolved season number", async () => {
-    fetchWithTimeoutMock.mockResolvedValueOnce(
-      jsonResponse({
-        season_number: 1,
-        episodes: [
-          { season_number: 1, episode_number: 2, name: "Two", overview: "", air_date: "2018-05-17", runtime: 47 },
-          { season_number: 1, episode_number: 1, name: "One", overview: "Pilot", air_date: "2018-05-10", runtime: 52 },
-        ],
-      }),
-    );
-
-    const result = await lookupTmdbTvSeasonEpisodes({
-      baseUrl: "https://api.themoviedb.org/3",
-      secret: "tmdb-key",
-      tmdbId: 99,
-      seasonNumber: 1,
+    beforeEach(() => {
+        vi.clearAllMocks();
     });
 
-    expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toContain("tv/99/season/1");
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("expected ok");
-    expect(result.seasonNumber).toBe(1);
-    expect(result.episodes.map((episode) => episode.episodeNumber)).toEqual([1, 2]);
-    expect(result.episodes[0]).toMatchObject({
-      seasonNumber: 1,
-      episodeNumber: 1,
-      name: "One",
-      airDate: "2018-05-10",
-      runtimeMinutes: 52,
+    it("returns episodes sorted by episode number with the resolved season number", async () => {
+        fetchWithTimeoutMock.mockResolvedValueOnce(
+            jsonResponse({
+                season_number: 1,
+                episodes: [
+                    {
+                        season_number: 1,
+                        episode_number: 2,
+                        name: "Two",
+                        overview: "",
+                        air_date: "2018-05-17",
+                        runtime: 47,
+                    },
+                    {
+                        season_number: 1,
+                        episode_number: 1,
+                        name: "One",
+                        overview: "Pilot",
+                        air_date: "2018-05-10",
+                        runtime: 52,
+                    },
+                ],
+            }),
+        );
+
+        const result = await lookupTmdbTvSeasonEpisodes({
+            baseUrl: "https://api.themoviedb.org/3",
+            secret: "tmdb-key",
+            tmdbId: 99,
+            seasonNumber: 1,
+        });
+
+        expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toContain("tv/99/season/1");
+        expect(result.ok).toBe(true);
+
+        if (!result.ok) {
+            throw new Error("expected ok");
+        }
+
+        expect(result.seasonNumber).toBe(1);
+        expect(result.episodes.map((episode) => episode.episodeNumber)).toEqual([1, 2]);
+        expect(result.episodes[0]).toMatchObject({
+            seasonNumber: 1,
+            episodeNumber: 1,
+            name: "One",
+            airDate: "2018-05-10",
+            runtimeMinutes: 52,
+        });
     });
-  });
 
-  it("returns an error message on non-ok responses", async () => {
-    fetchWithTimeoutMock.mockResolvedValueOnce(new Response("server error", { status: 500 }));
+    it("returns an error message on non-ok responses", async () => {
+        fetchWithTimeoutMock.mockResolvedValueOnce(new Response("server error", { status: 500 }));
 
-    const result = await lookupTmdbTvSeasonEpisodes({
-      baseUrl: "https://api.themoviedb.org/3",
-      secret: "tmdb-key",
-      tmdbId: 99,
-      seasonNumber: 1,
+        const result = await lookupTmdbTvSeasonEpisodes({
+            baseUrl: "https://api.themoviedb.org/3",
+            secret: "tmdb-key",
+            tmdbId: 99,
+            seasonNumber: 1,
+        });
+
+        expect(result).toEqual({
+            ok: false,
+            message: "TMDB season episode lookup failed with status 500.",
+        });
     });
-
-    expect(result).toEqual({ ok: false, message: "TMDB season episode lookup failed with status 500." });
-  });
 });

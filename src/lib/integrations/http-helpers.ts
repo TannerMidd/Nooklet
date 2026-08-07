@@ -9,7 +9,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
  * trailing slash.
  */
 export function trimTrailingSlash(value: string) {
-  return value.replace(/\/+$/, "");
+    return value.replace(/\/+$/, "");
 }
 
 /**
@@ -19,12 +19,13 @@ export function trimTrailingSlash(value: string) {
  * adapters.
  */
 export async function fetchWithTimeout(
-  input: RequestInfo | URL,
-  init?: Omit<SafeFetchOptions, "timeoutMs">,
-  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+    input: RequestInfo | URL,
+    init?: Omit<SafeFetchOptions, "timeoutMs">,
+    timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ) {
-  const target = typeof input === "string" || input instanceof URL ? input : input.url;
-  return safeFetch(target, { ...init, timeoutMs });
+    const target = typeof input === "string" || input instanceof URL ? input : input.url;
+
+    return safeFetch(target, { ...init, timeoutMs });
 }
 
 /**
@@ -33,15 +34,15 @@ export async function fetchWithTimeout(
  * returned value matching the type parameter.
  */
 export async function fetchJsonWithTimeout<T>(
-  input: RequestInfo | URL,
-  init?: Omit<SafeFetchOptions, "timeoutMs">,
-  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+    input: RequestInfo | URL,
+    init?: Omit<SafeFetchOptions, "timeoutMs">,
+    timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ) {
-  const response = await fetchWithTimeout(input, init, timeoutMs);
+    const response = await fetchWithTimeout(input, init, timeoutMs);
 
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}.`);
-  }
+    if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}.`);
+    }
 
-  return (await response.json()) as T;
+    return (await response.json()) as T;
 }

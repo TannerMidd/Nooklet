@@ -15,334 +15,355 @@ import { TraktWatchHistoryForm } from "./trakt-watch-history-form";
 export const dynamic = "force-dynamic";
 
 function formatDate(value: Date | null) {
-  if (!value) {
-    return "Never";
-  }
+    if (!value) {
+        return "Never";
+    }
 
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(value);
+    return new Intl.DateTimeFormat("en", {
+        dateStyle: "medium",
+        timeStyle: "short",
+    }).format(value);
 }
 
 type WatchHistoryOverview = Awaited<ReturnType<typeof getWatchHistoryOverview>>;
 
 function RecentWatchHistoryItemList({
-  items,
-  emptyMessage,
+    items,
+    emptyMessage,
 }: {
-  items: WatchHistoryOverview["recentTvItems"];
-  emptyMessage: string;
+    items: WatchHistoryOverview["recentTvItems"];
+    emptyMessage: string;
 }) {
-  if (items.length === 0) {
-    return <p className="text-sm leading-6 text-muted">{emptyMessage}</p>;
-  }
+    if (items.length === 0) {
+        return <p className="text-sm leading-6 text-muted">{emptyMessage}</p>;
+    }
 
-  return (
-    <div className="grid gap-3">
-      {items.map((item) => (
-        <article
-          key={item.id}
-          className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5"
-        >
-          <p className="font-medium text-foreground">
-            {item.title}
-            {item.year ? ` (${item.year})` : ""}
-          </p>
-          <p className="mt-1 text-sm text-muted">
-            {item.mediaType === "tv" ? "TV" : "Movie"} watched item
-          </p>
-          <p className="mt-2 text-xs font-medium text-accent">
-            {formatDate(item.watchedAt)}
-          </p>
-        </article>
-      ))}
-    </div>
-  );
+    return (
+        <div className="grid gap-3">
+            {items.map((item) => (
+                <article
+                    key={item.id}
+                    className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5"
+                >
+                    <p className="font-medium text-foreground">
+                        {item.title}
+                        {item.year ? ` (${item.year})` : ""}
+                    </p>
+                    <p className="mt-1 text-sm text-muted">
+                        {item.mediaType === "tv" ? "TV" : "Movie"} watched item
+                    </p>
+                    <p className="mt-2 text-xs font-medium text-accent">
+                        {formatDate(item.watchedAt)}
+                    </p>
+                </article>
+            ))}
+        </div>
+    );
 }
 
 export default async function WatchHistorySettingsPage() {
-  const session = await auth();
+    const session = await auth();
 
-  if (!session?.user?.id) {
-    return null;
-  }
-
-  const [overview, connectionSummaries] = await Promise.all([
-    getWatchHistoryOverview(session.user.id),
-    listConnectionSummaries(session.user.id),
-  ]);
-  const plexSource = overview.sources.find((source) => source.sourceType === "plex") ?? null;
-  const plexSummary = connectionSummaries.find((summary) => summary.serviceType === "plex") ?? null;
-  const tautulliSource = overview.sources.find((source) => source.sourceType === "tautulli") ?? null;
-  const tautulliSummary =
-    connectionSummaries.find((summary) => summary.serviceType === "tautulli") ?? null;
-  const traktSource = overview.sources.find((source) => source.sourceType === "trakt") ?? null;
-  const traktSummary = connectionSummaries.find((summary) => summary.serviceType === "trakt") ?? null;
-  const hasRecentItems =
-    overview.recentTvItems.length > 0 || overview.recentMovieItems.length > 0;
-  const lastSyncedAt = overview.sources.reduce<Date | null>((latest, source) => {
-    if (!source.lastSyncedAt) {
-      return latest;
+    if (!session?.user?.id) {
+        return null;
     }
 
-    if (!latest || source.lastSyncedAt > latest) {
-      return source.lastSyncedAt;
-    }
+    const [overview, connectionSummaries] = await Promise.all([
+        getWatchHistoryOverview(session.user.id),
+        listConnectionSummaries(session.user.id),
+    ]);
+    const plexSource = overview.sources.find((source) => source.sourceType === "plex") ?? null;
+    const plexSummary =
+        connectionSummaries.find((summary) => summary.serviceType === "plex") ?? null;
+    const tautulliSource =
+        overview.sources.find((source) => source.sourceType === "tautulli") ?? null;
+    const tautulliSummary =
+        connectionSummaries.find((summary) => summary.serviceType === "tautulli") ?? null;
+    const traktSource = overview.sources.find((source) => source.sourceType === "trakt") ?? null;
+    const traktSummary =
+        connectionSummaries.find((summary) => summary.serviceType === "trakt") ?? null;
+    const hasRecentItems =
+        overview.recentTvItems.length > 0 || overview.recentMovieItems.length > 0;
+    const lastSyncedAt = overview.sources.reduce<Date | null>((latest, source) => {
+        if (!source.lastSyncedAt) {
+            return latest;
+        }
 
-    return latest;
-  }, null);
+        if (!latest || source.lastSyncedAt > latest) {
+            return source.lastSyncedAt;
+        }
 
-  return (
-    <div className="nk-enter space-y-7">
-      <PageHeader
-        eyebrow="Watch history"
-        title="History sources"
-        description="Connect and run each source here. Recurring schedules are managed together under Automation."
-        actions={(
-          <Link href="/settings/automation" className="inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] px-4 text-sm font-semibold text-foreground">
-            Automation schedules
-          </Link>
-        )}
-      />
+        return latest;
+    }, null);
 
-      <div className="grid gap-6 xl:grid-cols-[1.12fr,0.88fr]">
-        <div className="space-y-5">
-          <Panel
-            eyebrow="Plex source"
-            title="Sync recent history directly from Plex"
-            description="Import recent TV or movie watches from Plex using your saved server connection and selected user."
-          >
-            {plexSummary?.status === "verified" ? (
-              <>
-                <div className="mb-5 grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
-                  <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                    <span className="font-medium">Server:</span>{" "}
-                    {plexSummary.serverName ?? "Loaded via verify"}
-                  </div>
-                  <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                    <span className="font-medium">Accessible users:</span>{" "}
-                    {plexSummary.availableUsers.length}
-                  </div>
-                </div>
-                {plexSummary.availableUsers.length > 0 ? (
-                  <div className="space-y-5">
-                    <PlexWatchHistoryForm
-                      availableUsers={plexSummary.availableUsers}
-                      defaultUserId={plexSource?.selectedUserId ?? ""}
-                      defaultImportLimit={plexSource?.importLimit ?? 100}
-                    />
-                  </div>
-                ) : (
-                  <p className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5 text-sm leading-6 text-muted">
-                    Verify the Plex connection again after accessible users are available so a history scope can be selected for sync.
-                  </p>
-                )}
-              </>
-            ) : (
-              <div className="space-y-4">
-                <p className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5 text-sm leading-6 text-muted">
-                  {plexSummary?.status === "disconnected"
-                    ? "Connect and verify Plex first. The verified connection loads accessible users and unlocks direct provider-backed history sync."
-                    : plexSummary?.statusMessage ??
-                      "Verify the saved Plex connection before syncing history."}
-                </p>
-                <Link
-                  href="/settings/connections"
-                  className="relative inline-flex rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
-                >
-                  <LinkPendingOverlay />
-                  Open connections
-                </Link>
-              </div>
-            )}
-          </Panel>
-
-          <Panel
-            eyebrow="Tautulli source"
-            title="Sync recent Plex history"
-            description="Import recent TV or movie watches from Tautulli using your saved connection and selected user."
-          >
-            {tautulliSummary?.status === "verified" ? (
-              <>
-                <div className="mb-5 grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
-                  <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                    <span className="font-medium">Server:</span>{" "}
-                    {tautulliSummary.serverName ?? "Loaded via verify"}
-                  </div>
-                  <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                    <span className="font-medium">Remote users:</span>{" "}
-                    {tautulliSummary.availableUsers.length}
-                  </div>
-                </div>
-                {tautulliSummary.availableUsers.length > 0 ? (
-                  <div className="space-y-5">
-                    <TautulliWatchHistoryForm
-                      availableUsers={tautulliSummary.availableUsers}
-                      defaultUserId={tautulliSource?.selectedUserId ?? ""}
-                      defaultImportLimit={tautulliSource?.importLimit ?? 100}
-                    />
-                  </div>
-                ) : (
-                  <p className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5 text-sm leading-6 text-muted">
-                    Verify the Tautulli connection again after users are available so a remote Plex user can be selected for sync.
-                  </p>
-                )}
-              </>
-            ) : (
-              <div className="space-y-4">
-                <p className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5 text-sm leading-6 text-muted">
-                  {tautulliSummary?.status === "disconnected"
-                    ? "Connect and verify Tautulli first. The verified connection loads remote Plex users and unlocks provider-backed history sync."
-                    : tautulliSummary?.statusMessage ??
-                      "Verify the saved Tautulli connection before syncing history."}
-                </p>
-                <Link
-                  href="/settings/connections"
-                  className="relative inline-flex rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
-                >
-                  <LinkPendingOverlay />
-                  Open connections
-                </Link>
-              </div>
-            )}
-          </Panel>
-
-          <Panel
-            eyebrow="Trakt source"
-            title="Sync watched titles from Trakt"
-            description="Import watched TV or movie history from the verified Trakt account tied to your saved token."
-          >
-            {traktSummary?.status === "verified" ? (
-              <div className="space-y-5">
-                <div className="grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
-                  <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                    <span className="font-medium">Account:</span>{" "}
-                    {traktSummary.serverName ?? "Loaded via verify"}
-                  </div>
-                  <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                    <span className="font-medium">Last verified:</span>{" "}
-                    {traktSummary.lastVerifiedAt
-                      ? new Intl.DateTimeFormat("en", {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        }).format(traktSummary.lastVerifiedAt)
-                      : "Never"}
-                  </div>
-                </div>
-                <TraktWatchHistoryForm defaultImportLimit={traktSource?.importLimit ?? 100} />
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <p className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5 text-sm leading-6 text-muted">
-                  {traktSummary?.status === "disconnected"
-                    ? "Connect and verify Trakt first. Save credentials as client id::OAuth token or JSON with clientId and accessToken."
-                    : traktSummary?.statusMessage ??
-                      "Verify the saved Trakt connection before syncing history."}
-                </p>
-                <Link
-                  href="/settings/connections"
-                  className="relative inline-flex rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
-                >
-                  <LinkPendingOverlay />
-                  Open connections
-                </Link>
-              </div>
-            )}
-          </Panel>
-
-          <Panel
-            eyebrow="Manual source"
-            title="Sync watched titles"
-            description="Paste watched titles directly when you want explicit control over the imported list."
-          >
-            <ManualWatchHistoryForm />
-          </Panel>
-        </div>
-
-        <div className="space-y-5">
-          <Panel
-            eyebrow="Current status"
-            title="History summary"
-          >
-            <div className="space-y-3 text-sm leading-6 text-foreground">
-              {overview.sources.length > 0 ? (
-                <div className="space-y-3">
-                  {overview.sources.map((source) => (
-                    <article
-                      key={source.id}
-                      className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5"
+    return (
+        <div className="nk-enter space-y-7">
+            <PageHeader
+                eyebrow="Watch history"
+                title="History sources"
+                description="Connect and run each source here. Recurring schedules are managed together under Automation."
+                actions={
+                    <Link
+                        href="/settings/automation"
+                        className="inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] px-4 text-sm font-semibold text-foreground"
                     >
-                      <p className="font-medium text-foreground">{source.displayName}</p>
-                      {source.selectedUserName ? (
-                        <p className="mt-1 text-sm text-muted">Remote user: {source.selectedUserName}</p>
-                      ) : null}
-                      <p className="mt-2 text-sm text-muted">{source.statusMessage}</p>
-                      <p className="mt-2 text-xs font-medium text-accent">
-                        Last sync {formatDate(source.lastSyncedAt)}
-                      </p>
-                    </article>
-                  ))}
+                        Automation schedules
+                    </Link>
+                }
+            />
+
+            <div className="grid gap-6 xl:grid-cols-[1.12fr,0.88fr]">
+                <div className="space-y-5">
+                    <Panel
+                        eyebrow="Plex source"
+                        title="Sync recent history directly from Plex"
+                        description="Import recent TV or movie watches from Plex using your saved server connection and selected user."
+                    >
+                        {plexSummary?.status === "verified" ? (
+                            <>
+                                <div className="mb-5 grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
+                                    <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
+                                        <span className="font-medium">Server:</span>{" "}
+                                        {plexSummary.serverName ?? "Loaded via verify"}
+                                    </div>
+                                    <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
+                                        <span className="font-medium">Accessible users:</span>{" "}
+                                        {plexSummary.availableUsers.length}
+                                    </div>
+                                </div>
+                                {plexSummary.availableUsers.length > 0 ? (
+                                    <div className="space-y-5">
+                                        <PlexWatchHistoryForm
+                                            availableUsers={plexSummary.availableUsers}
+                                            defaultUserId={plexSource?.selectedUserId ?? ""}
+                                            defaultImportLimit={plexSource?.importLimit ?? 100}
+                                        />
+                                    </div>
+                                ) : (
+                                    <p className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5 text-sm leading-6 text-muted">
+                                        Verify the Plex connection again after accessible users are
+                                        available so a history scope can be selected for sync.
+                                    </p>
+                                )}
+                            </>
+                        ) : (
+                            <div className="space-y-4">
+                                <p className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5 text-sm leading-6 text-muted">
+                                    {plexSummary?.status === "disconnected"
+                                        ? "Connect and verify Plex first. The verified connection loads accessible users and unlocks direct provider-backed history sync."
+                                        : (plexSummary?.statusMessage ??
+                                          "Verify the saved Plex connection before syncing history.")}
+                                </p>
+                                <Link
+                                    href="/settings/connections"
+                                    className="relative inline-flex rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                                >
+                                    <LinkPendingOverlay />
+                                    Open connections
+                                </Link>
+                            </div>
+                        )}
+                    </Panel>
+
+                    <Panel
+                        eyebrow="Tautulli source"
+                        title="Sync recent Plex history"
+                        description="Import recent TV or movie watches from Tautulli using your saved connection and selected user."
+                    >
+                        {tautulliSummary?.status === "verified" ? (
+                            <>
+                                <div className="mb-5 grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
+                                    <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
+                                        <span className="font-medium">Server:</span>{" "}
+                                        {tautulliSummary.serverName ?? "Loaded via verify"}
+                                    </div>
+                                    <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
+                                        <span className="font-medium">Remote users:</span>{" "}
+                                        {tautulliSummary.availableUsers.length}
+                                    </div>
+                                </div>
+                                {tautulliSummary.availableUsers.length > 0 ? (
+                                    <div className="space-y-5">
+                                        <TautulliWatchHistoryForm
+                                            availableUsers={tautulliSummary.availableUsers}
+                                            defaultUserId={tautulliSource?.selectedUserId ?? ""}
+                                            defaultImportLimit={tautulliSource?.importLimit ?? 100}
+                                        />
+                                    </div>
+                                ) : (
+                                    <p className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5 text-sm leading-6 text-muted">
+                                        Verify the Tautulli connection again after users are
+                                        available so a remote Plex user can be selected for sync.
+                                    </p>
+                                )}
+                            </>
+                        ) : (
+                            <div className="space-y-4">
+                                <p className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5 text-sm leading-6 text-muted">
+                                    {tautulliSummary?.status === "disconnected"
+                                        ? "Connect and verify Tautulli first. The verified connection loads remote Plex users and unlocks provider-backed history sync."
+                                        : (tautulliSummary?.statusMessage ??
+                                          "Verify the saved Tautulli connection before syncing history.")}
+                                </p>
+                                <Link
+                                    href="/settings/connections"
+                                    className="relative inline-flex rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                                >
+                                    <LinkPendingOverlay />
+                                    Open connections
+                                </Link>
+                            </div>
+                        )}
+                    </Panel>
+
+                    <Panel
+                        eyebrow="Trakt source"
+                        title="Sync watched titles from Trakt"
+                        description="Import watched TV or movie history from the verified Trakt account tied to your saved token."
+                    >
+                        {traktSummary?.status === "verified" ? (
+                            <div className="space-y-5">
+                                <div className="grid gap-3 text-sm leading-6 text-foreground md:grid-cols-2">
+                                    <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
+                                        <span className="font-medium">Account:</span>{" "}
+                                        {traktSummary.serverName ?? "Loaded via verify"}
+                                    </div>
+                                    <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
+                                        <span className="font-medium">Last verified:</span>{" "}
+                                        {traktSummary.lastVerifiedAt
+                                            ? new Intl.DateTimeFormat("en", {
+                                                  dateStyle: "medium",
+                                                  timeStyle: "short",
+                                              }).format(traktSummary.lastVerifiedAt)
+                                            : "Never"}
+                                    </div>
+                                </div>
+                                <TraktWatchHistoryForm
+                                    defaultImportLimit={traktSource?.importLimit ?? 100}
+                                />
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <p className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5 text-sm leading-6 text-muted">
+                                    {traktSummary?.status === "disconnected"
+                                        ? "Connect and verify Trakt first. Save credentials as client id::OAuth token or JSON with clientId and accessToken."
+                                        : (traktSummary?.statusMessage ??
+                                          "Verify the saved Trakt connection before syncing history.")}
+                                </p>
+                                <Link
+                                    href="/settings/connections"
+                                    className="relative inline-flex rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-sm font-medium text-foreground transition hover:border-accent/40 hover:bg-panel"
+                                >
+                                    <LinkPendingOverlay />
+                                    Open connections
+                                </Link>
+                            </div>
+                        )}
+                    </Panel>
+
+                    <Panel
+                        eyebrow="Manual source"
+                        title="Sync watched titles"
+                        description="Paste watched titles directly when you want explicit control over the imported list."
+                    >
+                        <ManualWatchHistoryForm />
+                    </Panel>
                 </div>
-              ) : (
-                <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5 text-muted">
-                  No watch-history source has been synced yet.
+
+                <div className="space-y-5">
+                    <Panel eyebrow="Current status" title="History summary">
+                        <div className="space-y-3 text-sm leading-6 text-foreground">
+                            {overview.sources.length > 0 ? (
+                                <div className="space-y-3">
+                                    {overview.sources.map((source) => (
+                                        <article
+                                            key={source.id}
+                                            className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5"
+                                        >
+                                            <p className="font-medium text-foreground">
+                                                {source.displayName}
+                                            </p>
+                                            {source.selectedUserName ? (
+                                                <p className="mt-1 text-sm text-muted">
+                                                    Remote user: {source.selectedUserName}
+                                                </p>
+                                            ) : null}
+                                            <p className="mt-2 text-sm text-muted">
+                                                {source.statusMessage}
+                                            </p>
+                                            <p className="mt-2 text-xs font-medium text-accent">
+                                                Last sync {formatDate(source.lastSyncedAt)}
+                                            </p>
+                                        </article>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-2.5 text-muted">
+                                    No watch-history source has been synced yet.
+                                </div>
+                            )}
+                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                                <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
+                                    <span className="font-medium">TV titles:</span>{" "}
+                                    {overview.tvCount}
+                                </div>
+                                <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
+                                    <span className="font-medium">Movie titles:</span>{" "}
+                                    {overview.movieCount}
+                                </div>
+                                <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
+                                    <span className="font-medium">Active sources:</span>{" "}
+                                    {overview.sources.length}
+                                </div>
+                                <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
+                                    <span className="font-medium">Last synced:</span>{" "}
+                                    {formatDate(lastSyncedAt)}
+                                </div>
+                            </div>
+                        </div>
+                    </Panel>
                 </div>
-              )}
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                  <span className="font-medium">TV titles:</span> {overview.tvCount}
-                </div>
-                <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                  <span className="font-medium">Movie titles:</span> {overview.movieCount}
-                </div>
-                <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                  <span className="font-medium">Active sources:</span> {overview.sources.length}
-                </div>
-                <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-                  <span className="font-medium">Last synced:</span> {formatDate(lastSyncedAt)}
-                </div>
-              </div>
             </div>
-          </Panel>
+
+            <Panel
+                eyebrow="Recent titles"
+                title="Imported items"
+                description="These are the most recent TV and movie titles currently available to use in recommendations."
+            >
+                {!hasRecentItems ? (
+                    <p className="text-sm leading-6 text-muted">
+                        No watch-history items have been imported yet.
+                    </p>
+                ) : (
+                    <div className="grid gap-6 xl:grid-cols-2">
+                        <section className="space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <h3 className="font-medium text-foreground">Recent TV titles</h3>
+                                <p className="text-sm text-muted">
+                                    {overview.recentTvItems.length}
+                                </p>
+                            </div>
+                            <RecentWatchHistoryItemList
+                                items={overview.recentTvItems}
+                                emptyMessage="No TV watch-history items have been imported yet."
+                            />
+                        </section>
+
+                        <section className="space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <h3 className="font-medium text-foreground">Recent movie titles</h3>
+                                <p className="text-sm text-muted">
+                                    {overview.recentMovieItems.length}
+                                </p>
+                            </div>
+                            <RecentWatchHistoryItemList
+                                items={overview.recentMovieItems}
+                                emptyMessage="No movie watch-history items have been imported yet."
+                            />
+                        </section>
+                    </div>
+                )}
+            </Panel>
         </div>
-      </div>
-
-      <Panel
-        eyebrow="Recent titles"
-        title="Imported items"
-        description="These are the most recent TV and movie titles currently available to use in recommendations."
-      >
-        {!hasRecentItems ? (
-          <p className="text-sm leading-6 text-muted">
-            No watch-history items have been imported yet.
-          </p>
-        ) : (
-          <div className="grid gap-6 xl:grid-cols-2">
-            <section className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="font-medium text-foreground">Recent TV titles</h3>
-                <p className="text-sm text-muted">{overview.recentTvItems.length}</p>
-              </div>
-              <RecentWatchHistoryItemList
-                items={overview.recentTvItems}
-                emptyMessage="No TV watch-history items have been imported yet."
-              />
-            </section>
-
-            <section className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="font-medium text-foreground">Recent movie titles</h3>
-                <p className="text-sm text-muted">{overview.recentMovieItems.length}</p>
-              </div>
-              <RecentWatchHistoryItemList
-                items={overview.recentMovieItems}
-                emptyMessage="No movie watch-history items have been imported yet."
-              />
-            </section>
-          </div>
-        )}
-      </Panel>
-    </div>
-  );
+    );
 }

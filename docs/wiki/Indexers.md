@@ -32,9 +32,9 @@ Presets are conveniences, not a substitute for the provider's account documentat
 The standard Newznab categories are:
 
 | Media type | Category ID |
-| --- | --- |
-| Movies | `2000` |
-| TV series | `5000` |
+| ---------- | ----------- |
+| Movies     | `2000`      |
+| TV series  | `5000`      |
 
 If the provider requires more specific categories, add comma-separated category IDs under **Advanced provider settings**. The API path is normally `/api` and must begin with one slash.
 

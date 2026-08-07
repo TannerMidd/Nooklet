@@ -38,12 +38,12 @@ See [Account and user administration](Account-and-User-Administration) for role 
 
 Generate independent random values for each installation.
 
-| Variable | Purpose | Rotation effect |
-| --- | --- | --- |
-| `AUTH_SECRET` | Encrypts and authenticates session state and keys privacy-preserving rate-limit identifiers. It is also the backward-compatible encryption-key fallback when `SECRET_BOX_KEY` is absent. | Existing sessions are invalidated. If it encrypted saved secrets, preserve the old value through `SECRET_BOX_PREVIOUS_KEYS` during rotation. |
-| `SECRET_BOX_KEY` | Preferred key material for stored integration credentials. | Saved secrets using an older key require that key in `SECRET_BOX_PREVIOUS_KEYS` until re-encrypted. |
-| `SECRET_BOX_PREVIOUS_KEYS` | Semicolon- or newline-separated decryption-only key history used during rotation. | Removing a key too early makes any still-encrypted record unreadable. |
-| `BOOTSTRAP_TOKEN` | One-time proof for creating the first administrator. | Remove it after bootstrap and recreate the container. |
+| Variable                   | Purpose                                                                                                                                                                                  | Rotation effect                                                                                                                              |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AUTH_SECRET`              | Encrypts and authenticates session state and keys privacy-preserving rate-limit identifiers. It is also the backward-compatible encryption-key fallback when `SECRET_BOX_KEY` is absent. | Existing sessions are invalidated. If it encrypted saved secrets, preserve the old value through `SECRET_BOX_PREVIOUS_KEYS` during rotation. |
+| `SECRET_BOX_KEY`           | Preferred key material for stored integration credentials.                                                                                                                               | Saved secrets using an older key require that key in `SECRET_BOX_PREVIOUS_KEYS` until re-encrypted.                                          |
+| `SECRET_BOX_PREVIOUS_KEYS` | Semicolon- or newline-separated decryption-only key history used during rotation.                                                                                                        | Removing a key too early makes any still-encrypted record unreadable.                                                                        |
+| `BOOTSTRAP_TOKEN`          | One-time proof for creating the first administrator.                                                                                                                                     | Remove it after bootstrap and recreate the container.                                                                                        |
 
 Each value must be 32–512 characters where configured. Known placeholder values are rejected at startup. Never commit `.env`, reuse one secret for multiple purposes, or paste secrets into issues and chat transcripts.
 

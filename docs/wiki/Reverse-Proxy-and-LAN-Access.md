@@ -2,12 +2,12 @@
 
 Nooklet publishes to `127.0.0.1:42021` by default. That loopback-only default is appropriate for first setup and for a reverse proxy running on the same host. Deliberately choose one ingress pattern before exposing the app beyond the host.
 
-| Pattern | Recommended use | `APP_BIND_ADDRESS` | TLS |
-| --- | --- | --- | --- |
-| Same-host reverse proxy | Preferred for a stable hostname and any remote access | `127.0.0.1` | Terminate at the proxy |
-| Direct trusted-LAN access | Small isolated LAN where direct IP/port access is acceptable | Specific LAN address if practical, otherwise `0.0.0.0` | Not built in; HTTPS still recommended |
-| VPN plus loopback/proxy | Remote access without public app ingress | Usually `127.0.0.1`, topology-dependent | Provided by proxy/VPN design |
-| Direct public port forwarding | Not recommended | — | Nooklet is not an internet-edge TLS server |
+| Pattern                       | Recommended use                                              | `APP_BIND_ADDRESS`                                     | TLS                                        |
+| ----------------------------- | ------------------------------------------------------------ | ------------------------------------------------------ | ------------------------------------------ |
+| Same-host reverse proxy       | Preferred for a stable hostname and any remote access        | `127.0.0.1`                                            | Terminate at the proxy                     |
+| Direct trusted-LAN access     | Small isolated LAN where direct IP/port access is acceptable | Specific LAN address if practical, otherwise `0.0.0.0` | Not built in; HTTPS still recommended      |
+| VPN plus loopback/proxy       | Remote access without public app ingress                     | Usually `127.0.0.1`, topology-dependent                | Provided by proxy/VPN design               |
+| Direct public port forwarding | Not recommended                                              | —                                                      | Nooklet is not an internet-edge TLS server |
 
 ## Canonical URL and published port
 
@@ -135,13 +135,13 @@ Security requirements for direct LAN publishing:
 
 These settings solve different problems:
 
-| Setting | Direction | Purpose |
-| --- | --- | --- |
-| `APP_BIND_ADDRESS` / `APP_PORT` | Inbound | Where browsers and proxies can reach Nooklet on the Docker host. |
-| `APP_URL` | Browser-facing identity | Canonical origin used by authentication and generated navigation. |
-| `TRUST_PROXY_HEADERS` | Inbound metadata | Whether a proxy-supplied client IP can be used for abuse controls. |
-| `PRIVATE_SERVICE_HOST_ALLOWLIST` | Outbound | Exact private hosts Nooklet may contact for integrations. |
-| `ALLOW_PRIVATE_SERVICE_HOSTS` | Outbound | Broad private-host permission for a tightly trusted LAN. |
+| Setting                          | Direction               | Purpose                                                            |
+| -------------------------------- | ----------------------- | ------------------------------------------------------------------ |
+| `APP_BIND_ADDRESS` / `APP_PORT`  | Inbound                 | Where browsers and proxies can reach Nooklet on the Docker host.   |
+| `APP_URL`                        | Browser-facing identity | Canonical origin used by authentication and generated navigation.  |
+| `TRUST_PROXY_HEADERS`            | Inbound metadata        | Whether a proxy-supplied client IP can be used for abuse controls. |
+| `PRIVATE_SERVICE_HOST_ALLOWLIST` | Outbound                | Exact private hosts Nooklet may contact for integrations.          |
+| `ALLOW_PRIVATE_SERVICE_HOSTS`    | Outbound                | Broad private-host permission for a tightly trusted LAN.           |
 
 A reverse proxy does not automatically authorize Nooklet to contact Plex, Tautulli, an AI server, or a private indexer.
 
@@ -168,15 +168,15 @@ After proxy or LAN changes:
 
 ## Common failures
 
-| Symptom | Likely cause | Resolution |
-| --- | --- | --- |
-| Proxy returns `502 Bad Gateway` | Wrong upstream address or Nooklet is not healthy. | Query the loopback probe on the Nooklet host and inspect `docker compose ps`; a containerized proxy cannot use its own loopback for Nooklet. |
-| Redirect or sign-in uses `localhost` | `APP_URL` is still the local default or the container was not recreated. | Set the external origin and force-recreate. |
-| Browser cannot connect from LAN | App is still loopback-bound or a host firewall blocks it. | Inspect `docker compose port app 42021`, adjust the deliberate bind/firewall policy, and recreate. |
-| Login attempts appear to share one source | Proxy headers are not trusted or the proxy reports only its own address. | Configure the proxy to overwrite client headers, then enable `TRUST_PROXY_HEADERS`. |
-| Client can spoof source IP | Nooklet is directly reachable while proxy headers are trusted, or the proxy forwards incoming headers unchanged. | Close direct ingress and overwrite headers at the last trusted proxy. |
-| Private integration says host is blocked | Inbound publishing was confused with outbound authorization. | Add the exact integration hostname/IP to `PRIVATE_SERVICE_HOST_ALLOWLIST` and recreate. |
-| Connection test rejects a redirect | Outbound redirects are intentionally refused. | Configure the final direct HTTP(S) endpoint rather than a URL that redirects. |
+| Symptom                                   | Likely cause                                                                                                     | Resolution                                                                                                                                   |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Proxy returns `502 Bad Gateway`           | Wrong upstream address or Nooklet is not healthy.                                                                | Query the loopback probe on the Nooklet host and inspect `docker compose ps`; a containerized proxy cannot use its own loopback for Nooklet. |
+| Redirect or sign-in uses `localhost`      | `APP_URL` is still the local default or the container was not recreated.                                         | Set the external origin and force-recreate.                                                                                                  |
+| Browser cannot connect from LAN           | App is still loopback-bound or a host firewall blocks it.                                                        | Inspect `docker compose port app 42021`, adjust the deliberate bind/firewall policy, and recreate.                                           |
+| Login attempts appear to share one source | Proxy headers are not trusted or the proxy reports only its own address.                                         | Configure the proxy to overwrite client headers, then enable `TRUST_PROXY_HEADERS`.                                                          |
+| Client can spoof source IP                | Nooklet is directly reachable while proxy headers are trusted, or the proxy forwards incoming headers unchanged. | Close direct ingress and overwrite headers at the last trusted proxy.                                                                        |
+| Private integration says host is blocked  | Inbound publishing was confused with outbound authorization.                                                     | Add the exact integration hostname/IP to `PRIVATE_SERVICE_HOST_ALLOWLIST` and recreate.                                                      |
+| Connection test rejects a redirect        | Outbound redirects are intentionally refused.                                                                    | Configure the final direct HTTP(S) endpoint rather than a URL that redirects.                                                                |
 
 See [Troubleshooting](Troubleshooting) for container, storage, and database failures.
 

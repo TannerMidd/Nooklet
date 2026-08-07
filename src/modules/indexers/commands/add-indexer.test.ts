@@ -4,120 +4,121 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
-import {
-  auditEvents,
-  indexerMediaCategories,
-  indexerSecrets,
-  users,
-} from "@/lib/database/schema";
+import { auditEvents, indexerMediaCategories, indexerSecrets, users } from "@/lib/database/schema";
 
 import { addIndexerCommand } from "./add-indexer";
 
 async function seedUser() {
-  const database = ensureDatabaseReady();
-  const userId = randomUUID();
+    const database = ensureDatabaseReady();
+    const userId = randomUUID();
 
-  database
-    .insert(users)
-    .values({
-      id: userId,
-      email: `${userId}@test.local`,
-      displayName: "test",
-      passwordHash: "x",
-      role: "user",
-    })
-    .run();
+    database
+        .insert(users)
+        .values({
+            id: userId,
+            email: `${userId}@test.local`,
+            displayName: "test",
+            passwordHash: "x",
+            role: "user",
+        })
+        .run();
 
-  return userId;
+    return userId;
 }
 
 beforeEach(() => {
-  ensureDatabaseReady();
+    ensureDatabaseReady();
 });
 
 describe("addIndexerCommand", () => {
-  it("stores configuration, encrypted secret, categories, and audit event", async () => {
-    const userId = await seedUser();
+    it("stores configuration, encrypted secret, categories, and audit event", async () => {
+        const userId = await seedUser();
 
-    const indexer = await addIndexerCommand(userId, {
-      name: "NZBGeek",
-      protocol: "newznab",
-      baseUrl: "https://api.example.test",
-      apiPath: "/api",
-      apiKey: "super-secret-key",
-      isEnabled: true,
-      priority: 10,
-      categories: [
-        { mediaType: "movie", categoryId: "2000", label: "Movies" },
-        { mediaType: "tv", categoryId: "5000", label: "TV" },
-      ],
+        const indexer = await addIndexerCommand(userId, {
+            name: "NZBGeek",
+            protocol: "newznab",
+            baseUrl: "https://api.example.test",
+            apiPath: "/api",
+            apiKey: "super-secret-key",
+            isEnabled: true,
+            priority: 10,
+            categories: [
+                { mediaType: "movie", categoryId: "2000", label: "Movies" },
+                { mediaType: "tv", categoryId: "5000", label: "TV" },
+            ],
+        });
+
+        const secret = ensureDatabaseReady()
+            .select()
+            .from(indexerSecrets)
+            .where(eq(indexerSecrets.indexerId, indexer.id))
+            .get();
+        const categories = ensureDatabaseReady()
+            .select()
+            .from(indexerMediaCategories)
+            .where(eq(indexerMediaCategories.indexerId, indexer.id))
+            .all();
+        const auditEvent = ensureDatabaseReady()
+            .select()
+            .from(auditEvents)
+            .where(eq(auditEvents.subjectId, indexer.id))
+            .get();
+
+        expect(indexer.name).toBe("NZBGeek");
+        expect(secret?.encryptedApiKey).not.toBe("super-secret-key");
+        expect(secret?.maskedApiKey).toBe("su************ey");
+        expect(categories).toHaveLength(2);
+        expect(auditEvent?.eventType).toBe("indexer.created");
     });
 
-    const secret = ensureDatabaseReady()
-      .select()
-      .from(indexerSecrets)
-      .where(eq(indexerSecrets.indexerId, indexer.id))
-      .get();
-    const categories = ensureDatabaseReady()
-      .select()
-      .from(indexerMediaCategories)
-      .where(eq(indexerMediaCategories.indexerId, indexer.id))
-      .all();
-    const auditEvent = ensureDatabaseReady()
-      .select()
-      .from(auditEvents)
-      .where(eq(auditEvents.subjectId, indexer.id))
-      .get();
+    it("requires at least one media category", async () => {
+        const userId = await seedUser();
 
-    expect(indexer.name).toBe("NZBGeek");
-    expect(secret?.encryptedApiKey).not.toBe("super-secret-key");
-    expect(secret?.maskedApiKey).toBe("su************ey");
-    expect(categories).toHaveLength(2);
-    expect(auditEvent?.eventType).toBe("indexer.created");
-  });
+        await expect(
+            addIndexerCommand(userId, {
+                name: "No categories",
+                protocol: "newznab",
+                baseUrl: "https://api.example.test",
+                apiPath: "/api",
+                apiKey: "secret",
+                isEnabled: true,
+                priority: 0,
+                categories: [],
+            }),
+        ).rejects.toThrow("Add at least one movie or TV category");
+    });
 
-  it("requires at least one media category", async () => {
-    const userId = await seedUser();
+    it("rejects API paths that can override the base URL", async () => {
+        const userId = await seedUser();
 
-    await expect(addIndexerCommand(userId, {
-      name: "No categories",
-      protocol: "newznab",
-      baseUrl: "https://api.example.test",
-      apiPath: "/api",
-      apiKey: "secret",
-      isEnabled: true,
-      priority: 0,
-      categories: [],
-    })).rejects.toThrow("Add at least one movie or TV category");
-  });
+        await expect(
+            addIndexerCommand(userId, {
+                name: "Bad path",
+                protocol: "newznab",
+                baseUrl: "https://api.example.test",
+                apiPath: "https://elsewhere.example/api",
+                apiKey: "secret",
+                isEnabled: true,
+                priority: 0,
+                categories: [{ mediaType: "movie", categoryId: "2000", label: "Movies" }],
+            }),
+        ).rejects.toThrow("API path must start with one /");
+    });
 
-  it("rejects API paths that can override the base URL", async () => {
-    const userId = await seedUser();
+    it("rejects protocol-relative API paths", async () => {
+        const userId = await seedUser();
 
-    await expect(addIndexerCommand(userId, {
-      name: "Bad path",
-      protocol: "newznab",
-      baseUrl: "https://api.example.test",
-      apiPath: "https://elsewhere.example/api",
-      apiKey: "secret",
-      isEnabled: true,
-      priority: 0,
-      categories: [{ mediaType: "movie", categoryId: "2000", label: "Movies" }],
-    })).rejects.toThrow("API path must start with one /");
-  });
-
-  it("rejects protocol-relative API paths", async () => {
-    const userId = await seedUser();
-
-    await expect(addIndexerCommand(userId, {
-      name: "Protocol relative",
-      protocol: "newznab",
-      baseUrl: "https://api.example.test",
-      apiPath: "//elsewhere.example/api",
-      apiKey: "secret",
-      isEnabled: true,
-      priority: 0,
-      categories: [{ mediaType: "movie", categoryId: "2000", label: "Movies" }],
-    })).rejects.toThrow("API path must start with one /");
-  });
+        await expect(
+            addIndexerCommand(userId, {
+                name: "Protocol relative",
+                protocol: "newznab",
+                baseUrl: "https://api.example.test",
+                apiPath: "//elsewhere.example/api",
+                apiKey: "secret",
+                isEnabled: true,
+                priority: 0,
+                categories: [{ mediaType: "movie", categoryId: "2000", label: "Movies" }],
+            }),
+        ).rejects.toThrow("API path must start with one /");
+    });
 });

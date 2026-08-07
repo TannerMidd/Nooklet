@@ -1,47 +1,47 @@
 import { saveRecurringJob } from "@/modules/jobs/public";
 import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
-  type MissingSearchScheduleInput,
-  missingSearchScheduleInputSchema,
+    type MissingSearchScheduleInput,
+    missingSearchScheduleInputSchema,
 } from "@/modules/media-library/schemas/missing-search-schedule";
 import { recordAuditEvent } from "@/modules/users/commands/record-audit-event";
 
 export type ConfigureMissingSearchScheduleResult = {
-  ok: true;
-  message: string;
+    ok: true;
+    message: string;
 };
 
 export async function configureMissingSearchSchedule(
-  userId: string,
-  input: MissingSearchScheduleInput,
+    userId: string,
+    input: MissingSearchScheduleInput,
 ): Promise<ConfigureMissingSearchScheduleResult> {
-  const parsed = missingSearchScheduleInputSchema.parse(input);
-  const jobOwnerUserId = await resolveInstanceConfigurationOwnerId(userId);
+    const parsed = missingSearchScheduleInputSchema.parse(input);
+    const jobOwnerUserId = await resolveInstanceConfigurationOwnerId(userId);
 
-  await saveRecurringJob({
-    userId: jobOwnerUserId,
-    jobType: "missing-content-search",
-    targetType: "media-library",
-    targetKey: "all",
-    scheduleMinutes: parsed.intervalMinutes,
-    isEnabled: parsed.enabled,
-  });
+    await saveRecurringJob({
+        userId: jobOwnerUserId,
+        jobType: "missing-content-search",
+        targetType: "media-library",
+        targetKey: "all",
+        scheduleMinutes: parsed.intervalMinutes,
+        isEnabled: parsed.enabled,
+    });
 
-  await recordAuditEvent({
-    actorUserId: userId,
-    eventType: "media-library.missing-search.schedule.updated",
-    subjectType: "media-library-missing-search-schedule",
-    subjectId: "all",
-    payload: {
-      enabled: parsed.enabled,
-      intervalMinutes: parsed.intervalMinutes,
-    },
-  });
+    await recordAuditEvent({
+        actorUserId: userId,
+        eventType: "media-library.missing-search.schedule.updated",
+        subjectType: "media-library-missing-search-schedule",
+        subjectId: "all",
+        payload: {
+            enabled: parsed.enabled,
+            intervalMinutes: parsed.intervalMinutes,
+        },
+    });
 
-  return {
-    ok: true,
-    message: parsed.enabled
-      ? `Missing-content search enabled every ${parsed.intervalMinutes} minutes.`
-      : "Missing-content auto-search disabled.",
-  };
+    return {
+        ok: true,
+        message: parsed.enabled
+            ? `Missing-content search enabled every ${parsed.intervalMinutes} minutes.`
+            : "Missing-content auto-search disabled.",
+    };
 }

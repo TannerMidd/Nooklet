@@ -24,11 +24,11 @@ flowchart LR
 
 Nooklet runs inside the container and cannot use `D:\Media\Movies` or `F:\...` directly. Configure the path on the **right-hand side** of each mount in Nooklet.
 
-| Host folder | Container path | Nooklet configuration |
-| --- | --- | --- |
-| `D:/Media/Movies` | `/media/movies` | Attach `/media/movies` as a movie folder |
-| `D:/Media/TV` | `/media/tv` | Attach `/media/tv` as a TV folder |
-| `F:/Nooklet/Downloads` | `/downloads` | Set `DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine` |
+| Host folder            | Container path  | Nooklet configuration                               |
+| ---------------------- | --------------- | --------------------------------------------------- |
+| `D:/Media/Movies`      | `/media/movies` | Attach `/media/movies` as a movie folder            |
+| `D:/Media/TV`          | `/media/tv`     | Attach `/media/tv` as a TV folder                   |
+| `F:/Nooklet/Downloads` | `/downloads`    | Set `DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine` |
 
 ## Recommended Compose override
 
@@ -36,11 +36,11 @@ Create `docker-compose.override.yml`:
 
 ```yaml
 services:
-  app:
-    volumes:
-      - "D:/Media/Movies:/media/movies"
-      - "D:/Media/TV:/media/tv"
-      - "F:/Nooklet/Downloads:/downloads"
+    app:
+        volumes:
+            - "D:/Media/Movies:/media/movies"
+            - "D:/Media/TV:/media/tv"
+            - "F:/Nooklet/Downloads:/downloads"
 ```
 
 Use the equivalent absolute host paths on Linux or macOS. Then set:

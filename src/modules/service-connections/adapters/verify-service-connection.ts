@@ -6,45 +6,47 @@ import { verifyTmdb } from "./verify-tmdb";
 import { verifyTrakt } from "./verify-trakt";
 import { verifyTvdb } from "./verify-tvdb";
 import type {
-  VerifyServiceConnectionInput,
-  VerifyServiceConnectionResult,
+    VerifyServiceConnectionInput,
+    VerifyServiceConnectionResult,
 } from "./verify-service-connection-types";
 
 export type {
-  VerifyServiceConnectionInput,
-  VerifyServiceConnectionResult,
+    VerifyServiceConnectionInput,
+    VerifyServiceConnectionResult,
 } from "./verify-service-connection-types";
 
 export async function verifyServiceConnection(
-  input: VerifyServiceConnectionInput,
+    input: VerifyServiceConnectionInput,
 ): Promise<VerifyServiceConnectionResult> {
-  try {
-    switch (input.serviceType) {
-      case "ai-provider":
-        return await verifyAiProvider(input);
-      case "tautulli":
-        return await verifyTautulli(input);
-      case "plex":
-        return await verifyPlex(input);
-      case "usenet-server":
-        return await verifyUsenetServer(input);
-      case "tmdb":
-        return await verifyTmdb(input);
-      case "tvdb":
-        return await verifyTvdb(input);
-      case "trakt":
-        return await verifyTrakt(input);
-      default:
+    try {
+        switch (input.serviceType) {
+            case "ai-provider":
+                return await verifyAiProvider(input);
+            case "tautulli":
+                return await verifyTautulli(input);
+            case "plex":
+                return await verifyPlex(input);
+            case "usenet-server":
+                return await verifyUsenetServer(input);
+            case "tmdb":
+                return await verifyTmdb(input);
+            case "tvdb":
+                return await verifyTvdb(input);
+            case "trakt":
+                return await verifyTrakt(input);
+            default:
+                return {
+                    ok: false,
+                    message: "Unsupported service type.",
+                };
+        }
+    } catch (error) {
         return {
-          ok: false,
-          message: "Unsupported service type.",
+            ok: false,
+            message:
+                error instanceof Error
+                    ? error.message
+                    : "Connection verification failed unexpectedly.",
         };
     }
-  } catch (error) {
-    return {
-      ok: false,
-      message:
-        error instanceof Error ? error.message : "Connection verification failed unexpectedly.",
-    };
-  }
 }

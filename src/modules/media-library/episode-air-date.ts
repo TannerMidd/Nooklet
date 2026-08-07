@@ -10,32 +10,28 @@
 
 /** `YYYY-MM-DD` for an instant, in the running environment's local calendar. */
 export function toCalendarDate(value: Date): string {
-  const year = String(value.getFullYear()).padStart(4, "0");
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
+    const year = String(value.getFullYear()).padStart(4, "0");
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
 
-  return `${year}-${month}-${day}`;
+    return `${year}-${month}-${day}`;
 }
 
 /** Parses `YYYY-MM-DD` to local midnight, so formatting keeps the same day. */
 export function parseCalendarDate(value: string | null | undefined): Date | null {
-  if (!value) {
-    return null;
-  }
+    if (!value) {
+        return null;
+    }
 
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
 
-  if (!match) {
-    return null;
-  }
+    if (!match) {
+        return null;
+    }
 
-  const parsed = new Date(
-    Number(match[1]),
-    Number(match[2]) - 1,
-    Number(match[3]),
-  );
+    const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
 
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 /**
@@ -45,9 +41,6 @@ export function parseCalendarDate(value: string | null | undefined): Date | null
  * refusing to search for it because metadata is incomplete would be worse than
  * searching and finding nothing.
  */
-export function episodeHasAired(
-  airDate: string | null | undefined,
-  today: string,
-): boolean {
-  return !airDate || airDate <= today;
+export function episodeHasAired(airDate: string | null | undefined, today: string): boolean {
+    return !airDate || airDate <= today;
 }

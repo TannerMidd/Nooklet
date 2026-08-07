@@ -8,5 +8,5 @@ const getBrowserSnapshot = (): HTMLElement | null => document.body;
 
 /** Returns the document body after hydration without a mount-effect render. */
 export function usePortalTarget() {
-  return useSyncExternalStore(subscribe, getBrowserSnapshot, getServerSnapshot);
+    return useSyncExternalStore(subscribe, getBrowserSnapshot, getServerSnapshot);
 }

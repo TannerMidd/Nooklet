@@ -12,15 +12,15 @@ export const aiProviderFlavors = ["openai-compatible", "lm-studio-native"] as co
  * raw metadata keys.
  */
 export function parseAiProviderFlavor(
-  metadata: Record<string, unknown> | null,
+    metadata: Record<string, unknown> | null,
 ): AiProviderFlavor | null {
-  const value = metadata?.aiProviderFlavor;
+    const value = metadata?.aiProviderFlavor;
 
-  if (typeof value === "string" && (aiProviderFlavors as readonly string[]).includes(value)) {
-    return value as AiProviderFlavor;
-  }
+    if (typeof value === "string" && (aiProviderFlavors as readonly string[]).includes(value)) {
+        return value as AiProviderFlavor;
+    }
 
-  return null;
+    return null;
 }
 
 /**
@@ -35,22 +35,22 @@ export function parseAiProviderFlavor(
  * since that is the broadly compatible default.
  */
 export function detectAiProviderFlavor(payload: unknown): AiProviderFlavor {
-  if (!payload || typeof payload !== "object") {
+    if (!payload || typeof payload !== "object") {
+        return "openai-compatible";
+    }
+
+    const candidate = payload as { data?: unknown; models?: unknown };
+    const hasOpenAiData = Array.isArray(candidate.data) && candidate.data.length > 0;
+
+    if (hasOpenAiData) {
+        return "openai-compatible";
+    }
+
+    if (Array.isArray(candidate.models) && candidate.models.length > 0) {
+        return "lm-studio-native";
+    }
+
     return "openai-compatible";
-  }
-
-  const candidate = payload as { data?: unknown; models?: unknown };
-  const hasOpenAiData = Array.isArray(candidate.data) && candidate.data.length > 0;
-
-  if (hasOpenAiData) {
-    return "openai-compatible";
-  }
-
-  if (Array.isArray(candidate.models) && candidate.models.length > 0) {
-    return "lm-studio-native";
-  }
-
-  return "openai-compatible";
 }
 
 /**
@@ -65,18 +65,16 @@ export function detectAiProviderFlavor(payload: unknown): AiProviderFlavor {
  * trailing `/api/v1` segment to `/v1` so chat completions still work without
  * making them re-enter a second URL.
  */
-export function resolveChatCompletionsUrl(
-  baseUrl: string,
-  flavor: AiProviderFlavor,
-): string {
-  const trimmed = trimTrailingSlash(baseUrl);
+export function resolveChatCompletionsUrl(baseUrl: string, flavor: AiProviderFlavor): string {
+    const trimmed = trimTrailingSlash(baseUrl);
 
-  if (flavor === "lm-studio-native") {
-    const rewritten = trimmed.replace(/\/api\/v1$/, "/v1");
-    return `${rewritten}/chat/completions`;
-  }
+    if (flavor === "lm-studio-native") {
+        const rewritten = trimmed.replace(/\/api\/v1$/, "/v1");
 
-  return `${trimmed}/chat/completions`;
+        return `${rewritten}/chat/completions`;
+    }
+
+    return `${trimmed}/chat/completions`;
 }
 
 /**
@@ -86,5 +84,5 @@ export function resolveChatCompletionsUrl(
  * so verification can use the same path for both flavors.
  */
 export function resolveListModelsUrl(baseUrl: string): string {
-  return `${trimTrailingSlash(baseUrl)}/models`;
+    return `${trimTrailingSlash(baseUrl)}/models`;
 }

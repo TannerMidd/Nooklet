@@ -3,15 +3,15 @@ import { redirect } from "next/navigation";
 import { getProtectedActionSession } from "@/modules/identity-access/workflows/get-protected-action-session";
 
 export async function requireAdminSession() {
-  const session = await getProtectedActionSession();
+    const session = await getProtectedActionSession();
 
-  if (!session?.user) {
-    redirect("/login");
-  }
+    if (!session?.user) {
+        redirect("/login");
+    }
 
-  if (session.user.role !== "admin") {
-    redirect("/tv");
-  }
+    if (session.user.role !== "admin") {
+        redirect("/tv");
+    }
 
-  return session;
+    return session;
 }

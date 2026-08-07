@@ -1,20 +1,20 @@
 import { rm } from "node:fs/promises";
 
 import {
-  annotateDownloadRequestStatusMessage,
-  findDownloadClientByServiceConnectionId,
-  findDownloadRequestById,
-  listDownloadQueueItemsForRequest,
-  listDownloadRequestsForExternalQueueIds,
-  listDownloadRequestsForExternalQueueIdsForImport,
-  listActiveDownloadRequestsForImport,
-  updateDownloadQueueItemStatus,
-  updateDownloadRequestStatus,
+    annotateDownloadRequestStatusMessage,
+    findDownloadClientByServiceConnectionId,
+    findDownloadRequestById,
+    listDownloadQueueItemsForRequest,
+    listDownloadRequestsForExternalQueueIds,
+    listDownloadRequestsForExternalQueueIdsForImport,
+    listActiveDownloadRequestsForImport,
+    updateDownloadQueueItemStatus,
+    updateDownloadRequestStatus,
 } from "@/modules/downloads/repositories/download-repository";
 import {
-  findEngineDownloadById,
-  listUnimportedFinishedEngineDownloads,
-  markEngineDownloadImported,
+    findEngineDownloadById,
+    listUnimportedFinishedEngineDownloads,
+    markEngineDownloadImported,
 } from "@/modules/download-engine/queue/engine-repository";
 import { engineIncompleteDir } from "@/modules/download-engine/runtime/engine-runner";
 import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
@@ -28,8 +28,8 @@ import { organizeCompletedDownloadFiles } from "./import-completed-downloads/fil
 import { type ImportFilesystemProgressReporter } from "./import-completed-downloads/file-transfer";
 import { dispatchCompletedDownloadNotifications } from "./import-completed-downloads/notifications";
 import {
-  type FinishedDownloadRecord,
-  type MatchedCompletedDownload,
+    type FinishedDownloadRecord,
+    type MatchedCompletedDownload,
 } from "./import-completed-downloads/request-matching";
 import { persistCompletedDownloadImports } from "./import-completed-downloads/persistence";
 import { retryFailedCompletedDownloads } from "./import-completed-downloads/retry-handling";
@@ -38,11 +38,11 @@ import { acquireSeasonImportFences } from "./import-completed-downloads/season-i
 import { withCompletedImportLock } from "./completed-import-lock";
 
 export type ImportCompletedEngineDownloadsInput = {
-  requestId?: string;
+    requestId?: string;
 };
 
 export type ImportCompletedEngineDownloadsOptions = {
-  onFilesystemProgress?: ImportFilesystemProgressReporter;
+    onFilesystemProgress?: ImportFilesystemProgressReporter;
 };
 
 /**
@@ -54,227 +54,258 @@ export type ImportCompletedEngineDownloadsOptions = {
  * retry scheduling, and library-scan triggering.
  */
 async function runImportCompletedEngineDownloadsWorkflow(
-  userId: string,
-  input: ImportCompletedEngineDownloadsInput = {},
-  options: ImportCompletedEngineDownloadsOptions = {},
+    userId: string,
+    input: ImportCompletedEngineDownloadsInput = {},
+    options: ImportCompletedEngineDownloadsOptions = {},
 ) {
-  const usenetServer = await findServiceConnectionByType(userId, "usenet-server");
+    const usenetServer = await findServiceConnectionByType(userId, "usenet-server");
 
-  // Safety net: an active request whose engine download no longer exists
-  // (removed from the queue, or lost to a crash between writes) must not
-  // stay "queued" forever — close it out with a visible reason.
-  if (!input.requestId && usenetServer) {
-    const nookletClient = await findDownloadClientByServiceConnectionId(userId, usenetServer.connection.id);
-
-    if (nookletClient) {
-      for (const entry of await listActiveDownloadRequestsForImport(userId, nookletClient.id)) {
-        const engineDownload = await findEngineDownloadById(userId, entry.queueItem.externalQueueId);
-
-        // A transfer the engine parked because the news server was
-        // unreachable stays active and resumable, but nothing else carries
-        // that reason onto the request — the activity list would otherwise
-        // show it downloading with no explanation.
-        if (
-          engineDownload
-          && engineDownload.state === "paused"
-          && engineDownload.failureKind === "infrastructure"
-          && engineDownload.errorMessage
-        ) {
-          await annotateDownloadRequestStatusMessage({
+    // Safety net: an active request whose engine download no longer exists
+    // (removed from the queue, or lost to a crash between writes) must not
+    // stay "queued" forever — close it out with a visible reason.
+    if (!input.requestId && usenetServer) {
+        const nookletClient = await findDownloadClientByServiceConnectionId(
             userId,
-            requestId: entry.request.id,
-            statusMessage: engineDownload.errorMessage,
-          });
-          continue;
+            usenetServer.connection.id,
+        );
+
+        if (nookletClient) {
+            for (const entry of await listActiveDownloadRequestsForImport(
+                userId,
+                nookletClient.id,
+            )) {
+                const engineDownload = await findEngineDownloadById(
+                    userId,
+                    entry.queueItem.externalQueueId,
+                );
+
+                // A transfer the engine parked because the news server was
+                // unreachable stays active and resumable, but nothing else carries
+                // that reason onto the request — the activity list would otherwise
+                // show it downloading with no explanation.
+                if (
+                    engineDownload &&
+                    engineDownload.state === "paused" &&
+                    engineDownload.failureKind === "infrastructure" &&
+                    engineDownload.errorMessage
+                ) {
+                    await annotateDownloadRequestStatusMessage({
+                        userId,
+                        requestId: entry.request.id,
+                        statusMessage: engineDownload.errorMessage,
+                    });
+                    continue;
+                }
+
+                if (!engineDownload) {
+                    const message =
+                        "The download is no longer in the queue — it was removed or lost.";
+                    const seasonFulfillment = await scheduleSeasonFulfillmentAfterRequest(
+                        userId,
+                        entry.request,
+                        {
+                            status: "failed",
+                            message,
+                            retryableContentFailure: true,
+                        },
+                    );
+
+                    if (
+                        seasonFulfillment?.cancellationRequestedAt ||
+                        seasonFulfillment?.status === "cancelled"
+                    ) {
+                        // The cancellation reconciler still needs this queue id to retry
+                        // deterministic directory cleanup. Do not hide it behind a local
+                        // failed status merely because the engine row is already gone.
+                        continue;
+                    }
+
+                    await updateDownloadQueueItemStatus({
+                        userId,
+                        queueItemId: entry.queueItem.id,
+                        status: "failed",
+                        completedAt: new Date(),
+                    });
+                    await updateDownloadRequestStatus({
+                        userId,
+                        requestId: entry.request.id,
+                        status: "failed",
+                        statusMessage: message,
+                    });
+
+                    if (!seasonFulfillment && entry.request.status !== "failed") {
+                        await safeDispatchNotificationWorkflow({
+                            userId,
+                            payload: {
+                                eventType: "download_failed",
+                                title: entry.request.requestedTitle,
+                                mediaType: entry.request.mediaType,
+                                message,
+                            },
+                        });
+                    }
+                }
+            }
         }
+    }
 
-        if (!engineDownload) {
-          const message = "The download is no longer in the queue — it was removed or lost.";
-          const seasonFulfillment = await scheduleSeasonFulfillmentAfterRequest(
-            userId,
-            entry.request,
+    const targetRequest = input.requestId
+        ? await findDownloadRequestById(userId, input.requestId)
+        : null;
+    const targetQueueItems =
+        targetRequest && !targetRequest.cancellationRequestedAt
+            ? await listDownloadQueueItemsForRequest(userId, targetRequest.id)
+            : [];
+    const targetQueueIds = new Set(targetQueueItems.map((item) => item.externalQueueId));
+    const allFinished = await listUnimportedFinishedEngineDownloads(userId);
+    const finished = input.requestId
+        ? allFinished.filter((record) => targetQueueIds.has(record.id))
+        : allFinished;
+
+    if (finished.length === 0) {
+        return null;
+    }
+
+    const historyById = new Map<string, FinishedDownloadRecord>(
+        finished.map((record) => [
+            record.id,
             {
-              status: "failed",
-              message,
-              retryableContentFailure: true,
+                id: record.id,
+                title: record.name,
+                status: record.state,
+                category: record.category,
+                storagePath: record.outputPath,
+                completedAt: record.completedAt,
+                failMessage:
+                    record.state === "failed"
+                        ? (record.errorMessage ?? "The download failed.")
+                        : null,
+                failureKind: record.failureKind,
+                downloadedBytes: record.downloadedBytes,
+                sizeLabel: null,
+                totalMb: record.totalBytes > 0 ? record.totalBytes / (1024 * 1024) : null,
+                statusKind: record.state === "failed" ? "failed" : "completed",
             },
-          );
-          if (
-            seasonFulfillment?.cancellationRequestedAt
-            || seasonFulfillment?.status === "cancelled"
-          ) {
-            // The cancellation reconciler still needs this queue id to retry
-            // deterministic directory cleanup. Do not hide it behind a local
-            // failed status merely because the engine row is already gone.
-            continue;
-          }
-          await updateDownloadQueueItemStatus({
-            userId,
-            queueItemId: entry.queueItem.id,
-            status: "failed",
-            completedAt: new Date(),
-          });
-          await updateDownloadRequestStatus({
-            userId,
-            requestId: entry.request.id,
-            status: "failed",
-            statusMessage: message,
-          });
-          if (!seasonFulfillment && entry.request.status !== "failed") {
-            await safeDispatchNotificationWorkflow({
-              userId,
-              payload: {
-                eventType: "download_failed",
-                title: entry.request.requestedTitle,
-                mediaType: entry.request.mediaType,
-                message,
-              },
-            });
-          }
-        }
-      }
-    }
-  }
-
-  const targetRequest = input.requestId
-    ? await findDownloadRequestById(userId, input.requestId)
-    : null;
-  const targetQueueItems = targetRequest && !targetRequest.cancellationRequestedAt
-    ? await listDownloadQueueItemsForRequest(userId, targetRequest.id)
-    : [];
-  const targetQueueIds = new Set(targetQueueItems.map((item) => item.externalQueueId));
-  const allFinished = await listUnimportedFinishedEngineDownloads(userId);
-  const finished = input.requestId
-    ? allFinished.filter((record) => targetQueueIds.has(record.id))
-    : allFinished;
-
-  if (finished.length === 0) {
-    return null;
-  }
-  const historyById = new Map<string, FinishedDownloadRecord>(finished.map((record) => [
-    record.id,
-    {
-      id: record.id,
-      title: record.name,
-      status: record.state,
-      category: record.category,
-      storagePath: record.outputPath,
-      completedAt: record.completedAt,
-      failMessage: record.state === "failed"
-        ? record.errorMessage ?? "The download failed."
-        : null,
-      failureKind: record.failureKind,
-      downloadedBytes: record.downloadedBytes,
-      sizeLabel: null,
-      totalMb: record.totalBytes > 0 ? record.totalBytes / (1024 * 1024) : null,
-      statusKind: record.state === "failed" ? "failed" : "completed",
-    },
-  ]));
-
-  // Match by the engine id itself rather than a mutable connection/client id.
-  // This keeps completed local files importable after a connection is
-  // removed and recreated.
-  const activeRequests = input.requestId
-    ? targetRequest
-      ? targetQueueItems.map((queueItem) => ({ request: targetRequest, queueItem }))
-      : []
-    : await listDownloadRequestsForExternalQueueIdsForImport(
-        userId,
-        finished.map((record) => record.id),
-      );
-  const trackedRequests = input.requestId
-    ? activeRequests
-    : await listDownloadRequestsForExternalQueueIds(
-        userId,
-        finished.map((record) => record.id),
-      );
-  const matches: MatchedCompletedDownload[] = activeRequests.flatMap((entry) => {
-    const historyItem = historyById.get(entry.queueItem.externalQueueId);
-
-    return historyItem ? [{ ...entry, historyItem }] : [];
-  });
-
-  const fences = await acquireSeasonImportFences(userId, matches);
-  let organized;
-  let persisted;
-
-  try {
-    const resolved = await resolveCompletedDownloadDestinations(userId, fences.matches);
-    const inspected = await inspectCompletedDownloadFiles(resolved);
-    await fences.renew();
-    organized = await organizeCompletedDownloadFiles(inspected, {
-      onFilesystemProgress: options.onFilesystemProgress,
-    });
-    await fences.renew();
-    persisted = fences.workLeases.size > 0
-      ? await persistCompletedDownloadImports(userId, organized, {
-          workLeases: fences.workLeases,
-        })
-      : await persistCompletedDownloadImports(userId, organized);
-  } finally {
-    await fences.release();
-  }
-  const matchedEngineIds = new Set(fences.matches.map((match) => match.historyItem.id));
-  const retry = await retryFailedCompletedDownloads(userId, organized);
-  const discovery = await triggerCompletedDownloadDiscovery(userId, persisted);
-
-  // Failed transfers are terminal once their request state/retry decision was
-  // persisted. Completed transfers are consumed only after a successful
-  // import; retryable import failures deliberately remain unconsumed.
-  for (const record of finished) {
-    if (record.state === "failed") {
-      await markEngineDownloadImported(record.id);
-      await rm(engineIncompleteDir(record.id), { recursive: true, force: true }).catch(() => undefined);
-      continue;
-    }
-
-    const matchedRequest = matches.find((match) => match.historyItem.id === record.id);
-
-    if (matchedRequest) {
-      const requestAfterImport = await findDownloadRequestById(userId, matchedRequest.request.id);
-
-      if (requestAfterImport?.status === "succeeded") {
-        await markEngineDownloadImported(record.id);
-
-        if (record.outputPath) {
-          await rm(record.outputPath, { recursive: true, force: true }).catch(() => undefined);
-        }
-      }
-      continue;
-    }
-
-    const tracked = trackedRequests.find(
-      (entry) => entry.queueItem.externalQueueId === record.id,
+        ]),
     );
 
-    // Failed imports deliberately fall out of the eligible query during the
-    // retry cooldown. Preserve their source instead of mistaking that window
-    // for an orphan. Only terminal success/cancellation or no tracking row is
-    // safe to consume here.
-    if (!tracked || ["succeeded", "cancelled"].includes(tracked.request.status)) {
-      await markEngineDownloadImported(record.id);
+    // Match by the engine id itself rather than a mutable connection/client id.
+    // This keeps completed local files importable after a connection is
+    // removed and recreated.
+    const activeRequests = input.requestId
+        ? targetRequest
+            ? targetQueueItems.map((queueItem) => ({ request: targetRequest, queueItem }))
+            : []
+        : await listDownloadRequestsForExternalQueueIdsForImport(
+              userId,
+              finished.map((record) => record.id),
+          );
+    const trackedRequests = input.requestId
+        ? activeRequests
+        : await listDownloadRequestsForExternalQueueIds(
+              userId,
+              finished.map((record) => record.id),
+          );
+    const matches: MatchedCompletedDownload[] = activeRequests.flatMap((entry) => {
+        const historyItem = historyById.get(entry.queueItem.externalQueueId);
 
-      if (record.outputPath) {
-        await rm(record.outputPath, { recursive: true, force: true }).catch(() => undefined);
-      }
+        return historyItem ? [{ ...entry, historyItem }] : [];
+    });
+
+    const fences = await acquireSeasonImportFences(userId, matches);
+    let organized;
+    let persisted;
+
+    try {
+        const resolved = await resolveCompletedDownloadDestinations(userId, fences.matches);
+        const inspected = await inspectCompletedDownloadFiles(resolved);
+
+        await fences.renew();
+        organized = await organizeCompletedDownloadFiles(inspected, {
+            onFilesystemProgress: options.onFilesystemProgress,
+        });
+        await fences.renew();
+        persisted =
+            fences.workLeases.size > 0
+                ? await persistCompletedDownloadImports(userId, organized, {
+                      workLeases: fences.workLeases,
+                  })
+                : await persistCompletedDownloadImports(userId, organized);
+    } finally {
+        await fences.release();
     }
-  }
 
-  if (matchedEngineIds.size > 0) {
-    await recordCompletedDownloadImportAudit({ userId, persisted, retry, discovery });
-  }
-  await dispatchCompletedDownloadNotifications(userId, organized);
+    const matchedEngineIds = new Set(fences.matches.map((match) => match.historyItem.id));
+    const retry = await retryFailedCompletedDownloads(userId, organized);
+    const discovery = await triggerCompletedDownloadDiscovery(userId, persisted);
 
-  return { ...persisted, retry, discovery };
+    // Failed transfers are terminal once their request state/retry decision was
+    // persisted. Completed transfers are consumed only after a successful
+    // import; retryable import failures deliberately remain unconsumed.
+    for (const record of finished) {
+        if (record.state === "failed") {
+            await markEngineDownloadImported(record.id);
+            await rm(engineIncompleteDir(record.id), { recursive: true, force: true }).catch(
+                () => undefined,
+            );
+            continue;
+        }
+
+        const matchedRequest = matches.find((match) => match.historyItem.id === record.id);
+
+        if (matchedRequest) {
+            const requestAfterImport = await findDownloadRequestById(
+                userId,
+                matchedRequest.request.id,
+            );
+
+            if (requestAfterImport?.status === "succeeded") {
+                await markEngineDownloadImported(record.id);
+
+                if (record.outputPath) {
+                    await rm(record.outputPath, { recursive: true, force: true }).catch(
+                        () => undefined,
+                    );
+                }
+            }
+
+            continue;
+        }
+
+        const tracked = trackedRequests.find(
+            (entry) => entry.queueItem.externalQueueId === record.id,
+        );
+
+        // Failed imports deliberately fall out of the eligible query during the
+        // retry cooldown. Preserve their source instead of mistaking that window
+        // for an orphan. Only terminal success/cancellation or no tracking row is
+        // safe to consume here.
+        if (!tracked || ["succeeded", "cancelled"].includes(tracked.request.status)) {
+            await markEngineDownloadImported(record.id);
+
+            if (record.outputPath) {
+                await rm(record.outputPath, { recursive: true, force: true }).catch(
+                    () => undefined,
+                );
+            }
+        }
+    }
+
+    if (matchedEngineIds.size > 0) {
+        await recordCompletedDownloadImportAudit({ userId, persisted, retry, discovery });
+    }
+
+    await dispatchCompletedDownloadNotifications(userId, organized);
+
+    return { ...persisted, retry, discovery };
 }
 
 export async function importCompletedEngineDownloadsWorkflow(
-  userId: string,
-  input: ImportCompletedEngineDownloadsInput = {},
-  options: ImportCompletedEngineDownloadsOptions = {},
+    userId: string,
+    input: ImportCompletedEngineDownloadsInput = {},
+    options: ImportCompletedEngineDownloadsOptions = {},
 ) {
-  return withCompletedImportLock(
-    userId,
-    () => runImportCompletedEngineDownloadsWorkflow(userId, input, options),
-  );
+    return withCompletedImportLock(userId, () =>
+        runImportCompletedEngineDownloadsWorkflow(userId, input, options),
+    );
 }

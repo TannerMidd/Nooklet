@@ -1,44 +1,48 @@
 import { fetchWithTimeout } from "@/lib/integrations/http-helpers";
 import {
-  buildAiProviderVerificationResult,
-  normalizeAiProviderModelIds,
-  type AiProviderModelPayload,
+    buildAiProviderVerificationResult,
+    normalizeAiProviderModelIds,
+    type AiProviderModelPayload,
 } from "@/modules/service-connections/adapters/verify-service-connection-helpers";
 import {
-  detectAiProviderFlavor,
-  resolveListModelsUrl,
+    detectAiProviderFlavor,
+    resolveListModelsUrl,
 } from "@/modules/service-connections/ai-provider-endpoints";
 
 import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 import type {
-  VerifyServiceConnectionInput,
-  VerifyServiceConnectionResult,
+    VerifyServiceConnectionInput,
+    VerifyServiceConnectionResult,
 } from "./verify-service-connection-types";
 
 export async function verifyAiProvider(
-  input: VerifyServiceConnectionInput,
+    input: VerifyServiceConnectionInput,
 ): Promise<VerifyServiceConnectionResult> {
-  const response = await fetchWithTimeout(resolveListModelsUrl(input.baseUrl), {
-    headers: {
-      Authorization: `Bearer ${input.secret}`,
-    },
-    cache: "no-store",
-  }, SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS);
+    const response = await fetchWithTimeout(
+        resolveListModelsUrl(input.baseUrl),
+        {
+            headers: {
+                Authorization: `Bearer ${input.secret}`,
+            },
+            cache: "no-store",
+        },
+        SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
+    );
 
-  if (!response.ok) {
-    return {
-      ok: false,
-      message: `AI provider verification failed with status ${response.status}.`,
-    };
-  }
+    if (!response.ok) {
+        return {
+            ok: false,
+            message: `AI provider verification failed with status ${response.status}.`,
+        };
+    }
 
-  const payload = (await response.json()) as AiProviderModelPayload;
-  const availableModels = normalizeAiProviderModelIds(payload);
-  const flavor = detectAiProviderFlavor(payload);
+    const payload = (await response.json()) as AiProviderModelPayload;
+    const availableModels = normalizeAiProviderModelIds(payload);
+    const flavor = detectAiProviderFlavor(payload);
 
-  return buildAiProviderVerificationResult({
-    availableModels,
-    metadata: input.metadata,
-    flavor,
-  });
+    return buildAiProviderVerificationResult({
+        availableModels,
+        metadata: input.metadata,
+        flavor,
+    });
 }

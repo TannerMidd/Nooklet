@@ -4,12 +4,12 @@ Watch history is optional, user-scoped context for recommendations. It does not 
 
 ## Supported sources
 
-| Source | Use |
-| --- | --- |
-| Manual | Maintain context without an external history service. |
-| Plex | Import watched activity from a Plex server. |
-| Tautulli | Import history exposed by Tautulli. |
-| Trakt | Import history using the configured Trakt token. |
+| Source   | Use                                                   |
+| -------- | ----------------------------------------------------- |
+| Manual   | Maintain context without an external history service. |
+| Plex     | Import watched activity from a Plex server.           |
+| Tautulli | Import history exposed by Tautulli.                   |
+| Trakt    | Import history using the configured Trakt token.      |
 
 Each user owns their history sources and sync status. Shared instance connections do not automatically select an external profile for every user.
 
@@ -31,11 +31,11 @@ Repository queries deduplicate and limit history in SQLite rather than loading a
 
 ## Common failures
 
-| Symptom | Check |
-| --- | --- |
-| Connection test fails | Base URL, credentials, Docker reachability, TLS, and private-host allowlist. |
-| External users cannot be listed | The token may lack permission, or the configured endpoint may not be the expected service. |
-| Sync job fails repeatedly | Inspect job details and logs; test the connection again before rescheduling. |
+| Symptom                                | Check                                                                                         |
+| -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Connection test fails                  | Base URL, credentials, Docker reachability, TLS, and private-host allowlist.                  |
+| External users cannot be listed        | The token may lack permission, or the configured endpoint may not be the expected service.    |
+| Sync job fails repeatedly              | Inspect job details and logs; test the connection again before rescheduling.                  |
 | Recommendations ignore recent activity | Confirm the latest sync succeeded for the current user and regenerate the recommendation run. |
 
 ## Source references

@@ -46,27 +46,27 @@ filesystem thread pool during development.
 
 ## Commands
 
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Start the hot-reloading web server, isolated worker, and disposable storage probes on port 42021 |
-| `npm run typecheck` | Run TypeScript without emitting output |
-| `npm run lint` | Run ESLint across the repository |
-| `npm test` | Run Vitest in the Node environment |
-| `npm run test:scripts` | Test migration/module validators plus storage-probe and worker-watchdog infrastructure |
-| `npm run test:e2e` | Run the Chromium first-admin/login/axe smoke |
-| `npm run audit:dependencies` | Reject high/critical production dependency advisories |
-| `npm run docs:wiki:check` | Validate Wiki structure, internal links/anchors, and repository source targets |
-| `npm run docs:dossier:check` | Validate the engineering dossier and generated configurator commands |
-| `npm run docs:links:check` | Validate published README/docs/dossier source paths and reject retired external-downloader names |
-| `npm run migrations:check` | Validate journal ordering, tags, timestamps, and SQL artifacts |
-| `npm run boundaries:check` | Reject cross-module imports into repository/adapter internals |
-| `npm run build` | Build and sanitize the standalone production bundle |
-| `npm run start:web` | Start only the built Next.js web process; pair it with `start:worker` |
-| `npm run start:worker` | Start the built worker plus its disposable storage-probe coordinator |
-| `npm run check` | Validate docs/source links, migrations, module boundaries, types, lint, infrastructure/application tests, and the production build |
-| `npm run db:generate` | Generate a Drizzle migration after a schema change |
-| `npm run db:backup` | Create and verify a SQLite backup using `.env` |
-| `npm run account:recover -- --email ...` | Recover a locked-out account locally |
+| Command                                  | Purpose                                                                                                                            |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                            | Start the hot-reloading web server, isolated worker, and disposable storage probes on port 42021                                   |
+| `npm run typecheck`                      | Run TypeScript without emitting output                                                                                             |
+| `npm run lint`                           | Run ESLint across the repository                                                                                                   |
+| `npm test`                               | Run Vitest in the Node environment                                                                                                 |
+| `npm run test:scripts`                   | Test migration/module validators plus storage-probe and worker-watchdog infrastructure                                             |
+| `npm run test:e2e`                       | Run the Chromium first-admin/login/axe smoke                                                                                       |
+| `npm run audit:dependencies`             | Reject high/critical production dependency advisories                                                                              |
+| `npm run docs:wiki:check`                | Validate Wiki structure, internal links/anchors, and repository source targets                                                     |
+| `npm run docs:dossier:check`             | Validate the engineering dossier and generated configurator commands                                                               |
+| `npm run docs:links:check`               | Validate published README/docs/dossier source paths and reject retired external-downloader names                                   |
+| `npm run migrations:check`               | Validate journal ordering, tags, timestamps, and SQL artifacts                                                                     |
+| `npm run boundaries:check`               | Reject cross-module imports into repository/adapter internals                                                                      |
+| `npm run build`                          | Build and sanitize the standalone production bundle                                                                                |
+| `npm run start:web`                      | Start only the built Next.js web process; pair it with `start:worker`                                                              |
+| `npm run start:worker`                   | Start the built worker plus its disposable storage-probe coordinator                                                               |
+| `npm run check`                          | Validate docs/source links, migrations, module boundaries, types, lint, infrastructure/application tests, and the production build |
+| `npm run db:generate`                    | Generate a Drizzle migration after a schema change                                                                                 |
+| `npm run db:backup`                      | Create and verify a SQLite backup using `.env`                                                                                     |
+| `npm run account:recover -- --email ...` | Recover a locked-out account locally                                                                                               |
 
 Source: [package.json](https://github.com/TannerMidd/Nooklet/blob/main/package.json).
 

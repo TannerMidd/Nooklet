@@ -10,29 +10,29 @@ import { type MissingContentCandidate } from "./candidate-selection";
 export const MISSING_SEARCH_BACKOFF_MS = 6 * 60 * 60 * 1000;
 
 export function missingSearchAttemptKey(candidate: MissingContentCandidate): string {
-  return candidate.kind === "movie"
-    ? `auto-search:title:${candidate.titleId}`
-    : `auto-search:episode:${candidate.episodeId}`;
+    return candidate.kind === "movie"
+        ? `auto-search:title:${candidate.titleId}`
+        : `auto-search:episode:${candidate.episodeId}`;
 }
 
 export async function budgetMissingContentCandidates(
-  userId: string,
-  candidates: MissingContentCandidate[],
-  backoffMs: number = MISSING_SEARCH_BACKOFF_MS,
+    userId: string,
+    candidates: MissingContentCandidate[],
+    backoffMs: number = MISSING_SEARCH_BACKOFF_MS,
 ): Promise<MissingContentCandidate[]> {
-  const budgeted: MissingContentCandidate[] = [];
+    const budgeted: MissingContentCandidate[] = [];
 
-  for (const candidate of candidates) {
-    const acquired = await acquireMediaRequestAttempt(
-      userId,
-      missingSearchAttemptKey(candidate),
-      backoffMs,
-    );
+    for (const candidate of candidates) {
+        const acquired = await acquireMediaRequestAttempt(
+            userId,
+            missingSearchAttemptKey(candidate),
+            backoffMs,
+        );
 
-    if (acquired) {
-      budgeted.push(candidate);
+        if (acquired) {
+            budgeted.push(candidate);
+        }
     }
-  }
 
-  return budgeted;
+    return budgeted;
 }

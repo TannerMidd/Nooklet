@@ -1,38 +1,38 @@
 import {
-  type DispatchNotificationResult,
-  dispatchNotificationToChannel,
+    type DispatchNotificationResult,
+    dispatchNotificationToChannel,
 } from "@/modules/notifications/adapters/notification-channel-adapter";
 import { NotificationChannelNotFoundError } from "@/modules/notifications/errors";
 import {
-  findNotificationChannelForDispatch,
-  recordNotificationDispatchResult,
+    findNotificationChannelForDispatch,
+    recordNotificationDispatchResult,
 } from "@/modules/notifications/repositories/notification-channels-repository";
 
 export async function testNotificationChannelCommand(
-  userId: string,
-  id: string,
+    userId: string,
+    id: string,
 ): Promise<DispatchNotificationResult> {
-  const channel = await findNotificationChannelForDispatch(userId, id);
+    const channel = await findNotificationChannelForDispatch(userId, id);
 
-  if (!channel) {
-    throw new NotificationChannelNotFoundError(id);
-  }
+    if (!channel) {
+        throw new NotificationChannelNotFoundError(id);
+    }
 
-  const result = await dispatchNotificationToChannel({
-    channelType: channel.channelType,
-    targetUrl: channel.targetUrl,
-    message: {
-      eventType: "test",
-      title: "Nooklet test notification",
-      body: `This is a test message from the "${channel.displayName}" channel. If you can read this, delivery is working.`,
-    },
-  });
+    const result = await dispatchNotificationToChannel({
+        channelType: channel.channelType,
+        targetUrl: channel.targetUrl,
+        message: {
+            eventType: "test",
+            title: "Nooklet test notification",
+            body: `This is a test message from the "${channel.displayName}" channel. If you can read this, delivery is working.`,
+        },
+    });
 
-  await recordNotificationDispatchResult({
-    channelId: channel.id,
-    status: result.ok ? "success" : "error",
-    message: result.ok ? "Test message delivered." : result.message,
-  });
+    await recordNotificationDispatchResult({
+        channelId: channel.id,
+        status: result.ok ? "success" : "error",
+        message: result.ok ? "Test message delivered." : result.message,
+    });
 
-  return result;
+    return result;
 }

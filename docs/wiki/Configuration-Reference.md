@@ -4,12 +4,12 @@ Start from the annotated [`.env.example`](https://github.com/TannerMidd/Nooklet/
 
 ## Core application settings
 
-| Variable | Required | Default | Purpose |
-| --- | --- | --- | --- |
-| `APP_URL` | Recommended | `http://localhost:42021` | The canonical HTTP(S) origin users open. Credentials, paths, queries, and fragments are rejected. Set the exact external HTTPS origin behind a reverse proxy. |
-| `DATABASE_URL` | No | `file:./data/nooklet.db` | SQLite database URL. Compose overrides it to `file:/app/data/nooklet.db` so the database remains in the named volume. |
-| `AUTH_SECRET` | Yes | None | Authentication encryption/authentication secret, 32 characters minimum. Generate a unique random value for every installation. |
-| `NODE_ENV` | No | `development` | Runtime mode: `development`, `test`, or `production`. The Docker image sets `production`. |
+| Variable       | Required    | Default                  | Purpose                                                                                                                                                       |
+| -------------- | ----------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `APP_URL`      | Recommended | `http://localhost:42021` | The canonical HTTP(S) origin users open. Credentials, paths, queries, and fragments are rejected. Set the exact external HTTPS origin behind a reverse proxy. |
+| `DATABASE_URL` | No          | `file:./data/nooklet.db` | SQLite database URL. Compose overrides it to `file:/app/data/nooklet.db` so the database remains in the named volume.                                         |
+| `AUTH_SECRET`  | Yes         | None                     | Authentication encryption/authentication secret, 32 characters minimum. Generate a unique random value for every installation.                                |
+| `NODE_ENV`     | No          | `development`            | Runtime mode: `development`, `test`, or `production`. The Docker image sets `production`.                                                                     |
 
 `APP_URL` does not itself choose the TCP listener. Docker publication uses `APP_BIND_ADDRESS` and `APP_PORT`; native production can pass a port to `next start`.
 
@@ -17,20 +17,20 @@ Start from the annotated [`.env.example`](https://github.com/TannerMidd/Nooklet/
 
 These variables are interpolated by `docker-compose.yml`. They are not part of the application environment schema.
 
-| Variable | Default | Guidance |
-| --- | --- | --- |
-| `APP_BIND_ADDRESS` | `127.0.0.1` | Keeps Nooklet local to the host. Use `0.0.0.0` only for deliberate LAN or external exposure. |
-| `APP_PORT` | `42021` | Host port published to container port `42021`. Keep `APP_URL` aligned with the user-visible origin. |
+| Variable           | Default     | Guidance                                                                                            |
+| ------------------ | ----------- | --------------------------------------------------------------------------------------------------- |
+| `APP_BIND_ADDRESS` | `127.0.0.1` | Keeps Nooklet local to the host. Use `0.0.0.0` only for deliberate LAN or external exposure.        |
+| `APP_PORT`         | `42021`     | Host port published to container port `42021`. Keep `APP_URL` aligned with the user-visible origin. |
 
 The image sets its internal `PORT=42021` and `HOSTNAME=0.0.0.0`. Normally these do not need operator overrides.
 
 ## Bootstrap and secret encryption
 
-| Variable | Required | Rules and lifecycle |
-| --- | --- | --- |
-| `BOOTSTRAP_TOKEN` | For web first-admin setup | Independent random value, 32-512 characters. Remove it after creating the administrator. |
-| `SECRET_BOX_KEY` | Strongly recommended | Independent 32-512 character key used to encrypt stored connection credentials. When absent, Nooklet falls back to `AUTH_SECRET` for backward compatibility. |
-| `SECRET_BOX_PREVIOUS_KEYS` | During rotation only | Superseded encryption keys separated by semicolons or new lines. Valid values are 32-512 characters each. |
+| Variable                   | Required                  | Rules and lifecycle                                                                                                                                          |
+| -------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `BOOTSTRAP_TOKEN`          | For web first-admin setup | Independent random value, 32-512 characters. Remove it after creating the administrator.                                                                     |
+| `SECRET_BOX_KEY`           | Strongly recommended      | Independent 32-512 character key used to encrypt stored connection credentials. When absent, Nooklet falls back to `AUTH_SECRET` for backward compatibility. |
+| `SECRET_BOX_PREVIOUS_KEYS` | During rotation only      | Superseded encryption keys separated by semicolons or new lines. Valid values are 32-512 characters each.                                                    |
 
 Generate `AUTH_SECRET`, `BOOTSTRAP_TOKEN`, and `SECRET_BOX_KEY` independently. Never commit `.env` or paste these values into support logs.
 
@@ -46,11 +46,11 @@ Keep a verified database backup before key rotation. Losing both the active and 
 
 ## Filesystem boundaries
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `APPROVED_MEDIA_ROOTS` | Empty in the application; `/media` in the example | Semicolon- or newline-separated directories Nooklet may use for library scanning and file operations. Empty fails closed outside tests. |
+| Variable                   | Default                                                    | Purpose                                                                                                                                       |
+| -------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `APPROVED_MEDIA_ROOTS`     | Empty in the application; `/media` in the example          | Semicolon- or newline-separated directories Nooklet may use for library scanning and file operations. Empty fails closed outside tests.       |
 | `DOWNLOAD_ENGINE_WORK_DIR` | `./data/engine-work`; same image default under `/app/data` | Scratch root for incomplete articles, assembly, repair, and extraction. Docker users should normally keep it on the Linux-native data volume. |
-| `DOWNLOAD_ENGINE_DIR` | `./data/downloads`; image default `/app/data/downloads` | Completed-output staging root for the built-in downloader. It may point at a spacious bind mount. |
+| `DOWNLOAD_ENGINE_DIR`      | `./data/downloads`; image default `/app/data/downloads`    | Completed-output staging root for the built-in downloader. It may point at a spacious bind mount.                                             |
 
 Docker configuration must use container paths. A spacious host staging disk mounted as `/downloads` should normally use:
 
@@ -64,11 +64,11 @@ See [Storage and path mapping](Storage-and-Path-Mapping) before changing these v
 
 ## Outbound network safety
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `PRIVATE_SERVICE_HOST_ALLOWLIST` | Empty | Exact semicolon- or newline-separated hostnames or IP addresses that Nooklet may contact on private networks. |
-| `ALLOW_PRIVATE_SERVICE_HOSTS` | `false` | Broadly permits private/RFC1918 service targets. Reserve for trusted, single-user LAN deployments. |
-| `TRUST_PROXY_HEADERS` | `false` | Trusts client IP forwarding headers for rate-limit identity. Enable only behind a proxy that overwrites those headers. |
+| Variable                         | Default | Purpose                                                                                                                |
+| -------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `PRIVATE_SERVICE_HOST_ALLOWLIST` | Empty   | Exact semicolon- or newline-separated hostnames or IP addresses that Nooklet may contact on private networks.          |
+| `ALLOW_PRIVATE_SERVICE_HOSTS`    | `false` | Broadly permits private/RFC1918 service targets. Reserve for trusted, single-user LAN deployments.                     |
+| `TRUST_PROXY_HEADERS`            | `false` | Trusts client IP forwarding headers for rate-limit identity. Enable only behind a proxy that overwrites those headers. |
 
 Allowlist entries are hostnames or IP addresses only. Do not include a scheme, port, path, CIDR, or wildcard.
 
@@ -82,17 +82,17 @@ Boolean environment variables accept `true`/`false`, `1`/`0`, `yes`/`no`, and `o
 
 ## Recommendation timeout
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
+| Variable                        | Default   | Purpose                                                                                       |
+| ------------------------------- | --------- | --------------------------------------------------------------------------------------------- |
 | `AI_RECOMMENDATIONS_TIMEOUT_MS` | `1800000` | Maximum time, in positive integer milliseconds, for one background AI recommendation request. |
 
 The 30-minute default accommodates slower local and reasoning models. Lower it only when the configured provider should fail faster. Connection verification uses its own shorter operational timeout.
 
 ## Operational-history retention
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `OPERATIONAL_RETENTION_DAYS` | `365` | Retains audit, notification-dispatch audit, recommendation timeline, and completed watch-history sync-run records for 30–3650 days. |
+| Variable                     | Default | Purpose                                                                                                                             |
+| ---------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `OPERATIONAL_RETENTION_DAYS` | `365`   | Retains audit, notification-dispatch audit, recommendation timeline, and completed watch-history sync-run records for 30–3650 days. |
 
 The worker evaluates pruning at most once per day. Recommendation items and watch-history content are not deleted by this setting, and backup-file retention remains operator-managed.
 

@@ -4,14 +4,14 @@ Nooklet uses local email-and-password accounts. Administrators manage account ac
 
 ## Roles and boundaries
 
-| Capability | User | Administrator |
-| --- | :---: | :---: |
-| Browse, discover, search, and request media | Yes | Yes |
-| Manage personal preferences and watch history | Yes | Yes |
-| Change own password | Yes | Yes |
-| Change shared storage, integrations, indexers, and instance settings | No | Yes |
-| Create, disable, re-enable, or reset another account | No | Yes |
-| Grant or remove administrator role | No | Yes |
+| Capability                                                           | User | Administrator |
+| -------------------------------------------------------------------- | :--: | :-----------: |
+| Browse, discover, search, and request media                          | Yes  |      Yes      |
+| Manage personal preferences and watch history                        | Yes  |      Yes      |
+| Change own password                                                  | Yes  |      Yes      |
+| Change shared storage, integrations, indexers, and instance settings |  No  |      Yes      |
+| Create, disable, re-enable, or reset another account                 |  No  |      Yes      |
+| Grant or remove administrator role                                   |  No  |      Yes      |
 
 Shared download, storage, indexer, and service configuration affects every user. Grant administrator access only to people trusted with the host, media paths, integration credentials, and all accounts.
 
@@ -29,9 +29,9 @@ After bootstrap:
 1. Remove `BOOTSTRAP_TOKEN` from `.env`.
 2. Recreate the container so the token leaves the runtime environment:
 
-   ```console
-   docker compose up -d --force-recreate
-   ```
+    ```console
+    docker compose up -d --force-recreate
+    ```
 
 3. Confirm normal sign-in and `/api/health`.
 

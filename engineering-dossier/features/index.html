@@ -1,469 +1,646 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark light" />
-    <meta
-      name="description"
-      content="Explore Nooklet's self-hosted movie and TV experience: discovery, library management, resilient season requests, native Usenet downloads, safe imports, and clear operations."
-    />
-    <meta name="theme-color" content="#0f0e0d" />
-    <link rel="canonical" href="https://tannermidd.github.io/Nooklet/features/" />
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="Nooklet Features" />
-    <meta
-      property="og:description"
-      content="One calm workspace for discovering, requesting, downloading, and organizing movies and TV."
-    />
-    <meta property="og:url" content="https://tannermidd.github.io/Nooklet/features/" />
-    <meta property="og:image" content="https://tannermidd.github.io/Nooklet/assets/showcase.webp" />
-    <link rel="icon" href="data:," />
-    <title>Nooklet Features</title>
-    <script>
-      document.documentElement.classList.add("js");
-      try {
-        const savedTheme = localStorage.getItem("nooklet-dossier-theme");
-        if (savedTheme === "dark" || savedTheme === "light") {
-          document.documentElement.dataset.theme = savedTheme;
-        }
-      } catch {
-        // The system theme remains the safe default when storage is unavailable.
-      }
-    </script>
-    <link rel="stylesheet" href="../styles.css" />
-    <link rel="stylesheet" href="../pages.css" />
-    <script src="../app.js" defer></script>
-  </head>
-  <body>
-    <a class="skip-link" href="#main-content">Skip to features</a>
-    <div class="reading-progress" aria-hidden="true"><span id="reading-progress-bar"></span></div>
-
-    <header class="site-header" data-header>
-      <div class="header-inner">
-        <a class="brand" href="../" aria-label="Nooklet documentation home">
-          <span class="brand-dot" aria-hidden="true"></span>
-          <span class="brand-name">Nooklet</span>
-          <span class="brand-context">Product &amp; engineering</span>
-        </a>
-
-        <button
-          class="nav-toggle"
-          id="nav-toggle"
-          type="button"
-          aria-controls="site-nav"
-          aria-expanded="false"
-        >
-          <span class="sr-only">Open site navigation</span>
-          <span aria-hidden="true"></span>
-          <span aria-hidden="true"></span>
-          <span aria-hidden="true"></span>
-        </button>
-
-        <nav class="site-nav product-nav" id="site-nav" aria-label="Nooklet documentation">
-          <a href="../">Overview</a>
-          <a href="./" aria-current="page">Features</a>
-          <a href="../guide/">User guide</a>
-          <a href="../architecture/">Code paths</a>
-          <a href="../#architecture">Architecture</a>
-        </nav>
-
-        <div class="header-actions">
-          <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Change color theme">
-            <span class="theme-mark" aria-hidden="true"></span>
-            <span id="theme-label">System</span>
-          </button>
-          <a class="source-link" href="https://github.com/TannerMidd/Nooklet">GitHub</a>
-        </div>
-      </div>
-    </header>
-
-    <main id="main-content">
-      <section class="subpage-hero shell" id="top" aria-labelledby="hero-title">
-        <div class="subpage-hero-copy" data-reveal>
-          <p class="eyebrow">Feature guide <span>One app, the whole journey</span></p>
-          <h1 id="hero-title">Your media workflow,<br /><em>without the maze.</em></h1>
-          <p class="hero-lede">
-            Nooklet brings discovery, requests, download orchestration, import, and day-to-day operations into one
-            self-hosted workspace. Each screen is designed to answer a simple question: what is ready, what is
-            happening, and what should I do next?
-          </p>
-          <div class="hero-actions">
-            <a class="button button-primary" href="../guide/">Set up Nooklet</a>
-            <a class="button button-secondary" href="#capabilities">Explore capabilities</a>
-          </div>
-          <ul class="stack-list" aria-label="Product qualities">
-            <li>Self-hosted</li>
-            <li>Movies + TV</li>
-            <li>Native Usenet</li>
-            <li>Durable request plans</li>
-            <li>Optional integrations</li>
-          </ul>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="dark light" />
+        <meta
+            name="description"
+            content="Explore Nooklet's self-hosted movie and TV experience: discovery, library management, resilient season requests, native Usenet downloads, safe imports, and clear operations."
+        />
+        <meta name="theme-color" content="#0f0e0d" />
+        <link rel="canonical" href="https://tannermidd.github.io/Nooklet/features/" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="Nooklet Features" />
+        <meta
+            property="og:description"
+            content="One calm workspace for discovering, requesting, downloading, and organizing movies and TV."
+        />
+        <meta property="og:url" content="https://tannermidd.github.io/Nooklet/features/" />
+        <meta
+            property="og:image"
+            content="https://tannermidd.github.io/Nooklet/assets/showcase.webp"
+        />
+        <link rel="icon" href="data:," />
+        <title>Nooklet Features</title>
+        <script>
+            document.documentElement.classList.add("js");
+            try {
+                const savedTheme = localStorage.getItem("nooklet-dossier-theme");
+                if (savedTheme === "dark" || savedTheme === "light") {
+                    document.documentElement.dataset.theme = savedTheme;
+                }
+            } catch {
+                // The system theme remains the safe default when storage is unavailable.
+            }
+        </script>
+        <link rel="stylesheet" href="../styles.css" />
+        <link rel="stylesheet" href="../pages.css" />
+        <script src="../app.js" defer></script>
+    </head>
+    <body>
+        <a class="skip-link" href="#main-content">Skip to features</a>
+        <div class="reading-progress" aria-hidden="true">
+            <span id="reading-progress-bar"></span>
         </div>
 
-        <figure class="showcase-frame" data-reveal>
-          <img
-            src="../assets/showcase.webp"
-            width="1600"
-            height="900"
-            alt="Nooklet Discover workspace with a Library overview inset"
-          />
-          <figcaption>
-            One visual language from finding a title to understanding the library it joins.
-          </figcaption>
-        </figure>
+        <header class="site-header" data-header>
+            <div class="header-inner">
+                <a class="brand" href="../" aria-label="Nooklet documentation home">
+                    <span class="brand-dot" aria-hidden="true"></span>
+                    <span class="brand-name">Nooklet</span>
+                    <span class="brand-context">Product &amp; engineering</span>
+                </a>
 
-        <div class="product-proof-strip" aria-label="Key product behaviors" data-reveal>
-          <div><strong>One container</strong><span>Web, worker, database, and downloader</span></div>
-          <div><strong>Three request scopes</strong><span>Movie, season, or episode</span></div>
-          <div><strong>Automatic recovery</strong><span>Alternate packs, then episode fallback</span></div>
-          <div><strong>Visible readiness</strong><span>Services, storage, worker, and destinations</span></div>
-        </div>
-      </section>
+                <button
+                    class="nav-toggle"
+                    id="nav-toggle"
+                    type="button"
+                    aria-controls="site-nav"
+                    aria-expanded="false"
+                >
+                    <span class="sr-only">Open site navigation</span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                </button>
 
-      <section class="section section-tinted" id="journey" aria-labelledby="journey-title">
-        <div class="shell">
-          <div class="section-heading section-heading-split" data-reveal>
-            <div>
-              <p class="eyebrow">The complete loop</p>
-              <h2 id="journey-title">From “what should we watch?” to “it is in the library.”</h2>
+                <nav class="site-nav product-nav" id="site-nav" aria-label="Nooklet documentation">
+                    <a href="../">Overview</a>
+                    <a href="./" aria-current="page">Features</a>
+                    <a href="../guide/">User guide</a>
+                    <a href="../architecture/">Code paths</a>
+                    <a href="../#architecture">Architecture</a>
+                </nav>
+
+                <div class="header-actions">
+                    <button
+                        class="theme-toggle"
+                        id="theme-toggle"
+                        type="button"
+                        aria-label="Change color theme"
+                    >
+                        <span class="theme-mark" aria-hidden="true"></span>
+                        <span id="theme-label">System</span>
+                    </button>
+                    <a class="source-link" href="https://github.com/TannerMidd/Nooklet">GitHub</a>
+                </div>
             </div>
-            <p>
-              Nooklet keeps each transition visible. A queued download is not presented as a completed request;
-              availability is only confirmed after import and library reconciliation.
-            </p>
-          </div>
+        </header>
 
-          <ol class="product-journey" aria-label="Nooklet media journey">
-            <li data-reveal>
-              <span>01</span>
-              <div><strong>Discover</strong><p>Browse current titles, search directly, or ask an optional AI provider for ideas.</p></div>
-            </li>
-            <li data-reveal>
-              <span>02</span>
-              <div><strong>Choose scope</strong><p>Request a movie, a complete season, or selected episodes into the right destination.</p></div>
-            </li>
-            <li data-reveal>
-              <span>03</span>
-              <div><strong>Acquire</strong><p>Search verified Newznab sources and send a compatible release to Nooklet's built-in engine.</p></div>
-            </li>
-            <li data-reveal>
-              <span>04</span>
-              <div><strong>Recover</strong><p>Retry eligible failures, preserve progress, and surface repair steps when infrastructure blocks the plan.</p></div>
-            </li>
-            <li data-reveal>
-              <span>05</span>
-              <div><strong>Organize</strong><p>Verify, repair, extract, safely import, scan, and record the final file as available.</p></div>
-            </li>
-          </ol>
-        </div>
-      </section>
+        <main id="main-content">
+            <section class="subpage-hero shell" id="top" aria-labelledby="hero-title">
+                <div class="subpage-hero-copy" data-reveal>
+                    <p class="eyebrow">Feature guide <span>One app, the whole journey</span></p>
+                    <h1 id="hero-title">Your media workflow,<br /><em>without the maze.</em></h1>
+                    <p class="hero-lede">
+                        Nooklet brings discovery, requests, download orchestration, import, and
+                        day-to-day operations into one self-hosted workspace. Each screen is
+                        designed to answer a simple question: what is ready, what is happening, and
+                        what should I do next?
+                    </p>
+                    <div class="hero-actions">
+                        <a class="button button-primary" href="../guide/">Set up Nooklet</a>
+                        <a class="button button-secondary" href="#capabilities"
+                            >Explore capabilities</a
+                        >
+                    </div>
+                    <ul class="stack-list" aria-label="Product qualities">
+                        <li>Self-hosted</li>
+                        <li>Movies + TV</li>
+                        <li>Native Usenet</li>
+                        <li>Durable request plans</li>
+                        <li>Optional integrations</li>
+                    </ul>
+                </div>
 
-      <section class="section shell" id="capabilities" aria-labelledby="capabilities-title">
-        <div class="section-heading" data-reveal>
-          <p class="eyebrow">Core capabilities</p>
-          <h2 id="capabilities-title">Everything needed for a calm, understandable media operation.</h2>
-          <p>
-            Core request functionality stays independent of recommendations, history, notifications, and external
-            library context. Add the optional pieces that improve your household without turning them into
-            prerequisites.
-          </p>
-        </div>
+                <figure class="showcase-frame" data-reveal>
+                    <img
+                        src="../assets/showcase.webp"
+                        width="1600"
+                        height="900"
+                        alt="Nooklet Discover workspace with a Library overview inset"
+                    />
+                    <figcaption>
+                        One visual language from finding a title to understanding the library it
+                        joins.
+                    </figcaption>
+                </figure>
 
-        <div class="capability-grid">
-          <article class="capability-card capability-card-visual" data-reveal>
-            <div>
-              <p class="card-kicker">Discover</p>
-              <h3>Find something worth watching.</h3>
-              <p>
-                Search TMDB, browse filtered catalog views, inspect artwork and context, and generate personal ideas
-                through any compatible AI provider.
-              </p>
-              <ul class="check-list">
-                <li>Movie and TV title search</li>
-                <li>Trending and filtered discovery</li>
-                <li>Optional taste-aware recommendations</li>
-                <li>Cast, trailers, genres, and providers</li>
-              </ul>
+                <div class="product-proof-strip" aria-label="Key product behaviors" data-reveal>
+                    <div>
+                        <strong>One container</strong
+                        ><span>Web, worker, database, and downloader</span>
+                    </div>
+                    <div>
+                        <strong>Three request scopes</strong><span>Movie, season, or episode</span>
+                    </div>
+                    <div>
+                        <strong>Automatic recovery</strong
+                        ><span>Alternate packs, then episode fallback</span>
+                    </div>
+                    <div>
+                        <strong>Visible readiness</strong
+                        ><span>Services, storage, worker, and destinations</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section section-tinted" id="journey" aria-labelledby="journey-title">
+                <div class="shell">
+                    <div class="section-heading section-heading-split" data-reveal>
+                        <div>
+                            <p class="eyebrow">The complete loop</p>
+                            <h2 id="journey-title">
+                                From “what should we watch?” to “it is in the library.”
+                            </h2>
+                        </div>
+                        <p>
+                            Nooklet keeps each transition visible. A queued download is not
+                            presented as a completed request; availability is only confirmed after
+                            import and library reconciliation.
+                        </p>
+                    </div>
+
+                    <ol class="product-journey" aria-label="Nooklet media journey">
+                        <li data-reveal>
+                            <span>01</span>
+                            <div>
+                                <strong>Discover</strong>
+                                <p>
+                                    Browse current titles, search directly, or ask an optional AI
+                                    provider for ideas.
+                                </p>
+                            </div>
+                        </li>
+                        <li data-reveal>
+                            <span>02</span>
+                            <div>
+                                <strong>Choose scope</strong>
+                                <p>
+                                    Request a movie, a complete season, or selected episodes into
+                                    the right destination.
+                                </p>
+                            </div>
+                        </li>
+                        <li data-reveal>
+                            <span>03</span>
+                            <div>
+                                <strong>Acquire</strong>
+                                <p>
+                                    Search verified Newznab sources and send a compatible release to
+                                    Nooklet's built-in engine.
+                                </p>
+                            </div>
+                        </li>
+                        <li data-reveal>
+                            <span>04</span>
+                            <div>
+                                <strong>Recover</strong>
+                                <p>
+                                    Retry eligible failures, preserve progress, and surface repair
+                                    steps when infrastructure blocks the plan.
+                                </p>
+                            </div>
+                        </li>
+                        <li data-reveal>
+                            <span>05</span>
+                            <div>
+                                <strong>Organize</strong>
+                                <p>
+                                    Verify, repair, extract, safely import, scan, and record the
+                                    final file as available.
+                                </p>
+                            </div>
+                        </li>
+                    </ol>
+                </div>
+            </section>
+
+            <section class="section shell" id="capabilities" aria-labelledby="capabilities-title">
+                <div class="section-heading" data-reveal>
+                    <p class="eyebrow">Core capabilities</p>
+                    <h2 id="capabilities-title">
+                        Everything needed for a calm, understandable media operation.
+                    </h2>
+                    <p>
+                        Core request functionality stays independent of recommendations, history,
+                        notifications, and external library context. Add the optional pieces that
+                        improve your household without turning them into prerequisites.
+                    </p>
+                </div>
+
+                <div class="capability-grid">
+                    <article class="capability-card capability-card-visual" data-reveal>
+                        <div>
+                            <p class="card-kicker">Discover</p>
+                            <h3>Find something worth watching.</h3>
+                            <p>
+                                Search TMDB, browse filtered catalog views, inspect artwork and
+                                context, and generate personal ideas through any compatible AI
+                                provider.
+                            </p>
+                            <ul class="check-list">
+                                <li>Movie and TV title search</li>
+                                <li>Trending and filtered discovery</li>
+                                <li>Optional taste-aware recommendations</li>
+                                <li>Cast, trailers, genres, and providers</li>
+                            </ul>
+                        </div>
+                        <img
+                            src="../assets/discover.webp"
+                            width="1600"
+                            height="900"
+                            alt="Nooklet Discover screen showing title search, filters, and trending movies"
+                            loading="lazy"
+                        />
+                    </article>
+
+                    <article class="capability-card" data-reveal>
+                        <span class="feature-number" aria-hidden="true">02</span>
+                        <p class="card-kicker">Library</p>
+                        <h3>Know what you actually own.</h3>
+                        <p>
+                            Scan movie and TV destinations, reconcile files with title records,
+                            monitor wanted content, and keep availability grounded in the filesystem
+                            rather than download intent.
+                        </p>
+                        <ul class="check-list">
+                            <li>Separate movie and TV destinations</li>
+                            <li>Existing-library scans</li>
+                            <li>File-aware availability</li>
+                            <li>Monitoring and rescan jobs</li>
+                        </ul>
+                    </article>
+
+                    <article class="capability-card" data-reveal>
+                        <span class="feature-number" aria-hidden="true">03</span>
+                        <p class="card-kicker">Requests</p>
+                        <h3>Ask for exactly the right scope.</h3>
+                        <p>
+                            Select a title, season, or episode, review its destination and releases,
+                            and follow one durable request through search, queue, transfer,
+                            processing, and import.
+                        </p>
+                        <ul class="check-list">
+                            <li>Movie, season, and episode scope</li>
+                            <li>Owned search-result records</li>
+                            <li>Duplicate active-work protection</li>
+                            <li>One Activity timeline</li>
+                        </ul>
+                    </article>
+
+                    <article class="capability-card capability-card-emphasis" data-reveal>
+                        <span class="feature-number" aria-hidden="true">04</span>
+                        <p class="card-kicker">TV resilience</p>
+                        <h3>A season is an outcome, not one fragile pack.</h3>
+                        <p>
+                            Nooklet tries alternate complete-season releases for eligible content
+                            failures, then automatically falls back to missing aired episodes.
+                            Completed work is preserved while unavailable episodes wait.
+                        </p>
+                        <ul class="check-list">
+                            <li>Up to three physical pack attempts</li>
+                            <li>Automatic per-episode fallback</li>
+                            <li>Independent episode retry schedules</li>
+                            <li>Restart-safe plan state and retry timing</li>
+                        </ul>
+                    </article>
+
+                    <article class="capability-card" data-reveal>
+                        <span class="feature-number" aria-hidden="true">05</span>
+                        <p class="card-kicker">Download engine</p>
+                        <h3>Usenet is built in.</h3>
+                        <p>
+                            Connect directly to a news server, persist queue state in Nooklet,
+                            control queued work, and let the container perform PAR2 verification,
+                            repair, and archive extraction.
+                        </p>
+                        <ul class="check-list">
+                            <li>Direct NNTP with TLS support</li>
+                            <li>Pause, resume, and cancellation controls</li>
+                            <li>Persisted queue state and failure reasons</li>
+                            <li>Caller-scoped built-in queue controls</li>
+                        </ul>
+                    </article>
+
+                    <article class="capability-card" data-reveal>
+                        <span class="feature-number" aria-hidden="true">06</span>
+                        <p class="card-kicker">Storage + import</p>
+                        <h3>Paths and capacity are explicit.</h3>
+                        <p>
+                            See the effective staging filesystem, available space, active
+                            reservation, and final destinations. Imports remain inside approved
+                            canonical roots, refuse unsafe traversal or silent overwrite, and
+                            recover claimed cross-filesystem partials without deleting unrelated
+                            replacements.
+                        </p>
+                        <ul class="check-list">
+                            <li>Container-path guidance</li>
+                            <li>Conservative capacity preflight</li>
+                            <li>Approved media and download roots</li>
+                            <li>Collision-aware organization</li>
+                        </ul>
+                    </article>
+
+                    <article class="capability-card" data-reveal>
+                        <span class="feature-number" aria-hidden="true">07</span>
+                        <p class="card-kicker">Operations</p>
+                        <h3>Operate without guesswork.</h3>
+                        <p>
+                            Setup Center evaluates the real request path. Health, storage, jobs,
+                            audit history, and Activity turn failures into bounded states with the
+                            next corrective action.
+                        </p>
+                        <ul class="check-list">
+                            <li>Capability-level readiness</li>
+                            <li>Worker and database health</li>
+                            <li>Persisted automation jobs</li>
+                            <li>Verified database backup tooling</li>
+                        </ul>
+                    </article>
+
+                    <article class="capability-card" data-reveal>
+                        <span class="feature-number" aria-hidden="true">08</span>
+                        <p class="card-kicker">Shared instance</p>
+                        <h3>Useful for a household, controlled by an admin.</h3>
+                        <p>
+                            Every administrator edits one canonical infrastructure configuration and
+                            shared-service set. Managed users can discover and request without
+                            receiving access to service credentials or instance-wide configuration;
+                            personal services such as Trakt remain user-scoped.
+                        </p>
+                        <ul class="check-list">
+                            <li>Local accounts and role boundaries</li>
+                            <li>Encrypted saved credentials</li>
+                            <li>User-scoped personal history</li>
+                            <li>Discord, Apprise, and webhooks</li>
+                        </ul>
+                    </article>
+                </div>
+            </section>
+
+            <section
+                class="section resilience-section"
+                id="resilience"
+                aria-labelledby="resilience-title"
+            >
+                <div class="shell">
+                    <div class="section-heading section-heading-split" data-reveal>
+                        <div>
+                            <p class="eyebrow">Designed for the awkward cases</p>
+                            <h2 id="resilience-title">
+                                When the obvious download fails, the request keeps its purpose.
+                            </h2>
+                        </div>
+                        <p>
+                            Nooklet separates the user’s desired outcome from individual release
+                            attempts. Content failures can advance automatically; storage,
+                            credentials, paths, or service failures pause with a repair action
+                            instead of generating a storm of doomed episode requests.
+                        </p>
+                    </div>
+
+                    <div
+                        class="resilience-flow"
+                        role="img"
+                        aria-label="Season recovery flow from pack search through alternate packs, episode fallback, coverage check, and completed library"
+                    >
+                        <div class="resilience-node is-start">
+                            <span>Season intent</span><strong>One durable plan</strong>
+                        </div>
+                        <div class="resilience-arrow" aria-hidden="true">→</div>
+                        <div class="resilience-node">
+                            <span>Pack strategy</span><strong>Try compatible releases</strong
+                            ><small>Maximum three physical attempts</small>
+                        </div>
+                        <div class="resilience-arrow" aria-hidden="true">→</div>
+                        <div class="resilience-node is-accent">
+                            <span>Fallback</span><strong>Missing aired episodes</strong
+                            ><small>Up to three searches at once</small>
+                        </div>
+                        <div class="resilience-arrow" aria-hidden="true">→</div>
+                        <div class="resilience-node is-success">
+                            <span>Coverage</span><strong>Import + library truth</strong
+                            ><small>Wait and recheck what is unavailable</small>
+                        </div>
+                    </div>
+
+                    <div class="behavior-grid">
+                        <article data-reveal>
+                            <span>Automatic</span>
+                            <h3>Release or availability problem</h3>
+                            <p>
+                                Exclude the unusable candidate, try the next eligible pack, or
+                                continue with individual episodes.
+                            </p>
+                        </article>
+                        <article data-reveal>
+                            <span>Wait</span>
+                            <h3>Active work owns the capacity</h3>
+                            <p>
+                                Preserve the candidate and retry after persisted backoff instead of
+                                consuming an attempt.
+                            </p>
+                        </article>
+                        <article data-reveal>
+                            <span>Repair</span>
+                            <h3>Mount, path, service, or credential problem</h3>
+                            <p>
+                                Block the plan with a corrective message; fix the boundary, then
+                                resume recovery from Activity.
+                            </p>
+                        </article>
+                    </div>
+
+                    <div class="section-actions" data-reveal>
+                        <a class="text-link" href="../guide/#season-requests"
+                            >See how season requests behave <span aria-hidden="true">→</span></a
+                        >
+                        <a class="text-link" href="../#request-flow"
+                            >Inspect the implementation flow <span aria-hidden="true">→</span></a
+                        >
+                    </div>
+                </div>
+            </section>
+
+            <section class="section shell" id="integrations" aria-labelledby="integrations-title">
+                <div class="section-heading section-heading-split" data-reveal>
+                    <div>
+                        <p class="eyebrow">Connect what you already use</p>
+                        <h2 id="integrations-title">
+                            Core requirements stay small. Context stays optional.
+                        </h2>
+                    </div>
+                    <p>
+                        A complete request path needs metadata, an indexer, a downloader, writable
+                        storage, and a healthy worker. Everything else enriches the experience
+                        without holding it hostage.
+                    </p>
+                </div>
+
+                <div
+                    class="integration-table-wrap table-wrap"
+                    tabindex="0"
+                    role="region"
+                    aria-label="Nooklet integration matrix"
+                >
+                    <table class="technical-table integration-table">
+                        <caption>
+                            Capabilities and their service boundaries
+                        </caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Capability</th>
+                                <th scope="col">Connection</th>
+                                <th scope="col">Required?</th>
+                                <th scope="col">What it adds</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th scope="row">Identity + discovery</th>
+                                <td>TMDB</td>
+                                <td><span class="requirement required">Core</span></td>
+                                <td>
+                                    Title identity, search, artwork, genres, cast, trailers, and
+                                    discovery.
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Release search</th>
+                                <td>Newznab indexer</td>
+                                <td><span class="requirement required">Core</span></td>
+                                <td>Movie, season, and episode acquisition candidates.</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Download</th>
+                                <td>Usenet server</td>
+                                <td><span class="requirement required">Core</span></td>
+                                <td>
+                                    Native TLS NNTP transfer through Nooklet's built-in downloader.
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">TV metadata</th>
+                                <td>TVDB</td>
+                                <td><span class="requirement optional">Optional</span></td>
+                                <td>Additional TV identity and episode metadata.</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Recommendations</th>
+                                <td>OpenAI-compatible provider</td>
+                                <td><span class="requirement optional">Optional</span></td>
+                                <td>
+                                    Personalized ideas using a hosted or local compatible model.
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Watch context</th>
+                                <td>Plex, Tautulli, or Trakt</td>
+                                <td><span class="requirement optional">Optional</span></td>
+                                <td>Viewing history and improved recommendation context.</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Notifications</th>
+                                <td>Discord, Apprise, or webhook</td>
+                                <td><span class="requirement optional">Optional</span></td>
+                                <td>Completion and attention events outside the app.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="section section-tinted" id="fit" aria-labelledby="fit-title">
+                <div class="shell">
+                    <div class="section-heading" data-reveal>
+                        <p class="eyebrow">Clear fit, honest boundaries</p>
+                        <h2 id="fit-title">
+                            Built for a self-hosted instance, not disguised infrastructure sprawl.
+                        </h2>
+                        <p>
+                            Nooklet deliberately optimizes for a compact household or personal
+                            deployment. Knowing the boundary is part of a frustration-free
+                            experience.
+                        </p>
+                    </div>
+
+                    <div class="fit-grid">
+                        <article class="fit-card is-positive" data-reveal>
+                            <p class="card-kicker">A strong fit</p>
+                            <h3>You want one understandable media workspace.</h3>
+                            <ul class="check-list">
+                                <li>A single self-hosted application container</li>
+                                <li>Usenet acquisition through Newznab sources</li>
+                                <li>Movies and TV organized into mounted libraries</li>
+                                <li>Explicit health, storage, and recovery states</li>
+                            </ul>
+                        </article>
+                        <article class="fit-card" data-reveal>
+                            <p class="card-kicker">Know before installing</p>
+                            <h3>Some operational choices remain yours.</h3>
+                            <ul class="boundary-list">
+                                <li>Torrent transport is not implemented.</li>
+                                <li>
+                                    The built-in engine processes one release globally at a time.
+                                </li>
+                                <li>
+                                    Interrupted native transfers restart rather than resume by
+                                    segment.
+                                </li>
+                                <li>
+                                    TLS termination, mount permissions, and off-host backups are
+                                    operator responsibilities.
+                                </li>
+                                <li>Horizontal multi-replica deployment is not supported.</li>
+                            </ul>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section
+                class="closing shell product-closing"
+                aria-labelledby="closing-title"
+                data-reveal
+            >
+                <p class="eyebrow">Ready when your request path is ready</p>
+                <h2 id="closing-title">
+                    Start small. Verify one complete path. Add the extras later.
+                </h2>
+                <p>
+                    The User Guide takes you from storage mounts and first administrator through a
+                    controlled first request, daily operation, and the exact recovery steps for
+                    common failures.
+                </p>
+                <div class="hero-actions">
+                    <a class="button button-primary" href="../guide/">Open the User Guide</a>
+                    <a class="button button-secondary" href="../">Explore the architecture</a>
+                </div>
+            </section>
+        </main>
+
+        <footer class="site-footer">
+            <div class="shell footer-grid">
+                <div>
+                    <a class="brand footer-brand" href="../"
+                        ><span class="brand-dot" aria-hidden="true"></span
+                        ><span class="brand-name">Nooklet</span></a
+                    >
+                    <p>Discover, request, download, and organize from one self-hosted workspace.</p>
+                </div>
+                <nav aria-label="Nooklet resources">
+                    <a href="../guide/">User guide</a>
+                    <a href="../">Architecture</a>
+                    <a href="https://github.com/TannerMidd/Nooklet/wiki">Wiki</a>
+                    <a href="https://github.com/TannerMidd/Nooklet">Repository</a>
+                    <a href="https://github.com/TannerMidd/Nooklet/issues">Support</a>
+                </nav>
+                <p class="revision">Feature guide<br />Reviewed August 6, 2026</p>
             </div>
-            <img
-              src="../assets/discover.webp"
-              width="1600"
-              height="900"
-              alt="Nooklet Discover screen showing title search, filters, and trending movies"
-              loading="lazy"
-            />
-          </article>
+        </footer>
 
-          <article class="capability-card" data-reveal>
-            <span class="feature-number" aria-hidden="true">02</span>
-            <p class="card-kicker">Library</p>
-            <h3>Know what you actually own.</h3>
-            <p>
-              Scan movie and TV destinations, reconcile files with title records, monitor wanted content, and keep
-              availability grounded in the filesystem rather than download intent.
-            </p>
-            <ul class="check-list">
-              <li>Separate movie and TV destinations</li>
-              <li>Existing-library scans</li>
-              <li>File-aware availability</li>
-              <li>Monitoring and rescan jobs</li>
-            </ul>
-          </article>
-
-          <article class="capability-card" data-reveal>
-            <span class="feature-number" aria-hidden="true">03</span>
-            <p class="card-kicker">Requests</p>
-            <h3>Ask for exactly the right scope.</h3>
-            <p>
-              Select a title, season, or episode, review its destination and releases, and follow one durable request
-              through search, queue, transfer, processing, and import.
-            </p>
-            <ul class="check-list">
-              <li>Movie, season, and episode scope</li>
-              <li>Owned search-result records</li>
-              <li>Duplicate active-work protection</li>
-              <li>One Activity timeline</li>
-            </ul>
-          </article>
-
-          <article class="capability-card capability-card-emphasis" data-reveal>
-            <span class="feature-number" aria-hidden="true">04</span>
-            <p class="card-kicker">TV resilience</p>
-            <h3>A season is an outcome, not one fragile pack.</h3>
-            <p>
-              Nooklet tries alternate complete-season releases for eligible content failures, then automatically
-              falls back to missing aired episodes. Completed work is preserved while unavailable episodes wait.
-            </p>
-            <ul class="check-list">
-              <li>Up to three physical pack attempts</li>
-              <li>Automatic per-episode fallback</li>
-              <li>Independent episode retry schedules</li>
-                <li>Restart-safe plan state and retry timing</li>
-            </ul>
-          </article>
-
-          <article class="capability-card" data-reveal>
-            <span class="feature-number" aria-hidden="true">05</span>
-            <p class="card-kicker">Download engine</p>
-            <h3>Usenet is built in.</h3>
-            <p>
-              Connect directly to a news server, persist queue state in Nooklet, control queued work, and let the
-              container perform PAR2 verification, repair, and archive extraction.
-            </p>
-            <ul class="check-list">
-              <li>Direct NNTP with TLS support</li>
-              <li>Pause, resume, and cancellation controls</li>
-                <li>Persisted queue state and failure reasons</li>
-              <li>Caller-scoped built-in queue controls</li>
-            </ul>
-          </article>
-
-          <article class="capability-card" data-reveal>
-            <span class="feature-number" aria-hidden="true">06</span>
-            <p class="card-kicker">Storage + import</p>
-            <h3>Paths and capacity are explicit.</h3>
-            <p>
-              See the effective staging filesystem, available space, active reservation, and final destinations.
-              Imports remain inside approved canonical roots, refuse unsafe traversal or silent overwrite, and
-              recover claimed cross-filesystem partials without deleting unrelated replacements.
-            </p>
-            <ul class="check-list">
-              <li>Container-path guidance</li>
-              <li>Conservative capacity preflight</li>
-              <li>Approved media and download roots</li>
-              <li>Collision-aware organization</li>
-            </ul>
-          </article>
-
-          <article class="capability-card" data-reveal>
-            <span class="feature-number" aria-hidden="true">07</span>
-            <p class="card-kicker">Operations</p>
-            <h3>Operate without guesswork.</h3>
-            <p>
-              Setup Center evaluates the real request path. Health, storage, jobs, audit history, and Activity turn
-              failures into bounded states with the next corrective action.
-            </p>
-            <ul class="check-list">
-              <li>Capability-level readiness</li>
-              <li>Worker and database health</li>
-              <li>Persisted automation jobs</li>
-              <li>Verified database backup tooling</li>
-            </ul>
-          </article>
-
-          <article class="capability-card" data-reveal>
-            <span class="feature-number" aria-hidden="true">08</span>
-            <p class="card-kicker">Shared instance</p>
-            <h3>Useful for a household, controlled by an admin.</h3>
-            <p>
-              Every administrator edits one canonical infrastructure configuration and shared-service set. Managed
-              users can discover and request without receiving access to service credentials or instance-wide
-              configuration; personal services such as Trakt remain user-scoped.
-            </p>
-            <ul class="check-list">
-              <li>Local accounts and role boundaries</li>
-              <li>Encrypted saved credentials</li>
-              <li>User-scoped personal history</li>
-              <li>Discord, Apprise, and webhooks</li>
-            </ul>
-          </article>
-        </div>
-      </section>
-
-      <section class="section resilience-section" id="resilience" aria-labelledby="resilience-title">
-        <div class="shell">
-          <div class="section-heading section-heading-split" data-reveal>
-            <div>
-              <p class="eyebrow">Designed for the awkward cases</p>
-              <h2 id="resilience-title">When the obvious download fails, the request keeps its purpose.</h2>
-            </div>
-            <p>
-              Nooklet separates the user’s desired outcome from individual release attempts. Content failures can
-              advance automatically; storage, credentials, paths, or service failures pause with a repair action
-              instead of generating a storm of doomed episode requests.
-            </p>
-          </div>
-
-          <div class="resilience-flow" role="img" aria-label="Season recovery flow from pack search through alternate packs, episode fallback, coverage check, and completed library">
-            <div class="resilience-node is-start"><span>Season intent</span><strong>One durable plan</strong></div>
-            <div class="resilience-arrow" aria-hidden="true">→</div>
-            <div class="resilience-node"><span>Pack strategy</span><strong>Try compatible releases</strong><small>Maximum three physical attempts</small></div>
-            <div class="resilience-arrow" aria-hidden="true">→</div>
-            <div class="resilience-node is-accent"><span>Fallback</span><strong>Missing aired episodes</strong><small>Up to three searches at once</small></div>
-            <div class="resilience-arrow" aria-hidden="true">→</div>
-            <div class="resilience-node is-success"><span>Coverage</span><strong>Import + library truth</strong><small>Wait and recheck what is unavailable</small></div>
-          </div>
-
-          <div class="behavior-grid">
-            <article data-reveal>
-              <span>Automatic</span>
-              <h3>Release or availability problem</h3>
-              <p>Exclude the unusable candidate, try the next eligible pack, or continue with individual episodes.</p>
-            </article>
-            <article data-reveal>
-              <span>Wait</span>
-              <h3>Active work owns the capacity</h3>
-              <p>Preserve the candidate and retry after persisted backoff instead of consuming an attempt.</p>
-            </article>
-            <article data-reveal>
-              <span>Repair</span>
-              <h3>Mount, path, service, or credential problem</h3>
-              <p>Block the plan with a corrective message; fix the boundary, then resume recovery from Activity.</p>
-            </article>
-          </div>
-
-          <div class="section-actions" data-reveal>
-            <a class="text-link" href="../guide/#season-requests">See how season requests behave <span aria-hidden="true">→</span></a>
-            <a class="text-link" href="../#request-flow">Inspect the implementation flow <span aria-hidden="true">→</span></a>
-          </div>
-        </div>
-      </section>
-
-      <section class="section shell" id="integrations" aria-labelledby="integrations-title">
-        <div class="section-heading section-heading-split" data-reveal>
-          <div>
-            <p class="eyebrow">Connect what you already use</p>
-            <h2 id="integrations-title">Core requirements stay small. Context stays optional.</h2>
-          </div>
-          <p>
-            A complete request path needs metadata, an indexer, a downloader, writable storage, and a healthy
-            worker. Everything else enriches the experience without holding it hostage.
-          </p>
-        </div>
-
-        <div class="integration-table-wrap table-wrap" tabindex="0" role="region" aria-label="Nooklet integration matrix">
-          <table class="technical-table integration-table">
-            <caption>Capabilities and their service boundaries</caption>
-            <thead>
-              <tr>
-                <th scope="col">Capability</th>
-                <th scope="col">Connection</th>
-                <th scope="col">Required?</th>
-                <th scope="col">What it adds</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><th scope="row">Identity + discovery</th><td>TMDB</td><td><span class="requirement required">Core</span></td><td>Title identity, search, artwork, genres, cast, trailers, and discovery.</td></tr>
-              <tr><th scope="row">Release search</th><td>Newznab indexer</td><td><span class="requirement required">Core</span></td><td>Movie, season, and episode acquisition candidates.</td></tr>
-              <tr><th scope="row">Download</th><td>Usenet server</td><td><span class="requirement required">Core</span></td><td>Native TLS NNTP transfer through Nooklet's built-in downloader.</td></tr>
-              <tr><th scope="row">TV metadata</th><td>TVDB</td><td><span class="requirement optional">Optional</span></td><td>Additional TV identity and episode metadata.</td></tr>
-              <tr><th scope="row">Recommendations</th><td>OpenAI-compatible provider</td><td><span class="requirement optional">Optional</span></td><td>Personalized ideas using a hosted or local compatible model.</td></tr>
-              <tr><th scope="row">Watch context</th><td>Plex, Tautulli, or Trakt</td><td><span class="requirement optional">Optional</span></td><td>Viewing history and improved recommendation context.</td></tr>
-              <tr><th scope="row">Notifications</th><td>Discord, Apprise, or webhook</td><td><span class="requirement optional">Optional</span></td><td>Completion and attention events outside the app.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="section section-tinted" id="fit" aria-labelledby="fit-title">
-        <div class="shell">
-          <div class="section-heading" data-reveal>
-            <p class="eyebrow">Clear fit, honest boundaries</p>
-            <h2 id="fit-title">Built for a self-hosted instance, not disguised infrastructure sprawl.</h2>
-            <p>
-              Nooklet deliberately optimizes for a compact household or personal deployment. Knowing the boundary
-              is part of a frustration-free experience.
-            </p>
-          </div>
-
-          <div class="fit-grid">
-            <article class="fit-card is-positive" data-reveal>
-              <p class="card-kicker">A strong fit</p>
-              <h3>You want one understandable media workspace.</h3>
-              <ul class="check-list">
-                <li>A single self-hosted application container</li>
-                <li>Usenet acquisition through Newznab sources</li>
-                <li>Movies and TV organized into mounted libraries</li>
-                <li>Explicit health, storage, and recovery states</li>
-              </ul>
-            </article>
-            <article class="fit-card" data-reveal>
-              <p class="card-kicker">Know before installing</p>
-              <h3>Some operational choices remain yours.</h3>
-              <ul class="boundary-list">
-                <li>Torrent transport is not implemented.</li>
-                <li>The built-in engine processes one release globally at a time.</li>
-                <li>Interrupted native transfers restart rather than resume by segment.</li>
-                <li>TLS termination, mount permissions, and off-host backups are operator responsibilities.</li>
-                <li>Horizontal multi-replica deployment is not supported.</li>
-              </ul>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="closing shell product-closing" aria-labelledby="closing-title" data-reveal>
-        <p class="eyebrow">Ready when your request path is ready</p>
-        <h2 id="closing-title">Start small. Verify one complete path. Add the extras later.</h2>
-        <p>
-          The User Guide takes you from storage mounts and first administrator through a controlled first request,
-          daily operation, and the exact recovery steps for common failures.
-        </p>
-        <div class="hero-actions">
-          <a class="button button-primary" href="../guide/">Open the User Guide</a>
-          <a class="button button-secondary" href="../">Explore the architecture</a>
-        </div>
-      </section>
-    </main>
-
-    <footer class="site-footer">
-      <div class="shell footer-grid">
-        <div>
-          <a class="brand footer-brand" href="../"><span class="brand-dot" aria-hidden="true"></span><span class="brand-name">Nooklet</span></a>
-          <p>Discover, request, download, and organize from one self-hosted workspace.</p>
-        </div>
-        <nav aria-label="Nooklet resources">
-          <a href="../guide/">User guide</a>
-          <a href="../">Architecture</a>
-          <a href="https://github.com/TannerMidd/Nooklet/wiki">Wiki</a>
-          <a href="https://github.com/TannerMidd/Nooklet">Repository</a>
-          <a href="https://github.com/TannerMidd/Nooklet/issues">Support</a>
-        </nav>
-        <p class="revision">Feature guide<br />Reviewed August 6, 2026</p>
-      </div>
-    </footer>
-
-    <p class="sr-only" id="copy-status" aria-live="polite"></p>
-  </body>
+        <p class="sr-only" id="copy-status" aria-live="polite"></p>
+    </body>
 </html>

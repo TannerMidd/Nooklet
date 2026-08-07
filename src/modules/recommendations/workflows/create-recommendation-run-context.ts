@@ -7,9 +7,9 @@ import { findServiceConnectionByType } from "@/modules/service-connections/publi
 import { verifyConfiguredServiceConnection } from "@/modules/service-connections/workflows/verify-configured-service-connection";
 
 export type RecommendationLibraryTasteContext = {
-  totalCount: number;
-  sampledItems: SampledLibraryTasteItem[];
-  normalizedKeys: string[];
+    totalCount: number;
+    sampledItems: SampledLibraryTasteItem[];
+    normalizedKeys: string[];
 };
 
 /**
@@ -19,17 +19,17 @@ export type RecommendationLibraryTasteContext = {
  * `mediaTitles` table — no external service calls.
  */
 export async function loadSampledLibraryTasteContext(
-  userId: string,
-  mediaType: RecommendationMediaType,
-  _selectedGenres: RecommendationRequestInput["selectedGenres"],
-  sampleSize: number,
+    userId: string,
+    mediaType: RecommendationMediaType,
+    _selectedGenres: RecommendationRequestInput["selectedGenres"],
+    sampleSize: number,
 ) {
-  const context = await sampleLibraryTasteFromTitles(userId, mediaType, sampleSize);
+    const context = await sampleLibraryTasteFromTitles(userId, mediaType, sampleSize);
 
-  return {
-    ok: true as const,
-    context,
-  };
+    return {
+        ok: true as const,
+        context,
+    };
 }
 
 /**
@@ -40,57 +40,57 @@ export async function loadSampledLibraryTasteContext(
  * URL, encrypted secret, and resolved flavor on success.
  */
 export async function ensureVerifiedAiProviderConnection(userId: string) {
-  let aiProvider = await findServiceConnectionByType(userId, "ai-provider");
+    let aiProvider = await findServiceConnectionByType(userId, "ai-provider");
 
-  if (!aiProvider?.secret) {
-    return {
-      ok: false as const,
-      message: "Configure the AI provider connection before requesting recommendations.",
-    };
-  }
-
-  // Re-verify when the connection is unverified, or when its persisted
-  // metadata predates the AI-provider flavor seam so we don't know whether
-  // chat completions need the LM Studio /api/v1 -> /v1 rewrite. The flavor
-  // migration only fires when verification has previously stored
-  // `availableModels` (i.e. a real verify happened) but no `aiProviderFlavor`
-  // yet, so we don't loop for bare-metadata fixtures or fresh installs.
-  const metadata = aiProvider.metadata;
-  const hasLegacyVerifiedMetadata =
-    metadata !== null &&
-    Array.isArray(metadata.availableModels) &&
-    parseAiProviderFlavor(metadata) === null;
-  const needsReverify =
-    aiProvider.connection.status !== "verified" || hasLegacyVerifiedMetadata;
-
-  if (needsReverify) {
-    const verificationResult = await verifyConfiguredServiceConnection(userId, "ai-provider");
-
-    if (!verificationResult.ok) {
-      return {
-        ok: false as const,
-        message: verificationResult.message,
-      };
+    if (!aiProvider?.secret) {
+        return {
+            ok: false as const,
+            message: "Configure the AI provider connection before requesting recommendations.",
+        };
     }
 
-    aiProvider = await findServiceConnectionByType(userId, "ai-provider");
-  }
+    // Re-verify when the connection is unverified, or when its persisted
+    // metadata predates the AI-provider flavor seam so we don't know whether
+    // chat completions need the LM Studio /api/v1 -> /v1 rewrite. The flavor
+    // migration only fires when verification has previously stored
+    // `availableModels` (i.e. a real verify happened) but no `aiProviderFlavor`
+    // yet, so we don't loop for bare-metadata fixtures or fresh installs.
+    const metadata = aiProvider.metadata;
+    const hasLegacyVerifiedMetadata =
+        metadata !== null &&
+        Array.isArray(metadata.availableModels) &&
+        parseAiProviderFlavor(metadata) === null;
+    const needsReverify = aiProvider.connection.status !== "verified" || hasLegacyVerifiedMetadata;
 
-  if (
-    !aiProvider?.secret ||
-    aiProvider.connection.status !== "verified" ||
-    !aiProvider.connection.baseUrl
-  ) {
+    if (needsReverify) {
+        const verificationResult = await verifyConfiguredServiceConnection(userId, "ai-provider");
+
+        if (!verificationResult.ok) {
+            return {
+                ok: false as const,
+                message: verificationResult.message,
+            };
+        }
+
+        aiProvider = await findServiceConnectionByType(userId, "ai-provider");
+    }
+
+    if (
+        !aiProvider?.secret ||
+        aiProvider.connection.status !== "verified" ||
+        !aiProvider.connection.baseUrl
+    ) {
+        return {
+            ok: false as const,
+            message:
+                "The AI provider could not be verified automatically. Re-save the connection and try again.",
+        };
+    }
+
     return {
-      ok: false as const,
-      message: "The AI provider could not be verified automatically. Re-save the connection and try again.",
+        ok: true as const,
+        baseUrl: aiProvider.connection.baseUrl,
+        encryptedSecret: aiProvider.secret.encryptedValue,
+        flavor: parseAiProviderFlavor(aiProvider.metadata) ?? "openai-compatible",
     };
-  }
-
-  return {
-    ok: true as const,
-    baseUrl: aiProvider.connection.baseUrl,
-    encryptedSecret: aiProvider.secret.encryptedValue,
-    flavor: parseAiProviderFlavor(aiProvider.metadata) ?? "openai-compatible",
-  };
 }

@@ -2,7 +2,7 @@
 description: "Use to check a diff, PR, or set of changes against ADR-0001 architecture rules before commit. Triggers: ADR check, ADR compliance, principle check, architecture review, pre-commit review, rule violation, generic endpoint check, boundary review for diff, leaky abstraction check."
 name: "ADR Compliance Checker"
 tools: [read, search, execute, todo]
-model: ['Claude Sonnet 4.6 (copilot)', 'GPT-5 (copilot)']
+model: ["Claude Sonnet 4.6 (copilot)", "GPT-5 (copilot)"]
 argument-hint: "Optional: ref or path to scope (defaults to current working tree diff)"
 ---
 
@@ -49,9 +49,9 @@ Also check:
 ## Approach
 
 1. Determine the diff:
-   - No argument → `git diff` + `git diff --cached`.
-   - A path → `git diff -- <path>` and `git diff --cached -- <path>`.
-   - A ref or ref range → `git diff <ref>` (do not check out).
+    - No argument → `git diff` + `git diff --cached`.
+    - A path → `git diff -- <path>` and `git diff --cached -- <path>`.
+    - A ref or ref range → `git diff <ref>` (do not check out).
 2. For each changed file, read the new content (and surrounding context if needed) to judge intent — diffs alone can mislead.
 3. Walk the rule list above. For each rule, decide: **Pass / Violation / Not applicable**. Skip "Not applicable" in output unless the user asked for a full pass.
 4. For violations, propose the smallest fix sized to one commit.

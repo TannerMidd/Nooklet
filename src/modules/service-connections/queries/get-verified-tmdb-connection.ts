@@ -2,9 +2,9 @@ import { decryptSecret } from "@/lib/security/secret-box";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 
 export type VerifiedTmdbConnection = {
-  baseUrl: string;
-  secret: string;
-  metadata: Record<string, unknown> | null;
+    baseUrl: string;
+    secret: string;
+    metadata: Record<string, unknown> | null;
 };
 
 /**
@@ -15,21 +15,21 @@ export type VerifiedTmdbConnection = {
  * Shared by `recommendations` (enrichment) and `discover` (browse rails).
  */
 export async function getVerifiedTmdbConnection(
-  userId: string,
+    userId: string,
 ): Promise<VerifiedTmdbConnection | null> {
-  const connection = await findServiceConnectionByType(userId, "tmdb");
+    const connection = await findServiceConnectionByType(userId, "tmdb");
 
-  if (
-    !connection?.secret ||
-    connection.connection.status !== "verified" ||
-    !connection.connection.baseUrl
-  ) {
-    return null;
-  }
+    if (
+        !connection?.secret ||
+        connection.connection.status !== "verified" ||
+        !connection.connection.baseUrl
+    ) {
+        return null;
+    }
 
-  return {
-    baseUrl: connection.connection.baseUrl,
-    secret: decryptSecret(connection.secret.encryptedValue),
-    metadata: connection.metadata,
-  };
+    return {
+        baseUrl: connection.connection.baseUrl,
+        secret: decryptSecret(connection.secret.encryptedValue),
+        metadata: connection.metadata,
+    };
 }

@@ -9,11 +9,11 @@ documented as API routes here.
 
 Use the deployed app origin as the base URL.
 
-| Environment | Base URL |
-| --- | --- |
-| Local Next dev | `http://localhost:42021` (`npm run dev`) |
-| Local Docker Compose | `http://localhost:42021` by default |
-| Deployment | The configured `APP_URL` origin |
+| Environment          | Base URL                                 |
+| -------------------- | ---------------------------------------- |
+| Local Next dev       | `http://localhost:42021` (`npm run dev`) |
+| Local Docker Compose | `http://localhost:42021` by default      |
+| Deployment           | The configured `APP_URL` origin          |
 
 All documented application-owned routes return JSON. Auth.js routes may return
 JSON, redirects, or HTML depending on the action and request headers.
@@ -44,11 +44,11 @@ changed.
 
 ## Route Summary
 
-| Route | Methods | Auth | Purpose | Source |
-| --- | --- | --- | --- | --- |
-| `/api/health` | `GET` | None | Readiness check for database migrations, the background worker, and built-in engine progress. | `src/app/api/health/route.ts` |
+| Route                     | Methods       | Auth            | Purpose                                                                                            | Source                                    |
+| ------------------------- | ------------- | --------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `/api/health`             | `GET`         | None            | Readiness check for database migrations, the background worker, and built-in engine progress.      | `src/app/api/health/route.ts`             |
 | `/api/auth/[...nextauth]` | `GET`, `POST` | Auth.js-managed | Credentials login, session, CSRF, and provider endpoints; direct protocol sign-out is unavailable. | `src/app/api/auth/[...nextauth]/route.ts` |
-| `/api/downloads/queue` | `GET`, `POST` | Required | Read and control the caller's built-in download queue. | `src/app/api/downloads/queue/route.ts` |
+| `/api/downloads/queue`    | `GET`, `POST` | Required        | Read and control the caller's built-in download queue.                                             | `src/app/api/downloads/queue/route.ts`    |
 
 ## Common Error Shape
 
@@ -56,8 +56,8 @@ Application-owned endpoints use this shape for most client-visible errors:
 
 ```ts
 type ApiError = {
-  code?: string;
-  message: string;
+    code?: string;
+    message: string;
 };
 ```
 
@@ -87,12 +87,12 @@ Content-Type: application/json
 
 ```json
 {
-  "status": "ok",
-  "checks": {
-    "database": "ok",
-    "backgroundWorker": "ok",
-    "downloadEngine": "idle"
-  }
+    "status": "ok",
+    "checks": {
+        "database": "ok",
+        "backgroundWorker": "ok",
+        "downloadEngine": "idle"
+    }
 }
 ```
 
@@ -105,12 +105,12 @@ Content-Type: application/json
 
 ```json
 {
-  "status": "degraded",
-  "checks": {
-    "database": "ok",
-    "backgroundWorker": "error",
-    "downloadEngine": "idle"
-  }
+    "status": "degraded",
+    "checks": {
+        "database": "ok",
+        "backgroundWorker": "error",
+        "downloadEngine": "idle"
+    }
 }
 ```
 
@@ -129,12 +129,12 @@ when calling this flow from app code.
 
 Common Auth.js endpoints exposed through this route include:
 
-| Route | Method | Purpose |
-| --- | --- | --- |
-| `/api/auth/providers` | `GET` | List configured auth providers. |
-| `/api/auth/csrf` | `GET` | Get the CSRF token required by Auth.js form posts. |
-| `/api/auth/session` | `GET` | Read the current session for the caller's cookies. |
-| `/api/auth/callback/credentials` | `POST` | Submit credentials login data. |
+| Route                            | Method | Purpose                                            |
+| -------------------------------- | ------ | -------------------------------------------------- |
+| `/api/auth/providers`            | `GET`  | List configured auth providers.                    |
+| `/api/auth/csrf`                 | `GET`  | Get the CSRF token required by Auth.js form posts. |
+| `/api/auth/session`              | `GET`  | Read the current session for the caller's cookies. |
+| `/api/auth/callback/credentials` | `POST` | Submit credentials login data.                     |
 
 The direct Auth.js `POST /api/auth/signout` action is intentionally unavailable.
 Nooklet signs out through its UI server action, which durably revokes the
@@ -146,8 +146,8 @@ Credentials login validation:
 
 ```ts
 type CredentialsLoginInput = {
-  email: string; // valid email, max 320 chars
-  password: string; // required
+    email: string; // valid email, max 320 chars
+    password: string; // required
 };
 ```
 
@@ -192,52 +192,52 @@ Request body: none.
 
 Status codes:
 
-| Status | Body | Notes |
-| --- | --- | --- |
-| `200` | `ActiveDownloadQueueState` | Returned for authenticated callers, including disconnected sources. |
-| `401` | `ApiError` | Returned when no valid app session exists. |
-| `403` | `ApiError` | The account must replace its temporary password before using protected APIs. |
-| `503` | `ApiError` | Queue sources could not be read. |
+| Status | Body                       | Notes                                                                        |
+| ------ | -------------------------- | ---------------------------------------------------------------------------- |
+| `200`  | `ActiveDownloadQueueState` | Returned for authenticated callers, including disconnected sources.          |
+| `401`  | `ApiError`                 | Returned when no valid app session exists.                                   |
+| `403`  | `ApiError`                 | The account must replace its temporary password before using protected APIs. |
+| `503`  | `ApiError`                 | Queue sources could not be read.                                             |
 
 Response type:
 
 ```ts
 type ActiveDownloadQueueState = {
-  connectionStatus: "disconnected" | "configured" | "verified" | "error";
-  statusMessage: string;
-  snapshot: DownloadQueueSnapshot | null;
-  // POST responses may include this outcome.
-  action?: {
-    status: "applied" | "pending";
-    message: string;
-  };
+    connectionStatus: "disconnected" | "configured" | "verified" | "error";
+    statusMessage: string;
+    snapshot: DownloadQueueSnapshot | null;
+    // POST responses may include this outcome.
+    action?: {
+        status: "applied" | "pending";
+        message: string;
+    };
 };
 
 type DownloadQueueSnapshot = {
-  version: string;
-  queueStatus: string | null;
-  paused: boolean;
-  speed: string | null;
-  kbPerSec: number | null;
-  timeLeft: string | null;
-  activeQueueCount: number;
-  totalQueueCount: number;
-  items: DownloadQueueItem[];
+    version: string;
+    queueStatus: string | null;
+    paused: boolean;
+    speed: string | null;
+    kbPerSec: number | null;
+    timeLeft: string | null;
+    activeQueueCount: number;
+    totalQueueCount: number;
+    items: DownloadQueueItem[];
 };
 
 type DownloadQueueItem = {
-  id: string;
-  title: string;
-  status: string;
-  progressPercent: number;
-  timeLeft: string | null;
-  category: string | null;
-  priority: string | null;
-  labels: string[];
-  sizeLabel: string | null;
-  sizeLeftLabel: string | null;
-  totalMb: number | null;
-  remainingMb: number | null;
+    id: string;
+    title: string;
+    status: string;
+    progressPercent: number;
+    timeLeft: string | null;
+    category: string | null;
+    priority: string | null;
+    labels: string[];
+    sizeLabel: string | null;
+    sizeLeftLabel: string | null;
+    totalMb: number | null;
+    remainingMb: number | null;
 };
 ```
 
@@ -245,19 +245,19 @@ Example success response with an idle built-in downloader:
 
 ```json
 {
-  "connectionStatus": "verified",
-  "statusMessage": "No active downloads right now.",
-  "snapshot": {
-    "version": "nooklet-engine",
-    "queueStatus": "Idle",
-    "paused": false,
-    "speed": null,
-    "kbPerSec": null,
-    "timeLeft": null,
-    "activeQueueCount": 0,
-    "totalQueueCount": 0,
-    "items": []
-  }
+    "connectionStatus": "verified",
+    "statusMessage": "No active downloads right now.",
+    "snapshot": {
+        "version": "nooklet-engine",
+        "queueStatus": "Idle",
+        "paused": false,
+        "speed": null,
+        "kbPerSec": null,
+        "timeLeft": null,
+        "activeQueueCount": 0,
+        "totalQueueCount": 0,
+        "items": []
+    }
 }
 ```
 
@@ -265,9 +265,9 @@ Example response when no downloader is configured:
 
 ```json
 {
-  "connectionStatus": "disconnected",
-  "statusMessage": "Add a Usenet server under Settings → Connections to download releases.",
-  "snapshot": null
+    "connectionStatus": "disconnected",
+    "statusMessage": "Add a Usenet server under Settings → Connections to download releases.",
+    "snapshot": null
 }
 ```
 
@@ -275,11 +275,11 @@ Browser example:
 
 ```ts
 const response = await fetch("/api/downloads/queue", {
-  cache: "no-store",
+    cache: "no-store",
 });
 
 if (!response.ok) {
-  throw new Error("Unable to load the download queue.");
+    throw new Error("Unable to load the download queue.");
 }
 
 const queueState = (await response.json()) as ActiveDownloadQueueState;
@@ -306,26 +306,26 @@ pending outcomes also expose the message as the top-level `statusMessage`.
 
 Status codes:
 
-| Status | Body | Notes |
-| --- | --- | --- |
-| `200` | `ActiveDownloadQueueState` | Action succeeded. |
-| `400` | `ApiError` | JSON or action fields are invalid. |
-| `401` | `ApiError` | Returned when no valid app session exists. |
-| `403` | `ApiError` | The account must replace its temporary password before using protected APIs. |
-| `409` | `ApiError` | A built-in-engine action conflicts with the item's current stage or state. |
-| `500` | `ApiError` | The built-in downloader rejected or failed the action. |
+| Status | Body                       | Notes                                                                        |
+| ------ | -------------------------- | ---------------------------------------------------------------------------- |
+| `200`  | `ActiveDownloadQueueState` | Action succeeded.                                                            |
+| `400`  | `ApiError`                 | JSON or action fields are invalid.                                           |
+| `401`  | `ApiError`                 | Returned when no valid app session exists.                                   |
+| `403`  | `ApiError`                 | The account must replace its temporary password before using protected APIs. |
+| `409`  | `ApiError`                 | A built-in-engine action conflicts with the item's current stage or state.   |
+| `500`  | `ApiError`                 | The built-in downloader rejected or failed the action.                       |
 
 Request body:
 
 ```ts
 type DownloadQueueActionInput =
-  | { type: "pauseQueue" }
-  | { type: "resumeQueue" }
-  | { type: "pause"; itemId: string }
-  | { type: "resume"; itemId: string }
-  | { type: "remove"; itemId: string }
-  | { type: "move"; itemId: string; direction: "up" | "down" }
-  | { type: "moveToIndex"; itemId: string; targetIndex: number };
+    | { type: "pauseQueue" }
+    | { type: "resumeQueue" }
+    | { type: "pause"; itemId: string }
+    | { type: "resume"; itemId: string }
+    | { type: "remove"; itemId: string }
+    | { type: "move"; itemId: string; direction: "up" | "down" }
+    | { type: "moveToIndex"; itemId: string; targetIndex: number };
 ```
 
 Validation rules:
@@ -337,15 +337,15 @@ Validation rules:
 
 Action behavior:
 
-| Action | Effect |
-| --- | --- |
-| `pauseQueue` | Pauses queue activity. |
-| `resumeQueue` | Resumes queue activity. |
-| `pause` | Pauses one queue item. |
-| `resume` | Resumes one queue item. |
-| `remove` | Cancels one item and removes its built-in-engine working/completed files after the action is verified. |
-| `move` | Moves one queue item up or down by one position. |
-| `moveToIndex` | Moves one queue item to a zero-based queue position. |
+| Action        | Effect                                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------------------ |
+| `pauseQueue`  | Pauses queue activity.                                                                                 |
+| `resumeQueue` | Resumes queue activity.                                                                                |
+| `pause`       | Pauses one queue item.                                                                                 |
+| `resume`      | Resumes one queue item.                                                                                |
+| `remove`      | Cancels one item and removes its built-in-engine working/completed files after the action is verified. |
+| `move`        | Moves one queue item up or down by one position.                                                       |
+| `moveToIndex` | Moves one queue item to a zero-based queue position.                                                   |
 
 Example request:
 
@@ -365,8 +365,8 @@ Content-Type: application/json
 
 ```json
 {
-  "code": "invalid_action",
-  "message": "Invalid download queue action."
+    "code": "invalid_action",
+    "message": "Invalid download queue action."
 }
 ```
 
@@ -374,8 +374,8 @@ Example action failure response:
 
 ```json
 {
-  "code": "queue_action_conflict",
-  "message": "That download is no longer in the queue."
+    "code": "queue_action_conflict",
+    "message": "That download is no longer in the queue."
 }
 ```
 
@@ -389,4 +389,4 @@ When adding or changing API routes:
 3. Keep source route handlers thin and put reusable validation in module schemas
    or workflows.
 4. Do not document server actions here unless they become stable HTTP API
-  routes under `src/app/api`.
+   routes under `src/app/api`.

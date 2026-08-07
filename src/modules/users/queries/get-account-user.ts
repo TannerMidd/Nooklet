@@ -5,5 +5,5 @@ import { findUserById } from "@/modules/users/repositories/user-repository";
  * users repository so route pages do not depend on the persistence layer.
  */
 export async function getAccountUser(userId: string) {
-  return findUserById(userId);
+    return findUserById(userId);
 }

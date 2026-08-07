@@ -88,22 +88,22 @@ Linux example:
 
 ```yaml
 services:
-  app:
-    volumes:
-      - "/srv/media/movies:/media/movies"
-      - "/srv/media/tv:/media/tv"
-      - "/srv/nooklet-downloads:/downloads"
+    app:
+        volumes:
+            - "/srv/media/movies:/media/movies"
+            - "/srv/media/tv:/media/tv"
+            - "/srv/nooklet-downloads:/downloads"
 ```
 
 Windows example:
 
 ```yaml
 services:
-  app:
-    volumes:
-      - "D:/Media/Movies:/media/movies"
-      - "D:/Media/TV:/media/tv"
-      - "F:/Nooklet/Downloads:/downloads"
+    app:
+        volumes:
+            - "D:/Media/Movies:/media/movies"
+            - "D:/Media/TV:/media/tv"
+            - "F:/Nooklet/Downloads:/downloads"
 ```
 
 Use quoted forward-slash paths on Windows. The value on the right of each colon is the container path and is the path Nooklet sees.

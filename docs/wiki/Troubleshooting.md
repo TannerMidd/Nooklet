@@ -31,28 +31,28 @@ Use [Health and diagnostics](Health-and-Diagnostics) to interpret `ok`, HTTP-200
 
 ## Symptom index
 
-| Symptom | Most likely boundary | Start here |
-| --- | --- | --- |
-| Container exits immediately | Invalid/missing environment value or startup error | Validate Compose quietly, then inspect the first startup error in logs. |
-| Container is `unhealthy` | Database failed or worker stopped/stale | Query `/api/health`; preserve the volume and inspect `health_*`, `worker_*`, and supervisor events. |
-| Probe is `200` but `degraded` | Recent worker workload failure or degraded built-in engine | Read `/health` and logs; follow the named integration, storage, or engine recovery detail. |
-| Browser cannot connect | Wrong bind address/port, stopped container, or firewall | Compare `.env`, `docker compose ps`, and `docker compose port app 42021`. |
-| Proxy returns `502` | Wrong upstream or Nooklet is unavailable | Query the probe directly from the proxy host/network. |
-| Sign-in redirects to `localhost` | Incorrect `APP_URL` or stale container environment | Set the canonical browser origin and force-recreate. |
-| “Not enough free disk space” despite a spacious media drive | Engine work or completed-output staging is on a constrained filesystem | Inspect both locations in **Settings > Storage** and move or expand the constrained one. |
-| Host path such as `F:\Movies` is not found | A Docker install needs container-side paths | Bind the host folder, then configure the right-hand container path such as `/media/movies`. |
-| Library path is outside approved roots | Path and `APPROVED_MEDIA_ROOTS` disagree | Approve the container root, recreate, then register a contained directory. |
-| Storage is reachable but read-only | Host permissions or mount mode deny the unprivileged container user | Correct host permissions/mount flags; do not make the container privileged. |
-| Private service host is blocked | SSRF policy denied a LAN/loopback target | Add the exact hostname/IP to `PRIVATE_SERVICE_HOST_ALLOWLIST` and recreate. |
-| Service test rejects a redirect | Outbound redirects are intentionally refused | Configure the final direct endpoint URL. |
-| Built-in download finishes but will not import | Worker, completed-output staging, or destination is unavailable | Inspect Activity and `/health`; verify `DOWNLOAD_ENGINE_DIR`, the selected active library path, and both mounts' permissions. |
-| Environment/mount edit has no effect | Container was restarted, not recreated | Run `docker compose up -d --build --force-recreate`. |
-| “Container name is already in use” | Another Nooklet project uses the base fixed name | Assign unique project/container/image names; see [Multi-instance deployments](Multi-Instance-Deployments). |
+| Symptom                                                                   | Most likely boundary                                                      | Start here                                                                                                                                    |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Container exits immediately                                               | Invalid/missing environment value or startup error                        | Validate Compose quietly, then inspect the first startup error in logs.                                                                       |
+| Container is `unhealthy`                                                  | Database failed or worker stopped/stale                                   | Query `/api/health`; preserve the volume and inspect `health_*`, `worker_*`, and supervisor events.                                           |
+| Probe is `200` but `degraded`                                             | Recent worker workload failure or degraded built-in engine                | Read `/health` and logs; follow the named integration, storage, or engine recovery detail.                                                    |
+| Browser cannot connect                                                    | Wrong bind address/port, stopped container, or firewall                   | Compare `.env`, `docker compose ps`, and `docker compose port app 42021`.                                                                     |
+| Proxy returns `502`                                                       | Wrong upstream or Nooklet is unavailable                                  | Query the probe directly from the proxy host/network.                                                                                         |
+| Sign-in redirects to `localhost`                                          | Incorrect `APP_URL` or stale container environment                        | Set the canonical browser origin and force-recreate.                                                                                          |
+| “Not enough free disk space” despite a spacious media drive               | Engine work or completed-output staging is on a constrained filesystem    | Inspect both locations in **Settings > Storage** and move or expand the constrained one.                                                      |
+| Host path such as `F:\Movies` is not found                                | A Docker install needs container-side paths                               | Bind the host folder, then configure the right-hand container path such as `/media/movies`.                                                   |
+| Library path is outside approved roots                                    | Path and `APPROVED_MEDIA_ROOTS` disagree                                  | Approve the container root, recreate, then register a contained directory.                                                                    |
+| Storage is reachable but read-only                                        | Host permissions or mount mode deny the unprivileged container user       | Correct host permissions/mount flags; do not make the container privileged.                                                                   |
+| Private service host is blocked                                           | SSRF policy denied a LAN/loopback target                                  | Add the exact hostname/IP to `PRIVATE_SERVICE_HOST_ALLOWLIST` and recreate.                                                                   |
+| Service test rejects a redirect                                           | Outbound redirects are intentionally refused                              | Configure the final direct endpoint URL.                                                                                                      |
+| Built-in download finishes but will not import                            | Worker, completed-output staging, or destination is unavailable           | Inspect Activity and `/health`; verify `DOWNLOAD_ENGINE_DIR`, the selected active library path, and both mounts' permissions.                 |
+| Environment/mount edit has no effect                                      | Container was restarted, not recreated                                    | Run `docker compose up -d --build --force-recreate`.                                                                                          |
+| “Container name is already in use”                                        | Another Nooklet project uses the base fixed name                          | Assign unique project/container/image names; see [Multi-instance deployments](Multi-Instance-Deployments).                                    |
 | Docker reports `OCI runtime exec failed`, `setns`, or a defunct container | Stale Docker runtime/container namespace rather than an application error | Preserve the mount inventory, remove only the identified service container without `-v`, restart the Docker engine if required, and recreate. |
-| Sign-in is temporarily rejected after repeated attempts | Five-minute rate-limit window or a recorded temporary lock | Stop retrying and allow the window/lock to expire; inspect logs and account state if it persists. |
-| Account is disabled | Administrative access state, not a timeout | A different active administrator must re-enable it. Waiting and password recovery do not re-enable disabled accounts. |
-| Administrator forgot the password | Lost credential on an otherwise active account | Use the local recovery script against a verified, backed-up database. |
-| Upgrade starts but health fails | Migration/runtime error or mismatched configuration | Preserve logs and the pre-upgrade backup; fix forward or restore code+database as a pair. |
+| Sign-in is temporarily rejected after repeated attempts                   | Five-minute rate-limit window or a recorded temporary lock                | Stop retrying and allow the window/lock to expire; inspect logs and account state if it persists.                                             |
+| Account is disabled                                                       | Administrative access state, not a timeout                                | A different active administrator must re-enable it. Waiting and password recovery do not re-enable disabled accounts.                         |
+| Administrator forgot the password                                         | Lost credential on an otherwise active account                            | Use the local recovery script against a verified, backed-up database.                                                                         |
+| Upgrade starts but health fails                                           | Migration/runtime error or mismatched configuration                       | Preserve logs and the pre-upgrade backup; fix forward or restore code+database as a pair.                                                     |
 
 ## Container will not start
 
@@ -151,18 +151,18 @@ In the gitignored `docker-compose.override.yml` on Windows:
 
 ```yaml
 services:
-  app:
-    volumes:
-      - "F:/Nooklet/Downloads:/downloads"
+    app:
+        volumes:
+            - "F:/Nooklet/Downloads:/downloads"
 ```
 
 On macOS/Linux:
 
 ```yaml
 services:
-  app:
-    volumes:
-      - /mnt/fast-downloads/nooklet:/downloads
+    app:
+        volumes:
+            - /mnt/fast-downloads/nooklet:/downloads
 ```
 
 Then recreate and re-check **Settings > Storage**:
@@ -210,10 +210,10 @@ Nooklet blocks private/loopback outbound destinations by default.
 1. Use the final direct HTTP(S) URL; redirects are refused.
 2. Put only its exact hostname or IP in `.env`:
 
-   ```dotenv
-   PRIVATE_SERVICE_HOST_ALLOWLIST=plex.local;tautulli.local;192.168.1.25
-   ALLOW_PRIVATE_SERVICE_HOSTS=false
-   ```
+    ```dotenv
+    PRIVATE_SERVICE_HOST_ALLOWLIST=plex.local;tautulli.local;192.168.1.25
+    ALLOW_PRIVATE_SERVICE_HOSTS=false
+    ```
 
 3. Recreate the container.
 4. Use the same host spelling in **Settings > Connections**.
@@ -283,15 +283,15 @@ If Docker cannot stop/remove it because the daemon/runtime namespace itself is s
 2. Return to the same deployment directory.
 3. Remove only the confirmed Nooklet app container, still without a volume flag:
 
-   ```console
-   docker compose rm -f app
-   ```
+    ```console
+    docker compose rm -f app
+    ```
 
 4. If Compose no longer tracks the defunct container, use the exact ID/name captured above:
 
-   ```console
-   docker rm -f <confirmed-app-container-id-or-name>
-   ```
+    ```console
+    docker rm -f <confirmed-app-container-id-or-name>
+    ```
 
 `docker rm -f` without `-v` removes the container object, not the named `nooklet-data` volume or host bind-mounted media.
 

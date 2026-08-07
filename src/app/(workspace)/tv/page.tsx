@@ -3,24 +3,24 @@ import { RecommendationWorkspace } from "@/components/recommendations/recommenda
 export const dynamic = "force-dynamic";
 
 type TvRecommendationsPageProps = {
-  searchParams?: Promise<{
-    run?: string;
-    generated?: string;
-    details?: string;
-  }>;
+    searchParams?: Promise<{
+        run?: string;
+        generated?: string;
+        details?: string;
+    }>;
 };
 
 export default async function TvRecommendationsPage({ searchParams }: TvRecommendationsPageProps) {
-  const resolvedSearchParams = await searchParams;
+    const resolvedSearchParams = await searchParams;
 
-  return (
-    <RecommendationWorkspace
-      mediaType="tv"
-      routePath="/tv"
-      title="TV picks"
-      activeRunId={resolvedSearchParams?.run ?? null}
-      wasJustGenerated={resolvedSearchParams?.generated === "1"}
-      detailsItemId={resolvedSearchParams?.details ?? null}
-    />
-  );
+    return (
+        <RecommendationWorkspace
+            mediaType="tv"
+            routePath="/tv"
+            title="TV picks"
+            activeRunId={resolvedSearchParams?.run ?? null}
+            wasJustGenerated={resolvedSearchParams?.generated === "1"}
+            detailsItemId={resolvedSearchParams?.details ?? null}
+        />
+    );
 }

@@ -1,54 +1,54 @@
 name: nooklet
 
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: nooklet:local
-    container_name: nooklet
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    # The image is immutable at runtime: all persistent state lives in the
-    # data volume, and scratch space is tmpfs. Next.js needs a writable image
-    # cache; extraction tools use /tmp.
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /app/.next/cache
-    pids_limit: 512
-    # Cap the container so download bursts can never starve the Docker VM's
-    # own daemon; the cgroup limit also bounds the page cache the container's
-    # writes accumulate, forcing earlier writeback under heavy transfers.
-    mem_limit: 3g
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    ports:
-      - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-42021}:42021"
-    env_file:
-      - .env
-    environment:
-      # Force the in-container DB path regardless of what's in .env so a host
-      # path like ./data/nooklet.db doesn't accidentally land outside the
-      # mounted volume.
-      DATABASE_URL: file:/app/data/nooklet.db
-    volumes:
-      - nooklet-data:/app/data
-      # Bind-mount your media library roots so the scanner can read files.
-      # The path on the right is what you enter in /library settings.
-      # - /host/path/to/tv:/media/tv
-      # - /host/path/to/movies:/media/movies
-      # Bind-mount a downloads folder for the built-in engine's completed
-      # output. The built-in engine uses it when
-      # DOWNLOAD_ENGINE_DIR points beneath /downloads (for example, set
-      # DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine in .env).
-      # - /host/path/to/downloads:/downloads
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        image: nooklet:local
+        container_name: nooklet
+        restart: unless-stopped
+        security_opt:
+            - no-new-privileges:true
+        cap_drop:
+            - ALL
+        # The image is immutable at runtime: all persistent state lives in the
+        # data volume, and scratch space is tmpfs. Next.js needs a writable image
+        # cache; extraction tools use /tmp.
+        read_only: true
+        tmpfs:
+            - /tmp
+            - /app/.next/cache
+        pids_limit: 512
+        # Cap the container so download bursts can never starve the Docker VM's
+        # own daemon; the cgroup limit also bounds the page cache the container's
+        # writes accumulate, forcing earlier writeback under heavy transfers.
+        mem_limit: 3g
+        logging:
+            driver: json-file
+            options:
+                max-size: "10m"
+                max-file: "3"
+        ports:
+            - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-42021}:42021"
+        env_file:
+            - .env
+        environment:
+            # Force the in-container DB path regardless of what's in .env so a host
+            # path like ./data/nooklet.db doesn't accidentally land outside the
+            # mounted volume.
+            DATABASE_URL: file:/app/data/nooklet.db
+        volumes:
+            - nooklet-data:/app/data
+            # Bind-mount your media library roots so the scanner can read files.
+            # The path on the right is what you enter in /library settings.
+            # - /host/path/to/tv:/media/tv
+            # - /host/path/to/movies:/media/movies
+            # Bind-mount a downloads folder for the built-in engine's completed
+            # output. The built-in engine uses it when
+            # DOWNLOAD_ENGINE_DIR points beneath /downloads (for example, set
+            # DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine in .env).
+            # - /host/path/to/downloads:/downloads
 
 volumes:
-  nooklet-data:
+    nooklet-data:

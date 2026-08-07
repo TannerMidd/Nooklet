@@ -1,62 +1,62 @@
 name: Publish Wiki
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "docs/wiki/**"
-      - "scripts/validate-wiki.mjs"
-      - ".github/workflows/publish-wiki.yml"
-  workflow_dispatch:
+    push:
+        branches: [main]
+        paths:
+            - "docs/wiki/**"
+            - "scripts/validate-wiki.mjs"
+            - ".github/workflows/publish-wiki.yml"
+    workflow_dispatch:
 
 permissions: {}
 
 concurrency:
-  group: wiki-publish
-  cancel-in-progress: false
+    group: wiki-publish
+    cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Validate and publish
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
+    publish:
+        name: Validate and publish
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: write
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v7
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
+            - name: Set up Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version-file: .nvmrc
 
-      - name: Validate Wiki source
-        run: node scripts/validate-wiki.mjs
+            - name: Validate Wiki source
+              run: node scripts/validate-wiki.mjs
 
-      - name: Clone Wiki repository
-        env:
-          WIKI_URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.wiki.git
-        run: git clone "$WIKI_URL" .wiki
+            - name: Clone Wiki repository
+              env:
+                  WIKI_URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.wiki.git
+              run: git clone "$WIKI_URL" .wiki
 
-      - name: Synchronize pages
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          git -C .wiki rm --quiet --ignore-unmatch -- '*.md'
-          cp docs/wiki/*.md .wiki/
-          git -C .wiki add -- '*.md'
+            - name: Synchronize pages
+              shell: bash
+              run: |
+                  set -Eeuo pipefail
+                  git -C .wiki rm --quiet --ignore-unmatch -- '*.md'
+                  cp docs/wiki/*.md .wiki/
+                  git -C .wiki add -- '*.md'
 
-      - name: Publish changes
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          if git -C .wiki diff --cached --quiet; then
-            echo "Wiki is already current."
-            exit 0
-          fi
+            - name: Publish changes
+              shell: bash
+              run: |
+                  set -Eeuo pipefail
+                  if git -C .wiki diff --cached --quiet; then
+                    echo "Wiki is already current."
+                    exit 0
+                  fi
 
-          git -C .wiki config user.name "github-actions[bot]"
-          git -C .wiki config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C .wiki commit -m "docs: sync Wiki from ${GITHUB_SHA::12}"
-          git -C .wiki push origin HEAD
+                  git -C .wiki config user.name "github-actions[bot]"
+                  git -C .wiki config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                  git -C .wiki commit -m "docs: sync Wiki from ${GITHUB_SHA::12}"
+                  git -C .wiki push origin HEAD

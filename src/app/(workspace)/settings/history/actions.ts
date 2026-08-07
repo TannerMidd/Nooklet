@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 
 import {
-  type ManualWatchHistoryActionState,
-  type PlexWatchHistoryActionState,
-  type TautulliWatchHistoryActionState,
-  type TraktWatchHistoryActionState,
-  type WatchHistoryScheduleActionState,
+    type ManualWatchHistoryActionState,
+    type PlexWatchHistoryActionState,
+    type TautulliWatchHistoryActionState,
+    type TraktWatchHistoryActionState,
+    type WatchHistoryScheduleActionState,
 } from "@/app/(workspace)/settings/history/action-state";
 import { getProtectedActionSession as auth } from "@/modules/identity-access/workflows/get-protected-action-session";
 import { manualWatchHistorySyncInputSchema } from "@/modules/watch-history/schemas/manual-watch-history-sync";
@@ -22,247 +22,247 @@ import { syncTautulliWatchHistory } from "@/modules/watch-history/workflows/sync
 import { syncTraktWatchHistory } from "@/modules/watch-history/workflows/sync-trakt-watch-history";
 
 export async function submitManualWatchHistorySyncAction(
-  _previousState: ManualWatchHistoryActionState,
-  formData: FormData,
+    _previousState: ManualWatchHistoryActionState,
+    formData: FormData,
 ): Promise<ManualWatchHistoryActionState> {
-  const session = await auth();
+    const session = await auth();
 
-  if (!session?.user?.id) {
+    if (!session?.user?.id) {
+        return {
+            status: "error",
+            message: "You need to sign in again.",
+        };
+    }
+
+    const parsedInput = manualWatchHistorySyncInputSchema.safeParse({
+        mediaType: formData.get("mediaType"),
+        entriesText: formData.get("entriesText"),
+    });
+
+    if (!parsedInput.success) {
+        const flattenedErrors = parsedInput.error.flatten().fieldErrors;
+
+        return {
+            status: "error",
+            message: "Review the watch-history fields and try again.",
+            fieldErrors: {
+                mediaType: flattenedErrors.mediaType?.[0],
+                entriesText: flattenedErrors.entriesText?.[0],
+            },
+        };
+    }
+
+    const result = await syncManualWatchHistory(session.user.id, parsedInput.data);
+
+    revalidatePath("/settings/history");
+    revalidatePath("/settings/preferences");
+    revalidatePath("/tv");
+    revalidatePath("/movies");
+
     return {
-      status: "error",
-      message: "You need to sign in again.",
+        status: result.ok ? "success" : "error",
+        message: result.message,
+        fieldErrors:
+            !result.ok && result.field
+                ? {
+                      [result.field]: result.message,
+                  }
+                : undefined,
     };
-  }
-
-  const parsedInput = manualWatchHistorySyncInputSchema.safeParse({
-    mediaType: formData.get("mediaType"),
-    entriesText: formData.get("entriesText"),
-  });
-
-  if (!parsedInput.success) {
-    const flattenedErrors = parsedInput.error.flatten().fieldErrors;
-
-    return {
-      status: "error",
-      message: "Review the watch-history fields and try again.",
-      fieldErrors: {
-        mediaType: flattenedErrors.mediaType?.[0],
-        entriesText: flattenedErrors.entriesText?.[0],
-      },
-    };
-  }
-
-  const result = await syncManualWatchHistory(session.user.id, parsedInput.data);
-
-  revalidatePath("/settings/history");
-  revalidatePath("/settings/preferences");
-  revalidatePath("/tv");
-  revalidatePath("/movies");
-
-  return {
-    status: result.ok ? "success" : "error",
-    message: result.message,
-    fieldErrors:
-      !result.ok && result.field
-        ? {
-            [result.field]: result.message,
-          }
-        : undefined,
-  };
 }
 
 export async function submitTautulliWatchHistorySyncAction(
-  _previousState: TautulliWatchHistoryActionState,
-  formData: FormData,
+    _previousState: TautulliWatchHistoryActionState,
+    formData: FormData,
 ): Promise<TautulliWatchHistoryActionState> {
-  const session = await auth();
+    const session = await auth();
 
-  if (!session?.user?.id) {
+    if (!session?.user?.id) {
+        return {
+            status: "error",
+            message: "You need to sign in again.",
+        };
+    }
+
+    const parsedInput = tautulliWatchHistorySyncInputSchema.safeParse({
+        mediaType: formData.get("mediaType"),
+        tautulliUserId: formData.get("tautulliUserId"),
+        importLimit: formData.get("importLimit"),
+    });
+
+    if (!parsedInput.success) {
+        const flattenedErrors = parsedInput.error.flatten().fieldErrors;
+
+        return {
+            status: "error",
+            message: "Review the Tautulli sync fields and try again.",
+            fieldErrors: {
+                mediaType: flattenedErrors.mediaType?.[0],
+                tautulliUserId: flattenedErrors.tautulliUserId?.[0],
+                importLimit: flattenedErrors.importLimit?.[0],
+            },
+        };
+    }
+
+    const result = await syncTautulliWatchHistory(session.user.id, parsedInput.data);
+
+    revalidatePath("/settings/history");
+    revalidatePath("/settings/preferences");
+    revalidatePath("/tv");
+    revalidatePath("/movies");
+
     return {
-      status: "error",
-      message: "You need to sign in again.",
+        status: result.ok ? "success" : "error",
+        message: result.message,
+        fieldErrors:
+            !result.ok && result.field
+                ? {
+                      [result.field]: result.message,
+                  }
+                : undefined,
     };
-  }
-
-  const parsedInput = tautulliWatchHistorySyncInputSchema.safeParse({
-    mediaType: formData.get("mediaType"),
-    tautulliUserId: formData.get("tautulliUserId"),
-    importLimit: formData.get("importLimit"),
-  });
-
-  if (!parsedInput.success) {
-    const flattenedErrors = parsedInput.error.flatten().fieldErrors;
-
-    return {
-      status: "error",
-      message: "Review the Tautulli sync fields and try again.",
-      fieldErrors: {
-        mediaType: flattenedErrors.mediaType?.[0],
-        tautulliUserId: flattenedErrors.tautulliUserId?.[0],
-        importLimit: flattenedErrors.importLimit?.[0],
-      },
-    };
-  }
-
-  const result = await syncTautulliWatchHistory(session.user.id, parsedInput.data);
-
-  revalidatePath("/settings/history");
-  revalidatePath("/settings/preferences");
-  revalidatePath("/tv");
-  revalidatePath("/movies");
-
-  return {
-    status: result.ok ? "success" : "error",
-    message: result.message,
-    fieldErrors:
-      !result.ok && result.field
-        ? {
-            [result.field]: result.message,
-          }
-        : undefined,
-  };
 }
 
 export async function submitPlexWatchHistorySyncAction(
-  _previousState: PlexWatchHistoryActionState,
-  formData: FormData,
+    _previousState: PlexWatchHistoryActionState,
+    formData: FormData,
 ): Promise<PlexWatchHistoryActionState> {
-  const session = await auth();
+    const session = await auth();
 
-  if (!session?.user?.id) {
+    if (!session?.user?.id) {
+        return {
+            status: "error",
+            message: "You need to sign in again.",
+        };
+    }
+
+    const parsedInput = plexWatchHistorySyncInputSchema.safeParse({
+        mediaType: formData.get("mediaType"),
+        plexUserId: formData.get("plexUserId"),
+        importLimit: formData.get("importLimit"),
+    });
+
+    if (!parsedInput.success) {
+        const flattenedErrors = parsedInput.error.flatten().fieldErrors;
+
+        return {
+            status: "error",
+            message: "Review the Plex sync fields and try again.",
+            fieldErrors: {
+                mediaType: flattenedErrors.mediaType?.[0],
+                plexUserId: flattenedErrors.plexUserId?.[0],
+                importLimit: flattenedErrors.importLimit?.[0],
+            },
+        };
+    }
+
+    const result = await syncPlexWatchHistory(session.user.id, parsedInput.data);
+
+    revalidatePath("/settings/history");
+    revalidatePath("/settings/preferences");
+    revalidatePath("/tv");
+    revalidatePath("/movies");
+
     return {
-      status: "error",
-      message: "You need to sign in again.",
+        status: result.ok ? "success" : "error",
+        message: result.message,
+        fieldErrors:
+            !result.ok && result.field
+                ? {
+                      [result.field]: result.message,
+                  }
+                : undefined,
     };
-  }
-
-  const parsedInput = plexWatchHistorySyncInputSchema.safeParse({
-    mediaType: formData.get("mediaType"),
-    plexUserId: formData.get("plexUserId"),
-    importLimit: formData.get("importLimit"),
-  });
-
-  if (!parsedInput.success) {
-    const flattenedErrors = parsedInput.error.flatten().fieldErrors;
-
-    return {
-      status: "error",
-      message: "Review the Plex sync fields and try again.",
-      fieldErrors: {
-        mediaType: flattenedErrors.mediaType?.[0],
-        plexUserId: flattenedErrors.plexUserId?.[0],
-        importLimit: flattenedErrors.importLimit?.[0],
-      },
-    };
-  }
-
-  const result = await syncPlexWatchHistory(session.user.id, parsedInput.data);
-
-  revalidatePath("/settings/history");
-  revalidatePath("/settings/preferences");
-  revalidatePath("/tv");
-  revalidatePath("/movies");
-
-  return {
-    status: result.ok ? "success" : "error",
-    message: result.message,
-    fieldErrors:
-      !result.ok && result.field
-        ? {
-            [result.field]: result.message,
-          }
-        : undefined,
-  };
 }
 
 export async function submitTraktWatchHistorySyncAction(
-  _previousState: TraktWatchHistoryActionState,
-  formData: FormData,
+    _previousState: TraktWatchHistoryActionState,
+    formData: FormData,
 ): Promise<TraktWatchHistoryActionState> {
-  const session = await auth();
+    const session = await auth();
 
-  if (!session?.user?.id) {
+    if (!session?.user?.id) {
+        return {
+            status: "error",
+            message: "You need to sign in again.",
+        };
+    }
+
+    const parsedInput = traktWatchHistorySyncInputSchema.safeParse({
+        mediaType: formData.get("mediaType"),
+        importLimit: formData.get("importLimit"),
+    });
+
+    if (!parsedInput.success) {
+        const flattenedErrors = parsedInput.error.flatten().fieldErrors;
+
+        return {
+            status: "error",
+            message: "Review the Trakt sync fields and try again.",
+            fieldErrors: {
+                mediaType: flattenedErrors.mediaType?.[0],
+                importLimit: flattenedErrors.importLimit?.[0],
+            },
+        };
+    }
+
+    const result = await syncTraktWatchHistory(session.user.id, parsedInput.data);
+
+    revalidatePath("/settings/history");
+    revalidatePath("/settings/preferences");
+    revalidatePath("/tv");
+    revalidatePath("/movies");
+
     return {
-      status: "error",
-      message: "You need to sign in again.",
+        status: result.ok ? "success" : "error",
+        message: result.message,
     };
-  }
-
-  const parsedInput = traktWatchHistorySyncInputSchema.safeParse({
-    mediaType: formData.get("mediaType"),
-    importLimit: formData.get("importLimit"),
-  });
-
-  if (!parsedInput.success) {
-    const flattenedErrors = parsedInput.error.flatten().fieldErrors;
-
-    return {
-      status: "error",
-      message: "Review the Trakt sync fields and try again.",
-      fieldErrors: {
-        mediaType: flattenedErrors.mediaType?.[0],
-        importLimit: flattenedErrors.importLimit?.[0],
-      },
-    };
-  }
-
-  const result = await syncTraktWatchHistory(session.user.id, parsedInput.data);
-
-  revalidatePath("/settings/history");
-  revalidatePath("/settings/preferences");
-  revalidatePath("/tv");
-  revalidatePath("/movies");
-
-  return {
-    status: result.ok ? "success" : "error",
-    message: result.message,
-  };
 }
 
 export async function submitWatchHistoryScheduleAction(
-  _previousState: WatchHistoryScheduleActionState,
-  formData: FormData,
+    _previousState: WatchHistoryScheduleActionState,
+    formData: FormData,
 ): Promise<WatchHistoryScheduleActionState> {
-  const session = await auth();
+    const session = await auth();
 
-  if (!session?.user?.id) {
+    if (!session?.user?.id) {
+        return {
+            status: "error",
+            message: "You need to sign in again.",
+        };
+    }
+
+    const parsedInput = watchHistoryScheduleInputSchema.safeParse({
+        sourceType: formData.get("sourceType"),
+        intervalHours: formData.get("intervalHours"),
+        enabled: formData.get("enabled") === "on",
+    });
+
+    if (!parsedInput.success) {
+        const flattenedErrors = parsedInput.error.flatten().fieldErrors;
+
+        return {
+            status: "error",
+            message: "Review the schedule fields and try again.",
+            fieldErrors: {
+                sourceType: flattenedErrors.sourceType?.[0],
+                intervalHours: flattenedErrors.intervalHours?.[0],
+            },
+        };
+    }
+
+    const result = await configureWatchHistorySchedule(session.user.id, parsedInput.data);
+
+    revalidatePath("/settings/history");
+
     return {
-      status: "error",
-      message: "You need to sign in again.",
+        status: result.ok ? "success" : "error",
+        message: result.message,
+        fieldErrors:
+            !result.ok && result.field
+                ? {
+                      [result.field]: result.message,
+                  }
+                : undefined,
     };
-  }
-
-  const parsedInput = watchHistoryScheduleInputSchema.safeParse({
-    sourceType: formData.get("sourceType"),
-    intervalHours: formData.get("intervalHours"),
-    enabled: formData.get("enabled") === "on",
-  });
-
-  if (!parsedInput.success) {
-    const flattenedErrors = parsedInput.error.flatten().fieldErrors;
-
-    return {
-      status: "error",
-      message: "Review the schedule fields and try again.",
-      fieldErrors: {
-        sourceType: flattenedErrors.sourceType?.[0],
-        intervalHours: flattenedErrors.intervalHours?.[0],
-      },
-    };
-  }
-
-  const result = await configureWatchHistorySchedule(session.user.id, parsedInput.data);
-
-  revalidatePath("/settings/history");
-
-  return {
-    status: result.ok ? "success" : "error",
-    message: result.message,
-    fieldErrors:
-      !result.ok && result.field
-        ? {
-            [result.field]: result.message,
-          }
-        : undefined,
-  };
 }

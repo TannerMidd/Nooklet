@@ -6,8 +6,8 @@ import { useEffect, useRef } from "react";
 import { linkLibraryTitleTmdbAction } from "@/app/(workspace)/library/actions";
 
 type Props = {
-  titleId: string;
-  hasTmdbId: boolean;
+    titleId: string;
+    hasTmdbId: boolean;
 };
 
 /**
@@ -18,22 +18,22 @@ type Props = {
  * router refresh.
  */
 export function LinkLibraryTitleTmdbOnMount({ titleId, hasTmdbId }: Props) {
-  const router = useRouter();
-  const requested = useRef(false);
+    const router = useRouter();
+    const requested = useRef(false);
 
-  useEffect(() => {
-    if (hasTmdbId || requested.current) {
-      return;
-    }
+    useEffect(() => {
+        if (hasTmdbId || requested.current) {
+            return;
+        }
 
-    requested.current = true;
+        requested.current = true;
 
-    void linkLibraryTitleTmdbAction(titleId).then((result) => {
-      if (result.status === "ok") {
-        router.refresh();
-      }
-    });
-  }, [hasTmdbId, router, titleId]);
+        void linkLibraryTitleTmdbAction(titleId).then((result) => {
+            if (result.status === "ok") {
+                router.refresh();
+            }
+        });
+    }, [hasTmdbId, router, titleId]);
 
-  return null;
+    return null;
 }

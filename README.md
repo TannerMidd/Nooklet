@@ -19,27 +19,27 @@ Native Usenet downloading, intelligent recommendations, and clear operational st
 
 ## One app, the whole journey
 
-| Discover confidently | Request in one flow | Operate without guesswork |
-| :--- | :--- | :--- |
+| Discover confidently                                                                             | Request in one flow                                                                               | Operate without guesswork                                                                                       |
+| :----------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------- |
 | Search TMDB, explore current releases, and use optional AI recommendations shaped by your taste. | Choose a movie, season, or episode and follow it from release search through download and import. | See storage readiness, downloader health, queue state, and the right recovery action when work needs attention. |
 
 Nooklet brings the full media workflow into one coherent interface. Plex, Tautulli, Trakt, Discord, Apprise, and webhooks are optional integrations—the download path itself is built in.
 
 ## See Nooklet in action
 
-| Discovery | Library |
-| :---: | :---: |
+|                                                            Discovery                                                             |                                                           Library                                                            |
+| :------------------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------: |
 | <img src="docs/assets/readme/discover.webp" alt="Current Nooklet Discover screen with filters and trending movies" width="100%"> | <img src="docs/assets/readme/library.webp" alt="Current Nooklet Library overview with movie and TV statistics" width="100%"> |
-| Browse personalized ideas, public catalog trends, and title search from one focused workspace. | Understand the state of every library, title, media file, and monitored item at a glance. |
+|                  Browse personalized ideas, public catalog trends, and title search from one focused workspace.                  |                  Understand the state of every library, title, media file, and monitored item at a glance.                   |
 
 ## What is included
 
-| Product experience | Media engine |
-| :--- | :--- |
-| TMDB discovery, search, artwork, cast, trailers, and watch-provider context | Direct Newznab search with movie, season, and episode request flows |
-| Optional recommendations from any OpenAI-compatible provider | Native NNTP downloading with persisted queue state, pause/resume, verified cancellation, and restart-safe recovery |
-| Movie and TV library views with scanning, monitoring, and file awareness | PAR2 verification and repair, archive extraction, and organized imports |
-| Guided setup, storage preflight, diagnostics, audit history, and recovery actions | One built-in downloader plus optional Plex, Tautulli, and Trakt context |
+| Product experience                                                                | Media engine                                                                                                       |
+| :-------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------- |
+| TMDB discovery, search, artwork, cast, trailers, and watch-provider context       | Direct Newznab search with movie, season, and episode request flows                                                |
+| Optional recommendations from any OpenAI-compatible provider                      | Native NNTP downloading with persisted queue state, pause/resume, verified cancellation, and restart-safe recovery |
+| Movie and TV library views with scanning, monitoring, and file awareness          | PAR2 verification and repair, archive extraction, and organized imports                                            |
+| Guided setup, storage preflight, diagnostics, audit history, and recovery actions | One built-in downloader plus optional Plex, Tautulli, and Trakt context                                            |
 
 ## Run Nooklet
 
@@ -63,11 +63,11 @@ Create the host folders first, then add a machine-specific `docker-compose.overr
 
 ```yaml
 services:
-  app:
-    volumes:
-      - "/srv/media/tv:/media/tv"
-      - "/srv/media/movies:/media/movies"
-      - "/srv/nooklet-downloads:/downloads"
+    app:
+        volumes:
+            - "/srv/media/tv:/media/tv"
+            - "/srv/media/movies:/media/movies"
+            - "/srv/nooklet-downloads:/downloads"
 ```
 
 Use quoted forward-slash paths on Windows, such as `"F:/Nooklet/Downloads:/downloads"`. Then set `DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine` and `APPROVED_MEDIA_ROOTS=/media` in `.env`.

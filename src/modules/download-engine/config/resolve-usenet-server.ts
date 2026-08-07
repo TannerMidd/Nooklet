@@ -16,131 +16,129 @@ import { findServiceConnectionByType } from "@/modules/service-connections/queri
  */
 
 export class UsenetServerConfigError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "UsenetServerConfigError";
-  }
+    constructor(message: string) {
+        super(message);
+        this.name = "UsenetServerConfigError";
+    }
 }
 
 const defaultConnections = 8;
 const maxConnections = 20;
 
 export function parseUsenetServerUrl(rawUrl: string): {
-  host: string;
-  port: number;
-  connections: number;
+    host: string;
+    port: number;
+    connections: number;
 } {
-  let url: URL;
+    let url: URL;
 
-  try {
-    url = new URL(rawUrl.trim());
-  } catch {
-    throw new UsenetServerConfigError(
-      "Enter the news server as nntps://host:port.",
-    );
-  }
+    try {
+        url = new URL(rawUrl.trim());
+    } catch {
+        throw new UsenetServerConfigError("Enter the news server as nntps://host:port.");
+    }
 
-  if (url.protocol === "nntp:") {
-    throw new UsenetServerConfigError(
-      "Plaintext nntp:// is no longer supported because it exposes downloads and credentials on the network. Update the Usenet connection under Settings → Connections to use your provider's TLS port (usually 563).",
-    );
-  }
+    if (url.protocol === "nntp:") {
+        throw new UsenetServerConfigError(
+            "Plaintext nntp:// is no longer supported because it exposes downloads and credentials on the network. Update the Usenet connection under Settings → Connections to use your provider's TLS port (usually 563).",
+        );
+    }
 
-  if (url.protocol !== "nntps:") {
-    throw new UsenetServerConfigError(
-      "The news server URL must start with nntps:// (TLS).",
-    );
-  }
+    if (url.protocol !== "nntps:") {
+        throw new UsenetServerConfigError("The news server URL must start with nntps:// (TLS).");
+    }
 
-  if (!url.hostname) {
-    throw new UsenetServerConfigError("The news server URL is missing a host name.");
-  }
+    if (!url.hostname) {
+        throw new UsenetServerConfigError("The news server URL is missing a host name.");
+    }
 
-  if (url.username || url.password || url.hash) {
-    throw new UsenetServerConfigError(
-      "Put credentials in the credential field and remove URL credentials or fragments.",
-    );
-  }
+    if (url.username || url.password || url.hash) {
+        throw new UsenetServerConfigError(
+            "Put credentials in the credential field and remove URL credentials or fragments.",
+        );
+    }
 
-  const port = url.port ? Number.parseInt(url.port, 10) : 563;
+    const port = url.port ? Number.parseInt(url.port, 10) : 563;
 
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new UsenetServerConfigError("The news server port is invalid.");
-  }
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        throw new UsenetServerConfigError("The news server port is invalid.");
+    }
 
-  const rawConnections = url.searchParams.get("connections");
-  const parsedConnections = rawConnections ? Number.parseInt(rawConnections, 10) : defaultConnections;
-  const connections = Number.isInteger(parsedConnections)
-    ? Math.min(Math.max(parsedConnections, 1), maxConnections)
-    : defaultConnections;
+    const rawConnections = url.searchParams.get("connections");
+    const parsedConnections = rawConnections
+        ? Number.parseInt(rawConnections, 10)
+        : defaultConnections;
+    const connections = Number.isInteger(parsedConnections)
+        ? Math.min(Math.max(parsedConnections, 1), maxConnections)
+        : defaultConnections;
 
-  return { host: url.hostname, port, connections };
+    return { host: url.hostname, port, connections };
 }
 
 export function parseUsenetCredentials(secret: string): {
-  username: string | null;
-  password: string | null;
+    username: string | null;
+    password: string | null;
 } {
-  const trimmed = secret.trim();
+    const trimmed = secret.trim();
 
-  if (/[\r\n]/.test(secret)) {
-    throw new UsenetServerConfigError("Usenet credentials must be a single line.");
-  }
+    if (/[\r\n]/.test(secret)) {
+        throw new UsenetServerConfigError("Usenet credentials must be a single line.");
+    }
 
-  if (!trimmed) {
-    return { username: null, password: null };
-  }
+    if (!trimmed) {
+        return { username: null, password: null };
+    }
 
-  const doubleColon = trimmed.indexOf("::");
+    const doubleColon = trimmed.indexOf("::");
 
-  if (doubleColon !== -1) {
-    return {
-      username: trimmed.slice(0, doubleColon) || null,
-      password: trimmed.slice(doubleColon + 2) || null,
-    };
-  }
+    if (doubleColon !== -1) {
+        return {
+            username: trimmed.slice(0, doubleColon) || null,
+            password: trimmed.slice(doubleColon + 2) || null,
+        };
+    }
 
-  const singleColon = trimmed.indexOf(":");
+    const singleColon = trimmed.indexOf(":");
 
-  if (singleColon !== -1) {
-    return {
-      username: trimmed.slice(0, singleColon) || null,
-      password: trimmed.slice(singleColon + 1) || null,
-    };
-  }
+    if (singleColon !== -1) {
+        return {
+            username: trimmed.slice(0, singleColon) || null,
+            password: trimmed.slice(singleColon + 1) || null,
+        };
+    }
 
-  return { username: trimmed, password: null };
+    return { username: trimmed, password: null };
 }
 
 export type ResolvedUsenetServer = {
-  connectionId: string;
-  status: "configured" | "verified" | "error";
-  server: EngineServerConfig;
+    connectionId: string;
+    status: "configured" | "verified" | "error";
+    server: EngineServerConfig;
 };
 
 /** Loads the user's usenet server as a ready-to-dial engine server config. */
 export async function resolveUsenetServer(userId: string): Promise<ResolvedUsenetServer | null> {
-  const connection = await findServiceConnectionByType(userId, "usenet-server");
+    const connection = await findServiceConnectionByType(userId, "usenet-server");
 
-  if (!connection?.connection.baseUrl) {
-    return null;
-  }
+    if (!connection?.connection.baseUrl) {
+        return null;
+    }
 
-  const parsedUrl = parseUsenetServerUrl(connection.connection.baseUrl);
-  const resolvedAddresses = await assertOutboundHostAllowed(parsedUrl.host);
-  const credentials = connection.secret
-    ? parseUsenetCredentials(decryptSecret(connection.secret.encryptedValue))
-    : { username: null, password: null };
+    const parsedUrl = parseUsenetServerUrl(connection.connection.baseUrl);
+    const resolvedAddresses = await assertOutboundHostAllowed(parsedUrl.host);
+    const credentials = connection.secret
+        ? parseUsenetCredentials(decryptSecret(connection.secret.encryptedValue))
+        : { username: null, password: null };
 
-  return {
-    connectionId: connection.connection.id,
-    status: connection.connection.status,
-    server: {
-      ...parsedUrl,
-      username: credentials.username,
-      password: credentials.password,
-      timeoutMs: 45_000,
-      resolvedAddresses,
-    },
-  };
+    return {
+        connectionId: connection.connection.id,
+        status: connection.connection.status,
+        server: {
+            ...parsedUrl,
+            username: credentials.username,
+            password: credentials.password,
+            timeoutMs: 45_000,
+            resolvedAddresses,
+        },
+    };
 }

@@ -4,13 +4,13 @@ Nooklet persists recurring work in SQLite and executes it through a separately s
 
 ## Scheduled job types
 
-| Job type | Purpose |
-| --- | --- |
-| `watch-history-sync` | Refresh external watch activity. |
-| `recommendation-run` | Generate a recommendation batch. |
-| `media-library-scan` | Reconcile a configured library destination. |
-| `missing-content-search` | Search for monitored missing content. |
-| `metadata-refresh` | Refresh stored title metadata. |
+| Job type                 | Purpose                                     |
+| ------------------------ | ------------------------------------------- |
+| `watch-history-sync`     | Refresh external watch activity.            |
+| `recommendation-run`     | Generate a recommendation batch.            |
+| `media-library-scan`     | Reconcile a configured library destination. |
+| `missing-content-search` | Search for monitored missing content.       |
+| `metadata-refresh`       | Refresh stored title metadata.              |
 
 Schedules, last outcomes, and next runs survive an application restart. Use **Run now** for an intentional one-off execution; do not shorten every schedule to diagnose one failure.
 

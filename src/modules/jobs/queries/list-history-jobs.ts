@@ -7,5 +7,5 @@ import { type JobType } from "@/lib/database/schema";
  * the persistence layer directly.
  */
 export async function listHistoryJobs(userId: string, jobType?: JobType) {
-  return listJobsForUser(userId, jobType);
+    return listJobsForUser(userId, jobType);
 }

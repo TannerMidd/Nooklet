@@ -1,33 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/modules/downloads/workflows/queue-indexer-result", () => {
-  class QueueIndexerResultWorkflowError extends Error {
-    constructor(
-      public readonly code: string,
-      message: string,
-      public readonly capacity: {
-        availableBytes: number;
-        filesystemCapacityBytes: number;
-        requiredBytes: number;
-        activeReservationBytes: number;
-        activeRemainingBytes: number;
-        activeDownloadedBytes: number;
-      } | null = null,
-    ) {
-      super(message);
-      this.name = "QueueIndexerResultWorkflowError";
+    class QueueIndexerResultWorkflowError extends Error {
+        constructor(
+            public readonly code: string,
+            message: string,
+            public readonly capacity: {
+                availableBytes: number;
+                filesystemCapacityBytes: number;
+                requiredBytes: number;
+                activeReservationBytes: number;
+                activeRemainingBytes: number;
+                activeDownloadedBytes: number;
+            } | null = null,
+        ) {
+            super(message);
+            this.name = "QueueIndexerResultWorkflowError";
+        }
     }
-  }
 
-  return {
-    QueueIndexerResultWorkflowError,
-    queueIndexerResultWorkflow: vi.fn(),
-  };
+    return {
+        QueueIndexerResultWorkflowError,
+        queueIndexerResultWorkflow: vi.fn(),
+    };
 });
 
 import {
-  queueIndexerResultWorkflow,
-  QueueIndexerResultWorkflowError,
+    queueIndexerResultWorkflow,
+    QueueIndexerResultWorkflowError,
 } from "@/modules/downloads/workflows/queue-indexer-result";
 
 import { queueReleaseCandidates } from "./queue-attempts";
@@ -35,384 +35,421 @@ import { queueReleaseCandidates } from "./queue-attempts";
 const queueMock = vi.mocked(queueIndexerResultWorkflow);
 
 const context = {
-  mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
-  requestedTitle: "Severance S01E02",
-  targetLibraryId: "e95d5704-d31e-46c2-b1c3-7c1e0c22dbea",
-  targetLibraryPathId: "0ca60f81-387b-47d0-a9d2-571e8dd7a44d",
+    mediaTitleId: "f9cf3e46-c202-46f4-97aa-dd37be8f7766",
+    requestedTitle: "Severance S01E02",
+    targetLibraryId: "e95d5704-d31e-46c2-b1c3-7c1e0c22dbea",
+    targetLibraryPathId: "0ca60f81-387b-47d0-a9d2-571e8dd7a44d",
 };
 
 beforeEach(() => {
-  vi.clearAllMocks();
+    vi.clearAllMocks();
 });
 
 describe("queueReleaseCandidates", () => {
-  it("queues the first candidate and links season and episode when provided", async () => {
-    queueMock.mockResolvedValue({ downloadRequest: { id: "download1" } } as never);
+    it("queues the first candidate and links season and episode when provided", async () => {
+        queueMock.mockResolvedValue({ downloadRequest: { id: "download1" } } as never);
 
-    const outcome = await queueReleaseCandidates(
-      "u1",
-      [{ id: "first" }, { id: "second" }],
-      {
-        ...context,
-        seasonId: "3f0a3c4e-92f4-4f0e-8b3b-24f3a34aa001",
-        episodeId: "7f3f45c2-8ebd-40c5-9ce5-2f3283c20c08",
-      },
-    );
+        const outcome = await queueReleaseCandidates("u1", [{ id: "first" }, { id: "second" }], {
+            ...context,
+            seasonId: "3f0a3c4e-92f4-4f0e-8b3b-24f3a34aa001",
+            episodeId: "7f3f45c2-8ebd-40c5-9ce5-2f3283c20c08",
+        });
 
-    expect(queueMock).toHaveBeenCalledTimes(1);
-    expect(queueMock).toHaveBeenCalledWith("u1", {
-      resultId: "first",
-      mediaTitleId: context.mediaTitleId,
-      requestedTitle: context.requestedTitle,
-      targetLibraryId: context.targetLibraryId,
-      targetLibraryPathId: context.targetLibraryPathId,
-      seasonId: "3f0a3c4e-92f4-4f0e-8b3b-24f3a34aa001",
-      episodeId: "7f3f45c2-8ebd-40c5-9ce5-2f3283c20c08",
-    }, {
-      fulfillmentId: null,
-      attemptStrategy: null,
-      attemptNumber: null,
-      workLease: null,
+        expect(queueMock).toHaveBeenCalledTimes(1);
+        expect(queueMock).toHaveBeenCalledWith(
+            "u1",
+            {
+                resultId: "first",
+                mediaTitleId: context.mediaTitleId,
+                requestedTitle: context.requestedTitle,
+                targetLibraryId: context.targetLibraryId,
+                targetLibraryPathId: context.targetLibraryPathId,
+                seasonId: "3f0a3c4e-92f4-4f0e-8b3b-24f3a34aa001",
+                episodeId: "7f3f45c2-8ebd-40c5-9ce5-2f3283c20c08",
+            },
+            {
+                fulfillmentId: null,
+                attemptStrategy: null,
+                attemptNumber: null,
+                workLease: null,
+            },
+        );
+        expect(outcome).toMatchObject({ queued: true, selectedResultId: "first" });
     });
-    expect(outcome).toMatchObject({ queued: true, selectedResultId: "first" });
-  });
 
-  it("passes the fulfillment work lease through to the queue workflow", async () => {
-    const fulfillmentId = "0ee44176-1f53-4c77-b67b-3708ddb9567a";
-    const workLease = {
-      id: "lease-1",
-      userId: "u1",
-      requestKey: `season-fulfillment:${fulfillmentId}:work`,
-      expiresAt: new Date("2026-07-16T15:15:00.000Z"),
-    };
-    queueMock.mockResolvedValue({ downloadRequest: { id: "download1" } } as never);
+    it("passes the fulfillment work lease through to the queue workflow", async () => {
+        const fulfillmentId = "0ee44176-1f53-4c77-b67b-3708ddb9567a";
+        const workLease = {
+            id: "lease-1",
+            userId: "u1",
+            requestKey: `season-fulfillment:${fulfillmentId}:work`,
+            expiresAt: new Date("2026-07-16T15:15:00.000Z"),
+        };
 
-    await queueReleaseCandidates(
-      "u1",
-      [{ id: "first" }],
-      {
-        ...context,
-        seasonId: "3f0a3c4e-92f4-4f0e-8b3b-24f3a34aa001",
-        fulfillmentId,
-        attemptStrategy: "season_pack",
-        attemptNumber: 2,
-        workLease,
-      },
-    );
+        queueMock.mockResolvedValue({ downloadRequest: { id: "download1" } } as never);
 
-    expect(queueMock).toHaveBeenCalledWith(
-      "u1",
-      expect.objectContaining({
-        resultId: "first",
-        seasonId: "3f0a3c4e-92f4-4f0e-8b3b-24f3a34aa001",
-      }),
-      {
-        fulfillmentId,
-        attemptStrategy: "season_pack",
-        attemptNumber: 2,
-        workLease,
-      },
-    );
-  });
+        await queueReleaseCandidates("u1", [{ id: "first" }], {
+            ...context,
+            seasonId: "3f0a3c4e-92f4-4f0e-8b3b-24f3a34aa001",
+            fulfillmentId,
+            attemptStrategy: "season_pack",
+            attemptNumber: 2,
+            workLease,
+        });
 
-  it("omits season and episode linkage when not provided", async () => {
-    queueMock.mockResolvedValue({ downloadRequest: { id: "download1" } } as never);
-
-    await queueReleaseCandidates("u1", [{ id: "first" }], context);
-
-    expect(queueMock).toHaveBeenCalledWith("u1", {
-      resultId: "first",
-      mediaTitleId: context.mediaTitleId,
-      requestedTitle: context.requestedTitle,
-      targetLibraryId: context.targetLibraryId,
-      targetLibraryPathId: context.targetLibraryPathId,
-    }, {
-      fulfillmentId: null,
-      attemptStrategy: null,
-      attemptNumber: null,
-      workLease: null,
+        expect(queueMock).toHaveBeenCalledWith(
+            "u1",
+            expect.objectContaining({
+                resultId: "first",
+                seasonId: "3f0a3c4e-92f4-4f0e-8b3b-24f3a34aa001",
+            }),
+            {
+                fulfillmentId,
+                attemptStrategy: "season_pack",
+                attemptNumber: 2,
+                workLease,
+            },
+        );
     });
-  });
 
-  it("does not let preflight-only rejects consume the physical candidate budget", async () => {
-    queueMock
-      .mockRejectedValueOnce(new QueueIndexerResultWorkflowError("result_not_found", "Search result expired."))
-      .mockRejectedValueOnce(new QueueIndexerResultWorkflowError("unsupported_protocol", "Torrent releases are not supported yet."))
-      .mockResolvedValueOnce({ downloadRequest: { id: "download3" } } as never);
+    it("omits season and episode linkage when not provided", async () => {
+        queueMock.mockResolvedValue({ downloadRequest: { id: "download1" } } as never);
 
-    const outcome = await queueReleaseCandidates(
-      "u1",
-      [{ id: "first" }, { id: "second" }, { id: "third" }],
-      { ...context, maxCandidateAttempts: 1 },
-    );
+        await queueReleaseCandidates("u1", [{ id: "first" }], context);
 
-    expect(queueMock).toHaveBeenCalledTimes(3);
-    expect(outcome).toMatchObject({
-      queued: true,
-      selectedResultId: "third",
-      rejectedResultIds: [],
+        expect(queueMock).toHaveBeenCalledWith(
+            "u1",
+            {
+                resultId: "first",
+                mediaTitleId: context.mediaTitleId,
+                requestedTitle: context.requestedTitle,
+                targetLibraryId: context.targetLibraryId,
+                targetLibraryPathId: context.targetLibraryPathId,
+            },
+            {
+                fulfillmentId: null,
+                attemptStrategy: null,
+                attemptNumber: null,
+                workLease: null,
+            },
+        );
     });
-  });
 
-  it("tries another candidate when an NZB is release-specific unavailable", async () => {
-    queueMock
-      .mockRejectedValueOnce(new QueueIndexerResultWorkflowError(
-        "release_unavailable",
-        "The NZB document is invalid.",
-      ))
-      .mockResolvedValueOnce({ downloadRequest: { id: "download2" } } as never);
+    it("does not let preflight-only rejects consume the physical candidate budget", async () => {
+        queueMock
+            .mockRejectedValueOnce(
+                new QueueIndexerResultWorkflowError("result_not_found", "Search result expired."),
+            )
+            .mockRejectedValueOnce(
+                new QueueIndexerResultWorkflowError(
+                    "unsupported_protocol",
+                    "Torrent releases are not supported yet.",
+                ),
+            )
+            .mockResolvedValueOnce({ downloadRequest: { id: "download3" } } as never);
 
-    const outcome = await queueReleaseCandidates(
-      "u1",
-      [{ id: "first" }, { id: "second" }],
-      context,
-    );
+        const outcome = await queueReleaseCandidates(
+            "u1",
+            [{ id: "first" }, { id: "second" }, { id: "third" }],
+            { ...context, maxCandidateAttempts: 1 },
+        );
 
-    expect(outcome).toMatchObject({
-      queued: true,
-      selectedResultId: "second",
-      rejectedResultIds: ["first"],
+        expect(queueMock).toHaveBeenCalledTimes(3);
+        expect(outcome).toMatchObject({
+            queued: true,
+            selectedResultId: "third",
+            rejectedResultIds: [],
+        });
     });
-  });
 
-  it("stops on non-retryable errors", async () => {
-    queueMock.mockRejectedValue(
-      new QueueIndexerResultWorkflowError(
-        "downloader_not_verified",
-        "Verify the Usenet server before queueing releases.",
-      ),
-    );
+    it("tries another candidate when an NZB is release-specific unavailable", async () => {
+        queueMock
+            .mockRejectedValueOnce(
+                new QueueIndexerResultWorkflowError(
+                    "release_unavailable",
+                    "The NZB document is invalid.",
+                ),
+            )
+            .mockResolvedValueOnce({ downloadRequest: { id: "download2" } } as never);
 
-    const outcome = await queueReleaseCandidates("u1", [{ id: "first" }, { id: "second" }], context);
+        const outcome = await queueReleaseCandidates(
+            "u1",
+            [{ id: "first" }, { id: "second" }],
+            context,
+        );
 
-    expect(queueMock).toHaveBeenCalledTimes(1);
-    expect(outcome).toMatchObject({
-      queued: false,
-      reason: "queue_failed",
-      failureKind: "infrastructure",
-      message: "Verify the Usenet server before queueing releases.",
-      rejectedResultIds: [],
+        expect(outcome).toMatchObject({
+            queued: true,
+            selectedResultId: "second",
+            rejectedResultIds: ["first"],
+        });
     });
-  });
 
-  it("defers without consuming a release when active reservations explain the shortage", async () => {
-    const capacity = {
-      availableBytes: 10_000,
-      filesystemCapacityBytes: 100_000,
-      requiredBytes: 20_000,
-      activeReservationBytes: 12_000,
-      activeRemainingBytes: 5_000,
-      activeDownloadedBytes: 2_000,
-    };
-    queueMock.mockRejectedValueOnce(new QueueIndexerResultWorkflowError(
-      "download_capacity_exceeded",
-      "There is not enough free disk space.",
-      capacity,
-    ));
+    it("stops on non-retryable errors", async () => {
+        queueMock.mockRejectedValue(
+            new QueueIndexerResultWorkflowError(
+                "downloader_not_verified",
+                "Verify the Usenet server before queueing releases.",
+            ),
+        );
 
-    const outcome = await queueReleaseCandidates(
-      "u1",
-      [{ id: "first" }, { id: "second" }],
-      context,
-    );
+        const outcome = await queueReleaseCandidates(
+            "u1",
+            [{ id: "first" }, { id: "second" }],
+            context,
+        );
 
-    expect(queueMock).toHaveBeenCalledTimes(1);
-    expect(outcome).toMatchObject({
-      queued: false,
-      failureKind: "capacity",
-      capacity,
-      rejectedResultIds: [],
+        expect(queueMock).toHaveBeenCalledTimes(1);
+        expect(outcome).toMatchObject({
+            queued: false,
+            reason: "queue_failed",
+            failureKind: "infrastructure",
+            message: "Verify the Usenet server before queueing releases.",
+            rejectedResultIds: [],
+        });
     });
-  });
 
-  it("rejects an intrinsically oversized release and advances to a smaller candidate", async () => {
-    const capacity = {
-      availableBytes: 10_000,
-      filesystemCapacityBytes: 20_000,
-      requiredBytes: 30_000,
-      activeReservationBytes: 5_000,
-      activeRemainingBytes: 2_000,
-      activeDownloadedBytes: 1_000,
-    };
-    queueMock
-      .mockRejectedValueOnce(new QueueIndexerResultWorkflowError(
-        "download_capacity_exceeded",
-        "The first release cannot fit even after active downloads finish.",
-        capacity,
-      ))
-      .mockResolvedValueOnce({ downloadRequest: { id: "download2" } } as never);
+    it("defers without consuming a release when active reservations explain the shortage", async () => {
+        const capacity = {
+            availableBytes: 10_000,
+            filesystemCapacityBytes: 100_000,
+            requiredBytes: 20_000,
+            activeReservationBytes: 12_000,
+            activeRemainingBytes: 5_000,
+            activeDownloadedBytes: 2_000,
+        };
 
-    const outcome = await queueReleaseCandidates(
-      "u1",
-      [{ id: "first" }, { id: "second" }],
-      context,
-    );
+        queueMock.mockRejectedValueOnce(
+            new QueueIndexerResultWorkflowError(
+                "download_capacity_exceeded",
+                "There is not enough free disk space.",
+                capacity,
+            ),
+        );
 
-    expect(queueMock).toHaveBeenCalledTimes(2);
-    expect(outcome).toMatchObject({
-      queued: true,
-      selectedResultId: "second",
-      rejectedResultIds: ["first"],
+        const outcome = await queueReleaseCandidates(
+            "u1",
+            [{ id: "first" }, { id: "second" }],
+            context,
+        );
+
+        expect(queueMock).toHaveBeenCalledTimes(1);
+        expect(outcome).toMatchObject({
+            queued: false,
+            failureKind: "capacity",
+            capacity,
+            rejectedResultIds: [],
+        });
     });
-  });
 
-  it("reports oversized candidates as release failures after exhausting the budget", async () => {
-    const capacity = {
-      availableBytes: 10_000,
-      filesystemCapacityBytes: 20_000,
-      requiredBytes: 30_000,
-      activeReservationBytes: 5_000,
-      activeRemainingBytes: 2_000,
-      activeDownloadedBytes: 1_000,
-    };
-    queueMock.mockRejectedValue(new QueueIndexerResultWorkflowError(
-      "download_capacity_exceeded",
-      "This release is too large for the configured workspace.",
-      capacity,
-    ));
+    it("rejects an intrinsically oversized release and advances to a smaller candidate", async () => {
+        const capacity = {
+            availableBytes: 10_000,
+            filesystemCapacityBytes: 20_000,
+            requiredBytes: 30_000,
+            activeReservationBytes: 5_000,
+            activeRemainingBytes: 2_000,
+            activeDownloadedBytes: 1_000,
+        };
 
-    const outcome = await queueReleaseCandidates(
-      "u1",
-      [{ id: "first" }, { id: "second" }],
-      { ...context, maxCandidateAttempts: 2 },
-    );
+        queueMock
+            .mockRejectedValueOnce(
+                new QueueIndexerResultWorkflowError(
+                    "download_capacity_exceeded",
+                    "The first release cannot fit even after active downloads finish.",
+                    capacity,
+                ),
+            )
+            .mockResolvedValueOnce({ downloadRequest: { id: "download2" } } as never);
 
-    expect(outcome).toMatchObject({
-      queued: false,
-      failureKind: "release",
-      capacity,
-      rejectedResultIds: ["first", "second"],
+        const outcome = await queueReleaseCandidates(
+            "u1",
+            [{ id: "first" }, { id: "second" }],
+            context,
+        );
+
+        expect(queueMock).toHaveBeenCalledTimes(2);
+        expect(outcome).toMatchObject({
+            queued: true,
+            selectedResultId: "second",
+            rejectedResultIds: ["first"],
+        });
     });
-  });
 
-  it("stops as infrastructure without burning a release when unrelated storage is full", async () => {
-    const capacity = {
-      availableBytes: 10_000,
-      filesystemCapacityBytes: 100_000,
-      requiredBytes: 30_000,
-      activeReservationBytes: 5_000,
-      activeRemainingBytes: 2_000,
-      activeDownloadedBytes: 1_000,
-    };
-    queueMock.mockRejectedValueOnce(new QueueIndexerResultWorkflowError(
-      "download_capacity_exceeded",
-      "The configured workspace does not have enough current free space.",
-      capacity,
-    ));
+    it("reports oversized candidates as release failures after exhausting the budget", async () => {
+        const capacity = {
+            availableBytes: 10_000,
+            filesystemCapacityBytes: 20_000,
+            requiredBytes: 30_000,
+            activeReservationBytes: 5_000,
+            activeRemainingBytes: 2_000,
+            activeDownloadedBytes: 1_000,
+        };
 
-    const outcome = await queueReleaseCandidates(
-      "u1",
-      [{ id: "first" }, { id: "second" }],
-      context,
-    );
+        queueMock.mockRejectedValue(
+            new QueueIndexerResultWorkflowError(
+                "download_capacity_exceeded",
+                "This release is too large for the configured workspace.",
+                capacity,
+            ),
+        );
 
-    expect(queueMock).toHaveBeenCalledTimes(1);
-    expect(outcome).toMatchObject({
-      queued: false,
-      failureKind: "infrastructure",
-      capacity,
-      rejectedResultIds: [],
-      message: expect.stringMatching(/drive\/volume mapping/i),
+        const outcome = await queueReleaseCandidates("u1", [{ id: "first" }, { id: "second" }], {
+            ...context,
+            maxCandidateAttempts: 2,
+        });
+
+        expect(outcome).toMatchObject({
+            queued: false,
+            failureKind: "release",
+            capacity,
+            rejectedResultIds: ["first", "second"],
+        });
     });
-  });
 
-  it("does not reject or consume a candidate when storage telemetry is unavailable", async () => {
-    queueMock.mockRejectedValueOnce(new QueueIndexerResultWorkflowError(
-      "download_capacity_exceeded",
-      "The latest work storage check is stale.",
-      null,
-    ));
+    it("stops as infrastructure without burning a release when unrelated storage is full", async () => {
+        const capacity = {
+            availableBytes: 10_000,
+            filesystemCapacityBytes: 100_000,
+            requiredBytes: 30_000,
+            activeReservationBytes: 5_000,
+            activeRemainingBytes: 2_000,
+            activeDownloadedBytes: 1_000,
+        };
 
-    const outcome = await queueReleaseCandidates(
-      "u1",
-      [{ id: "first" }, { id: "second" }],
-      { ...context, maxCandidateAttempts: 1 },
-    );
+        queueMock.mockRejectedValueOnce(
+            new QueueIndexerResultWorkflowError(
+                "download_capacity_exceeded",
+                "The configured workspace does not have enough current free space.",
+                capacity,
+            ),
+        );
 
-    expect(queueMock).toHaveBeenCalledTimes(1);
-    expect(outcome).toMatchObject({
-      queued: false,
-      failureKind: "infrastructure",
-      rejectedResultIds: [],
-      capacity: null,
+        const outcome = await queueReleaseCandidates(
+            "u1",
+            [{ id: "first" }, { id: "second" }],
+            context,
+        );
+
+        expect(queueMock).toHaveBeenCalledTimes(1);
+        expect(outcome).toMatchObject({
+            queued: false,
+            failureKind: "infrastructure",
+            capacity,
+            rejectedResultIds: [],
+            message: expect.stringMatching(/drive\/volume mapping/i),
+        });
     });
-  });
 
-  it("reports the last error when every candidate fails a retryable check", async () => {
-    queueMock.mockRejectedValue(
-      new QueueIndexerResultWorkflowError("result_not_found", "Search result expired."),
-    );
+    it("does not reject or consume a candidate when storage telemetry is unavailable", async () => {
+        queueMock.mockRejectedValueOnce(
+            new QueueIndexerResultWorkflowError(
+                "download_capacity_exceeded",
+                "The latest work storage check is stale.",
+                null,
+            ),
+        );
 
-    const outcome = await queueReleaseCandidates("u1", [{ id: "first" }, { id: "second" }], context);
+        const outcome = await queueReleaseCandidates("u1", [{ id: "first" }, { id: "second" }], {
+            ...context,
+            maxCandidateAttempts: 1,
+        });
 
-    expect(queueMock).toHaveBeenCalledTimes(2);
-    expect(outcome).toMatchObject({
-      queued: false,
-      reason: "queue_failed",
-      message: "Search result expired.",
-      rejectedResultIds: [],
+        expect(queueMock).toHaveBeenCalledTimes(1);
+        expect(outcome).toMatchObject({
+            queued: false,
+            failureKind: "infrastructure",
+            rejectedResultIds: [],
+            capacity: null,
+        });
     });
-  });
 
-  it("does not exceed a fulfillment's remaining physical-attempt budget", async () => {
-    queueMock.mockRejectedValue(
-      new QueueIndexerResultWorkflowError("release_unavailable", "The NZB document is invalid."),
-    );
+    it("reports the last error when every candidate fails a retryable check", async () => {
+        queueMock.mockRejectedValue(
+            new QueueIndexerResultWorkflowError("result_not_found", "Search result expired."),
+        );
 
-    const outcome = await queueReleaseCandidates(
-      "u1",
-      [{ id: "first" }, { id: "second" }, { id: "third" }],
-      { ...context, maxCandidateAttempts: 2 },
-    );
+        const outcome = await queueReleaseCandidates(
+            "u1",
+            [{ id: "first" }, { id: "second" }],
+            context,
+        );
 
-    expect(queueMock).toHaveBeenCalledTimes(2);
-    expect(queueMock).not.toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ resultId: "third" }),
-      expect.anything(),
-    );
-    expect(outcome).toMatchObject({
-      queued: false,
-      failureKind: "release",
-      rejectedResultIds: ["first", "second"],
+        expect(queueMock).toHaveBeenCalledTimes(2);
+        expect(outcome).toMatchObject({
+            queued: false,
+            reason: "queue_failed",
+            message: "Search result expired.",
+            rejectedResultIds: [],
+        });
     });
-  });
 
-  it("bounds a budgetless pass so one request cannot walk a whole result page", async () => {
-    // Queueing verifies with the news server that a candidate's articles still
-    // exist, so each rejection costs round trips inside a user-facing request.
-    // The remaining candidates are picked up by the next search pass.
-    queueMock.mockRejectedValue(
-      new QueueIndexerResultWorkflowError("release_unavailable", "The release is gone."),
-    );
+    it("does not exceed a fulfillment's remaining physical-attempt budget", async () => {
+        queueMock.mockRejectedValue(
+            new QueueIndexerResultWorkflowError(
+                "release_unavailable",
+                "The NZB document is invalid.",
+            ),
+        );
 
-    const outcome = await queueReleaseCandidates(
-      "u1",
-      Array.from({ length: 25 }, (_, index) => ({ id: `candidate-${index}` })),
-      context,
-    );
+        const outcome = await queueReleaseCandidates(
+            "u1",
+            [{ id: "first" }, { id: "second" }, { id: "third" }],
+            { ...context, maxCandidateAttempts: 2 },
+        );
 
-    expect(queueMock).toHaveBeenCalledTimes(8);
-    expect(outcome).toMatchObject({ queued: false, failureKind: "release" });
-    expect(outcome.rejectedResultIds).toHaveLength(8);
-  });
-
-  it("still tries every candidate when the pass stays under the ceiling", async () => {
-    queueMock
-      .mockRejectedValueOnce(new QueueIndexerResultWorkflowError("release_unavailable", "Gone."))
-      .mockRejectedValueOnce(new QueueIndexerResultWorkflowError("release_unavailable", "Gone."))
-      .mockResolvedValueOnce({ downloadRequest: { id: "download3" } } as never);
-
-    const outcome = await queueReleaseCandidates(
-      "u1",
-      [{ id: "first" }, { id: "second" }, { id: "third" }],
-      context,
-    );
-
-    expect(outcome).toMatchObject({
-      queued: true,
-      selectedResultId: "third",
-      rejectedResultIds: ["first", "second"],
+        expect(queueMock).toHaveBeenCalledTimes(2);
+        expect(queueMock).not.toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ resultId: "third" }),
+            expect.anything(),
+        );
+        expect(outcome).toMatchObject({
+            queued: false,
+            failureKind: "release",
+            rejectedResultIds: ["first", "second"],
+        });
     });
-  });
+
+    it("bounds a budgetless pass so one request cannot walk a whole result page", async () => {
+        // Queueing verifies with the news server that a candidate's articles still
+        // exist, so each rejection costs round trips inside a user-facing request.
+        // The remaining candidates are picked up by the next search pass.
+        queueMock.mockRejectedValue(
+            new QueueIndexerResultWorkflowError("release_unavailable", "The release is gone."),
+        );
+
+        const outcome = await queueReleaseCandidates(
+            "u1",
+            Array.from({ length: 25 }, (_, index) => ({ id: `candidate-${index}` })),
+            context,
+        );
+
+        expect(queueMock).toHaveBeenCalledTimes(8);
+        expect(outcome).toMatchObject({ queued: false, failureKind: "release" });
+        expect(outcome.rejectedResultIds).toHaveLength(8);
+    });
+
+    it("still tries every candidate when the pass stays under the ceiling", async () => {
+        queueMock
+            .mockRejectedValueOnce(
+                new QueueIndexerResultWorkflowError("release_unavailable", "Gone."),
+            )
+            .mockRejectedValueOnce(
+                new QueueIndexerResultWorkflowError("release_unavailable", "Gone."),
+            )
+            .mockResolvedValueOnce({ downloadRequest: { id: "download3" } } as never);
+
+        const outcome = await queueReleaseCandidates(
+            "u1",
+            [{ id: "first" }, { id: "second" }, { id: "third" }],
+            context,
+        );
+
+        expect(outcome).toMatchObject({
+            queued: true,
+            selectedResultId: "third",
+            rejectedResultIds: ["first", "second"],
+        });
+    });
 });

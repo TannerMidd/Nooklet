@@ -3,417 +3,431 @@ import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
+import { decryptSecretWithMetadata, encryptSecret } from "@/lib/security/secret-box";
 import {
-  decryptSecretWithMetadata,
-  encryptSecret,
-} from "@/lib/security/secret-box";
-import {
-  type NotificationChannelType,
-  type NotificationDispatchStatus,
-  type NotificationEventType,
-  notificationChannelEvents,
-  notificationChannels,
-  notificationDispatchAudit,
+    type NotificationChannelType,
+    type NotificationDispatchStatus,
+    type NotificationEventType,
+    notificationChannelEvents,
+    notificationChannels,
+    notificationDispatchAudit,
 } from "@/lib/database/schema";
 
 export type StoredNotificationChannel = typeof notificationChannels.$inferSelect;
 
 export type NotificationChannelView = {
-  id: string;
-  userId: string;
-  channelType: NotificationChannelType;
-  displayName: string;
-  maskedTargetUrl: string;
-  isEnabled: boolean;
-  events: NotificationEventType[];
-  lastDispatchAt: Date | null;
-  lastDispatchStatus: NotificationDispatchStatus | null;
-  lastDispatchMessage: string | null;
-  createdAt: Date;
-  updatedAt: Date;
+    id: string;
+    userId: string;
+    channelType: NotificationChannelType;
+    displayName: string;
+    maskedTargetUrl: string;
+    isEnabled: boolean;
+    events: NotificationEventType[];
+    lastDispatchAt: Date | null;
+    lastDispatchStatus: NotificationDispatchStatus | null;
+    lastDispatchMessage: string | null;
+    createdAt: Date;
+    updatedAt: Date;
 };
 
 type LatestDispatchRow = {
-  channelId: string;
-  dispatchedAt: Date;
-  status: NotificationDispatchStatus;
-  message: string | null;
+    channelId: string;
+    dispatchedAt: Date;
+    status: NotificationDispatchStatus;
+    message: string | null;
 };
 
 export type NotificationDispatchChannel = NotificationChannelView & {
-  targetUrl: string;
+    targetUrl: string;
 };
 
 function resolveTargetUrl(channel: StoredNotificationChannel) {
-  const legacyPlaintext = /^https?:\/\//i.test(channel.targetUrl);
-  const decrypted = legacyPlaintext
-    ? { value: channel.targetUrl, needsRotation: true }
-    : decryptSecretWithMetadata(channel.targetUrl);
+    const legacyPlaintext = /^https?:\/\//i.test(channel.targetUrl);
+    const decrypted = legacyPlaintext
+        ? { value: channel.targetUrl, needsRotation: true }
+        : decryptSecretWithMetadata(channel.targetUrl);
 
-  if (decrypted.needsRotation) {
-    ensureDatabaseReady()
-      .update(notificationChannels)
-      .set({ targetUrl: encryptSecret(decrypted.value) })
-      .where(eq(notificationChannels.id, channel.id))
-      .run();
-  }
+    if (decrypted.needsRotation) {
+        ensureDatabaseReady()
+            .update(notificationChannels)
+            .set({ targetUrl: encryptSecret(decrypted.value) })
+            .where(eq(notificationChannels.id, channel.id))
+            .run();
+    }
 
-  return decrypted.value;
+    return decrypted.value;
 }
 
 function maskTargetUrl(targetUrl: string) {
-  try {
-    const url = new URL(targetUrl);
-    return `${url.protocol}//[hidden]`;
-  } catch {
-    return "[hidden]";
-  }
+    try {
+        const url = new URL(targetUrl);
+
+        return `${url.protocol}//[hidden]`;
+    } catch {
+        return "[hidden]";
+    }
 }
 
 function loadLatestDispatchByChannelIds(channelIds: string[]): Map<string, LatestDispatchRow> {
-  const result = new Map<string, LatestDispatchRow>();
+    const result = new Map<string, LatestDispatchRow>();
 
-  if (channelIds.length === 0) {
-    return result;
-  }
-
-  const database = ensureDatabaseReady();
-  const rows = database
-    .select()
-    .from(notificationDispatchAudit)
-    .where(inArray(notificationDispatchAudit.channelId, channelIds))
-    .orderBy(desc(notificationDispatchAudit.dispatchedAt))
-    .all();
-
-  for (const row of rows) {
-    if (result.has(row.channelId)) {
-      continue;
+    if (channelIds.length === 0) {
+        return result;
     }
 
-    result.set(row.channelId, {
-      channelId: row.channelId,
-      dispatchedAt: row.dispatchedAt,
-      status: row.status,
-      message: row.message,
-    });
-  }
+    const database = ensureDatabaseReady();
+    const rows = database
+        .select()
+        .from(notificationDispatchAudit)
+        .where(inArray(notificationDispatchAudit.channelId, channelIds))
+        .orderBy(desc(notificationDispatchAudit.dispatchedAt))
+        .all();
 
-  return result;
+    for (const row of rows) {
+        if (result.has(row.channelId)) {
+            continue;
+        }
+
+        result.set(row.channelId, {
+            channelId: row.channelId,
+            dispatchedAt: row.dispatchedAt,
+            status: row.status,
+            message: row.message,
+        });
+    }
+
+    return result;
 }
 
 function loadEventsForChannelIds(channelIds: string[]): Map<string, NotificationEventType[]> {
-  const events = new Map<string, NotificationEventType[]>();
+    const events = new Map<string, NotificationEventType[]>();
 
-  if (channelIds.length === 0) {
+    if (channelIds.length === 0) {
+        return events;
+    }
+
+    const database = ensureDatabaseReady();
+    const rows = database
+        .select()
+        .from(notificationChannelEvents)
+        .where(inArray(notificationChannelEvents.channelId, channelIds))
+        .all();
+
+    for (const row of rows) {
+        const list = events.get(row.channelId) ?? [];
+
+        list.push(row.eventType);
+        events.set(row.channelId, list);
+    }
+
     return events;
-  }
-
-  const database = ensureDatabaseReady();
-  const rows = database
-    .select()
-    .from(notificationChannelEvents)
-    .where(inArray(notificationChannelEvents.channelId, channelIds))
-    .all();
-
-  for (const row of rows) {
-    const list = events.get(row.channelId) ?? [];
-    list.push(row.eventType);
-    events.set(row.channelId, list);
-  }
-
-  return events;
 }
 
 function toView(
-  channel: StoredNotificationChannel,
-  events: NotificationEventType[],
-  latestDispatch: LatestDispatchRow | undefined,
+    channel: StoredNotificationChannel,
+    events: NotificationEventType[],
+    latestDispatch: LatestDispatchRow | undefined,
 ): NotificationChannelView {
-  const targetUrl = resolveTargetUrl(channel);
-  return {
-    id: channel.id,
-    userId: channel.userId,
-    channelType: channel.channelType,
-    displayName: channel.displayName,
-    maskedTargetUrl: maskTargetUrl(targetUrl),
-    isEnabled: channel.isEnabled,
-    events,
-    lastDispatchAt: latestDispatch?.dispatchedAt ?? null,
-    lastDispatchStatus: latestDispatch?.status ?? null,
-    lastDispatchMessage: latestDispatch?.message ?? null,
-    createdAt: channel.createdAt,
-    updatedAt: channel.updatedAt,
-  };
+    const targetUrl = resolveTargetUrl(channel);
+
+    return {
+        id: channel.id,
+        userId: channel.userId,
+        channelType: channel.channelType,
+        displayName: channel.displayName,
+        maskedTargetUrl: maskTargetUrl(targetUrl),
+        isEnabled: channel.isEnabled,
+        events,
+        lastDispatchAt: latestDispatch?.dispatchedAt ?? null,
+        lastDispatchStatus: latestDispatch?.status ?? null,
+        lastDispatchMessage: latestDispatch?.message ?? null,
+        createdAt: channel.createdAt,
+        updatedAt: channel.updatedAt,
+    };
 }
 
 function toDispatchChannel(
-  channel: StoredNotificationChannel,
-  events: NotificationEventType[],
-  latestDispatch: LatestDispatchRow | undefined,
+    channel: StoredNotificationChannel,
+    events: NotificationEventType[],
+    latestDispatch: LatestDispatchRow | undefined,
 ): NotificationDispatchChannel {
-  const targetUrl = resolveTargetUrl(channel);
-  return {
-    id: channel.id,
-    userId: channel.userId,
-    channelType: channel.channelType,
-    displayName: channel.displayName,
-    maskedTargetUrl: maskTargetUrl(targetUrl),
-    targetUrl,
-    isEnabled: channel.isEnabled,
-    events,
-    lastDispatchAt: latestDispatch?.dispatchedAt ?? null,
-    lastDispatchStatus: latestDispatch?.status ?? null,
-    lastDispatchMessage: latestDispatch?.message ?? null,
-    createdAt: channel.createdAt,
-    updatedAt: channel.updatedAt,
-  };
+    const targetUrl = resolveTargetUrl(channel);
+
+    return {
+        id: channel.id,
+        userId: channel.userId,
+        channelType: channel.channelType,
+        displayName: channel.displayName,
+        maskedTargetUrl: maskTargetUrl(targetUrl),
+        targetUrl,
+        isEnabled: channel.isEnabled,
+        events,
+        lastDispatchAt: latestDispatch?.dispatchedAt ?? null,
+        lastDispatchStatus: latestDispatch?.status ?? null,
+        lastDispatchMessage: latestDispatch?.message ?? null,
+        createdAt: channel.createdAt,
+        updatedAt: channel.updatedAt,
+    };
 }
 
-export async function listNotificationChannelsForUser(userId: string): Promise<NotificationChannelView[]> {
-  const database = ensureDatabaseReady();
+export async function listNotificationChannelsForUser(
+    userId: string,
+): Promise<NotificationChannelView[]> {
+    const database = ensureDatabaseReady();
 
-  const rows = database
-    .select()
-    .from(notificationChannels)
-    .where(eq(notificationChannels.userId, userId))
-    .orderBy(asc(notificationChannels.displayName))
-    .all();
+    const rows = database
+        .select()
+        .from(notificationChannels)
+        .where(eq(notificationChannels.userId, userId))
+        .orderBy(asc(notificationChannels.displayName))
+        .all();
 
-  const events = loadEventsForChannelIds(rows.map((row) => row.id));
-  const dispatches = loadLatestDispatchByChannelIds(rows.map((row) => row.id));
+    const events = loadEventsForChannelIds(rows.map((row) => row.id));
+    const dispatches = loadLatestDispatchByChannelIds(rows.map((row) => row.id));
 
-  return rows.map((row) => toView(row, events.get(row.id) ?? [], dispatches.get(row.id)));
+    return rows.map((row) => toView(row, events.get(row.id) ?? [], dispatches.get(row.id)));
 }
 
 export async function findNotificationChannelById(
-  userId: string,
-  id: string,
+    userId: string,
+    id: string,
 ): Promise<NotificationChannelView | null> {
-  const database = ensureDatabaseReady();
+    const database = ensureDatabaseReady();
 
-  const row =
-    database
-      .select()
-      .from(notificationChannels)
-      .where(and(eq(notificationChannels.userId, userId), eq(notificationChannels.id, id)))
-      .get() ?? null;
+    const row =
+        database
+            .select()
+            .from(notificationChannels)
+            .where(and(eq(notificationChannels.userId, userId), eq(notificationChannels.id, id)))
+            .get() ?? null;
 
-  if (!row) {
-    return null;
-  }
+    if (!row) {
+        return null;
+    }
 
-  const events = loadEventsForChannelIds([row.id]);
-  const dispatches = loadLatestDispatchByChannelIds([row.id]);
-  return toView(row, events.get(row.id) ?? [], dispatches.get(row.id));
+    const events = loadEventsForChannelIds([row.id]);
+    const dispatches = loadLatestDispatchByChannelIds([row.id]);
+
+    return toView(row, events.get(row.id) ?? [], dispatches.get(row.id));
 }
 
 export async function findNotificationChannelForDispatch(
-  userId: string,
-  id: string,
+    userId: string,
+    id: string,
 ): Promise<NotificationDispatchChannel | null> {
-  const database = ensureDatabaseReady();
-  const row = database
-    .select()
-    .from(notificationChannels)
-    .where(and(eq(notificationChannels.userId, userId), eq(notificationChannels.id, id)))
-    .get() ?? null;
+    const database = ensureDatabaseReady();
+    const row =
+        database
+            .select()
+            .from(notificationChannels)
+            .where(and(eq(notificationChannels.userId, userId), eq(notificationChannels.id, id)))
+            .get() ?? null;
 
-  if (!row) {
-    return null;
-  }
+    if (!row) {
+        return null;
+    }
 
-  const events = loadEventsForChannelIds([row.id]);
-  const dispatches = loadLatestDispatchByChannelIds([row.id]);
-  return toDispatchChannel(row, events.get(row.id) ?? [], dispatches.get(row.id));
+    const events = loadEventsForChannelIds([row.id]);
+    const dispatches = loadLatestDispatchByChannelIds([row.id]);
+
+    return toDispatchChannel(row, events.get(row.id) ?? [], dispatches.get(row.id));
 }
 
 export async function listEnabledNotificationChannelsForEvent(
-  userId: string,
-  eventType: NotificationEventType,
+    userId: string,
+    eventType: NotificationEventType,
 ): Promise<NotificationDispatchChannel[]> {
-  const database = ensureDatabaseReady();
+    const database = ensureDatabaseReady();
 
-  const rows = database
-    .select({
-      channel: notificationChannels,
-    })
-    .from(notificationChannels)
-    .innerJoin(notificationChannelEvents, eq(notificationChannelEvents.channelId, notificationChannels.id))
-    .where(
-      and(
-        eq(notificationChannels.userId, userId),
-        eq(notificationChannels.isEnabled, true),
-        eq(notificationChannelEvents.eventType, eventType),
-      ),
-    )
-    .orderBy(asc(notificationChannels.displayName))
-    .all();
+    const rows = database
+        .select({
+            channel: notificationChannels,
+        })
+        .from(notificationChannels)
+        .innerJoin(
+            notificationChannelEvents,
+            eq(notificationChannelEvents.channelId, notificationChannels.id),
+        )
+        .where(
+            and(
+                eq(notificationChannels.userId, userId),
+                eq(notificationChannels.isEnabled, true),
+                eq(notificationChannelEvents.eventType, eventType),
+            ),
+        )
+        .orderBy(asc(notificationChannels.displayName))
+        .all();
 
-  const channels = rows.map((row) => row.channel);
-  const events = loadEventsForChannelIds(channels.map((channel) => channel.id));
-  const dispatches = loadLatestDispatchByChannelIds(channels.map((channel) => channel.id));
+    const channels = rows.map((row) => row.channel);
+    const events = loadEventsForChannelIds(channels.map((channel) => channel.id));
+    const dispatches = loadLatestDispatchByChannelIds(channels.map((channel) => channel.id));
 
-  return channels.map((channel) =>
-    toDispatchChannel(channel, events.get(channel.id) ?? [], dispatches.get(channel.id))
-  );
+    return channels.map((channel) =>
+        toDispatchChannel(channel, events.get(channel.id) ?? [], dispatches.get(channel.id)),
+    );
 }
 
 type CreateNotificationChannelInput = {
-  userId: string;
-  channelType: NotificationChannelType;
-  displayName: string;
-  targetUrl: string;
-  isEnabled: boolean;
-  events: NotificationEventType[];
+    userId: string;
+    channelType: NotificationChannelType;
+    displayName: string;
+    targetUrl: string;
+    isEnabled: boolean;
+    events: NotificationEventType[];
 };
 
 export async function createNotificationChannel(
-  input: CreateNotificationChannelInput,
+    input: CreateNotificationChannelInput,
 ): Promise<NotificationChannelView> {
-  const database = ensureDatabaseReady();
-  const id = randomUUID();
-  const now = new Date();
+    const database = ensureDatabaseReady();
+    const id = randomUUID();
+    const now = new Date();
 
-  database.transaction((tx) => {
-    tx
-      .insert(notificationChannels)
-      .values({
-        id,
-        userId: input.userId,
-        channelType: input.channelType,
-        displayName: input.displayName,
-        targetUrl: encryptSecret(input.targetUrl),
-        isEnabled: input.isEnabled,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .run();
+    database.transaction((tx) => {
+        tx.insert(notificationChannels)
+            .values({
+                id,
+                userId: input.userId,
+                channelType: input.channelType,
+                displayName: input.displayName,
+                targetUrl: encryptSecret(input.targetUrl),
+                isEnabled: input.isEnabled,
+                createdAt: now,
+                updatedAt: now,
+            })
+            .run();
 
-    const unique = Array.from(new Set(input.events));
-    if (unique.length > 0) {
-      tx
-        .insert(notificationChannelEvents)
-        .values(unique.map((eventType) => ({ channelId: id, eventType })))
-        .run();
+        const unique = Array.from(new Set(input.events));
+
+        if (unique.length > 0) {
+            tx.insert(notificationChannelEvents)
+                .values(unique.map((eventType) => ({ channelId: id, eventType })))
+                .run();
+        }
+    });
+
+    const created = await findNotificationChannelById(input.userId, id);
+
+    if (!created) {
+        throw new Error("Failed to load the notification channel after creation.");
     }
-  });
 
-  const created = await findNotificationChannelById(input.userId, id);
-
-  if (!created) {
-    throw new Error("Failed to load the notification channel after creation.");
-  }
-
-  return created;
+    return created;
 }
 
 type UpdateNotificationChannelInput = {
-  userId: string;
-  id: string;
-  displayName?: string;
-  targetUrl?: string;
-  isEnabled?: boolean;
-  events?: NotificationEventType[];
+    userId: string;
+    id: string;
+    displayName?: string;
+    targetUrl?: string;
+    isEnabled?: boolean;
+    events?: NotificationEventType[];
 };
 
 export async function updateNotificationChannel(
-  input: UpdateNotificationChannelInput,
+    input: UpdateNotificationChannelInput,
 ): Promise<NotificationChannelView | null> {
-  const database = ensureDatabaseReady();
+    const database = ensureDatabaseReady();
 
-  const updates: Partial<typeof notificationChannels.$inferInsert> = {
-    updatedAt: new Date(),
-  };
+    const updates: Partial<typeof notificationChannels.$inferInsert> = {
+        updatedAt: new Date(),
+    };
 
-  if (input.displayName !== undefined) {
-    updates.displayName = input.displayName;
-  }
-
-  if (input.targetUrl !== undefined) {
-    updates.targetUrl = encryptSecret(input.targetUrl);
-  }
-
-  if (input.isEnabled !== undefined) {
-    updates.isEnabled = input.isEnabled;
-  }
-
-  const updated = database.transaction((tx) => {
-    const ownedChannel = tx
-      .select({ id: notificationChannels.id })
-      .from(notificationChannels)
-      .where(and(eq(notificationChannels.userId, input.userId), eq(notificationChannels.id, input.id)))
-      .get();
-
-    if (!ownedChannel) {
-      return false;
+    if (input.displayName !== undefined) {
+        updates.displayName = input.displayName;
     }
 
-    tx
-      .update(notificationChannels)
-      .set(updates)
-      .where(and(eq(notificationChannels.userId, input.userId), eq(notificationChannels.id, input.id)))
-      .run();
-
-    if (input.events !== undefined) {
-      tx
-        .delete(notificationChannelEvents)
-        .where(eq(notificationChannelEvents.channelId, input.id))
-        .run();
-
-      const unique = Array.from(new Set(input.events));
-      if (unique.length > 0) {
-        tx
-          .insert(notificationChannelEvents)
-          .values(unique.map((eventType) => ({ channelId: input.id, eventType })))
-          .run();
-      }
+    if (input.targetUrl !== undefined) {
+        updates.targetUrl = encryptSecret(input.targetUrl);
     }
 
-    return true;
-  });
+    if (input.isEnabled !== undefined) {
+        updates.isEnabled = input.isEnabled;
+    }
 
-  if (!updated) {
-    return null;
-  }
+    const updated = database.transaction((tx) => {
+        const ownedChannel = tx
+            .select({ id: notificationChannels.id })
+            .from(notificationChannels)
+            .where(
+                and(
+                    eq(notificationChannels.userId, input.userId),
+                    eq(notificationChannels.id, input.id),
+                ),
+            )
+            .get();
 
-  return findNotificationChannelById(input.userId, input.id);
+        if (!ownedChannel) {
+            return false;
+        }
+
+        tx.update(notificationChannels)
+            .set(updates)
+            .where(
+                and(
+                    eq(notificationChannels.userId, input.userId),
+                    eq(notificationChannels.id, input.id),
+                ),
+            )
+            .run();
+
+        if (input.events !== undefined) {
+            tx.delete(notificationChannelEvents)
+                .where(eq(notificationChannelEvents.channelId, input.id))
+                .run();
+
+            const unique = Array.from(new Set(input.events));
+
+            if (unique.length > 0) {
+                tx.insert(notificationChannelEvents)
+                    .values(unique.map((eventType) => ({ channelId: input.id, eventType })))
+                    .run();
+            }
+        }
+
+        return true;
+    });
+
+    if (!updated) {
+        return null;
+    }
+
+    return findNotificationChannelById(input.userId, input.id);
 }
 
 export async function recordNotificationDispatchResult(input: {
-  channelId: string;
-  status: NotificationDispatchStatus;
-  message: string | null;
+    channelId: string;
+    status: NotificationDispatchStatus;
+    message: string | null;
 }): Promise<void> {
-  const database = ensureDatabaseReady();
-  const now = new Date();
+    const database = ensureDatabaseReady();
+    const now = new Date();
 
-  database.transaction((tx) => {
-    tx
-      .insert(notificationDispatchAudit)
-      .values({
-        id: randomUUID(),
-        channelId: input.channelId,
-        dispatchedAt: now,
-        status: input.status,
-        message: input.message,
-      })
-      .run();
+    database.transaction((tx) => {
+        tx.insert(notificationDispatchAudit)
+            .values({
+                id: randomUUID(),
+                channelId: input.channelId,
+                dispatchedAt: now,
+                status: input.status,
+                message: input.message,
+            })
+            .run();
 
-    tx
-      .update(notificationChannels)
-      .set({ updatedAt: now })
-      .where(eq(notificationChannels.id, input.channelId))
-      .run();
-  });
+        tx.update(notificationChannels)
+            .set({ updatedAt: now })
+            .where(eq(notificationChannels.id, input.channelId))
+            .run();
+    });
 }
 
 export async function deleteNotificationChannel(userId: string, id: string): Promise<boolean> {
-  const database = ensureDatabaseReady();
+    const database = ensureDatabaseReady();
 
-  const result = database
-    .delete(notificationChannels)
-    .where(and(eq(notificationChannels.userId, userId), eq(notificationChannels.id, id)))
-    .run();
+    const result = database
+        .delete(notificationChannels)
+        .where(and(eq(notificationChannels.userId, userId), eq(notificationChannels.id, id)))
+        .run();
 
-  return result.changes > 0;
+    return result.changes > 0;
 }

@@ -7,11 +7,11 @@ import { z } from "zod";
  * duplicating the common fields.
  */
 export const watchHistorySourceUserSelectionSchema = z.object({
-  selectedUserId: z.string().trim().min(1),
-  selectedUserName: z.string().trim().min(1),
-  importLimit: z.number().int().min(1).max(500),
+    selectedUserId: z.string().trim().min(1),
+    selectedUserName: z.string().trim().min(1),
+    importLimit: z.number().int().min(1).max(500),
 });
 
 export type WatchHistorySourceUserSelectionMetadata = z.infer<
-  typeof watchHistorySourceUserSelectionSchema
+    typeof watchHistorySourceUserSelectionSchema
 >;

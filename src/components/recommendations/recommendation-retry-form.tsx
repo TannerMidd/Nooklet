@@ -3,9 +3,7 @@
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
-import {
-  initialRecommendationRunActionState,
-} from "@/app/(workspace)/recommendation-action-state";
+import { initialRecommendationRunActionState } from "@/app/(workspace)/recommendation-action-state";
 import { submitRecommendationRetryAction } from "@/app/(workspace)/recommendation-actions";
 import { Button } from "@/components/ui/button";
 import { type RecommendationMediaType, type RecommendationRunStatus } from "@/lib/database/schema";
@@ -13,70 +11,68 @@ import { cn } from "@/lib/utils";
 import { type RecommendationGenre } from "@/modules/recommendations/recommendation-genres";
 
 type RecommendationRetryFormProps = {
-  mediaType: RecommendationMediaType;
-  requestPrompt: string;
-  selectedGenres: RecommendationGenre[];
-  requestedCount: number;
-  aiModel: string;
-  aiTemperature: number;
-  redirectPath: string;
-  runStatus: RecommendationRunStatus;
-  className?: string;
+    mediaType: RecommendationMediaType;
+    requestPrompt: string;
+    selectedGenres: RecommendationGenre[];
+    requestedCount: number;
+    aiModel: string;
+    aiTemperature: number;
+    redirectPath: string;
+    runStatus: RecommendationRunStatus;
+    className?: string;
 };
 
 function SubmitButton({ runStatus }: { runStatus: RecommendationRunStatus }) {
-  const { pending } = useFormStatus();
+    const { pending } = useFormStatus();
 
-  if (runStatus === "failed") {
+    if (runStatus === "failed") {
+        return (
+            <Button type="submit" variant="secondary" size="sm">
+                {pending ? "Retrying..." : "Retry request"}
+            </Button>
+        );
+    }
+
     return (
-      <Button type="submit" variant="secondary" size="sm">
-        {pending ? "Retrying..." : "Retry request"}
-      </Button>
+        <Button type="submit" variant="secondary" size="sm">
+            {pending ? "Running..." : "Run again"}
+        </Button>
     );
-  }
-
-  return (
-    <Button type="submit" variant="secondary" size="sm">
-      {pending ? "Running..." : "Run again"}
-    </Button>
-  );
 }
 
 export function RecommendationRetryForm({
-  mediaType,
-  requestPrompt,
-  selectedGenres,
-  requestedCount,
-  aiModel,
-  aiTemperature,
-  redirectPath,
-  runStatus,
-  className,
+    mediaType,
+    requestPrompt,
+    selectedGenres,
+    requestedCount,
+    aiModel,
+    aiTemperature,
+    redirectPath,
+    runStatus,
+    className,
 }: RecommendationRetryFormProps) {
-  const [state, formAction] = useActionState(
-    submitRecommendationRetryAction,
-    initialRecommendationRunActionState,
-  );
+    const [state, formAction] = useActionState(
+        submitRecommendationRetryAction,
+        initialRecommendationRunActionState,
+    );
 
-  return (
-    <form action={formAction} className={cn("space-y-2", className)}>
-      <input type="hidden" name="mediaType" value={mediaType} />
-      <input type="hidden" name="requestPrompt" value={requestPrompt} />
-      {selectedGenres.map((genre) => (
-        <input key={genre} type="hidden" name="selectedGenres" value={genre} />
-      ))}
-      <input type="hidden" name="requestedCount" value={requestedCount} />
-      <input type="hidden" name="aiModel" value={aiModel} />
-      <input type="hidden" name="temperature" value={aiTemperature} />
-      <input type="hidden" name="redirectPath" value={redirectPath} />
+    return (
+        <form action={formAction} className={cn("space-y-2", className)}>
+            <input type="hidden" name="mediaType" value={mediaType} />
+            <input type="hidden" name="requestPrompt" value={requestPrompt} />
+            {selectedGenres.map((genre) => (
+                <input key={genre} type="hidden" name="selectedGenres" value={genre} />
+            ))}
+            <input type="hidden" name="requestedCount" value={requestedCount} />
+            <input type="hidden" name="aiModel" value={aiModel} />
+            <input type="hidden" name="temperature" value={aiTemperature} />
+            <input type="hidden" name="redirectPath" value={redirectPath} />
 
-      <div className="flex flex-wrap gap-3">
-        <SubmitButton runStatus={runStatus} />
-      </div>
+            <div className="flex flex-wrap gap-3">
+                <SubmitButton runStatus={runStatus} />
+            </div>
 
-      {state.message ? (
-        <p className="text-sm text-accent-wine">{state.message}</p>
-      ) : null}
-    </form>
-  );
+            {state.message ? <p className="text-sm text-accent-wine">{state.message}</p> : null}
+        </form>
+    );
 }

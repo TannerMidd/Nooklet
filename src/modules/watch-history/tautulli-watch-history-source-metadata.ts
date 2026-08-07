@@ -5,17 +5,17 @@ import { watchHistorySourceUserSelectionSchema } from "@/modules/watch-history/s
 const tautulliWatchHistorySourceMetadataSchema = watchHistorySourceUserSelectionSchema;
 
 export type TautulliWatchHistorySourceMetadata = z.infer<
-  typeof tautulliWatchHistorySourceMetadataSchema
+    typeof tautulliWatchHistorySourceMetadataSchema
 >;
 
 export function parseTautulliWatchHistorySourceMetadata(
-  metadata: Record<string, unknown> | null | undefined,
+    metadata: Record<string, unknown> | null | undefined,
 ) {
-  const parsed = tautulliWatchHistorySourceMetadataSchema.safeParse(metadata);
+    const parsed = tautulliWatchHistorySourceMetadataSchema.safeParse(metadata);
 
-  if (!parsed.success) {
-    return null;
-  }
+    if (!parsed.success) {
+        return null;
+    }
 
-  return parsed.data;
+    return parsed.data;
 }

@@ -4,22 +4,22 @@ import { type ResolvedTestIndexerConnection } from "./credential-resolution";
 import { type TestIndexerExecution } from "./indexer-execution";
 
 export type PersistedTestIndexerResult = TestIndexerExecution & {
-  testedAt: Date;
+    testedAt: Date;
 };
 
 export async function persistTestIndexerResult(
-  connection: ResolvedTestIndexerConnection,
-  execution: TestIndexerExecution,
+    connection: ResolvedTestIndexerConnection,
+    execution: TestIndexerExecution,
 ): Promise<PersistedTestIndexerResult> {
-  const testedAt = new Date();
+    const testedAt = new Date();
 
-  await updateIndexerConnectionStatus({
-    userId: connection.indexer.userId,
-    id: connection.indexer.id,
-    status: execution.ok ? "verified" : "error",
-    statusMessage: execution.message,
-    lastTestedAt: testedAt,
-  });
+    await updateIndexerConnectionStatus({
+        userId: connection.indexer.userId,
+        id: connection.indexer.id,
+        status: execution.ok ? "verified" : "error",
+        statusMessage: execution.message,
+        lastTestedAt: testedAt,
+    });
 
-  return { ...execution, testedAt };
+    return { ...execution, testedAt };
 }

@@ -1,30 +1,30 @@
 export type CreateManagedUserActionState = {
-  status: "idle" | "error" | "success";
-  message?: string;
-  fieldErrors?: Partial<
-    Record<"displayName" | "email" | "role" | "password" | "confirmPassword", string>
-  >;
+    status: "idle" | "error" | "success";
+    message?: string;
+    fieldErrors?: Partial<
+        Record<"displayName" | "email" | "role" | "password" | "confirmPassword", string>
+    >;
 };
 
 export const initialCreateManagedUserActionState: CreateManagedUserActionState = {
-  status: "idle",
+    status: "idle",
 };
 
 export type ManagedUserMutationActionState = {
-  status: "idle" | "error" | "success";
-  message?: string;
+    status: "idle" | "error" | "success";
+    message?: string;
 };
 
 export const initialManagedUserMutationActionState: ManagedUserMutationActionState = {
-  status: "idle",
+    status: "idle",
 };
 
 export type ResetManagedUserPasswordActionState = {
-  status: "idle" | "error" | "success";
-  message?: string;
-  fieldErrors?: Partial<Record<"newPassword" | "confirmPassword", string>>;
+    status: "idle" | "error" | "success";
+    message?: string;
+    fieldErrors?: Partial<Record<"newPassword" | "confirmPassword", string>>;
 };
 
 export const initialResetManagedUserPasswordActionState: ResetManagedUserPasswordActionState = {
-  status: "idle",
+    status: "idle",
 };

@@ -1,6 +1,6 @@
 import {
-  deleteMediaTitleByIdForUser,
-  type MediaTitleRecord,
+    deleteMediaTitleByIdForUser,
+    type MediaTitleRecord,
 } from "@/modules/media-library/repositories/media-library-repository";
 
 /**
@@ -9,8 +9,8 @@ import {
  * exist for this user.
  */
 export async function deleteTitleRecord(
-  userId: string,
-  titleId: string,
+    userId: string,
+    titleId: string,
 ): Promise<MediaTitleRecord | null> {
-  return deleteMediaTitleByIdForUser(userId, titleId);
+    return deleteMediaTitleByIdForUser(userId, titleId);
 }

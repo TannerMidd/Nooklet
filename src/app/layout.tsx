@@ -5,38 +5,36 @@ import { type ReactNode } from "react";
 import "./globals.css";
 
 const headingFont = Fraunces({
-  subsets: ["latin"],
-  variable: "--app-font-heading",
-  style: ["normal", "italic"],
-  axes: ["opsz"],
+    subsets: ["latin"],
+    variable: "--app-font-heading",
+    style: ["normal", "italic"],
+    axes: ["opsz"],
 });
 
 const bodyFont = Instrument_Sans({
-  subsets: ["latin"],
-  variable: "--app-font-body",
-  weight: ["400", "500", "600", "700"],
+    subsets: ["latin"],
+    variable: "--app-font-body",
+    weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
-  title: {
-    default: "Nooklet",
-    template: "%s · Nooklet",
-  },
-  description: "A cozy corner for what's next.",
+    title: {
+        default: "Nooklet",
+        template: "%s · Nooklet",
+    },
+    description: "A cozy corner for what's next.",
 };
 
 type RootLayoutProps = {
-  children: ReactNode;
+    children: ReactNode;
 };
 
 export default function RootLayout({ children }: RootLayoutProps) {
-  return (
-    <html lang="en">
-      <body className={`${headingFont.variable} ${bodyFont.variable}`}>
-        <div id="app-root">
-          {children}
-        </div>
-      </body>
-    </html>
-  );
+    return (
+        <html lang="en">
+            <body className={`${headingFont.variable} ${bodyFont.variable}`}>
+                <div id="app-root">{children}</div>
+            </body>
+        </html>
+    );
 }

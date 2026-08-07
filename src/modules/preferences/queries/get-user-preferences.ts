@@ -1,6 +1,6 @@
 import {
-  getPreferencesByUserId,
-  type PreferenceRecord,
+    getPreferencesByUserId,
+    type PreferenceRecord,
 } from "@/modules/preferences/repositories/preferences-repository";
 
 export type { PreferenceRecord };
@@ -11,5 +11,5 @@ export type { PreferenceRecord };
  * persistence layer directly.
  */
 export async function getUserPreferences(userId: string) {
-  return getPreferencesByUserId(userId);
+    return getPreferencesByUserId(userId);
 }

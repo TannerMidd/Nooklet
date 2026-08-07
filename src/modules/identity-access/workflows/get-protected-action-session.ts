@@ -9,11 +9,11 @@ import { classifySessionAccess } from "@/modules/identity-access/session-access"
  * action so its existing typed error response is preserved.
  */
 export async function getProtectedActionSession() {
-  const session = await auth();
+    const session = await auth();
 
-  if (classifySessionAccess(session) === "password_change_required") {
-    redirect("/settings/account?reason=temporary-password");
-  }
+    if (classifySessionAccess(session) === "password_change_required") {
+        redirect("/settings/account?reason=temporary-password");
+    }
 
-  return session;
+    return session;
 }

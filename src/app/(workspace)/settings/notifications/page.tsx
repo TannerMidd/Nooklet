@@ -7,25 +7,25 @@ import { listNotificationChannels } from "@/modules/notifications/queries/list-n
 export const dynamic = "force-dynamic";
 
 export default async function NotificationsSettingsPage() {
-  const session = await auth();
+    const session = await auth();
 
-  if (!session?.user?.id) {
-    return null;
-  }
+    if (!session?.user?.id) {
+        return null;
+    }
 
-  const channels = await listNotificationChannels(session.user.id);
+    const channels = await listNotificationChannels(session.user.id);
 
-  return (
-    <div className="nk-enter space-y-7">
-      <PageHeader
-        eyebrow="Outbound events"
-        title="Notifications"
-        description="Send download, import, recommendation, and sync outcomes to Discord, Apprise, or any webhook."
-      />
+    return (
+        <div className="nk-enter space-y-7">
+            <PageHeader
+                eyebrow="Outbound events"
+                title="Notifications"
+                description="Send download, import, recommendation, and sync outcomes to Discord, Apprise, or any webhook."
+            />
 
-      <Panel eyebrow="Channels" title="Outbound notifications">
-        <NotificationChannelsForm channels={channels} />
-      </Panel>
-    </div>
-  );
+            <Panel eyebrow="Channels" title="Outbound notifications">
+                <NotificationChannelsForm channels={channels} />
+            </Panel>
+        </div>
+    );
 }

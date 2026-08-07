@@ -3,22 +3,25 @@ import { findActiveDownloadRequestForItem } from "@/modules/downloads/repositori
 import { QueueIndexerResultWorkflowError } from "./errors";
 import { type QueueIndexerResultInput } from "./request-validation";
 
-export async function ensureNoActiveDownloadRequest(userId: string, request: QueueIndexerResultInput) {
-  if (!request.mediaTitleId) {
-    return;
-  }
+export async function ensureNoActiveDownloadRequest(
+    userId: string,
+    request: QueueIndexerResultInput,
+) {
+    if (!request.mediaTitleId) {
+        return;
+    }
 
-  const activeRequest = await findActiveDownloadRequestForItem({
-    userId,
-    mediaTitleId: request.mediaTitleId,
-    episodeId: request.episodeId ?? null,
-    seasonId: request.seasonId ?? null,
-  });
+    const activeRequest = await findActiveDownloadRequestForItem({
+        userId,
+        mediaTitleId: request.mediaTitleId,
+        episodeId: request.episodeId ?? null,
+        seasonId: request.seasonId ?? null,
+    });
 
-  if (activeRequest) {
-    throw new QueueIndexerResultWorkflowError(
-      "active_download_exists",
-      "This library item already has an active download in progress.",
-    );
-  }
+    if (activeRequest) {
+        throw new QueueIndexerResultWorkflowError(
+            "active_download_exists",
+            "This library item already has an active download in progress.",
+        );
+    }
 }

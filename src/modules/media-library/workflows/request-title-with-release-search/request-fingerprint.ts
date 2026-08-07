@@ -9,37 +9,39 @@ import { type RequestTitleWithReleaseSearchInput } from "./request-validation";
  * not.
  */
 export function buildRequestAttemptKey(
-  request: RequestTitleWithReleaseSearchInput,
-  options: { titleId?: string } = {},
+    request: RequestTitleWithReleaseSearchInput,
+    options: { titleId?: string } = {},
 ): string {
-  const identity =
-    typeof request.tmdbId === "number"
-      ? `tmdb:${request.tmdbId}`
-      : options.titleId
-        ? `titleId:${options.titleId}`
-        : `title:${request.title.trim().toLocaleLowerCase()}:${request.year ?? "?"}`;
+    const identity =
+        typeof request.tmdbId === "number"
+            ? `tmdb:${request.tmdbId}`
+            : options.titleId
+              ? `titleId:${options.titleId}`
+              : `title:${request.title.trim().toLocaleLowerCase()}:${request.year ?? "?"}`;
 
-  const selection = encodeSelections(request);
+    const selection = encodeSelections(request);
 
-  return `${request.mediaType}|${identity}|${selection}`;
+    return `${request.mediaType}|${identity}|${selection}`;
 }
 
 function encodeSelections(request: RequestTitleWithReleaseSearchInput): string {
-  if (request.mediaType !== "tv" || !request.selections) {
-    return "all";
-  }
+    if (request.mediaType !== "tv" || !request.selections) {
+        return "all";
+    }
 
-  const selections = request.selections;
+    const selections = request.selections;
 
-  if (selections.mode === "all") {
-    return "tv:all";
-  }
+    if (selections.mode === "all") {
+        return "tv:all";
+    }
 
-  if (selections.mode === "seasons") {
-    const sorted = [...selections.seasons].sort((a, b) => a - b).join(",");
-    return `tv:seasons:${sorted}`;
-  }
+    if (selections.mode === "seasons") {
+        const sorted = [...selections.seasons].sort((a, b) => a - b).join(",");
 
-  const sortedEpisodes = [...selections.episodes].sort((a, b) => a - b).join(",");
-  return `tv:season:${selections.season}:episodes:${sortedEpisodes}`;
+        return `tv:seasons:${sorted}`;
+    }
+
+    const sortedEpisodes = [...selections.episodes].sort((a, b) => a - b).join(",");
+
+    return `tv:season:${selections.season}:episodes:${sortedEpisodes}`;
 }

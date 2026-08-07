@@ -5,15 +5,15 @@ import { auth } from "@/auth";
 import { AppShell } from "@/components/layout/app-shell";
 
 type WorkspaceLayoutProps = {
-  children: ReactNode;
+    children: ReactNode;
 };
 
 export default async function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
-  const session = await auth();
+    const session = await auth();
 
-  if (!session?.user) {
-    redirect("/login");
-  }
+    if (!session?.user) {
+        redirect("/login");
+    }
 
-  return <AppShell user={session.user}>{children}</AppShell>;
+    return <AppShell user={session.user}>{children}</AppShell>;
 }

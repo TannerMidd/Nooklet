@@ -2,30 +2,27 @@ import { createAuditEvent } from "@/modules/users/public";
 import { upsertPreferences } from "@/modules/preferences/repositories/preferences-repository";
 import { type UpdatePreferencesInput } from "@/modules/preferences/schemas/preferences";
 
-export async function updatePreferences(
-  userId: string,
-  input: UpdatePreferencesInput,
-) {
-  const record = await upsertPreferences({
-    userId,
-    ...input,
-  });
+export async function updatePreferences(userId: string, input: UpdatePreferencesInput) {
+    const record = await upsertPreferences({
+        userId,
+        ...input,
+    });
 
-  await createAuditEvent({
-    actorUserId: userId,
-    eventType: "preferences.updated",
-    subjectType: "preferences",
-    subjectId: userId,
-    payloadJson: JSON.stringify({
-      defaultMediaMode: input.defaultMediaMode,
-      defaultResultCount: input.defaultResultCount,
-      libraryTasteSampleSize: input.libraryTasteSampleSize,
-      defaultTemperature: input.defaultTemperature,
-      languagePreference: input.languagePreference,
-      watchHistoryOnly: input.watchHistoryOnly,
-      watchHistorySourceTypes: input.watchHistorySourceTypes,
-    }),
-  });
+    await createAuditEvent({
+        actorUserId: userId,
+        eventType: "preferences.updated",
+        subjectType: "preferences",
+        subjectId: userId,
+        payloadJson: JSON.stringify({
+            defaultMediaMode: input.defaultMediaMode,
+            defaultResultCount: input.defaultResultCount,
+            libraryTasteSampleSize: input.libraryTasteSampleSize,
+            defaultTemperature: input.defaultTemperature,
+            languagePreference: input.languagePreference,
+            watchHistoryOnly: input.watchHistoryOnly,
+            watchHistorySourceTypes: input.watchHistorySourceTypes,
+        }),
+    });
 
-  return record;
+    return record;
 }

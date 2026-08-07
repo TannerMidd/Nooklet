@@ -4,9 +4,9 @@ Nooklet is a self-hosted application for discovering, requesting, downloading, a
 
 ## Choose an installation path
 
-| Path | Best for | You provide |
-| --- | --- | --- |
-| [Docker installation](Docker-Installation) | Most home servers, NAS hosts, and always-on deployments | Docker Compose, media folders, and service credentials |
+| Path                                       | Best for                                                        | You provide                                                                       |
+| ------------------------------------------ | --------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| [Docker installation](Docker-Installation) | Most home servers, NAS hosts, and always-on deployments         | Docker Compose, media folders, and service credentials                            |
 | [Native installation](Native-Installation) | Development and operators who manage Node.js processes directly | Node.js 24, native archive tools, process supervision, and filesystem permissions |
 
 Docker Compose is the recommended path. The image already contains Node.js, SQLite support, PAR2, UnRAR, 7-Zip, the background worker, and the built-in downloader.
@@ -26,17 +26,17 @@ flowchart LR
     B --> R["Ready for first request"]
 ```
 
-| Capability | Required? | Configuration |
-| --- | --- | --- |
-| Browse and identify titles | Yes | A verified TMDB connection |
-| Search releases | Yes | At least one enabled and verified Newznab indexer with movie or TV categories |
-| Download | Yes | A verified Usenet server for the built-in engine |
-| Import | Yes | A reachable, readable, and writable movie or TV library destination |
-| Process background work | Yes | A responsive, non-degraded worker |
-| Download work and staging | Yes | Reachable and writable `DOWNLOAD_ENGINE_WORK_DIR` and `DOWNLOAD_ENGINE_DIR` locations with usable capacity |
-| AI recommendations | No | An OpenAI-compatible AI provider |
-| Watch history | No | Plex, Tautulli, Trakt, or manual imports |
-| Notifications | No | Discord, Apprise, or a generic webhook |
+| Capability                 | Required? | Configuration                                                                                              |
+| -------------------------- | --------- | ---------------------------------------------------------------------------------------------------------- |
+| Browse and identify titles | Yes       | A verified TMDB connection                                                                                 |
+| Search releases            | Yes       | At least one enabled and verified Newznab indexer with movie or TV categories                              |
+| Download                   | Yes       | A verified Usenet server for the built-in engine                                                           |
+| Import                     | Yes       | A reachable, readable, and writable movie or TV library destination                                        |
+| Process background work    | Yes       | A responsive, non-degraded worker                                                                          |
+| Download work and staging  | Yes       | Reachable and writable `DOWNLOAD_ENGINE_WORK_DIR` and `DOWNLOAD_ENGINE_DIR` locations with usable capacity |
+| AI recommendations         | No        | An OpenAI-compatible AI provider                                                                           |
+| Watch history              | No        | Plex, Tautulli, Trakt, or manual imports                                                                   |
+| Notifications              | No        | Discord, Apprise, or a generic webhook                                                                     |
 
 ## Before you begin
 

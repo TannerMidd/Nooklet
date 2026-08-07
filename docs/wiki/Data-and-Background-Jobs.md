@@ -8,12 +8,12 @@ Nooklet uses one SQLite database for durable application state and a separately 
 
 The [database client](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/client.ts) resolves `DATABASE_URL`, creates the parent directory, opens `better-sqlite3`, and applies these pragmas:
 
-| Setting | Value | Operational effect |
-| --- | --- | --- |
+| Setting        | Value    | Operational effect                                                                  |
+| -------------- | -------- | ----------------------------------------------------------------------------------- |
 | `busy_timeout` | 5,000 ms | Wait briefly for a concurrent writer instead of immediately surfacing `SQLITE_BUSY` |
-| `journal_mode` | WAL | Allow readers while writes are committed through the write-ahead log |
-| `synchronous` | NORMAL | Balance commit durability and filesystem synchronization cost |
-| `foreign_keys` | ON | Enforce declared referential constraints |
+| `journal_mode` | WAL      | Allow readers while writes are committed through the write-ahead log                |
+| `synchronous`  | NORMAL   | Balance commit durability and filesystem synchronization cost                       |
+| `foreign_keys` | ON       | Enforce declared referential constraints                                            |
 
 Drizzle migrations are applied by `ensureDatabaseReady()` when the runtime first opens the database and whenever the bundled migration journal changes. The current migration sequence is stored under [`drizzle/`](https://github.com/TannerMidd/Nooklet/tree/main/drizzle).
 
@@ -23,14 +23,14 @@ The shipped Compose file overrides the container database URL to `file:/app/data
 
 The current [schema](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/schema.ts) defines the SQLite tables below. The grouping is conceptual; foreign keys cross several groups, and the schema remains the count and column-level authority.
 
-| Domain | Purpose |
-| --- | --- |
+| Domain                     | Purpose                                                                                                                       |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Identity and configuration | Users, the stable instance-configuration owner, audit events, preferences, service connections, and encrypted service secrets |
-| Library and indexers | Libraries, folders, titles, episodes, files, scans, indexers, categories, secrets, searches, and protected search results |
-| Downloads | Durable season/episode fulfillments, physical requests, queue items, import runs/files, and built-in engine records |
-| Watch history and jobs | History sources/runs/items and persisted jobs |
-| Recommendations | Runs, items, metrics, timeline events, feedback, and hidden state |
-| Security and notifications | Rate limits, request-attempt guards, notification channels/events, and delivery audit |
+| Library and indexers       | Libraries, folders, titles, episodes, files, scans, indexers, categories, secrets, searches, and protected search results     |
+| Downloads                  | Durable season/episode fulfillments, physical requests, queue items, import runs/files, and built-in engine records           |
+| Watch history and jobs     | History sources/runs/items and persisted jobs                                                                                 |
+| Recommendations            | Runs, items, metrics, timeline events, feedback, and hidden state                                                             |
+| Security and notifications | Rate limits, request-attempt guards, notification channels/events, and delivery audit                                         |
 
 ```mermaid
 erDiagram
@@ -142,15 +142,15 @@ sequenceDiagram
 
 Key timing values:
 
-| Mechanism | Current value | Source |
-| --- | ---: | --- |
-| Worker poll | 15 seconds | [worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts) |
-| Job heartbeat | 30 seconds | [worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts) |
-| Claim lease | 5 minutes | [job repository](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/jobs/repositories/job-repository.ts) |
-| Season work lease | 15 minutes, renewed during work | [fulfillment work lease](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/season-fulfillment-work-lease.ts) |
-| Health stale threshold | 60 seconds | [worker readiness](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker-readiness.ts) |
-| Storage snapshot refresh / kill ceiling | 60 seconds / 30 seconds | [probe coordinator](https://github.com/TannerMidd/Nooklet/blob/main/scripts/lib/storage-probe-coordinator.mjs) |
-| Worker supervisor stale threshold | 120 seconds by default | [heartbeat watchdog](https://github.com/TannerMidd/Nooklet/blob/main/scripts/lib/worker-heartbeat-watchdog.mjs) |
+| Mechanism                               |                   Current value | Source                                                                                                                                     |
+| --------------------------------------- | ------------------------------: | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Worker poll                             |                      15 seconds | [worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts)                                                           |
+| Job heartbeat                           |                      30 seconds | [worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts)                                                           |
+| Claim lease                             |                       5 minutes | [job repository](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/jobs/repositories/job-repository.ts)                          |
+| Season work lease                       | 15 minutes, renewed during work | [fulfillment work lease](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/season-fulfillment-work-lease.ts) |
+| Health stale threshold                  |                      60 seconds | [worker readiness](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker-readiness.ts)                                       |
+| Storage snapshot refresh / kill ceiling |         60 seconds / 30 seconds | [probe coordinator](https://github.com/TannerMidd/Nooklet/blob/main/scripts/lib/storage-probe-coordinator.mjs)                             |
+| Worker supervisor stale threshold       |          120 seconds by default | [heartbeat watchdog](https://github.com/TannerMidd/Nooklet/blob/main/scripts/lib/worker-heartbeat-watchdog.mjs)                            |
 
 After filesystem work and maintenance finish, unrelated network/AI job types may run concurrently while only one job of a given type is claimed by this process at a time. The persisted run token prevents a stale claimant from completing a row it no longer owns. The overall pass is serialized: a timer tick that arrives while the previous pass is unresolved cannot update success or freshness.
 

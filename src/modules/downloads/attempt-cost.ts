@@ -8,13 +8,20 @@
  *
  * Attempts without engine telemetry count conservatively as consuming.
  */
-export function isBudgetFreeDownloadAttempt(engine: {
-  state: string | null;
-  failureKind: string | null;
-  downloadedBytes: number | null;
-} | null | undefined): boolean {
-  return engine != null
-    && engine.state === "failed"
-    && engine.failureKind === "content"
-    && engine.downloadedBytes === 0;
+export function isBudgetFreeDownloadAttempt(
+    engine:
+        | {
+              state: string | null;
+              failureKind: string | null;
+              downloadedBytes: number | null;
+          }
+        | null
+        | undefined,
+): boolean {
+    return (
+        engine != null &&
+        engine.state === "failed" &&
+        engine.failureKind === "content" &&
+        engine.downloadedBytes === 0
+    );
 }

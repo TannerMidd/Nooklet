@@ -6,18 +6,15 @@ import { getBootstrapStatus } from "@/modules/identity-access/workflows/bootstra
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [session, bootstrapStatus] = await Promise.all([
-    auth(),
-    getBootstrapStatus(),
-  ]);
+    const [session, bootstrapStatus] = await Promise.all([auth(), getBootstrapStatus()]);
 
-  if (session?.user) {
-    redirect("/home");
-  }
+    if (session?.user) {
+        redirect("/home");
+    }
 
-  if (bootstrapStatus.isOpen) {
-    redirect("/bootstrap");
-  }
+    if (bootstrapStatus.isOpen) {
+        redirect("/bootstrap");
+    }
 
-  redirect("/login");
+    redirect("/login");
 }

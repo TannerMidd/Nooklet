@@ -8,18 +8,18 @@ Prefer a visual introduction? Start with the public [Feature guide](https://tann
 
 ## Choose your path
 
-| I want to… | Start here |
-| --- | --- |
-| Understand what Nooklet can do | [Feature guide](https://tannermidd.github.io/Nooklet/features/) |
-| Follow the clean path from setup through daily use | [User guide](https://tannermidd.github.io/Nooklet/guide/) |
-| Install Nooklet with Docker | [Docker installation](Docker-Installation) |
-| Reach the first successful request | [First-time setup](First-Time-Setup) |
-| Fix an “insufficient disk space” message | [Storage and path mapping](Storage-and-Path-Mapping#download-capacity-policy) |
-| Connect TMDB, Usenet, Plex, or another service | [Service connections](Service-Connections) |
-| Back up or upgrade safely | [Backup, restore, and upgrades](Backup-Restore-and-Upgrades) |
-| Diagnose an unhealthy container or failed request | [Troubleshooting](Troubleshooting) |
-| Understand the system design | [Architecture](Architecture) and the [engineering dossier](https://tannermidd.github.io/Nooklet/) |
-| Develop or contribute | [Development guide](Development-Guide) |
+| I want to…                                         | Start here                                                                                        |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Understand what Nooklet can do                     | [Feature guide](https://tannermidd.github.io/Nooklet/features/)                                   |
+| Follow the clean path from setup through daily use | [User guide](https://tannermidd.github.io/Nooklet/guide/)                                         |
+| Install Nooklet with Docker                        | [Docker installation](Docker-Installation)                                                        |
+| Reach the first successful request                 | [First-time setup](First-Time-Setup)                                                              |
+| Fix an “insufficient disk space” message           | [Storage and path mapping](Storage-and-Path-Mapping#download-capacity-policy)                     |
+| Connect TMDB, Usenet, Plex, or another service     | [Service connections](Service-Connections)                                                        |
+| Back up or upgrade safely                          | [Backup, restore, and upgrades](Backup-Restore-and-Upgrades)                                      |
+| Diagnose an unhealthy container or failed request  | [Troubleshooting](Troubleshooting)                                                                |
+| Understand the system design                       | [Architecture](Architecture) and the [engineering dossier](https://tannermidd.github.io/Nooklet/) |
+| Develop or contribute                              | [Development guide](Development-Guide)                                                            |
 
 ## The shortest path to a request
 

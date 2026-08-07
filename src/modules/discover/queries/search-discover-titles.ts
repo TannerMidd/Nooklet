@@ -1,63 +1,60 @@
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import { getVerifiedTmdbConnection } from "@/modules/service-connections/queries/get-verified-tmdb-connection";
-import {
-  searchTmdbTitles,
-  type TmdbTitleSearchResult,
-} from "@/modules/service-connections/public";
+import { searchTmdbTitles, type TmdbTitleSearchResult } from "@/modules/service-connections/public";
 
 import {
-  searchDiscoverTitlesInputSchema,
-  type SearchDiscoverTitlesInput,
+    searchDiscoverTitlesInputSchema,
+    type SearchDiscoverTitlesInput,
 } from "../schemas/title-search";
 
 export type DiscoverTitleSearchResult = TmdbTitleSearchResult;
 
 export type DiscoverTitleSearch =
-  | {
-      ok: true;
-      mediaType: RecommendationMediaType;
-      query: string;
-      titles: DiscoverTitleSearchResult[];
-    }
-  | {
-      ok: false;
-      reason: "tmdb-not-configured" | "tmdb-error";
-      message: string;
-    };
+    | {
+          ok: true;
+          mediaType: RecommendationMediaType;
+          query: string;
+          titles: DiscoverTitleSearchResult[];
+      }
+    | {
+          ok: false;
+          reason: "tmdb-not-configured" | "tmdb-error";
+          message: string;
+      };
 
 export async function searchDiscoverTitles(
-  userId: string,
-  input: SearchDiscoverTitlesInput,
+    userId: string,
+    input: SearchDiscoverTitlesInput,
 ): Promise<DiscoverTitleSearch> {
-  const parsed = searchDiscoverTitlesInputSchema.parse(input);
-  const tmdbConnection = await getVerifiedTmdbConnection(userId);
+    const parsed = searchDiscoverTitlesInputSchema.parse(input);
+    const tmdbConnection = await getVerifiedTmdbConnection(userId);
 
-  if (!tmdbConnection) {
+    if (!tmdbConnection) {
+        return {
+            ok: false,
+            reason: "tmdb-not-configured",
+            message: "Verify a TMDB connection in Settings -> Connections before searching titles.",
+        };
+    }
+
+    const result = await searchTmdbTitles({
+        ...tmdbConnection,
+        mediaType: parsed.mediaType,
+        query: parsed.query,
+    });
+
+    if (!result.ok) {
+        return {
+            ok: false,
+            reason: "tmdb-error",
+            message: result.message,
+        };
+    }
+
     return {
-      ok: false,
-      reason: "tmdb-not-configured",
-      message: "Verify a TMDB connection in Settings -> Connections before searching titles.",
+        ok: true,
+        mediaType: parsed.mediaType,
+        query: parsed.query,
+        titles: result.titles,
     };
-  }
-
-  const result = await searchTmdbTitles({
-    ...tmdbConnection,
-    mediaType: parsed.mediaType,
-    query: parsed.query,
-  });
-
-  if (!result.ok) {
-    return {
-      ok: false,
-      reason: "tmdb-error",
-      message: result.message,
-    };
-  }
-
-  return {
-    ok: true,
-    mediaType: parsed.mediaType,
-    query: parsed.query,
-    titles: result.titles,
-  };
 }

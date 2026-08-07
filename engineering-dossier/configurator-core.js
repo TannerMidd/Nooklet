@@ -3,191 +3,232 @@ const ENV_REFERENCE = /\$(?:\{[^}]*\}|[A-Za-z_][A-Za-z0-9_]*|\()|%[^%]+%/;
 const BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 function error(field, message) {
-  return { field, message };
+    return { field, message };
 }
 
 export function normalizeHostPath(rawValue, platform, field = "path") {
-  const supplied = String(rawValue ?? "");
-  const raw = supplied.trim();
-  if (!raw) return { error: error(field, "Enter an absolute host folder.") };
-  if (supplied !== raw) {
-    return {
-      error: error(field, "Remove spaces from the beginning or end of this folder."),
-    };
-  }
-  if (CONTROL_CHARACTERS.test(raw) || ENV_REFERENCE.test(raw)) {
-    return {
-      error: error(
-        field,
-        "Enter the full folder path without control characters or environment variables.",
-      ),
-    };
-  }
+    const supplied = String(rawValue ?? "");
+    const raw = supplied.trim();
 
-  if (platform === "windows") {
-    if (raw.startsWith("\\\\") || raw.startsWith("//")) {
-      return {
-        error: error(
-          field,
-          "Mount network storage in Windows first, then use its drive-letter path.",
-        ),
-      };
+    if (!raw) {
+        return { error: error(field, "Enter an absolute host folder.") };
     }
-    let path = raw.replaceAll("\\", "/").replace(/\/+/g, "/").replace(/\/$/, "");
-    if (!/^[A-Za-z]:\/[^/]/.test(path)) {
-      return {
-        error: error(field, "Use an absolute folder such as D:/Media/Movies."),
-      };
-    }
-    path = `${path[0].toUpperCase()}${path.slice(1)}`;
-    const invalidWindowsName = /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$/i;
-    if (
-      path
-        .slice(3)
-        .split("/")
-        .some(
-          (part) =>
-            !part ||
-            part === "." ||
-            part === ".." ||
-            /[<>:"|?*]/.test(part) ||
-            /[. ]$/.test(part) ||
-            invalidWindowsName.test(part),
-        )
-    ) {
-      return { error: error(field, "This Windows folder contains an invalid segment.") };
-    }
-    return { value: path };
-  }
 
-  if (platform === "linux" || platform === "macos") {
-    if (raw.startsWith("//")) {
-      return {
-        error: error(field, "Mount network storage first, then use its local absolute path."),
-      };
+    if (supplied !== raw) {
+        return {
+            error: error(field, "Remove spaces from the beginning or end of this folder."),
+        };
     }
-    const path = raw.replace(/\/+/g, "/").replace(/\/$/, "") || "/";
-    if (!path.startsWith("/") || path === "/") {
-      return {
-        error: error(field, "Use an absolute folder such as /srv/media/movies."),
-      };
-    }
-    if (path.slice(1).split("/").some((part) => !part || part === "." || part === "..")) {
-      return { error: error(field, "Remove dot segments or traversal from this folder.") };
-    }
-    return { value: path };
-  }
 
-  return { error: error("platform", "Choose the operating system that runs Docker.") };
+    if (CONTROL_CHARACTERS.test(raw) || ENV_REFERENCE.test(raw)) {
+        return {
+            error: error(
+                field,
+                "Enter the full folder path without control characters or environment variables.",
+            ),
+        };
+    }
+
+    if (platform === "windows") {
+        if (raw.startsWith("\\\\") || raw.startsWith("//")) {
+            return {
+                error: error(
+                    field,
+                    "Mount network storage in Windows first, then use its drive-letter path.",
+                ),
+            };
+        }
+
+        let path = raw.replaceAll("\\", "/").replace(/\/+/g, "/").replace(/\/$/, "");
+
+        if (!/^[A-Za-z]:\/[^/]/.test(path)) {
+            return {
+                error: error(field, "Use an absolute folder such as D:/Media/Movies."),
+            };
+        }
+
+        path = `${path[0].toUpperCase()}${path.slice(1)}`;
+        const invalidWindowsName = /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$/i;
+
+        if (
+            path
+                .slice(3)
+                .split("/")
+                .some(
+                    (part) =>
+                        !part ||
+                        part === "." ||
+                        part === ".." ||
+                        /[<>:"|?*]/.test(part) ||
+                        /[. ]$/.test(part) ||
+                        invalidWindowsName.test(part),
+                )
+        ) {
+            return { error: error(field, "This Windows folder contains an invalid segment.") };
+        }
+
+        return { value: path };
+    }
+
+    if (platform === "linux" || platform === "macos") {
+        if (raw.startsWith("//")) {
+            return {
+                error: error(
+                    field,
+                    "Mount network storage first, then use its local absolute path.",
+                ),
+            };
+        }
+
+        const path = raw.replace(/\/+/g, "/").replace(/\/$/, "") || "/";
+
+        if (!path.startsWith("/") || path === "/") {
+            return {
+                error: error(field, "Use an absolute folder such as /srv/media/movies."),
+            };
+        }
+
+        if (
+            path
+                .slice(1)
+                .split("/")
+                .some((part) => !part || part === "." || part === "..")
+        ) {
+            return { error: error(field, "Remove dot segments or traversal from this folder.") };
+        }
+
+        return { value: path };
+    }
+
+    return { error: error("platform", "Choose the operating system that runs Docker.") };
 }
 
 function pathsOverlap(left, right, platform) {
-  const normalize = (value) =>
-    platform === "windows" ? value.toLowerCase() : value;
-  const a = normalize(left);
-  const b = normalize(right);
-  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+    const normalize = (value) => (platform === "windows" ? value.toLowerCase() : value);
+    const a = normalize(left);
+    const b = normalize(right);
+
+    return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
 }
 
 export function validateSetupInput(input) {
-  const platform = String(input?.platform ?? "");
-  const errors = [];
-  if (!["windows", "linux", "macos"].includes(platform)) {
-    errors.push(error("platform", "Choose Windows, Linux, or macOS."));
-  }
+    const platform = String(input?.platform ?? "");
+    const errors = [];
 
-  const libraries = [];
-  for (const [index, item] of (input?.libraries ?? []).entries()) {
-    if (!String(item?.path ?? "").trim()) continue;
-    const field = String(item?.field ?? `drive-path-${index + 1}`);
-    const type = item?.type === "tv" ? "tv" : "movies";
-    const normalized = normalizeHostPath(item.path, platform, field);
-    if (normalized.error) errors.push(normalized.error);
-    else libraries.push({ field, type, path: normalized.value });
-  }
-
-  if (libraries.length === 0) {
-    errors.push(error("libraries", "Add at least one movie or TV folder."));
-  }
-
-  const download = normalizeHostPath(
-    input?.downloadPath,
-    platform,
-    "quick-download-path",
-  );
-  if (download.error) errors.push(download.error);
-
-  for (let left = 0; left < libraries.length; left += 1) {
-    for (let right = left + 1; right < libraries.length; right += 1) {
-      if (pathsOverlap(libraries[left].path, libraries[right].path, platform)) {
-        errors.push(
-          error(
-            libraries[right].field,
-            "This folder overlaps another library folder.",
-          ),
-        );
-      }
+    if (!["windows", "linux", "macos"].includes(platform)) {
+        errors.push(error("platform", "Choose Windows, Linux, or macOS."));
     }
-    if (download.value && pathsOverlap(libraries[left].path, download.value, platform)) {
-      errors.push(
-        error(
-          "quick-download-path",
-          "Keep downloads outside the media library so partial files are not scanned.",
-        ),
-      );
+
+    const libraries = [];
+
+    for (const [index, item] of (input?.libraries ?? []).entries()) {
+        if (!String(item?.path ?? "").trim()) {
+            continue;
+        }
+
+        const field = String(item?.field ?? `drive-path-${index + 1}`);
+        const type = item?.type === "tv" ? "tv" : "movies";
+        const normalized = normalizeHostPath(item.path, platform, field);
+
+        if (normalized.error) {
+            errors.push(normalized.error);
+        } else {
+            libraries.push({ field, type, path: normalized.value });
+        }
     }
-  }
 
-  if (errors.length) return { errors, value: null };
+    if (libraries.length === 0) {
+        errors.push(error("libraries", "Add at least one movie or TV folder."));
+    }
 
-  const counts = { movies: 0, tv: 0 };
-  return {
-    errors,
-    value: {
-      platform,
-      downloadPath: download.value,
-      libraries: libraries.map((library) => {
-        counts[library.type] += 1;
-        const suffix = counts[library.type] === 1 ? "" : `-${counts[library.type]}`;
-        return { ...library, target: `/media/${library.type}${suffix}` };
-      }),
-    },
-  };
+    const download = normalizeHostPath(input?.downloadPath, platform, "quick-download-path");
+
+    if (download.error) {
+        errors.push(download.error);
+    }
+
+    for (let left = 0; left < libraries.length; left += 1) {
+        for (let right = left + 1; right < libraries.length; right += 1) {
+            if (pathsOverlap(libraries[left].path, libraries[right].path, platform)) {
+                errors.push(
+                    error(libraries[right].field, "This folder overlaps another library folder."),
+                );
+            }
+        }
+
+        if (download.value && pathsOverlap(libraries[left].path, download.value, platform)) {
+            errors.push(
+                error(
+                    "quick-download-path",
+                    "Keep downloads outside the media library so partial files are not scanned.",
+                ),
+            );
+        }
+    }
+
+    if (errors.length) {
+        return { errors, value: null };
+    }
+
+    const counts = { movies: 0, tv: 0 };
+
+    return {
+        errors,
+        value: {
+            platform,
+            downloadPath: download.value,
+            libraries: libraries.map((library) => {
+                counts[library.type] += 1;
+                const suffix = counts[library.type] === 1 ? "" : `-${counts[library.type]}`;
+
+                return { ...library, target: `/media/${library.type}${suffix}` };
+            }),
+        },
+    };
 }
 
 function bytesToBase64(bytes) {
-  let output = "";
-  for (let index = 0; index < bytes.length; index += 3) {
-    const first = bytes[index];
-    const second = bytes[index + 1];
-    const third = bytes[index + 2];
-    const combined = (first << 16) | ((second ?? 0) << 8) | (third ?? 0);
-    output += BASE64[(combined >> 18) & 63];
-    output += BASE64[(combined >> 12) & 63];
-    output += second === undefined ? "=" : BASE64[(combined >> 6) & 63];
-    output += third === undefined ? "=" : BASE64[combined & 63];
-  }
-  return output;
+    let output = "";
+
+    for (let index = 0; index < bytes.length; index += 3) {
+        const first = bytes[index];
+        const second = bytes[index + 1];
+        const third = bytes[index + 2];
+        const combined = (first << 16) | ((second ?? 0) << 8) | (third ?? 0);
+
+        output += BASE64[(combined >> 18) & 63];
+        output += BASE64[(combined >> 12) & 63];
+        output += second === undefined ? "=" : BASE64[(combined >> 6) & 63];
+        output += third === undefined ? "=" : BASE64[combined & 63];
+    }
+
+    return output;
 }
 
 function generateSecrets(randomSource) {
-  if (!randomSource || typeof randomSource.getRandomValues !== "function") {
-    throw new Error("Secure secret generation is unavailable in this browser.");
-  }
-  const makeSecret = () => {
-    const bytes = new Uint8Array(48);
-    randomSource.getRandomValues(bytes);
-    return bytesToBase64(bytes);
-  };
-  const secrets = [makeSecret(), makeSecret(), makeSecret()];
-  if (new Set(secrets).size !== 3) {
-    throw new Error("Secure secret generation did not produce independent values.");
-  }
-  return secrets;
+    if (!randomSource || typeof randomSource.getRandomValues !== "function") {
+        throw new Error("Secure secret generation is unavailable in this browser.");
+    }
+
+    const makeSecret = () => {
+        const bytes = new Uint8Array(48);
+
+        randomSource.getRandomValues(bytes);
+
+        return bytesToBase64(bytes);
+    };
+
+    const secrets = [makeSecret(), makeSecret(), makeSecret()];
+
+    if (new Set(secrets).size !== 3) {
+        throw new Error("Secure secret generation did not produce independent values.");
+    }
+
+    return secrets;
 }
 
 function buildEnvironment([authSecret, bootstrapToken, secretBoxKey]) {
-  return `APP_URL=http://localhost:42021
+    return `APP_URL=http://localhost:42021
 DATABASE_URL=file:./data/nooklet.db
 APP_BIND_ADDRESS=127.0.0.1
 APP_PORT=42021
@@ -206,55 +247,52 @@ OPERATIONAL_RETENTION_DAYS=365
 }
 
 function yamlString(value) {
-  return JSON.stringify(String(value).split("$").join("$$"));
+    return JSON.stringify(String(value).split("$").join("$$"));
 }
 
 function buildOverride(configuration) {
-  const mounts = [
-    ...configuration.libraries,
-    { path: configuration.downloadPath, target: "/downloads" },
-  ];
-  const lines = ["services:", "  app:", "    volumes:"];
-  for (const mount of mounts) {
-    lines.push(
-      "      - type: bind",
-      `        source: ${yamlString(mount.path)}`,
-      `        target: ${yamlString(mount.target)}`,
-      "        bind:",
-      "          create_host_path: false",
-    );
-  }
-  return `${lines.join("\n")}\n`;
+    const mounts = [
+        ...configuration.libraries,
+        { path: configuration.downloadPath, target: "/downloads" },
+    ];
+    const lines = ["services:", "  app:", "    volumes:"];
+
+    for (const mount of mounts) {
+        lines.push(
+            "      - type: bind",
+            `        source: ${yamlString(mount.path)}`,
+            `        target: ${yamlString(mount.target)}`,
+            "        bind:",
+            "          create_host_path: false",
+        );
+    }
+
+    return `${lines.join("\n")}\n`;
 }
 
 function encodeText(value) {
-  return bytesToBase64(new TextEncoder().encode(value));
+    return bytesToBase64(new TextEncoder().encode(value));
 }
 
 function selectedHostPaths(configuration) {
-  return [
-    ...configuration.libraries.map(({ path }) => path),
-    configuration.downloadPath,
-  ];
+    return [...configuration.libraries.map(({ path }) => path), configuration.downloadPath];
 }
 
 function mountProbe(configuration) {
-  const targets = [
-    ...configuration.libraries.map(({ target }) => target),
-    "/downloads",
-  ];
-  return `set -eu; probe=""; cleanup() { if [ -n "$probe" ]; then rm -f -- "$probe"; fi; }; trap cleanup EXIT HUP INT TERM; for path in ${targets.join(
-    " ",
-  )}; do test -d "$path" || { echo "Mapped folder is unavailable: $path" >&2; exit 1; }; probe=$(mktemp "$path/.nooklet-write-test.XXXXXX") || { echo "Mapped folder is not writable: $path" >&2; exit 1; }; rm -f -- "$probe" || { echo "Could not clean up the write test: $path" >&2; exit 1; }; probe=""; done; trap - EXIT HUP INT TERM`;
+    const targets = [...configuration.libraries.map(({ target }) => target), "/downloads"];
+
+    return `set -eu; probe=""; cleanup() { if [ -n "$probe" ]; then rm -f -- "$probe"; fi; }; trap cleanup EXIT HUP INT TERM; for path in ${targets.join(
+        " ",
+    )}; do test -d "$path" || { echo "Mapped folder is unavailable: $path" >&2; exit 1; }; probe=$(mktemp "$path/.nooklet-write-test.XXXXXX") || { echo "Mapped folder is not writable: $path" >&2; exit 1; }; rm -f -- "$probe" || { echo "Could not clean up the write test: $path" >&2; exit 1; }; probe=""; done; trap - EXIT HUP INT TERM`;
 }
 
 function buildPowerShellCommand(environment, override, configuration) {
-  const encodedEnvironment = encodeText(environment);
-  const encodedOverride = encodeText(override);
-  const encodedHostPaths = encodeText(JSON.stringify(selectedHostPaths(configuration)));
-  const probe = mountProbe(configuration);
+    const encodedEnvironment = encodeText(environment);
+    const encodedOverride = encodeText(override);
+    const encodedHostPaths = encodeText(JSON.stringify(selectedHostPaths(configuration)));
+    const probe = mountProbe(configuration);
 
-  return `& {
+    return `& {
   $PreviousErrorActionPreference = $ErrorActionPreference
   $OriginalLocation = (Get-Location).Path
   $ErrorActionPreference = 'Stop'
@@ -497,32 +535,32 @@ function buildPowerShellCommand(environment, override, configuration) {
 }
 
 function buildPosixCommand(environment, override, configuration) {
-  const platform = configuration.platform;
-  const decode = platform === "macos" ? "base64 -D" : "base64 --decode";
-  const encodedEnvironment = encodeText(environment);
-  const encodedOverride = encodeText(override);
-  const hostChecks = selectedHostPaths(configuration)
-    .map((path) => `  nooklet_require_directory '${encodeText(path)}'`)
-    .join("\n");
-  const probe = mountProbe(configuration);
-  const engineFailure =
-    platform === "macos"
-      ? "Docker is installed, but its engine is not responding. Open or restart Docker Desktop, wait until the engine is running, then paste this same command again. No Nooklet files were created."
-      : "Docker is installed, but its daemon is not reachable. Start Docker or verify access to its socket, then paste this same command again. No Nooklet files were created.";
-  const engineRetryFailure =
-    platform === "macos"
-      ? "Docker Desktop disconnected while setting up Nooklet. Your matching setup files were saved. Restart Docker Desktop, wait for its Linux engine, then paste this same command again."
-      : "The Docker daemon disconnected while setting up Nooklet. Your matching setup files were saved. Start Docker or restore access to its socket, then paste this same command again.";
-  const mountFailure =
-    platform === "macos"
-      ? "Docker could not mount and write to every selected folder. If the output above mentioned EOF, a socket, daemon, or API failure, restart Docker Desktop first. Otherwise share the folders under Settings > Resources > File sharing and choose Apply & restart. Then paste this same command again; matching setup files will be safely reused."
-      : "Docker could not mount and write to every selected folder. Verify that the mounted drives are online and writable by the non-root container user, then paste this same command again; matching setup files will be safely reused.";
-  const startFailure =
-    platform === "macos"
-      ? "Docker stopped before Nooklet became healthy. If the error mentions EOF, a socket, daemon, or API failure, restart Docker Desktop and wait for its engine. Then paste this same command again; matching setup files will be safely reused."
-      : "Docker stopped before Nooklet became healthy. Inspect the error above and run docker compose logs --tail=200 app if needed. Then paste this same command again; matching setup files will be safely reused.";
+    const platform = configuration.platform;
+    const decode = platform === "macos" ? "base64 -D" : "base64 --decode";
+    const encodedEnvironment = encodeText(environment);
+    const encodedOverride = encodeText(override);
+    const hostChecks = selectedHostPaths(configuration)
+        .map((path) => `  nooklet_require_directory '${encodeText(path)}'`)
+        .join("\n");
+    const probe = mountProbe(configuration);
+    const engineFailure =
+        platform === "macos"
+            ? "Docker is installed, but its engine is not responding. Open or restart Docker Desktop, wait until the engine is running, then paste this same command again. No Nooklet files were created."
+            : "Docker is installed, but its daemon is not reachable. Start Docker or verify access to its socket, then paste this same command again. No Nooklet files were created.";
+    const engineRetryFailure =
+        platform === "macos"
+            ? "Docker Desktop disconnected while setting up Nooklet. Your matching setup files were saved. Restart Docker Desktop, wait for its Linux engine, then paste this same command again."
+            : "The Docker daemon disconnected while setting up Nooklet. Your matching setup files were saved. Start Docker or restore access to its socket, then paste this same command again.";
+    const mountFailure =
+        platform === "macos"
+            ? "Docker could not mount and write to every selected folder. If the output above mentioned EOF, a socket, daemon, or API failure, restart Docker Desktop first. Otherwise share the folders under Settings > Resources > File sharing and choose Apply & restart. Then paste this same command again; matching setup files will be safely reused."
+            : "Docker could not mount and write to every selected folder. Verify that the mounted drives are online and writable by the non-root container user, then paste this same command again; matching setup files will be safely reused.";
+    const startFailure =
+        platform === "macos"
+            ? "Docker stopped before Nooklet became healthy. If the error mentions EOF, a socket, daemon, or API failure, restart Docker Desktop and wait for its engine. Then paste this same command again; matching setup files will be safely reused."
+            : "Docker stopped before Nooklet became healthy. Inspect the error above and run docker compose logs --tail=200 app if needed. Then paste this same command again; matching setup files will be safely reused.";
 
-  return `(
+    return `(
   set -eu
   umask 077
   generated_env='${encodedEnvironment}'
@@ -736,25 +774,30 @@ ${hostChecks}
 }
 
 export function createSetupCommand(input, randomSource = globalThis.crypto) {
-  const validation = validateSetupInput(input);
-  if (!validation.value) return { ...validation, command: "", mappings: [] };
-  const environment = buildEnvironment(generateSecrets(randomSource));
-  const override = buildOverride(validation.value);
-  const command =
-    validation.value.platform === "windows"
-      ? buildPowerShellCommand(environment, override, validation.value)
-      : buildPosixCommand(environment, override, validation.value);
-  const mappings = [
-    ...validation.value.libraries.map(({ path, target, type }) => ({
-      label: type === "tv" ? "TV library" : "Movie library",
-      path,
-      target,
-    })),
-    {
-      label: "Downloads / staging",
-      path: validation.value.downloadPath,
-      target: "/downloads",
-    },
-  ];
-  return { ...validation, command, mappings };
+    const validation = validateSetupInput(input);
+
+    if (!validation.value) {
+        return { ...validation, command: "", mappings: [] };
+    }
+
+    const environment = buildEnvironment(generateSecrets(randomSource));
+    const override = buildOverride(validation.value);
+    const command =
+        validation.value.platform === "windows"
+            ? buildPowerShellCommand(environment, override, validation.value)
+            : buildPosixCommand(environment, override, validation.value);
+    const mappings = [
+        ...validation.value.libraries.map(({ path, target, type }) => ({
+            label: type === "tv" ? "TV library" : "Movie library",
+            path,
+            target,
+        })),
+        {
+            label: "Downloads / staging",
+            path: validation.value.downloadPath,
+            target: "/downloads",
+        },
+    ];
+
+    return { ...validation, command, mappings };
 }

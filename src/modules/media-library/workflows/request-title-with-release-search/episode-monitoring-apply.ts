@@ -1,13 +1,13 @@
 import {
-  updateTvEpisodeMonitoring,
-  updateTvSeasonMonitoring,
+    updateTvEpisodeMonitoring,
+    updateTvSeasonMonitoring,
 } from "@/modules/media-library/repositories/media-library-repository";
 
 import { type PersistedSelectionIndex } from "./season-persistence";
 import { type ReleaseSelectionTarget } from "./selection-targets";
 
 function buildEpisodeKey(seasonNumber: number, episodeNumber: number) {
-  return `${seasonNumber}:${episodeNumber}`;
+    return `${seasonNumber}:${episodeNumber}`;
 }
 
 /**
@@ -19,32 +19,34 @@ function buildEpisodeKey(seasonNumber: number, episodeNumber: number) {
  * `monitored = false` get re-monitored when explicitly re-requested.
  */
 export async function applyRequestedTitleMonitoring(
-  userId: string,
-  targets: ReleaseSelectionTarget[],
-  index: PersistedSelectionIndex,
+    userId: string,
+    targets: ReleaseSelectionTarget[],
+    index: PersistedSelectionIndex,
 ): Promise<void> {
-  for (const target of targets) {
-    if (target.kind === "all") {
-      continue;
+    for (const target of targets) {
+        if (target.kind === "all") {
+            continue;
+        }
+
+        if (target.kind === "season") {
+            const seasonId = index.seasonIdByNumber.get(target.season);
+
+            if (!seasonId) {
+                continue;
+            }
+
+            await updateTvSeasonMonitoring({ userId, seasonId, monitored: true });
+            continue;
+        }
+
+        const episodeId = index.episodeIdByNumber.get(
+            buildEpisodeKey(target.season, target.episode),
+        );
+
+        if (!episodeId) {
+            continue;
+        }
+
+        await updateTvEpisodeMonitoring({ userId, episodeId, monitored: true });
     }
-
-    if (target.kind === "season") {
-      const seasonId = index.seasonIdByNumber.get(target.season);
-
-      if (!seasonId) {
-        continue;
-      }
-
-      await updateTvSeasonMonitoring({ userId, seasonId, monitored: true });
-      continue;
-    }
-
-    const episodeId = index.episodeIdByNumber.get(buildEpisodeKey(target.season, target.episode));
-
-    if (!episodeId) {
-      continue;
-    }
-
-    await updateTvEpisodeMonitoring({ userId, episodeId, monitored: true });
-  }
 }

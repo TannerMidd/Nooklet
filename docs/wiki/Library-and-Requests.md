@@ -67,16 +67,16 @@ Library scans reconcile the configured filesystem with stored media state. Autom
 
 ## Common failures
 
-| Symptom | Correct next check |
-| --- | --- |
-| Destination cannot be selected | Attach and verify a destination for that media type. |
-| Path is outside approved roots | Use a container path under `APPROVED_MEDIA_ROOTS`. |
-| Scan works but import fails | The directory may be readable but not writable by the container user. |
-| TV request selects the wrong scope | Review season and episode selection before choosing a release. |
-| A season pack fails | Open **Activity**. A **Recovering** plan is already trying an alternate or individual episodes; no manual retry is needed. |
-| No season pack exists | Confirm the plan switched to individual episodes. Episodes without releases remain scheduled for a later search. |
-| Season recovery says blocked | Read the corrective message, fix storage, destination, downloader, or credentials, then use **Resume season recovery**. |
-| Completed download remains in progress | Inspect the import worker, engine and destination mounts, archive tools, and destination permissions. |
+| Symptom                                | Correct next check                                                                                                         |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Destination cannot be selected         | Attach and verify a destination for that media type.                                                                       |
+| Path is outside approved roots         | Use a container path under `APPROVED_MEDIA_ROOTS`.                                                                         |
+| Scan works but import fails            | The directory may be readable but not writable by the container user.                                                      |
+| TV request selects the wrong scope     | Review season and episode selection before choosing a release.                                                             |
+| A season pack fails                    | Open **Activity**. A **Recovering** plan is already trying an alternate or individual episodes; no manual retry is needed. |
+| No season pack exists                  | Confirm the plan switched to individual episodes. Episodes without releases remain scheduled for a later search.           |
+| Season recovery says blocked           | Read the corrective message, fix storage, destination, downloader, or credentials, then use **Resume season recovery**.    |
+| Completed download remains in progress | Inspect the import worker, engine and destination mounts, archive tools, and destination permissions.                      |
 
 ## Source references
 

@@ -5,7 +5,7 @@ import { useLinkStatus } from "next/link";
 import { cn } from "@/lib/utils";
 
 type LinkPendingOverlayProps = {
-  className?: string;
+    className?: string;
 };
 
 /**
@@ -15,21 +15,21 @@ type LinkPendingOverlayProps = {
  * Requires the parent link to be `position: relative`.
  */
 export function LinkPendingOverlay({ className }: LinkPendingOverlayProps) {
-  const { pending } = useLinkStatus();
+    const { pending } = useLinkStatus();
 
-  if (!pending) {
-    return null;
-  }
+    if (!pending) {
+        return null;
+    }
 
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] bg-background/55",
-        className,
-      )}
-    >
-      <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-    </span>
-  );
+    return (
+        <span
+            aria-hidden="true"
+            className={cn(
+                "pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[inherit] bg-background/55",
+                className,
+            )}
+        >
+            <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+        </span>
+    );
 }

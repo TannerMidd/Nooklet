@@ -1,43 +1,43 @@
 import {
-  formatLanguagePreference,
-  languagePreferenceCodes,
-  type LanguagePreferenceCode,
+    formatLanguagePreference,
+    languagePreferenceCodes,
+    type LanguagePreferenceCode,
 } from "@/modules/preferences/language-preferences";
 
 export function formatRuntime(minutes: number | null | undefined) {
-  if (!minutes) {
-    return null;
-  }
+    if (!minutes) {
+        return null;
+    }
 
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
 
-  return hours > 0 ? `${hours}h ${remainingMinutes}m` : `${remainingMinutes}m`;
+    return hours > 0 ? `${hours}h ${remainingMinutes}m` : `${remainingMinutes}m`;
 }
 
 export function formatOriginalLanguage(value: string | null | undefined) {
-  if (!value) {
-    return "Unknown";
-  }
+    if (!value) {
+        return "Unknown";
+    }
 
-  const normalizedValue = value.toLowerCase();
+    const normalizedValue = value.toLowerCase();
 
-  return languagePreferenceCodes.includes(normalizedValue as LanguagePreferenceCode)
-    ? formatLanguagePreference(normalizedValue as LanguagePreferenceCode)
-    : value.toUpperCase();
+    return languagePreferenceCodes.includes(normalizedValue as LanguagePreferenceCode)
+        ? formatLanguagePreference(normalizedValue as LanguagePreferenceCode)
+        : value.toUpperCase();
 }
 
 export function TitleOverviewFact({
-  label,
-  value,
+    label,
+    value,
 }: {
-  label: string;
-  value: string | number | null | undefined;
+    label: string;
+    value: string | number | null | undefined;
 }) {
-  return (
-    <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
-      <p className="text-xs font-medium text-muted">{label}</p>
-      <p className="mt-1 text-sm leading-6 text-foreground">{value ?? "Unknown"}</p>
-    </div>
-  );
+    return (
+        <div className="rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-4 py-3">
+            <p className="text-xs font-medium text-muted">{label}</p>
+            <p className="mt-1 text-sm leading-6 text-foreground">{value ?? "Unknown"}</p>
+        </div>
+    );
 }

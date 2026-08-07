@@ -1,8 +1,11 @@
-type SessionLike = {
-  user?: {
-    mustChangePassword?: boolean;
-  } | null;
-} | null | undefined;
+type SessionLike =
+    | {
+          user?: {
+              mustChangePassword?: boolean;
+          } | null;
+      }
+    | null
+    | undefined;
 
 export type SessionAccessState = "anonymous" | "password_change_required" | "ready";
 
@@ -11,11 +14,9 @@ export type SessionAccessState = "anonymous" | "password_change_required" | "rea
  * Action boundaries without coupling the edge-compatible proxy to auth.ts.
  */
 export function classifySessionAccess(session: SessionLike): SessionAccessState {
-  if (!session?.user) {
-    return "anonymous";
-  }
+    if (!session?.user) {
+        return "anonymous";
+    }
 
-  return session.user.mustChangePassword === true
-    ? "password_change_required"
-    : "ready";
+    return session.user.mustChangePassword === true ? "password_change_required" : "ready";
 }

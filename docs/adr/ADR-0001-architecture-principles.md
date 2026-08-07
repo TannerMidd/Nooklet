@@ -134,9 +134,9 @@ Each module owns:
    etc.) in UI code to decide policy.
 8. No root component or layout orchestrates multiple workflows.
 9. Recommendation generation, watch-history sync, onboarding, connection
-  verification, admin actions, library scanning, indexer search, and download
-  import are explicit workflows with separate phase files. Phases are not
-  collapsed into one function.
+   verification, admin actions, library scanning, indexer search, and download
+   import are explicit workflows with separate phase files. Phases are not
+   collapsed into one function.
 10. Server-only adapters expose typed capabilities, not ad hoc
     service-specific methods consumed directly by screens.
 

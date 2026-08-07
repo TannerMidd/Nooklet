@@ -91,11 +91,11 @@ usable but incomplete, the plan switches to the episode strategy. Fallback:
 
 Recovery is driven by the failure boundary, not by one generic retry flag.
 
-| Failure class | Examples | Plan behavior |
-| --- | --- | --- |
-| Release/content | unavailable NZB, failed transfer, unusable files, release larger than the entire staging filesystem | Exclude that release, try an alternate, then fall back to episodes |
-| Transient search/runtime | indexer search error, unexpected recoverable workflow error, capacity reserved by active downloads | Persist `retry_wait` and a due time without consuming the release |
-| Conflict/coverage | equivalent request already active | Track the active work and recheck coverage later |
+| Failure class                | Examples                                                                                                                                    | Plan behavior                                                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Release/content              | unavailable NZB, failed transfer, unusable files, release larger than the entire staging filesystem                                         | Exclude that release, try an alternate, then fall back to episodes                                        |
+| Transient search/runtime     | indexer search error, unexpected recoverable workflow error, capacity reserved by active downloads                                          | Persist `retry_wait` and a due time without consuming the release                                         |
+| Conflict/coverage            | equivalent request already active                                                                                                           | Track the active work and recheck coverage later                                                          |
 | Infrastructure/configuration | insufficient non-active free space, wrong staging mount, destination path, downloader connection, credentials, no compatible Newznab source | Stop automatic fan-out without consuming the release and surface a blocked plan requiring operator action |
 
 Immediate alternatives are bounded. An episode that exhausts them becomes

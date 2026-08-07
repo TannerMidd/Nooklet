@@ -9,57 +9,57 @@ import { updatePreferencesInputSchema } from "@/modules/preferences/schemas/pref
 import { updatePreferences } from "@/modules/preferences/workflows/update-preferences";
 
 function checkboxValue(formData: FormData, key: string) {
-  return formData.get(key) === "on";
+    return formData.get(key) === "on";
 }
 
 export async function submitUpdatePreferencesAction(
-  _previousState: UpdatePreferencesActionState,
-  formData: FormData,
+    _previousState: UpdatePreferencesActionState,
+    formData: FormData,
 ): Promise<UpdatePreferencesActionState> {
-  const session = await auth();
+    const session = await auth();
 
-  if (!session?.user?.id) {
-    return {
-      status: "error",
-      message: "You need to sign in again.",
-    };
-  }
+    if (!session?.user?.id) {
+        return {
+            status: "error",
+            message: "You need to sign in again.",
+        };
+    }
 
-  const parsedInput = updatePreferencesInputSchema.safeParse({
-    defaultMediaMode: formData.get("defaultMediaMode"),
-    defaultResultCount: formData.get("defaultResultCount"),
-    libraryTasteSampleSize: formData.get("libraryTasteSampleSize"),
-    defaultTemperature: formData.get("defaultTemperature"),
-    languagePreference: formData.get("languagePreference"),
-    watchHistoryOnly: checkboxValue(formData, "watchHistoryOnly"),
-    watchHistorySourceTypes: formData.getAll("watchHistorySourceTypes"),
-    historyHideExisting: checkboxValue(formData, "historyHideExisting"),
-    historyHideLiked: checkboxValue(formData, "historyHideLiked"),
-    historyHideDisliked: checkboxValue(formData, "historyHideDisliked"),
-    historyHideHidden: checkboxValue(formData, "historyHideHidden"),
-  });
+    const parsedInput = updatePreferencesInputSchema.safeParse({
+        defaultMediaMode: formData.get("defaultMediaMode"),
+        defaultResultCount: formData.get("defaultResultCount"),
+        libraryTasteSampleSize: formData.get("libraryTasteSampleSize"),
+        defaultTemperature: formData.get("defaultTemperature"),
+        languagePreference: formData.get("languagePreference"),
+        watchHistoryOnly: checkboxValue(formData, "watchHistoryOnly"),
+        watchHistorySourceTypes: formData.getAll("watchHistorySourceTypes"),
+        historyHideExisting: checkboxValue(formData, "historyHideExisting"),
+        historyHideLiked: checkboxValue(formData, "historyHideLiked"),
+        historyHideDisliked: checkboxValue(formData, "historyHideDisliked"),
+        historyHideHidden: checkboxValue(formData, "historyHideHidden"),
+    });
 
-  if (!parsedInput.success) {
-    const flattenedErrors = parsedInput.error.flatten().fieldErrors;
+    if (!parsedInput.success) {
+        const flattenedErrors = parsedInput.error.flatten().fieldErrors;
 
-    return {
-      status: "error",
-      message: "Review the highlighted fields and try again.",
-      fieldErrors: {
-        defaultMediaMode: flattenedErrors.defaultMediaMode?.[0],
-        defaultResultCount: flattenedErrors.defaultResultCount?.[0],
-        libraryTasteSampleSize: flattenedErrors.libraryTasteSampleSize?.[0],
-        defaultTemperature: flattenedErrors.defaultTemperature?.[0],
-        languagePreference: flattenedErrors.languagePreference?.[0],
-        watchHistorySourceTypes: flattenedErrors.watchHistorySourceTypes?.[0],
-      },
-    };
-  }
+        return {
+            status: "error",
+            message: "Review the highlighted fields and try again.",
+            fieldErrors: {
+                defaultMediaMode: flattenedErrors.defaultMediaMode?.[0],
+                defaultResultCount: flattenedErrors.defaultResultCount?.[0],
+                libraryTasteSampleSize: flattenedErrors.libraryTasteSampleSize?.[0],
+                defaultTemperature: flattenedErrors.defaultTemperature?.[0],
+                languagePreference: flattenedErrors.languagePreference?.[0],
+                watchHistorySourceTypes: flattenedErrors.watchHistorySourceTypes?.[0],
+            },
+        };
+    }
 
-  await updatePreferences(session.user.id, parsedInput.data);
-  revalidatePath("/settings/preferences");
-  revalidatePath("/tv");
-  revalidatePath("/movies");
-  revalidatePath("/history");
-  redirect("/settings/preferences?updated=1");
+    await updatePreferences(session.user.id, parsedInput.data);
+    revalidatePath("/settings/preferences");
+    revalidatePath("/tv");
+    revalidatePath("/movies");
+    revalidatePath("/history");
+    redirect("/settings/preferences?updated=1");
 }

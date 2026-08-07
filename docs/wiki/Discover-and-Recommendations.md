@@ -4,11 +4,11 @@ Discovery works with TMDB alone. AI recommendations are a separate, optional cap
 
 ## Capability map
 
-| Experience | Required | Optional |
-| --- | --- | --- |
-| Search, trending, details, artwork, cast, trailers, providers | Verified TMDB connection | None |
-| Generate personalized recommendations | A verified OpenAI-compatible connection and healthy worker | TMDB enrichment (required for strict original-language filtering), watch history, and preference context |
-| Request a discovered or recommended title | A ready request path for that media type | Notifications |
+| Experience                                                    | Required                                                   | Optional                                                                                                 |
+| ------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Search, trending, details, artwork, cast, trailers, providers | Verified TMDB connection                                   | None                                                                                                     |
+| Generate personalized recommendations                         | A verified OpenAI-compatible connection and healthy worker | TMDB enrichment (required for strict original-language filtering), watch history, and preference context |
+| Request a discovered or recommended title                     | A ready request path for that media type                   | Notifications                                                                                            |
 
 ## Configure discovery
 
@@ -39,13 +39,13 @@ The selected AI provider receives the prompt and the context assembled for the r
 
 ## Common failures
 
-| Symptom | Check |
-| --- | --- |
-| Discover is empty | Verify TMDB and outbound internet access. |
-| Recommendation remains pending | Confirm the worker is responsive on `/health` and inspect recent logs. |
-| Provider times out | Verify the base URL from inside Docker, model name, provider health, and timeout. |
-| Recommendation is visible but cannot be requested | Setup Center must show a ready movie or TV request path. |
-| A private provider address is rejected | Add its exact host or IP to `PRIVATE_SERVICE_HOST_ALLOWLIST`; see [Service connections](Service-Connections). |
+| Symptom                                           | Check                                                                                                         |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Discover is empty                                 | Verify TMDB and outbound internet access.                                                                     |
+| Recommendation remains pending                    | Confirm the worker is responsive on `/health` and inspect recent logs.                                        |
+| Provider times out                                | Verify the base URL from inside Docker, model name, provider health, and timeout.                             |
+| Recommendation is visible but cannot be requested | Setup Center must show a ready movie or TV request path.                                                      |
+| A private provider address is rejected            | Add its exact host or IP to `PRIVATE_SERVICE_HOST_ALLOWLIST`; see [Service connections](Service-Connections). |
 
 ## Source references
 

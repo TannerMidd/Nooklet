@@ -1,51 +1,51 @@
 import { type ChangePasswordInput } from "@/modules/users/schemas/change-password";
 import { hashPassword, verifyPassword } from "@/modules/users/password-hasher";
 import {
-  createAuditEvent,
-  findUserById,
-  updateUserPassword,
+    createAuditEvent,
+    findUserById,
+    updateUserPassword,
 } from "@/modules/users/repositories/user-repository";
 
 export type ChangePasswordResult =
-  | { ok: true }
-  | {
-      ok: false;
-      message: string;
-      field?: "currentPassword" | "newPassword";
-    };
+    | { ok: true }
+    | {
+          ok: false;
+          message: string;
+          field?: "currentPassword" | "newPassword";
+      };
 
 export async function changePassword(
-  userId: string,
-  input: ChangePasswordInput,
+    userId: string,
+    input: ChangePasswordInput,
 ): Promise<ChangePasswordResult> {
-  const user = await findUserById(userId);
+    const user = await findUserById(userId);
 
-  if (!user || user.isDisabled) {
+    if (!user || user.isDisabled) {
+        return {
+            ok: false,
+            message: "Your account is unavailable.",
+        };
+    }
+
+    if (!(await verifyPassword(input.currentPassword, user.passwordHash))) {
+        return {
+            ok: false,
+            message: "Current password is incorrect.",
+            field: "currentPassword",
+        };
+    }
+
+    const nextPasswordHash = await hashPassword(input.newPassword);
+
+    await updateUserPassword(userId, nextPasswordHash, { mustChangePassword: false });
+    await createAuditEvent({
+        actorUserId: userId,
+        eventType: "users.password.changed",
+        subjectType: "user",
+        subjectId: userId,
+    });
+
     return {
-      ok: false,
-      message: "Your account is unavailable.",
+        ok: true,
     };
-  }
-
-  if (!(await verifyPassword(input.currentPassword, user.passwordHash))) {
-    return {
-      ok: false,
-      message: "Current password is incorrect.",
-      field: "currentPassword",
-    };
-  }
-
-  const nextPasswordHash = await hashPassword(input.newPassword);
-
-  await updateUserPassword(userId, nextPasswordHash, { mustChangePassword: false });
-  await createAuditEvent({
-    actorUserId: userId,
-    eventType: "users.password.changed",
-    subjectType: "user",
-    subjectId: userId,
-  });
-
-  return {
-    ok: true,
-  };
 }

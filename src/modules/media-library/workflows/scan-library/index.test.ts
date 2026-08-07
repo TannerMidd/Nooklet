@@ -1,26 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./request-validation", () => ({
-  scanMediaLibraryInputSchema: { safeParse: vi.fn() },
-  validateScanMediaLibraryRequest: vi.fn(),
+    scanMediaLibraryInputSchema: { safeParse: vi.fn() },
+    validateScanMediaLibraryRequest: vi.fn(),
 }));
 vi.mock("./source-validation", () => ({
-  validateScanSources: vi.fn(),
+    validateScanSources: vi.fn(),
 }));
 vi.mock("./source-fetch", () => ({
-  fetchLibrarySourceFiles: vi.fn(),
+    fetchLibrarySourceFiles: vi.fn(),
 }));
 vi.mock("./normalization", () => ({
-  normalizeLibraryFiles: vi.fn(),
+    normalizeLibraryFiles: vi.fn(),
 }));
 vi.mock("./merge-deduplication", () => ({
-  mergeLibraryScanFiles: vi.fn(),
+    mergeLibraryScanFiles: vi.fn(),
 }));
 vi.mock("./scan-metadata-persistence", () => ({
-  persistLibraryScanMetadata: vi.fn(),
+    persistLibraryScanMetadata: vi.fn(),
 }));
 vi.mock("./audit", () => ({
-  recordLibraryScanAudit: vi.fn(),
+    recordLibraryScanAudit: vi.fn(),
 }));
 
 import { recordLibraryScanAudit } from "./audit";
@@ -42,86 +42,128 @@ const persistMock = vi.mocked(persistLibraryScanMetadata);
 const auditMock = vi.mocked(recordLibraryScanAudit);
 
 beforeEach(() => {
-  vi.clearAllMocks();
+    vi.clearAllMocks();
 });
 
 describe("scanMediaLibraryWorkflow", () => {
-  it("calls phases in order and returns persisted scan metadata", async () => {
-    const calls: string[] = [];
-    const request = {};
-    const validated = { request, sources: [] };
-    const fetched = { sources: [], files: [], failedPaths: [] };
-    const normalized = { sources: [], files: [], failedPaths: [] };
-    const merged = { discoveredFileCount: 0, matchedTitleCount: 0, failedPaths: [], pathStats: [], sources: [] };
-    const persisted = { discoveredFileCount: 0, matchedTitleCount: 0, failedPathCount: 0, scanRunIds: [] };
+    it("calls phases in order and returns persisted scan metadata", async () => {
+        const calls: string[] = [];
+        const request = {};
+        const validated = { request, sources: [] };
+        const fetched = { sources: [], files: [], failedPaths: [] };
+        const normalized = { sources: [], files: [], failedPaths: [] };
+        const merged = {
+            discoveredFileCount: 0,
+            matchedTitleCount: 0,
+            failedPaths: [],
+            pathStats: [],
+            sources: [],
+        };
+        const persisted = {
+            discoveredFileCount: 0,
+            matchedTitleCount: 0,
+            failedPathCount: 0,
+            scanRunIds: [],
+        };
 
-    validateRequestMock.mockImplementation(() => {
-      calls.push("validate-request");
-      return request;
+        validateRequestMock.mockImplementation(() => {
+            calls.push("validate-request");
+
+            return request;
+        });
+        validateSourcesMock.mockImplementation(async () => {
+            calls.push("validate-sources");
+
+            return validated as never;
+        });
+        fetchSourcesMock.mockImplementation(async () => {
+            calls.push("fetch");
+
+            return fetched;
+        });
+        normalizeMock.mockImplementation(() => {
+            calls.push("normalize");
+
+            return normalized;
+        });
+        mergeMock.mockImplementation(async () => {
+            calls.push("merge");
+
+            return merged;
+        });
+        persistMock.mockImplementation(async () => {
+            calls.push("persist");
+
+            return persisted;
+        });
+        auditMock.mockImplementation(async () => {
+            calls.push("audit");
+        });
+
+        const result = await scanMediaLibraryWorkflow("user1", request);
+
+        expect(calls).toEqual([
+            "validate-request",
+            "validate-sources",
+            "fetch",
+            "normalize",
+            "merge",
+            "persist",
+            "audit",
+        ]);
+        expect(validateSourcesMock).toHaveBeenCalledWith("user1", request);
+        expect(fetchSourcesMock).toHaveBeenCalledWith(validated);
+        expect(normalizeMock).toHaveBeenCalledWith(fetched);
+        expect(mergeMock).toHaveBeenCalledWith("user1", normalized);
+        expect(persistMock).toHaveBeenCalledWith("user1", merged);
+        expect(auditMock).toHaveBeenCalledWith("user1", persisted);
+        expect(result).toBe(persisted);
     });
-    validateSourcesMock.mockImplementation(async () => {
-      calls.push("validate-sources");
-      return validated as never;
+
+    it("rejects overlapping scans for the same user and releases the lock afterward", async () => {
+        const request = {};
+        const validated = { request, sources: [] };
+        const fetched = { sources: [], files: [], failedPaths: [] };
+        const normalized = { sources: [], files: [], failedPaths: [] };
+        const merged = {
+            discoveredFileCount: 0,
+            matchedTitleCount: 0,
+            failedPaths: [],
+            pathStats: [],
+            sources: [],
+        };
+        const persisted = {
+            discoveredFileCount: 0,
+            matchedTitleCount: 0,
+            failedPathCount: 0,
+            scanRunIds: [],
+        };
+        let releaseFetch!: () => void;
+
+        validateRequestMock.mockReturnValue(request);
+        validateSourcesMock.mockResolvedValue(validated as never);
+        fetchSourcesMock.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    releaseFetch = () => resolve(fetched);
+                }),
+        );
+        normalizeMock.mockReturnValue(normalized);
+        mergeMock.mockResolvedValue(merged);
+        persistMock.mockResolvedValue(persisted);
+        auditMock.mockResolvedValue();
+
+        const firstScan = scanMediaLibraryWorkflow("user1", request);
+
+        await vi.waitFor(() => expect(fetchSourcesMock).toHaveBeenCalledTimes(1));
+
+        await expect(scanMediaLibraryWorkflow("user1", request)).rejects.toEqual(
+            expect.objectContaining<Partial<ScanMediaLibraryWorkflowError>>({
+                code: "scan_in_progress",
+            }),
+        );
+
+        releaseFetch();
+        await expect(firstScan).resolves.toBe(persisted);
     });
-    fetchSourcesMock.mockImplementation(async () => {
-      calls.push("fetch");
-      return fetched;
-    });
-    normalizeMock.mockImplementation(() => {
-      calls.push("normalize");
-      return normalized;
-    });
-    mergeMock.mockImplementation(async () => {
-      calls.push("merge");
-      return merged;
-    });
-    persistMock.mockImplementation(async () => {
-      calls.push("persist");
-      return persisted;
-    });
-    auditMock.mockImplementation(async () => {
-      calls.push("audit");
-    });
-
-    const result = await scanMediaLibraryWorkflow("user1", request);
-
-    expect(calls).toEqual(["validate-request", "validate-sources", "fetch", "normalize", "merge", "persist", "audit"]);
-    expect(validateSourcesMock).toHaveBeenCalledWith("user1", request);
-    expect(fetchSourcesMock).toHaveBeenCalledWith(validated);
-    expect(normalizeMock).toHaveBeenCalledWith(fetched);
-    expect(mergeMock).toHaveBeenCalledWith("user1", normalized);
-    expect(persistMock).toHaveBeenCalledWith("user1", merged);
-    expect(auditMock).toHaveBeenCalledWith("user1", persisted);
-    expect(result).toBe(persisted);
-  });
-
-  it("rejects overlapping scans for the same user and releases the lock afterward", async () => {
-    const request = {};
-    const validated = { request, sources: [] };
-    const fetched = { sources: [], files: [], failedPaths: [] };
-    const normalized = { sources: [], files: [], failedPaths: [] };
-    const merged = { discoveredFileCount: 0, matchedTitleCount: 0, failedPaths: [], pathStats: [], sources: [] };
-    const persisted = { discoveredFileCount: 0, matchedTitleCount: 0, failedPathCount: 0, scanRunIds: [] };
-    let releaseFetch!: () => void;
-
-    validateRequestMock.mockReturnValue(request);
-    validateSourcesMock.mockResolvedValue(validated as never);
-    fetchSourcesMock.mockImplementation(() => new Promise((resolve) => {
-      releaseFetch = () => resolve(fetched);
-    }));
-    normalizeMock.mockReturnValue(normalized);
-    mergeMock.mockResolvedValue(merged);
-    persistMock.mockResolvedValue(persisted);
-    auditMock.mockResolvedValue();
-
-    const firstScan = scanMediaLibraryWorkflow("user1", request);
-    await vi.waitFor(() => expect(fetchSourcesMock).toHaveBeenCalledTimes(1));
-
-    await expect(scanMediaLibraryWorkflow("user1", request)).rejects.toEqual(
-      expect.objectContaining<Partial<ScanMediaLibraryWorkflowError>>({ code: "scan_in_progress" }),
-    );
-
-    releaseFetch();
-    await expect(firstScan).resolves.toBe(persisted);
-  });
 });

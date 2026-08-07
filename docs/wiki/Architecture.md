@@ -137,25 +137,25 @@ Primary sources: [instrumentation](https://github.com/TannerMidd/Nooklet/blob/ma
 
 The physical modules under [`src/modules`](https://github.com/TannerMidd/Nooklet/tree/main/src/modules) are:
 
-| Module | Primary responsibility |
-| --- | --- |
-| `admin` | Administrative queries and operational views |
-| `discover` | TMDB-backed discovery rails and title search |
-| `download-engine` | NZB parsing, NNTP transfer, repair, extraction, and engine queue |
-| `downloads` | Durable season fulfillment, request association, enqueue, built-in import, retry, and cancellation reconciliation |
-| `identity-access` | Login, authorization, and first-admin bootstrap |
-| `indexers` | Indexer configuration, search, normalization, and protected result storage |
-| `instance-config` | Persisted stable ownership for shared instance configuration |
-| `jobs` | Persisted schedules, claims, leases, and job history |
-| `media-library` | Libraries, folders, titles, episodes, scans, monitoring, and release selection |
-| `notifications` | Channel configuration, dispatch, and delivery audit |
-| `preferences` | Per-user recommendation and history defaults |
-| `readiness` | Capability-level setup and health evaluation |
-| `recommendations` | AI runs, enrichment, history, feedback, and analytics |
-| `service-connections` | External connection configuration, verification, and encrypted secrets |
-| `storage` | Persisted staging/destination snapshots and isolated capacity inspection |
-| `users` | Accounts, roles, password hashing, and recovery state |
-| `watch-history` | Manual, Plex, Tautulli, and Trakt history synchronization |
+| Module                | Primary responsibility                                                                                            |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `admin`               | Administrative queries and operational views                                                                      |
+| `discover`            | TMDB-backed discovery rails and title search                                                                      |
+| `download-engine`     | NZB parsing, NNTP transfer, repair, extraction, and engine queue                                                  |
+| `downloads`           | Durable season fulfillment, request association, enqueue, built-in import, retry, and cancellation reconciliation |
+| `identity-access`     | Login, authorization, and first-admin bootstrap                                                                   |
+| `indexers`            | Indexer configuration, search, normalization, and protected result storage                                        |
+| `instance-config`     | Persisted stable ownership for shared instance configuration                                                      |
+| `jobs`                | Persisted schedules, claims, leases, and job history                                                              |
+| `media-library`       | Libraries, folders, titles, episodes, scans, monitoring, and release selection                                    |
+| `notifications`       | Channel configuration, dispatch, and delivery audit                                                               |
+| `preferences`         | Per-user recommendation and history defaults                                                                      |
+| `readiness`           | Capability-level setup and health evaluation                                                                      |
+| `recommendations`     | AI runs, enrichment, history, feedback, and analytics                                                             |
+| `service-connections` | External connection configuration, verification, and encrypted secrets                                            |
+| `storage`             | Persisted staging/destination snapshots and isolated capacity inspection                                          |
+| `users`               | Accounts, roles, password hashing, and recovery state                                                             |
+| `watch-history`       | Manual, Plex, Tautulli, and Trakt history synchronization                                                         |
 
 `credential-vault` and `metadata` appear in older design documents as conceptual ownership areas, but they are not physical module directories in the current tree. Secret handling is implemented across `src/lib/security`, `service-connections`, and indexer repositories; metadata adapters currently live primarily in `service-connections` and media workflows.
 

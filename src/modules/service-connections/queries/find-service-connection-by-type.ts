@@ -1,6 +1,6 @@
 import {
-  findServiceConnectionByType as findServiceConnectionByTypeFromRepository,
-  type ServiceConnectionRecord,
+    findServiceConnectionByType as findServiceConnectionByTypeFromRepository,
+    type ServiceConnectionRecord,
 } from "@/modules/service-connections/repositories/service-connection-repository";
 import { type ServiceConnectionType } from "@/lib/database/schema";
 
@@ -12,8 +12,8 @@ export type { ServiceConnectionRecord };
  * depend on the persistence layer directly.
  */
 export async function findServiceConnectionByType(
-  userId: string,
-  serviceType: ServiceConnectionType,
+    userId: string,
+    serviceType: ServiceConnectionType,
 ) {
-  return findServiceConnectionByTypeFromRepository(userId, serviceType);
+    return findServiceConnectionByTypeFromRepository(userId, serviceType);
 }

@@ -2,7 +2,7 @@
 description: "Use when creating a new domain workflow or splitting collapsed phases. Triggers: scaffold workflow, new workflow, recommendation workflow, watch-history sync, workflow phases, split workflow, missing phases, phase scaffolding, ADR phases."
 name: "Workflow Scaffolder"
 tools: [read, search, edit, todo]
-model: ['Claude Sonnet 4.6 (copilot)', 'GPT-5 (copilot)']
+model: ["Claude Sonnet 4.6 (copilot)", "GPT-5 (copilot)"]
 argument-hint: "Module + workflow name (e.g. recommendations/generate-tv)"
 ---
 
@@ -42,10 +42,10 @@ Every phase is its own file with a single exported function. The orchestrator ca
 2. Read one existing workflow in the same or a sibling module to mirror conventions (imports, error types, logger, schema location).
 3. Pick the phase list (recommendation, watch-history, or custom-with-confirmation).
 4. Create:
-   - `src/modules/<module>/workflows/<workflow>/<phase>.ts` — one file per phase, each exporting a single async function with typed input/output.
-   - `src/modules/<module>/workflows/<workflow>/index.ts` — thin orchestrator that imports each phase and calls them in order. No business logic in the orchestrator.
-   - `src/modules/<module>/workflows/<workflow>/types.ts` — shared input/output and context types.
-   - `src/modules/<module>/workflows/<workflow>/index.test.ts` — Vitest test that mocks each phase and asserts order + propagation.
+    - `src/modules/<module>/workflows/<workflow>/<phase>.ts` — one file per phase, each exporting a single async function with typed input/output.
+    - `src/modules/<module>/workflows/<workflow>/index.ts` — thin orchestrator that imports each phase and calls them in order. No business logic in the orchestrator.
+    - `src/modules/<module>/workflows/<workflow>/types.ts` — shared input/output and context types.
+    - `src/modules/<module>/workflows/<workflow>/index.test.ts` — Vitest test that mocks each phase and asserts order + propagation.
 5. Add a top-of-file comment to each phase pointing at the ADR phase name and the behavior-matrix row(s) it implements.
 6. Do not wire the workflow into a route or server action. That's a separate commit.
 7. Stop after scaffolding. Report the created files and the next step (wiring + filling in TODOs).

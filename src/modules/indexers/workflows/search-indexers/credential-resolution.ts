@@ -3,21 +3,21 @@ import { findIndexerSecret } from "@/modules/indexers/repositories/indexer-repos
 import { type SelectedIndexerSearchSource } from "./indexer-selection";
 
 export type ResolvedIndexerSearchSource = SelectedIndexerSearchSource & {
-  apiKey: string;
+    apiKey: string;
 };
 
 export async function resolveIndexerSearchCredentials(
-  sources: SelectedIndexerSearchSource[],
+    sources: SelectedIndexerSearchSource[],
 ): Promise<ResolvedIndexerSearchSource[]> {
-  const resolved: ResolvedIndexerSearchSource[] = [];
+    const resolved: ResolvedIndexerSearchSource[] = [];
 
-  for (const source of sources) {
-    const secret = await findIndexerSecret(source.indexer.id);
+    for (const source of sources) {
+        const secret = await findIndexerSecret(source.indexer.id);
 
-    if (secret) {
-      resolved.push({ ...source, apiKey: decryptSecret(secret.encryptedApiKey) });
+        if (secret) {
+            resolved.push({ ...source, apiKey: decryptSecret(secret.encryptedApiKey) });
+        }
     }
-  }
 
-  return resolved;
+    return resolved;
 }

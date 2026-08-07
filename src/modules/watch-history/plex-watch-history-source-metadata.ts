@@ -4,18 +4,16 @@ import { watchHistorySourceUserSelectionSchema } from "@/modules/watch-history/s
 
 const plexWatchHistorySourceMetadataSchema = watchHistorySourceUserSelectionSchema;
 
-export type PlexWatchHistorySourceMetadata = z.infer<
-  typeof plexWatchHistorySourceMetadataSchema
->;
+export type PlexWatchHistorySourceMetadata = z.infer<typeof plexWatchHistorySourceMetadataSchema>;
 
 export function parsePlexWatchHistorySourceMetadata(
-  metadata: Record<string, unknown> | null | undefined,
+    metadata: Record<string, unknown> | null | undefined,
 ) {
-  const parsed = plexWatchHistorySourceMetadataSchema.safeParse(metadata);
+    const parsed = plexWatchHistorySourceMetadataSchema.safeParse(metadata);
 
-  if (!parsed.success) {
-    return null;
-  }
+    if (!parsed.success) {
+        return null;
+    }
 
-  return parsed.data;
+    return parsed.data;
 }

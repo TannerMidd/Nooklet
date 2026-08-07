@@ -37,75 +37,85 @@ const sampleNzb = `<?xml version="1.0" encoding="UTF-8"?>
 </nzb>`;
 
 describe("parseNzb", () => {
-  it("parses files, sorts segments, dedupes, and strips message-id brackets", () => {
-    const parsed = parseNzb(sampleNzb);
+    it("parses files, sorts segments, dedupes, and strips message-id brackets", () => {
+        const parsed = parseNzb(sampleNzb);
 
-    expect(parsed.files).toHaveLength(2);
+        expect(parsed.files).toHaveLength(2);
 
-    const [first, second] = parsed.files;
+        const [first, second] = parsed.files;
 
-    expect(first.subject).toBe("[1/2] example.r00 (1/3)");
-    expect(first.poster).toBe("poster@example.com (Poster)");
-    expect(first.postedAt).toEqual(new Date(1720000000 * 1000));
-    expect(first.groups).toEqual(["alt.binaries.example", "alt.binaries.example.two"]);
-    expect(first.segments.map((segment) => segment.number)).toEqual([1, 2, 3]);
-    expect(first.segments[0].messageId).toBe("seg-one@example");
-    // The duplicate segment number keeps the first occurrence.
-    expect(first.segments[1].messageId).toBe("seg-two@example");
-    expect(first.declaredBytes).toBe(700000 + 700000 + 500000);
+        expect(first.subject).toBe("[1/2] example.r00 (1/3)");
+        expect(first.poster).toBe("poster@example.com (Poster)");
+        expect(first.postedAt).toEqual(new Date(1720000000 * 1000));
+        expect(first.groups).toEqual(["alt.binaries.example", "alt.binaries.example.two"]);
+        expect(first.segments.map((segment) => segment.number)).toEqual([1, 2, 3]);
+        expect(first.segments[0].messageId).toBe("seg-one@example");
+        // The duplicate segment number keeps the first occurrence.
+        expect(first.segments[1].messageId).toBe("seg-two@example");
+        expect(first.declaredBytes).toBe(700000 + 700000 + 500000);
 
-    expect(second.segments).toHaveLength(1);
-    expect(parsed.declaredBytes).toBe(first.declaredBytes + 120000);
-  });
+        expect(second.segments).toHaveLength(1);
+        expect(parsed.declaredBytes).toBe(first.declaredBytes + 120000);
+    });
 
-  it("drops file entries that have no fetchable segments", () => {
-    const parsed = parseNzb(sampleNzb);
+    it("drops file entries that have no fetchable segments", () => {
+        const parsed = parseNzb(sampleNzb);
 
-    expect(parsed.files.some((file) => file.subject === "no segments")).toBe(false);
-  });
+        expect(parsed.files.some((file) => file.subject === "no segments")).toBe(false);
+    });
 
-  it("extracts the archive password from head metadata", () => {
-    expect(parseNzb(sampleNzb).password).toBe("secret pass");
-  });
+    it("extracts the archive password from head metadata", () => {
+        expect(parseNzb(sampleNzb).password).toBe("secret pass");
+    });
 
-  it("handles single-file single-segment documents (no arrays)", () => {
-    const parsed = parseNzb(`<nzb><file subject="solo"><groups><group>a.b.c</group></groups><segments><segment bytes="10" number="1">one@x</segment></segments></file></nzb>`);
+    it("handles single-file single-segment documents (no arrays)", () => {
+        const parsed = parseNzb(
+            `<nzb><file subject="solo"><groups><group>a.b.c</group></groups><segments><segment bytes="10" number="1">one@x</segment></segments></file></nzb>`,
+        );
 
-    expect(parsed.files).toHaveLength(1);
-    expect(parsed.files[0].segments).toEqual([{ number: 1, bytes: 10, messageId: "one@x" }]);
-    expect(parsed.password).toBeNull();
-  });
+        expect(parsed.files).toHaveLength(1);
+        expect(parsed.files[0].segments).toEqual([{ number: 1, bytes: 10, messageId: "one@x" }]);
+        expect(parsed.password).toBeNull();
+    });
 
-  it("throws on empty input", () => {
-    expect(() => parseNzb("   ")).toThrow(NzbParseError);
-  });
+    it("throws on empty input", () => {
+        expect(() => parseNzb("   ")).toThrow(NzbParseError);
+    });
 
-  it("throws when the root element is not <nzb>", () => {
-    expect(() => parseNzb("<rss><channel /></rss>")).toThrow(NzbParseError);
-  });
+    it("throws when the root element is not <nzb>", () => {
+        expect(() => parseNzb("<rss><channel /></rss>")).toThrow(NzbParseError);
+    });
 
-  it("throws when no file has downloadable segments", () => {
-    expect(() =>
-      parseNzb("<nzb><file subject='x'><segments></segments></file></nzb>"),
-    ).toThrow(NzbParseError);
-  });
+    it("throws when no file has downloadable segments", () => {
+        expect(() => parseNzb("<nzb><file subject='x'><segments></segments></file></nzb>")).toThrow(
+            NzbParseError,
+        );
+    });
 
-  it("rejects segment values that could inject commands or bypass size accounting", () => {
-    expect(() => parseNzb(
-      `<nzb><file subject="x"><segments><segment bytes="10" number="1">safe@test
+    it("rejects segment values that could inject commands or bypass size accounting", () => {
+        expect(() =>
+            parseNzb(
+                `<nzb><file subject="x"><segments><segment bytes="10" number="1">safe@test
 DATE</segment></segments></file></nzb>`,
-    )).toThrow(NzbParseError);
-    expect(() => parseNzb(
-      `<nzb><file subject="x"><segments><segment bytes="10oops" number="1">safe@test</segment></segments></file></nzb>`,
-    )).toThrow(NzbParseError);
-    expect(() => parseNzb(
-      `<nzb><file subject="x"><segments><segment bytes="0" number="1">safe@test</segment></segments></file></nzb>`,
-    )).toThrow(NzbParseError);
-  });
+            ),
+        ).toThrow(NzbParseError);
+        expect(() =>
+            parseNzb(
+                `<nzb><file subject="x"><segments><segment bytes="10oops" number="1">safe@test</segment></segments></file></nzb>`,
+            ),
+        ).toThrow(NzbParseError);
+        expect(() =>
+            parseNzb(
+                `<nzb><file subject="x"><segments><segment bytes="0" number="1">safe@test</segment></segments></file></nzb>`,
+            ),
+        ).toThrow(NzbParseError);
+    });
 
-  it("rejects XML entity declarations", () => {
-    expect(() => parseNzb(
-      `<!DOCTYPE nzb [<!ENTITY payload "safe@test">]><nzb><file subject="x"><segments><segment bytes="10" number="1">&payload;</segment></segments></file></nzb>`,
-    )).toThrow(NzbParseError);
-  });
+    it("rejects XML entity declarations", () => {
+        expect(() =>
+            parseNzb(
+                `<!DOCTYPE nzb [<!ENTITY payload "safe@test">]><nzb><file subject="x"><segments><segment bytes="10" number="1">&payload;</segment></segments></file></nzb>`,
+            ),
+        ).toThrow(NzbParseError);
+    });
 });

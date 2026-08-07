@@ -1,97 +1,101 @@
 import {
-  IsolatedFilesystemPolicyError,
-  resolveApprovedMediaDirectoryIsolated,
+    IsolatedFilesystemPolicyError,
+    resolveApprovedMediaDirectoryIsolated,
 } from "@/lib/security/isolated-filesystem-policy";
 import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
-  createMediaLibrary,
-  findMediaLibraryByName,
-  findMediaLibraryPathByIdForUser,
-  findMediaLibraryPathByUserPath,
-  updateMediaLibraryPath,
-  type MediaLibraryPathRecord,
+    createMediaLibrary,
+    findMediaLibraryByName,
+    findMediaLibraryPathByIdForUser,
+    findMediaLibraryPathByUserPath,
+    updateMediaLibraryPath,
+    type MediaLibraryPathRecord,
 } from "@/modules/media-library/repositories/media-library-repository";
 import {
-  type UpdateLibraryPathInput,
-  updateLibraryPathInputSchema,
+    type UpdateLibraryPathInput,
+    updateLibraryPathInputSchema,
 } from "@/modules/media-library/schemas/library-path";
 import { recordAuditEvent } from "@/modules/users/commands/record-audit-event";
 
 export class UpdateLibraryPathCommandError extends Error {
-  constructor(
-    message: string,
-    public readonly code: "folder_not_found" | "path_already_exists" | "path_not_found" | "path_not_allowed",
-  ) {
-    super(message);
-    this.name = "UpdateLibraryPathCommandError";
-  }
+    constructor(
+        message: string,
+        public readonly code:
+            "folder_not_found" | "path_already_exists" | "path_not_found" | "path_not_allowed",
+    ) {
+        super(message);
+        this.name = "UpdateLibraryPathCommandError";
+    }
 }
 
 export async function updateLibraryPathCommand(
-  userId: string,
-  input: UpdateLibraryPathInput,
+    userId: string,
+    input: UpdateLibraryPathInput,
 ): Promise<MediaLibraryPathRecord> {
-  const parsed = updateLibraryPathInputSchema.parse(input);
-  const ownerUserId = await resolveInstanceConfigurationOwnerId(userId);
-  const existingPath = await findMediaLibraryPathByIdForUser(ownerUserId, parsed.pathId);
+    const parsed = updateLibraryPathInputSchema.parse(input);
+    const ownerUserId = await resolveInstanceConfigurationOwnerId(userId);
+    const existingPath = await findMediaLibraryPathByIdForUser(ownerUserId, parsed.pathId);
 
-  if (!existingPath) {
-    throw new UpdateLibraryPathCommandError("Library folder was not found.", "path_not_found");
-  }
-
-  let canonicalPath: string;
-  try {
-    canonicalPath = await resolveApprovedMediaDirectoryIsolated(parsed.path);
-  } catch (error) {
-    if (error instanceof IsolatedFilesystemPolicyError) {
-      throw new UpdateLibraryPathCommandError(error.message, "path_not_allowed");
+    if (!existingPath) {
+        throw new UpdateLibraryPathCommandError("Library folder was not found.", "path_not_found");
     }
-    throw error;
-  }
 
-  const duplicatePath = await findMediaLibraryPathByUserPath(ownerUserId, canonicalPath);
+    let canonicalPath: string;
 
-  if (duplicatePath && duplicatePath.id !== parsed.pathId) {
-    throw new UpdateLibraryPathCommandError(
-      "That folder is already attached to your library.",
-      "path_already_exists",
-    );
-  }
+    try {
+        canonicalPath = await resolveApprovedMediaDirectoryIsolated(parsed.path);
+    } catch (error) {
+        if (error instanceof IsolatedFilesystemPolicyError) {
+            throw new UpdateLibraryPathCommandError(error.message, "path_not_allowed");
+        }
 
-  const library = await findMediaLibraryByName(ownerUserId, parsed.mediaType, parsed.libraryName)
-    ?? await createMediaLibrary({
-      userId: ownerUserId,
-      mediaType: parsed.mediaType,
-      name: parsed.libraryName,
-      isDefault: true,
+        throw error;
+    }
+
+    const duplicatePath = await findMediaLibraryPathByUserPath(ownerUserId, canonicalPath);
+
+    if (duplicatePath && duplicatePath.id !== parsed.pathId) {
+        throw new UpdateLibraryPathCommandError(
+            "That folder is already attached to your library.",
+            "path_already_exists",
+        );
+    }
+
+    const library =
+        (await findMediaLibraryByName(ownerUserId, parsed.mediaType, parsed.libraryName)) ??
+        (await createMediaLibrary({
+            userId: ownerUserId,
+            mediaType: parsed.mediaType,
+            name: parsed.libraryName,
+            isDefault: true,
+        }));
+    const updatedPath = await updateMediaLibraryPath({
+        id: parsed.pathId,
+        userId: ownerUserId,
+        libraryId: library.id,
+        path: canonicalPath,
+        label: parsed.label || parsed.libraryName,
+        status: parsed.status,
     });
-  const updatedPath = await updateMediaLibraryPath({
-    id: parsed.pathId,
-    userId: ownerUserId,
-    libraryId: library.id,
-    path: canonicalPath,
-    label: parsed.label || parsed.libraryName,
-    status: parsed.status,
-  });
 
-  if (!updatedPath) {
-    throw new UpdateLibraryPathCommandError("Library folder was not found.", "path_not_found");
-  }
+    if (!updatedPath) {
+        throw new UpdateLibraryPathCommandError("Library folder was not found.", "path_not_found");
+    }
 
-  await recordAuditEvent({
-    actorUserId: userId,
-    eventType: "media-library.path.updated",
-    subjectType: "media-library-path",
-    subjectId: updatedPath.id,
-    payload: {
-      mediaType: parsed.mediaType,
-      libraryId: library.id,
-      previousLibraryId: existingPath.libraryId,
-      path: canonicalPath,
-      previousPath: existingPath.path,
-      status: parsed.status,
-    },
-  });
+    await recordAuditEvent({
+        actorUserId: userId,
+        eventType: "media-library.path.updated",
+        subjectType: "media-library-path",
+        subjectId: updatedPath.id,
+        payload: {
+            mediaType: parsed.mediaType,
+            libraryId: library.id,
+            previousLibraryId: existingPath.libraryId,
+            path: canonicalPath,
+            previousPath: existingPath.path,
+            status: parsed.status,
+        },
+    });
 
-  return updatedPath;
+    return updatedPath;
 }

@@ -1,0 +1,17 @@
+.agents/
+.claude/
+.codex-tmp/
+.next/
+backups/
+data/
+drizzle/
+node_modules/
+playwright-report/
+test-results/
+
+next-env.d.ts
+package-lock.json
+tsconfig.tsbuildinfo
+
+*.png
+*.webp

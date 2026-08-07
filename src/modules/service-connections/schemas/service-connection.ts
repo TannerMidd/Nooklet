@@ -1,21 +1,34 @@
 import { z } from "zod";
 
-export const serviceConnectionTypeSchema = z.enum(["ai-provider", "tautulli", "plex", "usenet-server", "tmdb", "tvdb", "trakt"]);
+export const serviceConnectionTypeSchema = z.enum([
+    "ai-provider",
+    "tautulli",
+    "plex",
+    "usenet-server",
+    "tmdb",
+    "tvdb",
+    "trakt",
+]);
 export const serviceConnectionIntentSchema = z.enum(["save", "test-save", "verify", "disconnect"]);
 
-const apiKeySchema = z.string().trim().max(1024).optional().transform((value) => value ?? "");
+const apiKeySchema = z
+    .string()
+    .trim()
+    .max(1024)
+    .optional()
+    .transform((value) => value ?? "");
 
 export const aiProviderConnectionSchema = z.object({
-  serviceType: z.literal("ai-provider"),
-  baseUrl: z.string().trim().max(2048).url("Enter a valid base URL."),
-  apiKey: apiKeySchema,
-  model: z.string().trim().min(1, "Enter a model identifier.").max(200),
+    serviceType: z.literal("ai-provider"),
+    baseUrl: z.string().trim().max(2048).url("Enter a valid base URL."),
+    apiKey: apiKeySchema,
+    model: z.string().trim().min(1, "Enter a model identifier.").max(200),
 });
 
 export const apiKeyServiceConnectionSchema = z.object({
-  serviceType: z.enum(["tautulli", "plex", "usenet-server", "tmdb", "tvdb", "trakt"]),
-  baseUrl: z.string().trim().max(2048).url("Enter a valid base URL."),
-  apiKey: apiKeySchema,
+    serviceType: z.enum(["tautulli", "plex", "usenet-server", "tmdb", "tvdb", "trakt"]),
+    baseUrl: z.string().trim().max(2048).url("Enter a valid base URL."),
+    apiKey: apiKeySchema,
 });
 
 export type ServiceConnectionIntent = z.infer<typeof serviceConnectionIntentSchema>;

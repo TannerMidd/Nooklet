@@ -1,9 +1,9 @@
 import { listMediaFilePathsForTitle } from "@/modules/media-library/repositories/media-library-repository";
 
 export type MediaFilePathForCleanup = {
-  id: string;
-  filePath: string;
-  libraryRootPath: string;
+    id: string;
+    filePath: string;
+    libraryRootPath: string;
 };
 
 /**
@@ -12,8 +12,8 @@ export type MediaFilePathForCleanup = {
  * workflow.
  */
 export async function listFilesForTitleCleanup(
-  userId: string,
-  titleId: string,
+    userId: string,
+    titleId: string,
 ): Promise<MediaFilePathForCleanup[]> {
-  return listMediaFilePathsForTitle(userId, titleId);
+    return listMediaFilePathsForTitle(userId, titleId);
 }

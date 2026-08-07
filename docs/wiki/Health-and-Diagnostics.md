@@ -33,12 +33,12 @@ Invoke-RestMethod http://127.0.0.1:42021/api/health | ConvertTo-Json -Depth 5
 
 Interpret the result before restarting anything:
 
-| HTTP | `status` | Meaning | First action |
-| --- | --- | --- | --- |
-| `200` | `ok` | SQLite is ready, the worker has ticked recently without a recorded error, and the built-in engine is idle or healthy. | No runtime recovery is required. Check the feature-specific screen if one operation still fails. |
-| `200` | `degraded` | SQLite is ready and the worker is responsive, but a worker pass failed or the built-in download engine has a stalled/failed stage. | Open `/health`, then inspect `docker compose logs --tail=200 app` for the private error detail. |
-| `503` | `degraded` | SQLite is ready, but the isolated worker has not started or has made no proven progress for more than 60 seconds. | The web UI should remain available. Inspect worker/storage logs and host-drive health before recreating the container. |
-| `503` | `error` | Database initialization, migration, or readiness failed. | Do not delete the volume. Capture logs and make a verified backup before attempting repair. |
+| HTTP  | `status`   | Meaning                                                                                                                            | First action                                                                                                           |
+| ----- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `200` | `ok`       | SQLite is ready, the worker has ticked recently without a recorded error, and the built-in engine is idle or healthy.              | No runtime recovery is required. Check the feature-specific screen if one operation still fails.                       |
+| `200` | `degraded` | SQLite is ready and the worker is responsive, but a worker pass failed or the built-in download engine has a stalled/failed stage. | Open `/health`, then inspect `docker compose logs --tail=200 app` for the private error detail.                        |
+| `503` | `degraded` | SQLite is ready, but the isolated worker has not started or has made no proven progress for more than 60 seconds.                  | The web UI should remain available. Inspect worker/storage logs and host-drive health before recreating the container. |
+| `503` | `error`    | Database initialization, migration, or readiness failed.                                                                           | Do not delete the volume. Capture logs and make a verified backup before attempting repair.                            |
 
 The response has `Cache-Control: no-store`. It exposes only the overall status and three component status values; timestamps, counts, stages, and error text remain on the authenticated operator screen and in server logs.
 
@@ -48,12 +48,12 @@ A healthy response resembles:
 
 ```json
 {
-  "status": "ok",
-  "checks": {
-    "database": "ok",
-    "backgroundWorker": "ok",
-    "downloadEngine": "idle"
-  }
+    "status": "ok",
+    "checks": {
+        "database": "ok",
+        "backgroundWorker": "ok",
+        "downloadEngine": "idle"
+    }
 }
 ```
 

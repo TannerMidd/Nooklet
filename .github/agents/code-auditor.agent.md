@@ -2,7 +2,7 @@
 description: "Use when auditing the codebase for dead code, unused exports, outdated patterns, redundant abstractions, duplicated logic, or architectural boundary violations. Triggers: dead code, unused, redundant, outdated, code smell, boundary violation, leaky abstraction, layering, clean architecture review, find duplication, audit module."
 name: "Code Auditor"
 tools: [read, search, agent, todo]
-model: ['Claude Sonnet 4.6 (copilot)', 'GPT-5 (copilot)']
+model: ["Claude Sonnet 4.6 (copilot)", "GPT-5 (copilot)"]
 argument-hint: "Path or module to audit (e.g. src/modules/recommendations)"
 ---
 
@@ -32,29 +32,29 @@ Domain modules live under `src/modules/<module>/` and own `adapters/`, `commands
 ## What to look for
 
 1. **Dead code**
-   - Exports with no importers (functions, types, components, route helpers).
-   - Unreachable branches, always-false guards, orphaned files.
-   - Drizzle columns/tables defined but never read or written.
-   - Feature flags or env vars referenced in code but never set.
+    - Exports with no importers (functions, types, components, route helpers).
+    - Unreachable branches, always-false guards, orphaned files.
+    - Drizzle columns/tables defined but never read or written.
+    - Feature flags or env vars referenced in code but never set.
 
 2. **Outdated code**
-   - Patterns explicitly disallowed by ADR-0001 (generic save-setting endpoints, generic proxy endpoint, UI calling raw service clients, root-component orchestration, monolithic user-data blob shapes, service-name policy branches in UI code).
-   - Stale TODOs/FIXMEs that contradict the current architecture.
-   - Screen-level orchestrators or CRUD-shaped routes that should be workflow-shaped.
+    - Patterns explicitly disallowed by ADR-0001 (generic save-setting endpoints, generic proxy endpoint, UI calling raw service clients, root-component orchestration, monolithic user-data blob shapes, service-name policy branches in UI code).
+    - Stale TODOs/FIXMEs that contradict the current architecture.
+    - Screen-level orchestrators or CRUD-shaped routes that should be workflow-shaped.
 
 3. **Redundant code**
-   - Two helpers doing the same job in different modules.
-   - Re-implementations of utilities already in `src/lib/`.
-   - Duplicated Zod schemas, type aliases, or adapter mappings.
-   - Parallel "v1/v2" implementations where one is unused.
+    - Two helpers doing the same job in different modules.
+    - Re-implementations of utilities already in `src/lib/`.
+    - Duplicated Zod schemas, type aliases, or adapter mappings.
+    - Parallel "v1/v2" implementations where one is unused.
 
 4. **Boundary issues**
-   - Cross-module imports that bypass a module's public surface.
-   - UI/route layer importing from a module's `repositories/` or `adapters/` directly instead of `commands/`/`queries/`/`workflows/`.
-   - Domain modules importing from `src/app/**` or React components.
-   - Server-only code imported into client components (or vice versa).
-   - Workflow phases (validation, prep, prompt, execution, normalization, persistence, feedback, retry) collapsed into a single function.
-   - Credential ownership or service-specific policy decisions made outside `service-connections`, its owning repository, or `src/lib/security`.
+    - Cross-module imports that bypass a module's public surface.
+    - UI/route layer importing from a module's `repositories/` or `adapters/` directly instead of `commands/`/`queries/`/`workflows/`.
+    - Domain modules importing from `src/app/**` or React components.
+    - Server-only code imported into client components (or vice versa).
+    - Workflow phases (validation, prep, prompt, execution, normalization, persistence, feedback, retry) collapsed into a single function.
+    - Credential ownership or service-specific policy decisions made outside `service-connections`, its owning repository, or `src/lib/security`.
 
 ## Approach
 

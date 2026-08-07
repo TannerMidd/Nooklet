@@ -63,13 +63,13 @@ Create Alpha's gitignored `docker-compose.override.yml`:
 
 ```yaml
 services:
-  app:
-    image: nooklet-alpha:local
-    container_name: nooklet-alpha
-    volumes:
-      - /srv/nooklet-alpha/downloads:/downloads
-      - /srv/nooklet-alpha/media/movies:/media/movies
-      - /srv/nooklet-alpha/media/tv:/media/tv
+    app:
+        image: nooklet-alpha:local
+        container_name: nooklet-alpha
+        volumes:
+            - /srv/nooklet-alpha/downloads:/downloads
+            - /srv/nooklet-alpha/media/movies:/media/movies
+            - /srv/nooklet-alpha/media/tv:/media/tv
 ```
 
 Use host paths appropriate to the machine. On Docker Desktop for Windows, quote paths and use forward slashes, for example `"F:/NookletAlpha/Downloads:/downloads"`.
@@ -102,13 +102,13 @@ DOWNLOAD_ENGINE_DIR=/downloads/engine
 
 ```yaml
 services:
-  app:
-    image: nooklet-beta:local
-    container_name: nooklet-beta
-    volumes:
-      - /srv/nooklet-beta/downloads:/downloads
-      - /srv/nooklet-beta/media/movies:/media/movies
-      - /srv/nooklet-beta/media/tv:/media/tv
+    app:
+        image: nooklet-beta:local
+        container_name: nooklet-beta
+        volumes:
+            - /srv/nooklet-beta/downloads:/downloads
+            - /srv/nooklet-beta/media/movies:/media/movies
+            - /srv/nooklet-beta/media/tv:/media/tv
 ```
 
 When both are running:
@@ -205,14 +205,14 @@ Restoring production data into a network-enabled test instance without these con
 
 ## Common failures
 
-| Symptom | Cause | Resolution |
-| --- | --- | --- |
-| `Conflict. The container name "/nooklet" is already in use` | The override did not assign a unique `container_name`. | Add a unique container name to each override and recreate. |
-| Starting Beta changes Alpha | Both commands resolved to the same Compose project. | Set a unique `COMPOSE_PROJECT_NAME` per directory or consistently pass `-p`; inspect before changing state. |
-| Both instances show the same users/settings | They share the same `nooklet-data` volume. | Stop both, preserve/backup the volume, then restore each instance into a distinct project volume. |
-| Rebuilding one instance changes the other's code | Both use the shared `nooklet:local` image tag. | Assign a unique image tag in each override and rebuild both deliberately. |
-| Port already allocated | Both publish the same `APP_PORT`/address. | Assign a unique host port and matching `APP_URL`. |
-| Downloads appear in the wrong instance | Built-in work or completed-output roots overlap. | Separate both engine paths, then review active requests before resuming. |
+| Symptom                                                     | Cause                                                  | Resolution                                                                                                  |
+| ----------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `Conflict. The container name "/nooklet" is already in use` | The override did not assign a unique `container_name`. | Add a unique container name to each override and recreate.                                                  |
+| Starting Beta changes Alpha                                 | Both commands resolved to the same Compose project.    | Set a unique `COMPOSE_PROJECT_NAME` per directory or consistently pass `-p`; inspect before changing state. |
+| Both instances show the same users/settings                 | They share the same `nooklet-data` volume.             | Stop both, preserve/backup the volume, then restore each instance into a distinct project volume.           |
+| Rebuilding one instance changes the other's code            | Both use the shared `nooklet:local` image tag.         | Assign a unique image tag in each override and rebuild both deliberately.                                   |
+| Port already allocated                                      | Both publish the same `APP_PORT`/address.              | Assign a unique host port and matching `APP_URL`.                                                           |
+| Downloads appear in the wrong instance                      | Built-in work or completed-output roots overlap.       | Separate both engine paths, then review active requests before resuming.                                    |
 
 ## Why not horizontal scaling?
 

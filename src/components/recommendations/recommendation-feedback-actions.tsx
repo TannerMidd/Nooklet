@@ -10,84 +10,82 @@ import { cn } from "@/lib/utils";
 import { type RecommendationFeedbackValue } from "@/lib/database/schema";
 
 type RecommendationFeedbackActionsProps = {
-  itemId: string;
-  feedback?: RecommendationFeedbackValue | null;
-  returnTo: string;
-  buttonClassName?: string;
+    itemId: string;
+    feedback?: RecommendationFeedbackValue | null;
+    returnTo: string;
+    buttonClassName?: string;
 };
 
 export function RecommendationFeedbackActions({
-  itemId,
-  feedback,
-  returnTo,
-  buttonClassName,
+    itemId,
+    feedback,
+    returnTo,
+    buttonClassName,
 }: RecommendationFeedbackActionsProps) {
-  const [state, formAction, isPending] = useActionState(
-    submitRecommendationFeedbackAction,
-    {
-      ...initialRecommendationFeedbackActionState,
-      feedback: feedback ?? null,
-    },
-  );
-  const savedFeedback = state.status === "success" ? state.feedback ?? null : feedback ?? null;
-  const [optimisticFeedback, setOptimisticFeedback] = useOptimistic<
-    RecommendationFeedbackValue | null,
-    RecommendationFeedbackValue
-  >(savedFeedback, (_currentFeedback, nextFeedback) => nextFeedback);
+    const [state, formAction, isPending] = useActionState(submitRecommendationFeedbackAction, {
+        ...initialRecommendationFeedbackActionState,
+        feedback: feedback ?? null,
+    });
+    const savedFeedback =
+        state.status === "success" ? (state.feedback ?? null) : (feedback ?? null);
+    const [optimisticFeedback, setOptimisticFeedback] = useOptimistic<
+        RecommendationFeedbackValue | null,
+        RecommendationFeedbackValue
+    >(savedFeedback, (_currentFeedback, nextFeedback) => nextFeedback);
 
-  function submitWithOptimisticFeedback(formData: FormData) {
-    const nextFeedback = formData.get("feedback");
+    function submitWithOptimisticFeedback(formData: FormData) {
+        const nextFeedback = formData.get("feedback");
 
-    if (nextFeedback === "like" || nextFeedback === "dislike") {
-      setOptimisticFeedback(nextFeedback);
+        if (nextFeedback === "like" || nextFeedback === "dislike") {
+            setOptimisticFeedback(nextFeedback);
+        }
+
+        formAction(formData);
     }
 
-    formAction(formData);
-  }
+    return (
+        <>
+            <form action={submitWithOptimisticFeedback}>
+                <input type="hidden" name="itemId" value={itemId} />
+                <input type="hidden" name="feedback" value="like" />
+                <input type="hidden" name="returnTo" value={returnTo} />
+                <Button
+                    type="submit"
+                    variant={optimisticFeedback === "like" ? "primary" : "secondary"}
+                    size="icon"
+                    className={cn("rounded-full", buttonClassName)}
+                    disabled={isPending}
+                    aria-pressed={optimisticFeedback === "like"}
+                    aria-label="Like recommendation"
+                    title="Like recommendation"
+                >
+                    <ThumbsUp aria-hidden="true" className="h-4 w-4" />
+                </Button>
+            </form>
 
-  return (
-    <>
-      <form action={submitWithOptimisticFeedback}>
-        <input type="hidden" name="itemId" value={itemId} />
-        <input type="hidden" name="feedback" value="like" />
-        <input type="hidden" name="returnTo" value={returnTo} />
-        <Button
-          type="submit"
-          variant={optimisticFeedback === "like" ? "primary" : "secondary"}
-          size="icon"
-          className={cn("rounded-full", buttonClassName)}
-          disabled={isPending}
-          aria-pressed={optimisticFeedback === "like"}
-          aria-label="Like recommendation"
-          title="Like recommendation"
-        >
-          <ThumbsUp aria-hidden="true" className="h-4 w-4" />
-        </Button>
-      </form>
+            <form action={submitWithOptimisticFeedback}>
+                <input type="hidden" name="itemId" value={itemId} />
+                <input type="hidden" name="feedback" value="dislike" />
+                <input type="hidden" name="returnTo" value={returnTo} />
+                <Button
+                    type="submit"
+                    variant={optimisticFeedback === "dislike" ? "primary" : "secondary"}
+                    size="icon"
+                    className={cn("rounded-full", buttonClassName)}
+                    disabled={isPending}
+                    aria-pressed={optimisticFeedback === "dislike"}
+                    aria-label="Dislike recommendation"
+                    title="Dislike recommendation"
+                >
+                    <ThumbsDown aria-hidden="true" className="h-4 w-4" />
+                </Button>
+            </form>
 
-      <form action={submitWithOptimisticFeedback}>
-        <input type="hidden" name="itemId" value={itemId} />
-        <input type="hidden" name="feedback" value="dislike" />
-        <input type="hidden" name="returnTo" value={returnTo} />
-        <Button
-          type="submit"
-          variant={optimisticFeedback === "dislike" ? "primary" : "secondary"}
-          size="icon"
-          className={cn("rounded-full", buttonClassName)}
-          disabled={isPending}
-          aria-pressed={optimisticFeedback === "dislike"}
-          aria-label="Dislike recommendation"
-          title="Dislike recommendation"
-        >
-          <ThumbsDown aria-hidden="true" className="h-4 w-4" />
-        </Button>
-      </form>
-
-      {state.status === "error" && state.message ? (
-        <p className="basis-full text-sm text-accent-wine" role="status">
-          {state.message}
-        </p>
-      ) : null}
-    </>
-  );
+            {state.status === "error" && state.message ? (
+                <p className="basis-full text-sm text-accent-wine" role="status">
+                    {state.message}
+                </p>
+            ) : null}
+        </>
+    );
 }

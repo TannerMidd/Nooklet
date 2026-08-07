@@ -1,24 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/cache", () => ({
-  revalidatePath: vi.fn(),
+    revalidatePath: vi.fn(),
 }));
 vi.mock("@/auth", () => ({
-  auth: vi.fn(),
+    auth: vi.fn(),
 }));
 vi.mock("@/modules/notifications/workflows/dispatch-notification", () => ({
-  safeDispatchNotificationWorkflow: vi.fn().mockResolvedValue(null),
+    safeDispatchNotificationWorkflow: vi.fn().mockResolvedValue(null),
 }));
-vi.mock("@/modules/media-library/workflows/request-title-with-release-search", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("@/modules/media-library/workflows/request-title-with-release-search")
-  >();
+vi.mock(
+    "@/modules/media-library/workflows/request-title-with-release-search",
+    async (importOriginal) => {
+        const actual =
+            await importOriginal<
+                typeof import("@/modules/media-library/workflows/request-title-with-release-search")
+            >();
 
-  return {
-    ...actual,
-    requestTitleWithReleaseSearchWorkflow: vi.fn(),
-  };
-});
+        return {
+            ...actual,
+            requestTitleWithReleaseSearchWorkflow: vi.fn(),
+        };
+    },
+);
 
 import { revalidatePath } from "next/cache";
 
@@ -35,134 +39,156 @@ const requestWorkflowMock = vi.mocked(requestTitleWithReleaseSearchWorkflow);
 const notificationMock = vi.mocked(safeDispatchNotificationWorkflow);
 
 beforeEach(() => {
-  vi.clearAllMocks();
+    vi.clearAllMocks();
 });
 
 function validForm(downloadNow = false) {
-  const formData = new FormData();
-  formData.set("mediaType", "movie");
-  formData.set("tmdbId", "597");
-  formData.set("title", "Titanic");
-  formData.set("year", "1997");
-  formData.set("qualityProfile", "hd-1080p");
-  formData.set("monitored", "on");
-  formData.set("overview", "A sweeping historical romance.");
-  formData.set("posterUrl", "https://image.example/poster.jpg");
-  formData.set("backdropUrl", "https://image.example/backdrop.jpg");
-  formData.set("runtimeMinutes", "194");
-  formData.set("originalLanguage", "en");
-  formData.set("returnTo", "/discover?details=597&type=movie");
+    const formData = new FormData();
 
-  if (downloadNow) {
-    formData.set("downloadNow", "on");
-  }
+    formData.set("mediaType", "movie");
+    formData.set("tmdbId", "597");
+    formData.set("title", "Titanic");
+    formData.set("year", "1997");
+    formData.set("qualityProfile", "hd-1080p");
+    formData.set("monitored", "on");
+    formData.set("overview", "A sweeping historical romance.");
+    formData.set("posterUrl", "https://image.example/poster.jpg");
+    formData.set("backdropUrl", "https://image.example/backdrop.jpg");
+    formData.set("runtimeMinutes", "194");
+    formData.set("originalLanguage", "en");
+    formData.set("returnTo", "/discover?details=597&type=movie");
 
-  return formData;
+    if (downloadNow) {
+        formData.set("downloadNow", "on");
+    }
+
+    return formData;
 }
 
 function addedOnlyResult() {
-  return {
-    title: { id: "title-1" },
-    releaseSearch: { searched: false },
-    queuedDownload: { queued: false, reason: "not_requested" },
-    selections: [{
-      target: { kind: "all" },
-      seasonId: null,
-      episodeId: null,
-      releaseSearch: { searched: false },
-      queuedDownload: { queued: false, reason: "not_requested" },
-    }],
-  } as never;
+    return {
+        title: { id: "title-1" },
+        releaseSearch: { searched: false },
+        queuedDownload: { queued: false, reason: "not_requested" },
+        selections: [
+            {
+                target: { kind: "all" },
+                seasonId: null,
+                episodeId: null,
+                releaseSearch: { searched: false },
+                queuedDownload: { queued: false, reason: "not_requested" },
+            },
+        ],
+    } as never;
 }
 
 describe("submitDiscoverTitleRequestAction", () => {
-  it("returns a sign-in error when no session exists", async () => {
-    authMock.mockResolvedValue(null as never);
+    it("returns a sign-in error when no session exists", async () => {
+        authMock.mockResolvedValue(null as never);
 
-    const result = await submitDiscoverTitleRequestAction({ status: "idle" }, validForm());
+        const result = await submitDiscoverTitleRequestAction({ status: "idle" }, validForm());
 
-    expect(result).toEqual({ status: "error", message: "You need to sign in again." });
-    expect(requestWorkflowMock).not.toHaveBeenCalled();
-  });
-
-  it("adds the TMDB title through the unified request workflow", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-    requestWorkflowMock.mockResolvedValue(addedOnlyResult());
-
-    const result = await submitDiscoverTitleRequestAction({ status: "idle" }, validForm());
-
-    expect(result).toEqual({
-      status: "success",
-      outcome: "catalog_added",
-      message: "Titanic was added to your catalog. No download was requested.",
+        expect(result).toEqual({ status: "error", message: "You need to sign in again." });
+        expect(requestWorkflowMock).not.toHaveBeenCalled();
     });
-    expect(requestWorkflowMock).toHaveBeenCalledWith("u1", expect.objectContaining({
-      mediaType: "movie",
-      tmdbId: 597,
-      title: "Titanic",
-      year: 1997,
-      monitored: true,
-      qualityProfile: "hd-1080p",
-      downloadNow: false,
-    }));
-    expect(revalidateMock).toHaveBeenCalledWith("/library");
-    expect(revalidateMock).toHaveBeenCalledWith("/library/movies");
-    expect(revalidateMock).toHaveBeenCalledWith("/discover");
-  });
 
-  it("reports queued downloads when download now is requested", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-    requestWorkflowMock.mockResolvedValue({
-      title: { id: "title-1" },
-      releaseSearch: { searched: true, searchRun: { id: "run1", status: "succeeded" }, results: [] },
-      queuedDownload: {
-        queued: true,
-        reason: "queued",
-        download: { downloadRequest: { id: "download1" } },
-      },
-      selections: [{
-        target: { kind: "all" },
-        seasonId: null,
-        episodeId: null,
-        releaseSearch: { searched: true, searchRun: { id: "run1", status: "succeeded" }, results: [] },
-        queuedDownload: {
-          queued: true,
-          reason: "queued",
-          download: { downloadRequest: { id: "download1" } },
-        },
-      }],
-    } as never);
+    it("adds the TMDB title through the unified request workflow", async () => {
+        authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+        requestWorkflowMock.mockResolvedValue(addedOnlyResult());
 
-    const result = await submitDiscoverTitleRequestAction({ status: "idle" }, validForm(true));
+        const result = await submitDiscoverTitleRequestAction({ status: "idle" }, validForm());
 
-    expect(requestWorkflowMock).toHaveBeenCalledWith("u1", expect.objectContaining({ downloadNow: true }));
-    expect(result).toEqual({
-      status: "success",
-      outcome: "queued",
-      message: "Titanic was added to your catalog and queued for download.",
+        expect(result).toEqual({
+            status: "success",
+            outcome: "catalog_added",
+            message: "Titanic was added to your catalog. No download was requested.",
+        });
+        expect(requestWorkflowMock).toHaveBeenCalledWith(
+            "u1",
+            expect.objectContaining({
+                mediaType: "movie",
+                tmdbId: 597,
+                title: "Titanic",
+                year: 1997,
+                monitored: true,
+                qualityProfile: "hd-1080p",
+                downloadNow: false,
+            }),
+        );
+        expect(revalidateMock).toHaveBeenCalledWith("/library");
+        expect(revalidateMock).toHaveBeenCalledWith("/library/movies");
+        expect(revalidateMock).toHaveBeenCalledWith("/discover");
     });
-    expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
-  });
 
-  it("returns domain errors from the unified request workflow", async () => {
-    authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-    requestWorkflowMock.mockRejectedValue(
-      new RequestMediaTitleCommandError("Choose a matching library before adding that title.", "library_not_found"),
-    );
+    it("reports queued downloads when download now is requested", async () => {
+        authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+        requestWorkflowMock.mockResolvedValue({
+            title: { id: "title-1" },
+            releaseSearch: {
+                searched: true,
+                searchRun: { id: "run1", status: "succeeded" },
+                results: [],
+            },
+            queuedDownload: {
+                queued: true,
+                reason: "queued",
+                download: { downloadRequest: { id: "download1" } },
+            },
+            selections: [
+                {
+                    target: { kind: "all" },
+                    seasonId: null,
+                    episodeId: null,
+                    releaseSearch: {
+                        searched: true,
+                        searchRun: { id: "run1", status: "succeeded" },
+                        results: [],
+                    },
+                    queuedDownload: {
+                        queued: true,
+                        reason: "queued",
+                        download: { downloadRequest: { id: "download1" } },
+                    },
+                },
+            ],
+        } as never);
 
-    const result = await submitDiscoverTitleRequestAction({ status: "idle" }, validForm());
+        const result = await submitDiscoverTitleRequestAction({ status: "idle" }, validForm(true));
 
-    expect(result).toEqual({
-      status: "error",
-      message: "Choose a matching library before adding that title.",
+        expect(requestWorkflowMock).toHaveBeenCalledWith(
+            "u1",
+            expect.objectContaining({ downloadNow: true }),
+        );
+        expect(result).toEqual({
+            status: "success",
+            outcome: "queued",
+            message: "Titanic was added to your catalog and queued for download.",
+        });
+        expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
     });
-    expect(notificationMock).toHaveBeenCalledWith({
-      userId: "u1",
-      payload: {
-        eventType: "library_add_failed",
-        title: "Titanic",
-        message: "Choose a matching library before adding that title.",
-      },
+
+    it("returns domain errors from the unified request workflow", async () => {
+        authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+        requestWorkflowMock.mockRejectedValue(
+            new RequestMediaTitleCommandError(
+                "Choose a matching library before adding that title.",
+                "library_not_found",
+            ),
+        );
+
+        const result = await submitDiscoverTitleRequestAction({ status: "idle" }, validForm());
+
+        expect(result).toEqual({
+            status: "error",
+            message: "Choose a matching library before adding that title.",
+        });
+        expect(notificationMock).toHaveBeenCalledWith({
+            userId: "u1",
+            payload: {
+                eventType: "library_add_failed",
+                title: "Titanic",
+                message: "Choose a matching library before adding that title.",
+            },
+        });
     });
-  });
 });

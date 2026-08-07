@@ -3,26 +3,26 @@ import { RecommendationWorkspace } from "@/components/recommendations/recommenda
 export const dynamic = "force-dynamic";
 
 type MovieRecommendationsPageProps = {
-  searchParams?: Promise<{
-    run?: string;
-    generated?: string;
-    details?: string;
-  }>;
+    searchParams?: Promise<{
+        run?: string;
+        generated?: string;
+        details?: string;
+    }>;
 };
 
 export default async function MovieRecommendationsPage({
-  searchParams,
+    searchParams,
 }: MovieRecommendationsPageProps) {
-  const resolvedSearchParams = await searchParams;
+    const resolvedSearchParams = await searchParams;
 
-  return (
-    <RecommendationWorkspace
-      mediaType="movie"
-      routePath="/movies"
-      title="Movie picks"
-      activeRunId={resolvedSearchParams?.run ?? null}
-      wasJustGenerated={resolvedSearchParams?.generated === "1"}
-      detailsItemId={resolvedSearchParams?.details ?? null}
-    />
-  );
+    return (
+        <RecommendationWorkspace
+            mediaType="movie"
+            routePath="/movies"
+            title="Movie picks"
+            activeRunId={resolvedSearchParams?.run ?? null}
+            wasJustGenerated={resolvedSearchParams?.generated === "1"}
+            detailsItemId={resolvedSearchParams?.details ?? null}
+        />
+    );
 }

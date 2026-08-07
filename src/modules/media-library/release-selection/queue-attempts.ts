@@ -1,12 +1,12 @@
 import {
-  queueIndexerResultWorkflow,
-  QueueIndexerResultWorkflowError,
-  type QueuedIndexerResultDownload,
+    queueIndexerResultWorkflow,
+    QueueIndexerResultWorkflowError,
+    type QueuedIndexerResultDownload,
 } from "@/modules/downloads/workflows/queue-indexer-result";
 import {
-  classifyDownloadCapacityFailure,
-  type DownloadCapacityDetails,
-  type DownloadCapacityDisposition,
+    classifyDownloadCapacityFailure,
+    type DownloadCapacityDetails,
+    type DownloadCapacityDisposition,
 } from "@/modules/downloads/workflows/queue-indexer-result/errors";
 import { type SeasonFulfillmentWorkLease } from "@/modules/downloads/workflows/season-fulfillment-work-lease";
 import { isTerminalInfrastructureFailure } from "@/modules/downloads/workflows/download-failure-classification";
@@ -14,9 +14,9 @@ import { isTerminalInfrastructureFailure } from "@/modules/downloads/workflows/d
 import { type ReleaseCandidate } from "./candidate-selection";
 
 const retryableQueueErrorCodes = new Set([
-  "result_not_found",
-  "unsupported_protocol",
-  "release_unavailable",
+    "result_not_found",
+    "unsupported_protocol",
+    "release_unavailable",
 ]);
 
 /**
@@ -40,12 +40,7 @@ const defaultMaxCandidateAttempts = 8;
  */
 const maxCandidateInspections = 40;
 
-export type QueueFailureKind =
-  | "release"
-  | "infrastructure"
-  | "capacity"
-  | "conflict"
-  | "unknown";
+export type QueueFailureKind = "release" | "infrastructure" | "capacity" | "conflict" | "unknown";
 
 /**
  * Infrastructure faults that cannot clear themselves: nothing is configured,
@@ -54,200 +49,236 @@ export type QueueFailureKind =
  * back off for everything else.
  */
 const terminalInfrastructureErrorCodes = new Set([
-  "downloader_not_connected",
-  "downloader_not_verified",
-  "target_path_not_found",
+    "downloader_not_connected",
+    "downloader_not_verified",
+    "target_path_not_found",
 ]);
 
 function queueFailureIsTerminal(error: QueueIndexerResultWorkflowError) {
-  if (terminalInfrastructureErrorCodes.has(error.code)) return true;
+    if (terminalInfrastructureErrorCodes.has(error.code)) {
+        return true;
+    }
 
-  if (error.code === "download_capacity_exceeded") {
-    // Contention between active downloads resolves as they finish; a genuine
-    // shortage or a bad volume mapping does not.
-    return capacityDisposition(error) === "storage_insufficient";
-  }
+    if (error.code === "download_capacity_exceeded") {
+        // Contention between active downloads resolves as they finish; a genuine
+        // shortage or a bad volume mapping does not.
+        return capacityDisposition(error) === "storage_insufficient";
+    }
 
-  // `indexer_unavailable` is the one code that spans both: an unapproved host
-  // or rejected key needs a human, a reset connection or a 5xx does not, and
-  // only the message distinguishes them.
-  if (error.code === "indexer_unavailable") {
-    return isTerminalInfrastructureFailure(error.message);
-  }
+    // `indexer_unavailable` is the one code that spans both: an unapproved host
+    // or rejected key needs a human, a reset connection or a 5xx does not, and
+    // only the message distinguishes them.
+    if (error.code === "indexer_unavailable") {
+        return isTerminalInfrastructureFailure(error.message);
+    }
 
-  return false;
+    return false;
 }
 
 export type QueueReleaseCandidatesContext = {
-  mediaTitleId: string;
-  requestedTitle: string;
-  targetLibraryId: string | null;
-  targetLibraryPathId: string | null;
-  seasonId?: string | null;
-  episodeId?: string | null;
-  fulfillmentId?: string | null;
-  attemptStrategy?: "season_pack" | "episode" | null;
-  attemptNumber?: number | null;
-  maxCandidateAttempts?: number | null;
-  workLease?: SeasonFulfillmentWorkLease | null;
+    mediaTitleId: string;
+    requestedTitle: string;
+    targetLibraryId: string | null;
+    targetLibraryPathId: string | null;
+    seasonId?: string | null;
+    episodeId?: string | null;
+    fulfillmentId?: string | null;
+    attemptStrategy?: "season_pack" | "episode" | null;
+    attemptNumber?: number | null;
+    maxCandidateAttempts?: number | null;
+    workLease?: SeasonFulfillmentWorkLease | null;
 };
 
 export type QueuedReleaseCandidatesOutcome =
-  | {
-      queued: false;
-      reason: "queue_failed";
-      message: string | null;
-      failureKind: QueueFailureKind;
-      /** True when an infrastructure failure needs a human before any retry. */
-      terminalFailure?: boolean;
-      capacity?: DownloadCapacityDetails | null;
-      selectedResultId: null;
-      rejectedResultIds: string[];
-      download: null;
-    }
-  | {
-      queued: true;
-      reason: "queued";
-      message: null;
-      selectedResultId: string;
-      rejectedResultIds: string[];
-      download: QueuedIndexerResultDownload;
-    };
+    | {
+          queued: false;
+          reason: "queue_failed";
+          message: string | null;
+          failureKind: QueueFailureKind;
+          /** True when an infrastructure failure needs a human before any retry. */
+          terminalFailure?: boolean;
+          capacity?: DownloadCapacityDetails | null;
+          selectedResultId: null;
+          rejectedResultIds: string[];
+          download: null;
+      }
+    | {
+          queued: true;
+          reason: "queued";
+          message: null;
+          selectedResultId: string;
+          rejectedResultIds: string[];
+          download: QueuedIndexerResultDownload;
+      };
 
 function capacityDisposition(
-  error: QueueIndexerResultWorkflowError,
+    error: QueueIndexerResultWorkflowError,
 ): DownloadCapacityDisposition | null {
-  return error.code === "download_capacity_exceeded"
-    ? classifyDownloadCapacityFailure(error.capacity)
-    : null;
+    return error.code === "download_capacity_exceeded"
+        ? classifyDownloadCapacityFailure(error.capacity)
+        : null;
 }
 
 function shouldTryNextRelease(error: QueueIndexerResultWorkflowError) {
-  return retryableQueueErrorCodes.has(error.code)
-    || capacityDisposition(error) === "candidate_oversized";
+    return (
+        retryableQueueErrorCodes.has(error.code) ||
+        capacityDisposition(error) === "candidate_oversized"
+    );
 }
 
 function consumesCandidateBudget(error: QueueIndexerResultWorkflowError) {
-  return error.code === "release_unavailable"
-    || capacityDisposition(error) === "candidate_oversized";
+    return (
+        error.code === "release_unavailable" || capacityDisposition(error) === "candidate_oversized"
+    );
 }
 
 function queueFailureMessage(error: QueueIndexerResultWorkflowError) {
-  if (capacityDisposition(error) !== "storage_insufficient") return error.message;
-  return `${error.message} Active downloads do not account for this shortage. `
-    + "Free space in the configured download workspace or correct its drive/volume mapping, then resume.";
+    if (capacityDisposition(error) !== "storage_insufficient") {
+        return error.message;
+    }
+
+    return (
+        `${error.message} Active downloads do not account for this shortage. ` +
+        "Free space in the configured download workspace or correct its drive/volume mapping, then resume."
+    );
 }
 
 function queueFailureKind(error: QueueIndexerResultWorkflowError): QueueFailureKind {
-  if (retryableQueueErrorCodes.has(error.code)) return "release";
-  if (error.code === "active_download_exists") return "conflict";
-  if (error.code === "season_fulfillment_busy") return "conflict";
-  if (error.code === "download_capacity_exceeded") {
-    const disposition = capacityDisposition(error);
-    if (disposition === "active_reservation_contention") return "capacity";
-    if (disposition === "candidate_oversized") return "release";
-    return "infrastructure";
-  }
-  if ([
-    "downloader_not_connected",
-    "downloader_not_verified",
-    "indexer_unavailable",
-    "target_path_not_found",
-  ].includes(error.code)) return "infrastructure";
-  return "unknown";
+    if (retryableQueueErrorCodes.has(error.code)) {
+        return "release";
+    }
+
+    if (error.code === "active_download_exists") {
+        return "conflict";
+    }
+
+    if (error.code === "season_fulfillment_busy") {
+        return "conflict";
+    }
+
+    if (error.code === "download_capacity_exceeded") {
+        const disposition = capacityDisposition(error);
+
+        if (disposition === "active_reservation_contention") {
+            return "capacity";
+        }
+
+        if (disposition === "candidate_oversized") {
+            return "release";
+        }
+
+        return "infrastructure";
+    }
+
+    if (
+        [
+            "downloader_not_connected",
+            "downloader_not_verified",
+            "indexer_unavailable",
+            "target_path_not_found",
+        ].includes(error.code)
+    ) {
+        return "infrastructure";
+    }
+
+    return "unknown";
 }
 
 export async function queueReleaseCandidates(
-  userId: string,
-  candidates: Array<Pick<ReleaseCandidate, "id">>,
-  context: QueueReleaseCandidatesContext,
+    userId: string,
+    candidates: Array<Pick<ReleaseCandidate, "id">>,
+    context: QueueReleaseCandidatesContext,
 ): Promise<QueuedReleaseCandidatesOutcome> {
-  const rejectedResultIds: string[] = [];
-  let lastErrorMessage: string | null = null;
-  let lastCapacity: DownloadCapacityDetails | null = null;
-  const candidateAttemptLimit = context.maxCandidateAttempts == null
-    ? Math.min(candidates.length, defaultMaxCandidateAttempts)
-    : Math.max(0, Math.floor(context.maxCandidateAttempts));
-  let consumedCandidateAttempts = 0;
-  let inspectedCandidates = 0;
+    const rejectedResultIds: string[] = [];
+    let lastErrorMessage: string | null = null;
+    let lastCapacity: DownloadCapacityDetails | null = null;
+    const candidateAttemptLimit =
+        context.maxCandidateAttempts == null
+            ? Math.min(candidates.length, defaultMaxCandidateAttempts)
+            : Math.max(0, Math.floor(context.maxCandidateAttempts));
+    let consumedCandidateAttempts = 0;
+    let inspectedCandidates = 0;
 
-  for (const candidate of candidates) {
-    if (
-      consumedCandidateAttempts >= candidateAttemptLimit
-      || inspectedCandidates >= maxCandidateInspections
-    ) {
-      break;
+    for (const candidate of candidates) {
+        if (
+            consumedCandidateAttempts >= candidateAttemptLimit ||
+            inspectedCandidates >= maxCandidateInspections
+        ) {
+            break;
+        }
+
+        inspectedCandidates += 1;
+
+        try {
+            const download = await queueIndexerResultWorkflow(
+                userId,
+                {
+                    resultId: candidate.id,
+                    mediaTitleId: context.mediaTitleId,
+                    requestedTitle: context.requestedTitle,
+                    targetLibraryId: context.targetLibraryId,
+                    targetLibraryPathId: context.targetLibraryPathId,
+                    ...(context.seasonId ? { seasonId: context.seasonId } : {}),
+                    ...(context.episodeId ? { episodeId: context.episodeId } : {}),
+                },
+                {
+                    fulfillmentId: context.fulfillmentId ?? null,
+                    attemptStrategy: context.attemptStrategy ?? null,
+                    attemptNumber: context.attemptNumber
+                        ? context.attemptNumber + consumedCandidateAttempts
+                        : null,
+                    workLease: context.workLease ?? null,
+                },
+            );
+
+            return {
+                queued: true,
+                reason: "queued",
+                message: null,
+                selectedResultId: candidate.id,
+                rejectedResultIds,
+                download,
+            };
+        } catch (error) {
+            if (!(error instanceof QueueIndexerResultWorkflowError)) {
+                throw error;
+            }
+
+            lastErrorMessage = queueFailureMessage(error);
+
+            if (error.capacity) {
+                lastCapacity = error.capacity;
+            }
+
+            if (!shouldTryNextRelease(error)) {
+                return {
+                    queued: false,
+                    reason: "queue_failed",
+                    message: queueFailureMessage(error),
+                    failureKind: queueFailureKind(error),
+                    terminalFailure: queueFailureIsTerminal(error),
+                    capacity: error.capacity,
+                    selectedResultId: null,
+                    rejectedResultIds,
+                    download: null,
+                };
+            }
+
+            if (consumesCandidateBudget(error)) {
+                consumedCandidateAttempts += 1;
+                rejectedResultIds.push(candidate.id);
+            }
+        }
     }
 
-    inspectedCandidates += 1;
-
-    try {
-      const download = await queueIndexerResultWorkflow(
-        userId,
-        {
-          resultId: candidate.id,
-          mediaTitleId: context.mediaTitleId,
-          requestedTitle: context.requestedTitle,
-          targetLibraryId: context.targetLibraryId,
-          targetLibraryPathId: context.targetLibraryPathId,
-          ...(context.seasonId ? { seasonId: context.seasonId } : {}),
-          ...(context.episodeId ? { episodeId: context.episodeId } : {}),
-        },
-        {
-          fulfillmentId: context.fulfillmentId ?? null,
-          attemptStrategy: context.attemptStrategy ?? null,
-          attemptNumber: context.attemptNumber
-            ? context.attemptNumber + consumedCandidateAttempts
-            : null,
-          workLease: context.workLease ?? null,
-        },
-      );
-
-      return {
-        queued: true,
-        reason: "queued",
-        message: null,
-        selectedResultId: candidate.id,
+    return {
+        queued: false,
+        reason: "queue_failed",
+        message: lastErrorMessage,
+        failureKind: "release",
+        capacity: lastCapacity,
+        selectedResultId: null,
         rejectedResultIds,
-        download,
-      };
-    } catch (error) {
-      if (!(error instanceof QueueIndexerResultWorkflowError)) {
-        throw error;
-      }
-
-      lastErrorMessage = queueFailureMessage(error);
-      if (error.capacity) lastCapacity = error.capacity;
-
-      if (!shouldTryNextRelease(error)) {
-        return {
-          queued: false,
-          reason: "queue_failed",
-          message: queueFailureMessage(error),
-          failureKind: queueFailureKind(error),
-          terminalFailure: queueFailureIsTerminal(error),
-          capacity: error.capacity,
-          selectedResultId: null,
-          rejectedResultIds,
-          download: null,
-        };
-      }
-
-      if (consumesCandidateBudget(error)) {
-        consumedCandidateAttempts += 1;
-        rejectedResultIds.push(candidate.id);
-      }
-    }
-  }
-
-  return {
-    queued: false,
-    reason: "queue_failed",
-    message: lastErrorMessage,
-    failureKind: "release",
-    capacity: lastCapacity,
-    selectedResultId: null,
-    rejectedResultIds,
-    download: null,
-  };
+        download: null,
+    };
 }

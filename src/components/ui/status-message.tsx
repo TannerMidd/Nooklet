@@ -1,9 +1,9 @@
 import { cn } from "@/lib/utils";
 
 type StatusMessageProps = {
-  status: "idle" | "success" | "error";
-  message: string | null;
-  className?: string;
+    status: "idle" | "success" | "error";
+    message: string | null;
+    className?: string;
 };
 
 /**
@@ -11,20 +11,20 @@ type StatusMessageProps = {
  * or when there is no message.
  */
 export function StatusMessage({ status, message, className }: StatusMessageProps) {
-  if (status === "idle" || !message) {
-    return null;
-  }
+    if (status === "idle" || !message) {
+        return null;
+    }
 
-  return (
-    <p
-      role={status === "error" ? "alert" : "status"}
-      className={cn(
-        "text-sm leading-6",
-        status === "success" ? "text-accent-cool" : "text-accent-wine",
-        className,
-      )}
-    >
-      {message}
-    </p>
-  );
+    return (
+        <p
+            role={status === "error" ? "alert" : "status"}
+            className={cn(
+                "text-sm leading-6",
+                status === "success" ? "text-accent-cool" : "text-accent-wine",
+                className,
+            )}
+        >
+            {message}
+        </p>
+    );
 }

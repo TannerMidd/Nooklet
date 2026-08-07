@@ -11,29 +11,29 @@ import { Spinner } from "@/components/ui/spinner";
 import { StatusMessage } from "@/components/ui/status-message";
 
 function SetDefaultButton() {
-  const { pending } = useFormStatus();
+    const { pending } = useFormStatus();
 
-  return (
-    <Button type="submit" variant="secondary" size="sm" disabled={pending}>
-      {pending ? <Spinner /> : <Star aria-hidden="true" size={13} />}
-      {pending ? "Saving..." : "Make default"}
-    </Button>
-  );
+    return (
+        <Button type="submit" variant="secondary" size="sm" disabled={pending}>
+            {pending ? <Spinner /> : <Star aria-hidden="true" size={13} />}
+            {pending ? "Saving..." : "Make default"}
+        </Button>
+    );
 }
 
 export function SetDefaultPathForm({ pathId }: { pathId: string }) {
-  const [state, formAction] = useActionState(
-    setDefaultDownloadPathAction,
-    initialDefaultDownloadPathActionState,
-  );
+    const [state, formAction] = useActionState(
+        setDefaultDownloadPathAction,
+        initialDefaultDownloadPathActionState,
+    );
 
-  return (
-    <form action={formAction} className="flex flex-col items-end gap-1">
-      <input type="hidden" name="pathId" value={pathId} />
-      <SetDefaultButton />
-      {state.status === "error" ? (
-        <StatusMessage status={state.status} message={state.message} className="text-xs" />
-      ) : null}
-    </form>
-  );
+    return (
+        <form action={formAction} className="flex flex-col items-end gap-1">
+            <input type="hidden" name="pathId" value={pathId} />
+            <SetDefaultButton />
+            {state.status === "error" ? (
+                <StatusMessage status={state.status} message={state.message} className="text-xs" />
+            ) : null}
+        </form>
+    );
 }

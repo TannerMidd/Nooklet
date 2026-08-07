@@ -1,165 +1,165 @@
 name: CI
 
 on:
-  pull_request:
-  push:
-    branches: [main]
+    pull_request:
+    push:
+        branches: [main]
 
 permissions:
-  contents: read
+    contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    group: ci-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
 
 jobs:
-  verify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      APP_URL: http://localhost:42021
-      AUTH_SECRET: ci-auth-secret-that-is-at-least-thirty-two-characters
-      SECRET_BOX_KEY: ci-secret-box-key-that-is-at-least-thirty-two-characters
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: Use the pinned npm release
-        run: npm install --global npm@11.16.0
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Audit production dependencies
-        run: npm run audit:dependencies
-
-      - name: Generate production dependency SBOM
-        run: npm sbom --omit=dev --sbom-format=cyclonedx > nooklet-sbom.cdx.json
-
-      - name: Upload dependency SBOM
-        uses: actions/upload-artifact@v7
-        with:
-          name: nooklet-sbom-${{ github.run_id }}-${{ github.run_attempt }}
-          path: nooklet-sbom.cdx.json
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Validate Wiki source
-        run: npm run docs:wiki:check
-
-      - name: Validate engineering dossier and generated setup commands
-        run: npm run docs:dossier:check
-
-      - name: Validate documentation links
-        run: npm run docs:links:check
-
-      - name: Validate migration history
-        run: npm run migrations:check
-
-      - name: Validate module boundaries
-        run: npm run boundaries:check
-
-      - name: Prepare runtime directories
-        run: mkdir -p data /tmp/nooklet-media
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Test Node.js infrastructure scripts
-        run: npm run test:scripts
-
-      - name: Test application
-        run: npm test
-
-      - name: Install Chromium for browser smoke
-        run: npx playwright install --with-deps chromium
-
-      - name: Test first-run and authenticated browser flow
-        run: npm run test:e2e
-
-      - name: Build standalone production bundle
-        run: npm run build
+    verify:
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
         env:
-          DATABASE_URL: file:./data/ci-build.db
-          APPROVED_MEDIA_ROOTS: /tmp/nooklet-media
+            APP_URL: http://localhost:42021
+            AUTH_SECRET: ci-auth-secret-that-is-at-least-thirty-two-characters
+            SECRET_BOX_KEY: ci-secret-box-key-that-is-at-least-thirty-two-characters
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v7
 
-  docker-smoke:
-    needs: verify
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
+            - name: Set up Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version-file: .nvmrc
+                  cache: npm
 
-      - name: Build production image
-        run: docker build --tag nooklet-ci:${{ github.sha }} .
+            - name: Use the pinned npm release
+              run: npm install --global npm@11.16.0
 
-      - name: Smoke-test hardened container
-        shell: bash
-        run: |
-          set -Eeuo pipefail
+            - name: Install dependencies
+              run: npm ci
 
-          container="nooklet-ci-smoke"
-          cleanup() {
-            status=$?
-            if [ "$status" -ne 0 ]; then
-              echo "Container logs:"
-              docker logs "$container" 2>&1 || true
-            fi
-            docker rm --force "$container" >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
+            - name: Audit production dependencies
+              run: npm run audit:dependencies
 
-          auth_secret="$(openssl rand -hex 48)"
-          bootstrap_token="$(openssl rand -hex 48)"
-          secret_box_key="$(openssl rand -hex 48)"
+            - name: Generate production dependency SBOM
+              run: npm sbom --omit=dev --sbom-format=cyclonedx > nooklet-sbom.cdx.json
 
-          docker run --detach \
-            --name "$container" \
-            --cap-drop ALL \
-            --security-opt no-new-privileges:true \
-            --read-only \
-            --tmpfs /app/data:rw,noexec,nosuid,nodev,uid=1000,gid=1000,mode=0700,size=1g \
-            --tmpfs /app/.next/cache:rw,noexec,nosuid,nodev,uid=1000,gid=1000,mode=0700,size=128m \
-            --tmpfs /tmp:rw,noexec,nosuid,nodev,mode=1777,size=512m \
-            --pids-limit 512 \
-            --memory 3g \
-            --log-driver json-file \
-            --log-opt max-size=10m \
-            --log-opt max-file=3 \
-            --publish 127.0.0.1::42021 \
-            --env APP_URL=http://127.0.0.1:42021 \
-            --env AUTH_SECRET="$auth_secret" \
-            --env BOOTSTRAP_TOKEN="$bootstrap_token" \
-            --env SECRET_BOX_KEY="$secret_box_key" \
-            --env APPROVED_MEDIA_ROOTS=/app/data/media \
-            nooklet-ci:${{ github.sha }}
+            - name: Upload dependency SBOM
+              uses: actions/upload-artifact@v7
+              with:
+                  name: nooklet-sbom-${{ github.run_id }}-${{ github.run_attempt }}
+                  path: nooklet-sbom.cdx.json
+                  if-no-files-found: error
+                  retention-days: 14
 
-          host_port="$(docker port "$container" 42021/tcp | awk -F: '{print $NF}')"
-          for attempt in $(seq 1 60); do
-            if curl --fail --silent --show-error \
-              "http://127.0.0.1:${host_port}/api/health" \
-              --output health.json; then
-              cat health.json
-              exit 0
-            fi
+            - name: Validate Wiki source
+              run: npm run docs:wiki:check
 
-            if [ "$(docker inspect --format '{{.State.Running}}' "$container")" != "true" ]; then
-              echo "Container exited before becoming healthy."
-              exit 1
-            fi
+            - name: Validate engineering dossier and generated setup commands
+              run: npm run docs:dossier:check
 
-            sleep 2
-          done
+            - name: Validate documentation links
+              run: npm run docs:links:check
 
-          echo "Container did not become healthy within 120 seconds."
-          exit 1
+            - name: Validate migration history
+              run: npm run migrations:check
+
+            - name: Validate module boundaries
+              run: npm run boundaries:check
+
+            - name: Prepare runtime directories
+              run: mkdir -p data /tmp/nooklet-media
+
+            - name: Lint
+              run: npm run lint
+
+            - name: Typecheck
+              run: npm run typecheck
+
+            - name: Test Node.js infrastructure scripts
+              run: npm run test:scripts
+
+            - name: Test application
+              run: npm test
+
+            - name: Install Chromium for browser smoke
+              run: npx playwright install --with-deps chromium
+
+            - name: Test first-run and authenticated browser flow
+              run: npm run test:e2e
+
+            - name: Build standalone production bundle
+              run: npm run build
+              env:
+                  DATABASE_URL: file:./data/ci-build.db
+                  APPROVED_MEDIA_ROOTS: /tmp/nooklet-media
+
+    docker-smoke:
+        needs: verify
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v7
+
+            - name: Build production image
+              run: docker build --tag nooklet-ci:${{ github.sha }} .
+
+            - name: Smoke-test hardened container
+              shell: bash
+              run: |
+                  set -Eeuo pipefail
+
+                  container="nooklet-ci-smoke"
+                  cleanup() {
+                    status=$?
+                    if [ "$status" -ne 0 ]; then
+                      echo "Container logs:"
+                      docker logs "$container" 2>&1 || true
+                    fi
+                    docker rm --force "$container" >/dev/null 2>&1 || true
+                  }
+                  trap cleanup EXIT
+
+                  auth_secret="$(openssl rand -hex 48)"
+                  bootstrap_token="$(openssl rand -hex 48)"
+                  secret_box_key="$(openssl rand -hex 48)"
+
+                  docker run --detach \
+                    --name "$container" \
+                    --cap-drop ALL \
+                    --security-opt no-new-privileges:true \
+                    --read-only \
+                    --tmpfs /app/data:rw,noexec,nosuid,nodev,uid=1000,gid=1000,mode=0700,size=1g \
+                    --tmpfs /app/.next/cache:rw,noexec,nosuid,nodev,uid=1000,gid=1000,mode=0700,size=128m \
+                    --tmpfs /tmp:rw,noexec,nosuid,nodev,mode=1777,size=512m \
+                    --pids-limit 512 \
+                    --memory 3g \
+                    --log-driver json-file \
+                    --log-opt max-size=10m \
+                    --log-opt max-file=3 \
+                    --publish 127.0.0.1::42021 \
+                    --env APP_URL=http://127.0.0.1:42021 \
+                    --env AUTH_SECRET="$auth_secret" \
+                    --env BOOTSTRAP_TOKEN="$bootstrap_token" \
+                    --env SECRET_BOX_KEY="$secret_box_key" \
+                    --env APPROVED_MEDIA_ROOTS=/app/data/media \
+                    nooklet-ci:${{ github.sha }}
+
+                  host_port="$(docker port "$container" 42021/tcp | awk -F: '{print $NF}')"
+                  for attempt in $(seq 1 60); do
+                    if curl --fail --silent --show-error \
+                      "http://127.0.0.1:${host_port}/api/health" \
+                      --output health.json; then
+                      cat health.json
+                      exit 0
+                    fi
+
+                    if [ "$(docker inspect --format '{{.State.Running}}' "$container")" != "true" ]; then
+                      echo "Container exited before becoming healthy."
+                      exit 1
+                    fi
+
+                    sleep 2
+                  done
+
+                  echo "Container did not become healthy within 120 seconds."
+                  exit 1

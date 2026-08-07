@@ -7,14 +7,14 @@ Nooklet stores application state in SQLite. In the standard Docker deployment, t
 
 ## What must be protected
 
-| Asset | Default Docker location | Included in a database backup? | Protection |
-| --- | --- | --- | --- |
-| Users, settings, requests, history, jobs, and audit events | `/app/data/nooklet.db` | Yes | Run the Nooklet backup tool and copy the result off the container host. |
-| Authentication and encryption keys | `.env` on the host | No | Back up securely and separately; never commit it. |
-| Built-in in-flight workspace | `/app/data/engine-work` by default, or `DOWNLOAD_ENGINE_WORK_DIR` | No | Preserve only if attempting low-level recovery of active downloads; per-segment resume is not currently supported. |
-| Built-in completed-output staging | `/app/data/downloads` by image default, or `DOWNLOAD_ENGINE_DIR` | No | Preserve unimported completed output. A bind-mounted staging drive needs its own backup policy. |
-| Final movie and TV files | Operator-defined bind mounts | No | Protect with the media storage system's backup or redundancy plan. |
-| Compose overrides and reverse-proxy configuration | Host files | No | Store sanitized templates in version control; protect live secrets separately. |
+| Asset                                                      | Default Docker location                                           | Included in a database backup? | Protection                                                                                                         |
+| ---------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Users, settings, requests, history, jobs, and audit events | `/app/data/nooklet.db`                                            | Yes                            | Run the Nooklet backup tool and copy the result off the container host.                                            |
+| Authentication and encryption keys                         | `.env` on the host                                                | No                             | Back up securely and separately; never commit it.                                                                  |
+| Built-in in-flight workspace                               | `/app/data/engine-work` by default, or `DOWNLOAD_ENGINE_WORK_DIR` | No                             | Preserve only if attempting low-level recovery of active downloads; per-segment resume is not currently supported. |
+| Built-in completed-output staging                          | `/app/data/downloads` by image default, or `DOWNLOAD_ENGINE_DIR`  | No                             | Preserve unimported completed output. A bind-mounted staging drive needs its own backup policy.                    |
+| Final movie and TV files                                   | Operator-defined bind mounts                                      | No                             | Protect with the media storage system's backup or redundancy plan.                                                 |
+| Compose overrides and reverse-proxy configuration          | Host files                                                        | No                             | Store sanitized templates in version control; protect live secrets separately.                                     |
 
 Database backups contain password hashes, operational history, and encrypted integration credentials. Encryption of saved credentials does not make the backup public-safe: restrict access and encrypt off-host copies at rest.
 
@@ -146,29 +146,29 @@ Use this sequence for routine source-based Docker deployments:
 1. Review the release/change scope and verify the current instance is healthy.
 2. Record the current revision:
 
-   ```console
-   git rev-parse HEAD
-   ```
+    ```console
+    git rev-parse HEAD
+    ```
 
 3. Create and copy off-host a verified database backup.
 4. Fetch the update without rewriting local history:
 
-   ```console
-   git pull --ff-only
-   ```
+    ```console
+    git pull --ff-only
+    ```
 
 5. Rebuild and recreate the service:
 
-   ```console
-   docker compose up -d --build
-   ```
+    ```console
+    docker compose up -d --build
+    ```
 
 6. Follow startup and migration output:
 
-   ```console
-   docker compose logs --tail=200 app
-   docker compose ps
-   ```
+    ```console
+    docker compose logs --tail=200 app
+    docker compose ps
+    ```
 
 7. Verify `/api/health`, sign in, and exercise one representative workflow.
 8. Record the new revision and backup identifier in the operations log.

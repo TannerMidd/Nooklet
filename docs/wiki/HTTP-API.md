@@ -8,11 +8,11 @@ Nooklet is primarily an interactive web application. Most product operations use
 
 Use the deployed Nooklet origin:
 
-| Environment | Default |
-| --- | --- |
-| Native development | `http://localhost:42021` |
-| Shipped Docker Compose | `http://localhost:42021` |
-| Deployment | The configured `APP_URL` origin |
+| Environment            | Default                         |
+| ---------------------- | ------------------------------- |
+| Native development     | `http://localhost:42021`        |
+| Shipped Docker Compose | `http://localhost:42021`        |
+| Deployment             | The configured `APP_URL` origin |
 
 ## Authentication
 
@@ -24,11 +24,11 @@ Later authenticated requests require the active session record, matching generat
 
 ## Route summary
 
-| Route | Methods | Authentication | Purpose |
-| --- | --- | --- | --- |
-| `/api/health` | `GET` | None | Database, worker, and built-in engine readiness |
+| Route                     | Methods       | Authentication  | Purpose                                                                               |
+| ------------------------- | ------------- | --------------- | ------------------------------------------------------------------------------------- |
+| `/api/health`             | `GET`         | None            | Database, worker, and built-in engine readiness                                       |
 | `/api/auth/[...nextauth]` | `GET`, `POST` | Auth.js-managed | Login, CSRF, providers, and session protocol; direct protocol sign-out is unavailable |
-| `/api/downloads/queue` | `GET`, `POST` | Required | Caller-scoped built-in queue read/control |
+| `/api/downloads/queue`    | `GET`, `POST` | Required        | Caller-scoped built-in queue read/control                                             |
 
 Source: [`src/app/api`](https://github.com/TannerMidd/Nooklet/tree/main/src/app/api).
 
@@ -38,8 +38,8 @@ Application-owned queue endpoints use:
 
 ```ts
 type ApiError = {
-  code?: string;
-  message: string;
+    code?: string;
+    message: string;
 };
 ```
 
@@ -51,21 +51,21 @@ This public readiness probe applies migrations/database compatibility checks, ev
 
 Response statuses:
 
-| HTTP | Meaning |
-| ---: | --- |
-| 200 | Worker is responsive. Body status is `ok` or `degraded`. |
-| 503 | Worker is stopped/stale, or database readiness failed. |
+| HTTP | Meaning                                                  |
+| ---: | -------------------------------------------------------- |
+|  200 | Worker is responsive. Body status is `ok` or `degraded`. |
+|  503 | Worker is stopped/stale, or database readiness failed.   |
 
 Example responsive body:
 
 ```json
 {
-  "status": "ok",
-  "checks": {
-    "database": "ok",
-    "backgroundWorker": "ok",
-    "downloadEngine": "idle"
-  }
+    "status": "ok",
+    "checks": {
+        "database": "ok",
+        "backgroundWorker": "ok",
+        "downloadEngine": "idle"
+    }
 }
 ```
 
@@ -83,12 +83,12 @@ Auth.js owns this catch-all route. The application currently configures one cred
 
 Common endpoints include:
 
-| Route | Method | Purpose |
-| --- | --- | --- |
-| `/api/auth/providers` | `GET` | List configured sign-in providers |
-| `/api/auth/csrf` | `GET` | Obtain the CSRF token used by Auth.js form posts |
-| `/api/auth/session` | `GET` | Read the current caller session |
-| `/api/auth/callback/credentials` | `POST` | Submit local email/password credentials |
+| Route                            | Method | Purpose                                          |
+| -------------------------------- | ------ | ------------------------------------------------ |
+| `/api/auth/providers`            | `GET`  | List configured sign-in providers                |
+| `/api/auth/csrf`                 | `GET`  | Obtain the CSRF token used by Auth.js form posts |
+| `/api/auth/session`              | `GET`  | Read the current caller session                  |
+| `/api/auth/callback/credentials` | `POST` | Submit local email/password credentials          |
 
 Login is disabled while first-admin bootstrap is still open. The direct Auth.js `POST /api/auth/signout` action is intentionally unavailable because the supported logout path must revoke durable session state before clearing the cookie. Use Nooklet's **Sign out** control. Prefer the Nooklet `/login` UI rather than binding an external integration directly to this protocol.
 
@@ -100,31 +100,31 @@ Returns the signed-in user's built-in queue snapshot used by badges, Activity, a
 
 Status codes:
 
-| HTTP | Meaning |
-| ---: | --- |
-| 200 | Queue state returned, including an empty/disconnected state |
-| 401 | No authenticated user session |
-| 403 | The account must replace its temporary password first |
-| 503 | One or more queue sources could not be read |
+| HTTP | Meaning                                                     |
+| ---: | ----------------------------------------------------------- |
+|  200 | Queue state returned, including an empty/disconnected state |
+|  401 | No authenticated user session                               |
+|  403 | The account must replace its temporary password first       |
+|  503 | One or more queue sources could not be read                 |
 
 The response shape is:
 
 ```ts
 type ActiveDownloadQueueState = {
-  connectionStatus: "disconnected" | "configured" | "verified" | "error";
-  statusMessage: string;
-  snapshot: DownloadQueueSnapshot | null;
-  // Present on POST responses.
-  action?: {
-    status: "applied" | "pending";
-    message: string;
-  };
+    connectionStatus: "disconnected" | "configured" | "verified" | "error";
+    statusMessage: string;
+    snapshot: DownloadQueueSnapshot | null;
+    // Present on POST responses.
+    action?: {
+        status: "applied" | "pending";
+        message: string;
+    };
 };
 ```
 
 ```ts
 const response = await fetch("/api/downloads/queue", {
-  cache: "no-store",
+    cache: "no-store",
 });
 if (!response.ok) throw new Error("Queue unavailable");
 const state = await response.json();
@@ -136,26 +136,26 @@ Applies an action to the built-in queue and returns its refreshed state.
 
 ```ts
 type QueueAction =
-  | { type: "pauseQueue" }
-  | { type: "resumeQueue" }
-  | { type: "pause"; itemId: string }
-  | { type: "resume"; itemId: string }
-  | { type: "remove"; itemId: string }
-  | { type: "move"; itemId: string; direction: "up" | "down" }
-  | { type: "moveToIndex"; itemId: string; targetIndex: number };
+    | { type: "pauseQueue" }
+    | { type: "resumeQueue" }
+    | { type: "pause"; itemId: string }
+    | { type: "resume"; itemId: string }
+    | { type: "remove"; itemId: string }
+    | { type: "move"; itemId: string; direction: "up" | "down" }
+    | { type: "moveToIndex"; itemId: string; targetIndex: number };
 ```
 
 Status codes:
 
-| HTTP | Code | Meaning |
-| ---: | --- | --- |
-| 200 | n/a | Action succeeded; refreshed queue returned |
-| 400 | `invalid_json` | Body was not valid JSON |
-| 400 | `invalid_action` | Action fields failed validation |
-| 401 | n/a | No authenticated user session |
-| 403 | `password_change_required` | The account must replace its temporary password first |
-| 409 | `queue_action_conflict` | The item changed state or the requested action conflicts with its current stage |
-| 500 | `queue_action_failed` | The built-in queue operation failed |
+| HTTP | Code                       | Meaning                                                                         |
+| ---: | -------------------------- | ------------------------------------------------------------------------------- |
+|  200 | n/a                        | Action succeeded; refreshed queue returned                                      |
+|  400 | `invalid_json`             | Body was not valid JSON                                                         |
+|  400 | `invalid_action`           | Action fields failed validation                                                 |
+|  401 | n/a                        | No authenticated user session                                                   |
+|  403 | `password_change_required` | The account must replace its temporary password first                           |
+|  409 | `queue_action_conflict`    | The item changed state or the requested action conflicts with its current stage |
+|  500 | `queue_action_failed`      | The built-in queue operation failed                                             |
 
 Example:
 

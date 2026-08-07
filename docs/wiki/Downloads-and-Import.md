@@ -84,12 +84,12 @@ Episode fallback searches only missing, monitored episodes that have aired (an u
 
 Retry timing is persisted:
 
-| Recovery condition | Current schedule |
-| --- | ---: |
+| Recovery condition                            |                             Current schedule |
+| --------------------------------------------- | -------------------------------------------: |
 | Transient search or unexpected workflow error | Starts at 5 minutes, doubles to a 6-hour cap |
-| Capacity reserved by active downloads | Starts at 5 minutes, doubles to a 6-hour cap |
-| Active download coverage check | 15 minutes |
-| No episode release currently available | 6 hours |
+| Capacity reserved by active downloads         | Starts at 5 minutes, doubles to a 6-hour cap |
+| Active download coverage check                |                                   15 minutes |
+| No episode release currently available        |                                      6 hours |
 
 The 15-second worker pass resumes due plans after a process restart. Activity groups all physical attempts into one season plan and shows **Recovering** until the plan succeeds, becomes blocked, or otherwise reaches a terminal state. Notifications are suppressed while the plan is still recovering.
 
@@ -156,11 +156,11 @@ The authenticated browser API at `/api/downloads/queue` returns only the caller'
 
 The Docker image includes:
 
-| Tool | Use | Missing-tool behavior on a native install |
-| --- | --- | --- |
-| `par2` | Verify, repair, and restore obfuscated names | An intact, plainly named payload may continue with a warning; damaged or obfuscated content that depends on PAR2 fails safely |
-| `unrar` | Inspect and extract RAR sets | RAR extraction fails |
-| `7zz` | Inspect and extract ZIP/7z sets | ZIP/7z extraction fails |
+| Tool    | Use                                          | Missing-tool behavior on a native install                                                                                     |
+| ------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `par2`  | Verify, repair, and restore obfuscated names | An intact, plainly named payload may continue with a warning; damaged or obfuscated content that depends on PAR2 fails safely |
+| `unrar` | Inspect and extract RAR sets                 | RAR extraction fails                                                                                                          |
+| `7zz`   | Inspect and extract ZIP/7z sets              | ZIP/7z extraction fails                                                                                                       |
 
 Extraction validates archive entry paths, rejects traversal and unsafe links, and keeps output within the engine workspace. Operators running Nooklet directly on a host must provide these exact executable names on `PATH`.
 
@@ -180,19 +180,19 @@ The import source must resolve inside the finalized directory recorded for the e
 
 ## Failure and recovery guide
 
-| Symptom | Likely boundary | Recovery |
-| --- | --- | --- |
-| "Not enough disk space" despite free media drives | Engine work or completed-output filesystem | Inspect both engine locations in Settings > Storage; move the constrained location to suitable storage and recreate the container |
-| Download restarts after app restart | Current engine recovery semantics | Expected: per-segment resume is not implemented |
-| RAR/7z extraction fails on native install | Missing executable | Install `unrar` or `7zz` with the exact command name on `PATH` |
-| Import cannot reach destination | Bind mount, approved root, or permissions | Verify the container path, `APPROVED_MEDIA_ROOTS`, and write access |
-| Completed engine output is not imported | Worker, finalized staging path, or destination path is unavailable | Inspect Activity, `/health`, both engine paths, and destination permissions; retry the import after the path is healthy |
-| Queue control returns conflict | Item entered post-processing or changed state | Refresh the queue and wait for repair/extraction to complete |
-| Failed season release remains visible | Attempt history inside a recovering plan | Check the plan message in Activity; no manual retry is needed while its status is **Recovering** |
-| No season pack was found | Release availability | Expected fallback: Activity should show the individual-episode strategy and each unavailable episode will be searched again later |
-| Season plan is blocked | Infrastructure or configuration | Follow the plan message, repair storage/path/downloader/credentials, then use **Resume season recovery** |
-| Most episodes queued but one is unavailable | Per-episode release availability | Leave the plan open; Nooklet preserves completed work and rechecks the unavailable episode after its cooldown |
-| No compatible automatic indexer | Only Torznab or no enabled Newznab source | Configure and verify a Newznab indexer |
+| Symptom                                           | Likely boundary                                                    | Recovery                                                                                                                          |
+| ------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| "Not enough disk space" despite free media drives | Engine work or completed-output filesystem                         | Inspect both engine locations in Settings > Storage; move the constrained location to suitable storage and recreate the container |
+| Download restarts after app restart               | Current engine recovery semantics                                  | Expected: per-segment resume is not implemented                                                                                   |
+| RAR/7z extraction fails on native install         | Missing executable                                                 | Install `unrar` or `7zz` with the exact command name on `PATH`                                                                    |
+| Import cannot reach destination                   | Bind mount, approved root, or permissions                          | Verify the container path, `APPROVED_MEDIA_ROOTS`, and write access                                                               |
+| Completed engine output is not imported           | Worker, finalized staging path, or destination path is unavailable | Inspect Activity, `/health`, both engine paths, and destination permissions; retry the import after the path is healthy           |
+| Queue control returns conflict                    | Item entered post-processing or changed state                      | Refresh the queue and wait for repair/extraction to complete                                                                      |
+| Failed season release remains visible             | Attempt history inside a recovering plan                           | Check the plan message in Activity; no manual retry is needed while its status is **Recovering**                                  |
+| No season pack was found                          | Release availability                                               | Expected fallback: Activity should show the individual-episode strategy and each unavailable episode will be searched again later |
+| Season plan is blocked                            | Infrastructure or configuration                                    | Follow the plan message, repair storage/path/downloader/credentials, then use **Resume season recovery**                          |
+| Most episodes queued but one is unavailable       | Per-episode release availability                                   | Leave the plan open; Nooklet preserves completed work and rechecks the unavailable episode after its cooldown                     |
+| No compatible automatic indexer                   | Only Torznab or no enabled Newznab source                          | Configure and verify a Newznab indexer                                                                                            |
 
 ## Current limitations
 

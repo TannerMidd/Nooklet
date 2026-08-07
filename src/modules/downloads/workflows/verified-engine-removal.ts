@@ -1,12 +1,12 @@
 import {
-  findEngineDownloadById,
-  requestEngineDownloadControl,
+    findEngineDownloadById,
+    requestEngineDownloadControl,
 } from "@/modules/download-engine/queue/engine-repository";
 
 export type VerifiedEngineRemoval = {
-  removed: boolean;
-  externalRemoved?: boolean;
-  message?: string;
+    removed: boolean;
+    externalRemoved?: boolean;
+    message?: string;
 };
 
 /**
@@ -15,47 +15,52 @@ export type VerifiedEngineRemoval = {
  * that row is the durable proof consumed by cancellation reconciliation.
  */
 async function requestEngineItemRemoval(
-  userId: string,
-  downloadId: string,
-  beforeExternalPhase: () => Promise<void>,
+    userId: string,
+    downloadId: string,
+    beforeExternalPhase: () => Promise<void>,
 ): Promise<VerifiedEngineRemoval> {
-  await beforeExternalPhase();
-  const record = await findEngineDownloadById(userId, downloadId);
-  if (!record) return { removed: true, externalRemoved: true };
+    await beforeExternalPhase();
+    const record = await findEngineDownloadById(userId, downloadId);
 
-  const requested = await requestEngineDownloadControl(userId, downloadId, "cancel");
-  if (!requested) {
-    const current = await findEngineDownloadById(userId, downloadId);
-    return current
-      ? {
-          removed: false,
-          externalRemoved: false,
-          message: "The built-in download changed before cancellation could be recorded.",
-        }
-      : { removed: true, externalRemoved: true };
-  }
+    if (!record) {
+        return { removed: true, externalRemoved: true };
+    }
 
-  return {
-    removed: false,
-    externalRemoved: false,
-    message: "Built-in downloader cleanup is pending in the isolated worker.",
-  };
+    const requested = await requestEngineDownloadControl(userId, downloadId, "cancel");
+
+    if (!requested) {
+        const current = await findEngineDownloadById(userId, downloadId);
+
+        return current
+            ? {
+                  removed: false,
+                  externalRemoved: false,
+                  message: "The built-in download changed before cancellation could be recorded.",
+              }
+            : { removed: true, externalRemoved: true };
+    }
+
+    return {
+        removed: false,
+        externalRemoved: false,
+        message: "Built-in downloader cleanup is pending in the isolated worker.",
+    };
 }
 
 export async function removeAndVerifyEngineItems(
-  userId: string,
-  externalQueueIds: string[],
-  options: {
-    beforeExternalPhase?: () => Promise<void>;
-  } = {},
+    userId: string,
+    externalQueueIds: string[],
+    options: {
+        beforeExternalPhase?: () => Promise<void>;
+    } = {},
 ) {
-  const beforeExternalPhase = options.beforeExternalPhase ?? (async () => undefined);
-  const ids = Array.from(new Set(externalQueueIds));
-  const result = new Map<string, VerifiedEngineRemoval>();
+    const beforeExternalPhase = options.beforeExternalPhase ?? (async () => undefined);
+    const ids = Array.from(new Set(externalQueueIds));
+    const result = new Map<string, VerifiedEngineRemoval>();
 
-  for (const id of ids) {
-    result.set(id, await requestEngineItemRemoval(userId, id, beforeExternalPhase));
-  }
+    for (const id of ids) {
+        result.set(id, await requestEngineItemRemoval(userId, id, beforeExternalPhase));
+    }
 
-  return result;
+    return result;
 }

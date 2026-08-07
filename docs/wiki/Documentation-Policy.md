@@ -4,17 +4,17 @@
 
 ## Source-of-truth hierarchy
 
-| Concern | Canonical source | Documentation role |
-| --- | --- | --- |
-| Observed runtime behavior | Code, schema, migrations, and tests | Wiki explains and links the owning implementation |
-| Environment validation | `src/lib/env.ts` | `.env.example` mirrors every supported variable with operator guidance |
-| Shipped container behavior | `Dockerfile` and `docker-compose.yml` | Installation/operations pages explain paths, persistence, and hardening |
-| Public HTTP contracts | Route handlers and route tests | [HTTP API](HTTP-API) records the supported contract |
-| Product acceptance | `docs/product/behavior-matrix.md` | Rows should identify implemented, partial, or planned status |
-| Architecture decisions | `docs/adr/` | [Architecture Decisions](Architecture-Decisions) indexes and annotates current alignment |
-| Current architecture narrative | [Architecture](Architecture) and engineering dossier | Must use implementation sources, not aspiration alone |
-| Operator instructions | `docs/wiki/` | Published to GitHub Wiki without hand-edited divergence |
-| Project entry point | `README.md` | Five-minute orientation and quick start; links to deeper Wiki pages |
+| Concern                        | Canonical source                                     | Documentation role                                                                       |
+| ------------------------------ | ---------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Observed runtime behavior      | Code, schema, migrations, and tests                  | Wiki explains and links the owning implementation                                        |
+| Environment validation         | `src/lib/env.ts`                                     | `.env.example` mirrors every supported variable with operator guidance                   |
+| Shipped container behavior     | `Dockerfile` and `docker-compose.yml`                | Installation/operations pages explain paths, persistence, and hardening                  |
+| Public HTTP contracts          | Route handlers and route tests                       | [HTTP API](HTTP-API) records the supported contract                                      |
+| Product acceptance             | `docs/product/behavior-matrix.md`                    | Rows should identify implemented, partial, or planned status                             |
+| Architecture decisions         | `docs/adr/`                                          | [Architecture Decisions](Architecture-Decisions) indexes and annotates current alignment |
+| Current architecture narrative | [Architecture](Architecture) and engineering dossier | Must use implementation sources, not aspiration alone                                    |
+| Operator instructions          | `docs/wiki/`                                         | Published to GitHub Wiki without hand-edited divergence                                  |
+| Project entry point            | `README.md`                                          | Five-minute orientation and quick start; links to deeper Wiki pages                      |
 
 When documents disagree, investigate the implementation rather than choosing the more convenient claim. Correct stale documents in the same change when scope allows.
 
@@ -101,18 +101,18 @@ The engineering dossier's [public-data policy](https://github.com/TannerMidd/Noo
 
 ## Change map
 
-| Implementation change | Documentation to review |
-| --- | --- |
-| Environment variable | `.env.example`, README quick start if critical, Configuration Reference, troubleshooting |
-| Compose/Dockerfile path or volume | Docker Installation, Storage and Path Mapping, backup/upgrade guidance |
-| Service type or ownership | Service Connections, Getting Started, Security Model |
-| Indexer/download behavior | Indexers, Downloads and Import, troubleshooting, ADR-0002 alignment |
-| Schema/job timing | Data and Background Jobs, Architecture, health/API documentation |
-| API route/status/error | HTTP API and repository `docs/api.md` |
-| Authentication/authorization | First-Time Setup, Account Administration, HTTP API, Security Model |
-| Backup/recovery behavior | Backup Restore and Upgrades, troubleshooting, README operations link |
-| Architecture boundary | Architecture, project-structure note, ADR or ADR amendment |
-| User-visible acceptance behavior | Behavior matrix and relevant task-oriented Wiki page |
+| Implementation change             | Documentation to review                                                                  |
+| --------------------------------- | ---------------------------------------------------------------------------------------- |
+| Environment variable              | `.env.example`, README quick start if critical, Configuration Reference, troubleshooting |
+| Compose/Dockerfile path or volume | Docker Installation, Storage and Path Mapping, backup/upgrade guidance                   |
+| Service type or ownership         | Service Connections, Getting Started, Security Model                                     |
+| Indexer/download behavior         | Indexers, Downloads and Import, troubleshooting, ADR-0002 alignment                      |
+| Schema/job timing                 | Data and Background Jobs, Architecture, health/API documentation                         |
+| API route/status/error            | HTTP API and repository `docs/api.md`                                                    |
+| Authentication/authorization      | First-Time Setup, Account Administration, HTTP API, Security Model                       |
+| Backup/recovery behavior          | Backup Restore and Upgrades, troubleshooting, README operations link                     |
+| Architecture boundary             | Architecture, project-structure note, ADR or ADR amendment                               |
+| User-visible acceptance behavior  | Behavior matrix and relevant task-oriented Wiki page                                     |
 
 ## Review checklist
 

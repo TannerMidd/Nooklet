@@ -1,92 +1,92 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-background: rgb(var(--background));
-  --color-foreground: rgb(var(--foreground));
-  /* Cream is the surface base: cards/borders/inputs are cream at low alpha
+    --color-background: rgb(var(--background));
+    --color-foreground: rgb(var(--foreground));
+    /* Cream is the surface base: cards/borders/inputs are cream at low alpha
      over the near-black page, e.g. bg-cream/[0.03] border-cream/[0.08]. */
-  --color-cream: rgb(var(--cream));
-  --color-panel: rgb(var(--panel));
-  --color-panel-strong: rgb(var(--panel-strong));
-  --color-panel-raised: rgb(var(--panel-raised));
-  --color-muted: rgb(var(--muted));
-  --color-placeholder: rgb(var(--placeholder));
-  --color-line: rgb(var(--line));
-  --color-control: rgb(var(--control));
-  --color-focus: rgb(var(--focus));
-  --color-accent: rgb(var(--accent));
-  --color-accent-strong: rgb(var(--accent-strong));
-  --color-accent-foreground: rgb(var(--accent-foreground));
-  --color-accent-cool: rgb(var(--accent-cool));
-  --color-accent-cool-foreground: rgb(var(--accent-cool-foreground));
-  --color-accent-wine: rgb(var(--accent-wine));
-  --color-highlight: rgb(var(--highlight));
-  /* Display face (Fraunces) for page/section/card headings; body face
+    --color-cream: rgb(var(--cream));
+    --color-panel: rgb(var(--panel));
+    --color-panel-strong: rgb(var(--panel-strong));
+    --color-panel-raised: rgb(var(--panel-raised));
+    --color-muted: rgb(var(--muted));
+    --color-placeholder: rgb(var(--placeholder));
+    --color-line: rgb(var(--line));
+    --color-control: rgb(var(--control));
+    --color-focus: rgb(var(--focus));
+    --color-accent: rgb(var(--accent));
+    --color-accent-strong: rgb(var(--accent-strong));
+    --color-accent-foreground: rgb(var(--accent-foreground));
+    --color-accent-cool: rgb(var(--accent-cool));
+    --color-accent-cool-foreground: rgb(var(--accent-cool-foreground));
+    --color-accent-wine: rgb(var(--accent-wine));
+    --color-highlight: rgb(var(--highlight));
+    /* Display face (Fraunces) for page/section/card headings; body face
      (Instrument Sans) everywhere else including item titles. */
-  --font-heading: var(--app-font-heading), serif;
-  --font-body: var(--app-font-body), sans-serif;
-  /* Redesign radius scale: cards 16px, controls/inputs 12px, chips/pills 999px. */
-  --radius-xs: 6px;
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
-  --radius-xl: 14px;
-  --radius-2xl: 16px;
-  --radius-3xl: 18px;
-  --radius-4xl: 22px;
+    --font-heading: var(--app-font-heading), serif;
+    --font-body: var(--app-font-body), sans-serif;
+    /* Redesign radius scale: cards 16px, controls/inputs 12px, chips/pills 999px. */
+    --radius-xs: 6px;
+    --radius-sm: 8px;
+    --radius-md: 10px;
+    --radius-lg: 12px;
+    --radius-xl: 14px;
+    --radius-2xl: 16px;
+    --radius-3xl: 18px;
+    --radius-4xl: 22px;
 }
 
 :root {
-  /* Warm near-black with translucent cream surfaces — official redesign. */
-  --background: 15 14 13;
-  --foreground: 244 239 231;
-  --cream: 255 244 230;
-  --panel: 20 18 16;
-  --panel-strong: 30 28 25;
-  --panel-raised: 42 39 35;
-  --muted: 155 148 138;
-  --line: 96 89 80;
-  --control: 118 108 96;
-  --placeholder: 180 171 160;
-  --focus: 242 190 121;
-  --accent: 232 165 80;
-  --accent-strong: 242 190 121;
-  --accent-foreground: 31 22 12;
-  --accent-cool: 127 181 164;
-  --accent-cool-foreground: 18 38 34;
-  --accent-wine: 198 106 118;
-  --highlight: 232 165 80;
+    /* Warm near-black with translucent cream surfaces — official redesign. */
+    --background: 15 14 13;
+    --foreground: 244 239 231;
+    --cream: 255 244 230;
+    --panel: 20 18 16;
+    --panel-strong: 30 28 25;
+    --panel-raised: 42 39 35;
+    --muted: 155 148 138;
+    --line: 96 89 80;
+    --control: 118 108 96;
+    --placeholder: 180 171 160;
+    --focus: 242 190 121;
+    --accent: 232 165 80;
+    --accent-strong: 242 190 121;
+    --accent-foreground: 31 22 12;
+    --accent-cool: 127 181 164;
+    --accent-cool-foreground: 18 38 34;
+    --accent-wine: 198 106 118;
+    --highlight: 232 165 80;
 }
 
 * {
-  box-sizing: border-box;
+    box-sizing: border-box;
 }
 
 html {
-  min-height: 100%;
-  color-scheme: dark;
+    min-height: 100%;
+    color-scheme: dark;
 }
 
 body {
-  min-height: 100vh;
-  margin: 0;
-  background: rgb(var(--background));
-  color: rgb(var(--foreground));
-  font-family: var(--app-font-body), sans-serif;
+    min-height: 100vh;
+    margin: 0;
+    background: rgb(var(--background));
+    color: rgb(var(--foreground));
+    font-family: var(--app-font-body), sans-serif;
 }
 
 button,
 input,
 select,
 textarea {
-  font: inherit;
+    font: inherit;
 }
 
 @layer base {
-  a {
-    color: inherit;
-    text-decoration: none;
-  }
+    a {
+        color: inherit;
+        text-decoration: none;
+    }
 }
 
 /* Headings default to the sans body face; display surfaces (page titles,
@@ -97,255 +97,289 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--app-font-body), sans-serif;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  margin: 0;
+    font-family: var(--app-font-body), sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0;
 }
 
 .font-heading {
-  font-weight: 500;
-  letter-spacing: -0.015em;
+    font-weight: 500;
+    letter-spacing: -0.015em;
 }
 
 .nooklet-wordmark {
-  font-family: var(--app-font-heading), serif;
-  font-weight: 500;
-  letter-spacing: -0.01em;
+    font-family: var(--app-font-heading), serif;
+    font-weight: 500;
+    letter-spacing: -0.01em;
 }
 
 p,
 ul,
 ol {
-  margin: 0;
+    margin: 0;
 }
 
 ::selection {
-  background: rgba(232, 165, 80, 0.30);
-  color: rgb(var(--foreground));
+    background: rgba(232, 165, 80, 0.3);
+    color: rgb(var(--foreground));
 }
 
 ::placeholder {
-  color: rgb(var(--placeholder));
+    color: rgb(var(--placeholder));
 }
 
 :focus-visible {
-  outline: 2px solid rgb(var(--focus));
-  outline-offset: 2px;
+    outline: 2px solid rgb(var(--focus));
+    outline-offset: 2px;
 }
 
 * {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(120, 105, 88, 0.5) transparent;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(120, 105, 88, 0.5) transparent;
 }
 
 ::-webkit-scrollbar {
-  height: 8px;
-  width: 8px;
+    height: 8px;
+    width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+    background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(120, 105, 88, 0.5);
-  border-radius: 4px;
+    background: rgba(120, 105, 88, 0.5);
+    border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(150, 132, 110, 0.7);
+    background: rgba(150, 132, 110, 0.7);
 }
 
 /* Page-level entrance: content fades and settles upward. */
 @keyframes nk-enter {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
 
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .nk-enter {
-  animation: nk-enter 480ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: nk-enter 480ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Dialog entrance: the scrim fades while the panel rises and settles. */
 @keyframes nk-fade {
-  from {
-    opacity: 0;
-  }
+    from {
+        opacity: 0;
+    }
 
-  to {
-    opacity: 1;
-  }
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes nk-pop {
-  from {
-    opacity: 0;
-    transform: translateY(14px) scale(0.985);
-  }
+    from {
+        opacity: 0;
+        transform: translateY(14px) scale(0.985);
+    }
 
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 .nk-fade {
-  animation: nk-fade 180ms ease;
+    animation: nk-fade 180ms ease;
 }
 
 /* Live indicator: the queue hero's dot breathes while work is in flight. */
 @keyframes nk-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
+    0%,
+    100% {
+        opacity: 1;
+    }
 
-  50% {
-    opacity: 0.35;
-  }
+    50% {
+        opacity: 0.35;
+    }
 }
 
 .nk-pulse {
-  animation: nk-pulse 1.8s ease-in-out infinite;
+    animation: nk-pulse 1.8s ease-in-out infinite;
 }
 
 /* Floating bulk-action bar: rises into place when a selection starts. */
 @keyframes nk-rise {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 14px);
-  }
+    from {
+        opacity: 0;
+        transform: translate(-50%, 14px);
+    }
 
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
 }
 
 .nk-rise {
-  animation: nk-rise 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: nk-rise 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Modal scrim: one warm near-black wash with a soft blur behind every dialog,
    drawer, and palette. */
 .nk-scrim {
-  background: rgba(10, 9, 8, 0.76);
-  backdrop-filter: blur(7px);
+    background: rgba(10, 9, 8, 0.76);
+    backdrop-filter: blur(7px);
 }
 
 .nk-pop {
-  animation: nk-pop 260ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: nk-pop 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes recommendation-card-enter {
-  0% {
-    opacity: 0;
-    transform: translateY(10px);
-  }
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+    }
 
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .recommendation-featured-card {
-  animation: recommendation-card-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: recommendation-card-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /* Primary action: accent fill, dark text, warm floating glow. Lives in the
    components layer so per-instance Tailwind utilities can override it. */
 @layer components {
-  .nk-button-primary {
-    background: rgb(var(--accent));
-    color: rgb(var(--accent-foreground));
-    box-shadow: 0 12px 28px -14px rgba(232, 165, 80, 0.55);
-    transition: filter 150ms ease;
-  }
+    .nk-button-primary {
+        background: rgb(var(--accent));
+        color: rgb(var(--accent-foreground));
+        box-shadow: 0 12px 28px -14px rgba(232, 165, 80, 0.55);
+        transition: filter 150ms ease;
+    }
 
-  .nk-button-primary:hover:not(:disabled) {
-    filter: brightness(1.12);
-  }
+    .nk-button-primary:hover:not(:disabled) {
+        filter: brightness(1.12);
+    }
 }
 
 /* Glowing brand dot used by the sidebar and auth screens. */
 .nk-brand-dot {
-  border-radius: 999px;
-  background: rgb(var(--accent));
-  box-shadow: 0 0 14px rgba(232, 165, 80, 0.55);
+    border-radius: 999px;
+    background: rgb(var(--accent));
+    box-shadow: 0 0 14px rgba(232, 165, 80, 0.55);
 }
 
 /* Auth backdrop: faint amber/teal ambience over the near-black page. */
 .nk-auth-backdrop {
-  background:
-    radial-gradient(ellipse 60rem 34rem at 50% -10%, rgba(232, 165, 80, 0.10), transparent 60%),
-    radial-gradient(ellipse 50rem 30rem at 100% 110%, rgba(127, 181, 164, 0.06), transparent 60%),
-    rgb(var(--background));
+    background:
+        radial-gradient(ellipse 60rem 34rem at 50% -10%, rgba(232, 165, 80, 0.1), transparent 60%),
+        radial-gradient(
+            ellipse 50rem 30rem at 100% 110%,
+            rgba(127, 181, 164, 0.06),
+            transparent 60%
+        ),
+        rgb(var(--background));
 }
 
 /* Hero surfaces for the featured recommendation. */
 .nk-hero-tv {
-  background:
-    linear-gradient(150deg, rgba(30, 58, 66, 0.9), rgba(20, 28, 32, 0.98) 55%, rgb(15, 14, 13)),
-    rgb(20, 18, 16);
+    background:
+        linear-gradient(150deg, rgba(30, 58, 66, 0.9), rgba(20, 28, 32, 0.98) 55%, rgb(15, 14, 13)),
+        rgb(20, 18, 16);
 }
 
 .nk-hero-movie {
-  background:
-    linear-gradient(150deg, rgba(80, 55, 30, 0.9), rgba(35, 26, 18, 0.98) 55%, rgb(15, 14, 13)),
-    rgb(20, 18, 16);
+    background:
+        linear-gradient(150deg, rgba(80, 55, 30, 0.9), rgba(35, 26, 18, 0.98) 55%, rgb(15, 14, 13)),
+        rgb(20, 18, 16);
 }
 
 .nk-hero-scrim {
-  background: linear-gradient(100deg, rgba(15, 14, 13, 0.94) 22%, rgba(15, 14, 13, 0.55) 58%, rgba(15, 14, 13, 0.15));
+    background: linear-gradient(
+        100deg,
+        rgba(15, 14, 13, 0.94) 22%,
+        rgba(15, 14, 13, 0.55) 58%,
+        rgba(15, 14, 13, 0.15)
+    );
 }
 
 /* Poster monogram gradients — warm placeholder art when no artwork exists. */
 .nk-poster-amber {
-  background: linear-gradient(160deg, rgba(232, 165, 80, 0.55), rgba(120, 60, 20, 0.85) 70%, rgba(30, 20, 12, 0.95));
+    background: linear-gradient(
+        160deg,
+        rgba(232, 165, 80, 0.55),
+        rgba(120, 60, 20, 0.85) 70%,
+        rgba(30, 20, 12, 0.95)
+    );
 }
 
 .nk-poster-teal {
-  background: linear-gradient(160deg, rgba(127, 181, 164, 0.5), rgba(30, 80, 68, 0.85) 70%, rgba(12, 24, 20, 0.95));
+    background: linear-gradient(
+        160deg,
+        rgba(127, 181, 164, 0.5),
+        rgba(30, 80, 68, 0.85) 70%,
+        rgba(12, 24, 20, 0.95)
+    );
 }
 
 .nk-poster-wine {
-  background: linear-gradient(160deg, rgba(198, 106, 118, 0.5), rgba(90, 35, 44, 0.85) 70%, rgba(26, 14, 16, 0.95));
+    background: linear-gradient(
+        160deg,
+        rgba(198, 106, 118, 0.5),
+        rgba(90, 35, 44, 0.85) 70%,
+        rgba(26, 14, 16, 0.95)
+    );
 }
 
 .nk-poster-slate {
-  background: linear-gradient(160deg, rgba(150, 160, 178, 0.45), rgba(55, 62, 78, 0.85) 70%, rgba(16, 18, 24, 0.95));
+    background: linear-gradient(
+        160deg,
+        rgba(150, 160, 178, 0.45),
+        rgba(55, 62, 78, 0.85) 70%,
+        rgba(16, 18, 24, 0.95)
+    );
 }
 
 .nk-poster-moss {
-  background: linear-gradient(160deg, rgba(164, 181, 110, 0.45), rgba(66, 78, 32, 0.85) 70%, rgba(20, 22, 12, 0.95));
+    background: linear-gradient(
+        160deg,
+        rgba(164, 181, 110, 0.45),
+        rgba(66, 78, 32, 0.85) 70%,
+        rgba(20, 22, 12, 0.95)
+    );
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
 
 /* Touch-first layouts should never require pixel-perfect taps. Compact
    controls remain available to pointer-accurate desktop tables. */
 @media (pointer: coarse) {
-  button:not([aria-hidden="true"]),
-  [role="button"] {
-    min-height: 44px;
-    min-width: 44px;
-  }
+    button:not([aria-hidden="true"]),
+    [role="button"] {
+        min-height: 44px;
+        min-width: 44px;
+    }
 }

@@ -1,82 +1,82 @@
 export type SearchResultView = {
-  id: string;
-  title: string;
-  mediaType: "movie" | "tv";
-  qualityLabel: string | null;
-  sizeBytes: number | null;
-  publishedAt: string | null;
-  seeders: number | null;
-  leechers: number | null;
-  grabs: number | null;
-  protocol: "newznab" | "torznab" | "unknown";
+    id: string;
+    title: string;
+    mediaType: "movie" | "tv";
+    qualityLabel: string | null;
+    sizeBytes: number | null;
+    publishedAt: string | null;
+    seeders: number | null;
+    leechers: number | null;
+    grabs: number | null;
+    protocol: "newznab" | "torznab" | "unknown";
 };
 
 export type TitleSearchResultView = {
-  tmdbId: number;
-  mediaType: "movie" | "tv";
-  title: string;
-  year: number | null;
-  overview: string | null;
-  posterUrl: string | null;
-  backdropUrl: string | null;
-  releaseDate: string | null;
-  originalLanguage: string | null;
-  voteAverage: number | null;
+    tmdbId: number;
+    mediaType: "movie" | "tv";
+    title: string;
+    year: number | null;
+    overview: string | null;
+    posterUrl: string | null;
+    backdropUrl: string | null;
+    releaseDate: string | null;
+    originalLanguage: string | null;
+    voteAverage: number | null;
 };
 
 export type TitleSearchActionState = {
-  status: "idle" | "success" | "error";
-  message: string | null;
-  results: TitleSearchResultView[];
+    status: "idle" | "success" | "error";
+    message: string | null;
+    results: TitleSearchResultView[];
 };
 
 export const initialTitleSearchActionState: TitleSearchActionState = {
-  status: "idle",
-  message: null,
-  results: [],
+    status: "idle",
+    message: null,
+    results: [],
 };
 
 export type RequestSearchTitleActionState = {
-  status: "idle" | "success" | "warning" | "error";
-  message: string | null;
-  outcome:
-    | "catalog_added"
-    | "queued"
-    | "partial_queue"
-    | "no_match"
-    | "search_failed"
-    | "queue_failed"
-    | null;
-  titleId: string | null;
-  seasonId: string | null;
-  episodeId: string | null;
-  searchRunId: string | null;
-  downloadRequestId: string | null;
-  targetLibraryPathId: string | null;
-  results: SearchResultView[];
+    status: "idle" | "success" | "warning" | "error";
+    message: string | null;
+    outcome:
+        | "catalog_added"
+        | "queued"
+        | "partial_queue"
+        | "no_match"
+        | "search_failed"
+        | "queue_failed"
+        | null;
+    titleId: string | null;
+    seasonId: string | null;
+    episodeId: string | null;
+    searchRunId: string | null;
+    downloadRequestId: string | null;
+    targetLibraryPathId: string | null;
+    results: SearchResultView[];
 };
 
 export const initialRequestSearchTitleActionState: RequestSearchTitleActionState = {
-  status: "idle",
-  message: null,
-  outcome: null,
-  titleId: null,
-  seasonId: null,
-  episodeId: null,
-  searchRunId: null,
-  downloadRequestId: null,
-  targetLibraryPathId: null,
-  results: [],
+    status: "idle",
+    message: null,
+    outcome: null,
+    titleId: null,
+    seasonId: null,
+    episodeId: null,
+    searchRunId: null,
+    downloadRequestId: null,
+    targetLibraryPathId: null,
+    results: [],
 };
 
 export type QueueIndexerResultActionState = {
-  status: "idle" | "success" | "error";
-  message: string | null;
-  downloadRequestId: string | null;
+    status: "idle" | "success" | "error";
+    message: string | null;
+    downloadRequestId: string | null;
 };
 
 export const initialQueueIndexerResultActionState: QueueIndexerResultActionState = {
-  status: "idle",
-  message: null,
-  downloadRequestId: null,
+    status: "idle",
+    message: null,
+    downloadRequestId: null,
 };

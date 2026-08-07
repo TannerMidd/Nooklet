@@ -4,9 +4,9 @@ import { ensureDatabaseReady } from "@/lib/database/client";
 import { mediaFiles } from "@/lib/database/schema";
 
 type Input = {
-  userId: string;
-  titleId: string;
-  episodeId?: string | null;
+    userId: string;
+    titleId: string;
+    episodeId?: string | null;
 };
 
 /**
@@ -16,35 +16,35 @@ type Input = {
  * alphabetical first option.
  */
 export async function getMediaTitleCurrentLibraryPathId({
-  userId,
-  titleId,
-  episodeId,
+    userId,
+    titleId,
+    episodeId,
 }: Input): Promise<string | null> {
-  const database = ensureDatabaseReady();
-  const conditions = [
-    eq(mediaFiles.userId, userId),
-    eq(mediaFiles.titleId, titleId),
-    isNotNull(mediaFiles.libraryPathId),
-  ];
+    const database = ensureDatabaseReady();
+    const conditions = [
+        eq(mediaFiles.userId, userId),
+        eq(mediaFiles.titleId, titleId),
+        isNotNull(mediaFiles.libraryPathId),
+    ];
 
-  if (episodeId) {
-    conditions.push(eq(mediaFiles.episodeId, episodeId));
-  }
+    if (episodeId) {
+        conditions.push(eq(mediaFiles.episodeId, episodeId));
+    }
 
-  const rows = database
-    .select({ libraryPathId: mediaFiles.libraryPathId, fileCount: count(mediaFiles.id) })
-    .from(mediaFiles)
-    .where(and(...conditions))
-    .groupBy(mediaFiles.libraryPathId)
-    .orderBy(desc(count(mediaFiles.id)))
-    .limit(1)
-    .all();
+    const rows = database
+        .select({ libraryPathId: mediaFiles.libraryPathId, fileCount: count(mediaFiles.id) })
+        .from(mediaFiles)
+        .where(and(...conditions))
+        .groupBy(mediaFiles.libraryPathId)
+        .orderBy(desc(count(mediaFiles.id)))
+        .limit(1)
+        .all();
 
-  const row = rows[0];
+    const row = rows[0];
 
-  if (!row?.libraryPathId) {
-    return null;
-  }
+    if (!row?.libraryPathId) {
+        return null;
+    }
 
-  return row.libraryPathId;
+    return row.libraryPathId;
 }

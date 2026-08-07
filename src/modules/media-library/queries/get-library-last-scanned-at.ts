@@ -2,9 +2,9 @@ import { and, desc, eq, isNotNull } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
-  mediaLibraries,
-  mediaLibraryPaths,
-  type RecommendationMediaType,
+    mediaLibraries,
+    mediaLibraryPaths,
+    type RecommendationMediaType,
 } from "@/lib/database/schema";
 
 /**
@@ -13,24 +13,24 @@ import {
  * been scanned.
  */
 export async function getLibraryLastScannedAt(
-  userId: string,
-  mediaType: RecommendationMediaType,
+    userId: string,
+    mediaType: RecommendationMediaType,
 ): Promise<Date | null> {
-  const database = ensureDatabaseReady();
-  const row = database
-    .select({ lastScannedAt: mediaLibraryPaths.lastScannedAt })
-    .from(mediaLibraryPaths)
-    .innerJoin(mediaLibraries, eq(mediaLibraries.id, mediaLibraryPaths.libraryId))
-    .where(
-      and(
-        eq(mediaLibraryPaths.userId, userId),
-        eq(mediaLibraries.mediaType, mediaType),
-        isNotNull(mediaLibraryPaths.lastScannedAt),
-      ),
-    )
-    .orderBy(desc(mediaLibraryPaths.lastScannedAt))
-    .limit(1)
-    .get();
+    const database = ensureDatabaseReady();
+    const row = database
+        .select({ lastScannedAt: mediaLibraryPaths.lastScannedAt })
+        .from(mediaLibraryPaths)
+        .innerJoin(mediaLibraries, eq(mediaLibraries.id, mediaLibraryPaths.libraryId))
+        .where(
+            and(
+                eq(mediaLibraryPaths.userId, userId),
+                eq(mediaLibraries.mediaType, mediaType),
+                isNotNull(mediaLibraryPaths.lastScannedAt),
+            ),
+        )
+        .orderBy(desc(mediaLibraryPaths.lastScannedAt))
+        .limit(1)
+        .get();
 
-  return row?.lastScannedAt ?? null;
+    return row?.lastScannedAt ?? null;
 }

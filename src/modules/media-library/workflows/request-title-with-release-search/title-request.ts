@@ -1,12 +1,10 @@
-import {
-  requestMediaTitleCommand,
-} from "@/modules/media-library/commands/request-media-title";
+import { requestMediaTitleCommand } from "@/modules/media-library/commands/request-media-title";
 
 import { type RequestTitleWithReleaseSearchInput } from "./request-validation";
 
 export async function requestWorkflowMediaTitle(
-  userId: string,
-  request: RequestTitleWithReleaseSearchInput,
+    userId: string,
+    request: RequestTitleWithReleaseSearchInput,
 ) {
-  return requestMediaTitleCommand(userId, request);
+    return requestMediaTitleCommand(userId, request);
 }

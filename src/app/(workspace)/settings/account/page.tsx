@@ -10,47 +10,51 @@ import { ChangePasswordForm } from "./change-password-form";
 export const dynamic = "force-dynamic";
 
 export default async function AccountSettingsPage() {
-  const session = await auth();
+    const session = await auth();
 
-  if (!session?.user?.id) {
-    return null;
-  }
+    if (!session?.user?.id) {
+        return null;
+    }
 
-  const user = await getAccountUser(session.user.id);
+    const user = await getAccountUser(session.user.id);
 
-  return (
-    <div className="nk-enter space-y-7">
-      <PageHeader eyebrow="User settings" title="Account" />
+    return (
+        <div className="nk-enter space-y-7">
+            <PageHeader eyebrow="User settings" title="Account" />
 
-      {user?.mustChangePassword ? (
-        <InlineAlert variant="warning">
-          <strong>Choose your own password to continue.</strong>{" "}
-          An administrator issued the password you used to sign in. Replace it now, then sign in again with your new password to continue.
-        </InlineAlert>
-      ) : null}
+            {user?.mustChangePassword ? (
+                <InlineAlert variant="warning">
+                    <strong>Choose your own password to continue.</strong> An administrator issued
+                    the password you used to sign in. Replace it now, then sign in again with your
+                    new password to continue.
+                </InlineAlert>
+            ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[1.05fr,0.95fr]">
-        <Panel
-          eyebrow="Password change"
-          title="Update your password"
-          description="Use your current password to set a new one for this account."
-        >
-          <ChangePasswordForm />
-        </Panel>
+            <div className="grid gap-6 xl:grid-cols-[1.05fr,0.95fr]">
+                <Panel
+                    eyebrow="Password change"
+                    title="Update your password"
+                    description="Use your current password to set a new one for this account."
+                >
+                    <ChangePasswordForm />
+                </Panel>
 
-        <div className="space-y-5">
-          <Panel
-            eyebrow="Signed-in account"
-            title={user?.displayName ?? session.user.name ?? "Account"}
-          >
-            <div className="space-y-3">
-              <StatCard label="Email" value={user?.email ?? session.user.email} />
-              <StatCard label="Role" value={session.user.role} />
-              <StatCard label="Status" value={user?.isDisabled ? "Disabled" : "Active"} />
+                <div className="space-y-5">
+                    <Panel
+                        eyebrow="Signed-in account"
+                        title={user?.displayName ?? session.user.name ?? "Account"}
+                    >
+                        <div className="space-y-3">
+                            <StatCard label="Email" value={user?.email ?? session.user.email} />
+                            <StatCard label="Role" value={session.user.role} />
+                            <StatCard
+                                label="Status"
+                                value={user?.isDisabled ? "Disabled" : "Active"}
+                            />
+                        </div>
+                    </Panel>
+                </div>
             </div>
-          </Panel>
         </div>
-      </div>
-    </div>
-  );
+    );
 }

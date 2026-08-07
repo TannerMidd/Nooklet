@@ -1,22 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/modules/recommendations/repositories/recommendation-repository", () => ({
-  findRecommendationItemForUser: vi.fn(),
-  listRecommendationItemTimelineEvents: vi.fn(async () => []),
-  updateRecommendationItemProviderMetadata: vi.fn(),
+    findRecommendationItemForUser: vi.fn(),
+    listRecommendationItemTimelineEvents: vi.fn(async () => []),
+    updateRecommendationItemProviderMetadata: vi.fn(),
 }));
 vi.mock("@/modules/service-connections/queries/get-verified-tmdb-connection", () => ({
-  getVerifiedTmdbConnection: vi.fn(),
+    getVerifiedTmdbConnection: vi.fn(),
 }));
 vi.mock("@/modules/service-connections/adapters/tmdb", () => ({
-  lookupTmdbTitleDetails: vi.fn(),
-  tmdbVideoTypes: ["Trailer", "Teaser", "Featurette", "Clip"] as const,
-  tmdbWatchProviderCategories: ["flatrate", "rent", "buy"] as const,
+    lookupTmdbTitleDetails: vi.fn(),
+    tmdbVideoTypes: ["Trailer", "Teaser", "Featurette", "Clip"] as const,
+    tmdbWatchProviderCategories: ["flatrate", "rent", "buy"] as const,
 }));
 
 import {
-  findRecommendationItemForUser,
-  updateRecommendationItemProviderMetadata,
+    findRecommendationItemForUser,
+    updateRecommendationItemProviderMetadata,
 } from "@/modules/recommendations/repositories/recommendation-repository";
 import { getVerifiedTmdbConnection } from "@/modules/service-connections/queries/get-verified-tmdb-connection";
 import { lookupTmdbTitleDetails } from "@/modules/service-connections/adapters/tmdb";
@@ -28,138 +28,147 @@ const updateMetadataMock = vi.mocked(updateRecommendationItemProviderMetadata);
 const loadTmdbMock = vi.mocked(getVerifiedTmdbConnection);
 const lookupTmdbMock = vi.mocked(lookupTmdbTitleDetails);
 
-type RecommendationOverviewRepositoryItem = NonNullable<Awaited<ReturnType<typeof findRecommendationItemForUser>>>;
+type RecommendationOverviewRepositoryItem = NonNullable<
+    Awaited<ReturnType<typeof findRecommendationItemForUser>>
+>;
 
 function buildItem(overrides: Partial<RecommendationOverviewRepositoryItem> = {}) {
-  return {
-    itemId: "item-1",
-    runId: "run-1",
-    mediaType: "movie",
-    title: "Arrival",
-    year: 2016,
-    rationale: "Thoughtful sci-fi.",
-    confidenceLabel: "high",
-    existingInLibrary: false,
-    providerMetadataJson: null,
-    runStatus: "succeeded",
-    requestPrompt: "Cerebral sci-fi",
-    runCreatedAt: new Date("2026-04-26T12:00:00Z"),
-    feedback: null,
-    isHidden: null,
-    ...overrides,
-  } as RecommendationOverviewRepositoryItem;
+    return {
+        itemId: "item-1",
+        runId: "run-1",
+        mediaType: "movie",
+        title: "Arrival",
+        year: 2016,
+        rationale: "Thoughtful sci-fi.",
+        confidenceLabel: "high",
+        existingInLibrary: false,
+        providerMetadataJson: null,
+        runStatus: "succeeded",
+        requestPrompt: "Cerebral sci-fi",
+        runCreatedAt: new Date("2026-04-26T12:00:00Z"),
+        feedback: null,
+        isHidden: null,
+        ...overrides,
+    } as RecommendationOverviewRepositoryItem;
 }
 
 const tmdbDetails = {
-  source: "tmdb" as const,
-  tmdbId: 1,
-  mediaType: "movie" as const,
-  title: "Arrival",
-  originalTitle: "Arrival",
-  overview: "A linguist works with alien visitors.",
-  tagline: "Why are they here?",
-  year: 2016,
-  releaseDate: "2016-11-11",
-  originalLanguage: "en",
-  posterUrl: "https://image.tmdb.test/poster.jpg",
-  backdropUrl: "https://image.tmdb.test/backdrop.jpg",
-  genres: ["Science Fiction", "Drama"],
-  runtimeMinutes: 116,
-  seasonCount: null,
-  status: "Released",
-  voteAverage: 7.6,
-  voteCount: 18000,
-  homepage: "https://arrival.movie",
-  imdbId: "tt2543164",
-  tvdbId: null,
-  videos: [
-    {
-      key: "abc123",
-      site: "YouTube" as const,
-      type: "Trailer" as const,
-      name: "Arrival - Official Trailer",
-      official: true,
-      publishedAt: "2016-08-16T00:00:00Z",
-    },
-  ],
-  cast: [],
-  watchProviders: null,
-  similarTitles: [],
+    source: "tmdb" as const,
+    tmdbId: 1,
+    mediaType: "movie" as const,
+    title: "Arrival",
+    originalTitle: "Arrival",
+    overview: "A linguist works with alien visitors.",
+    tagline: "Why are they here?",
+    year: 2016,
+    releaseDate: "2016-11-11",
+    originalLanguage: "en",
+    posterUrl: "https://image.tmdb.test/poster.jpg",
+    backdropUrl: "https://image.tmdb.test/backdrop.jpg",
+    genres: ["Science Fiction", "Drama"],
+    runtimeMinutes: 116,
+    seasonCount: null,
+    status: "Released",
+    voteAverage: 7.6,
+    voteCount: 18000,
+    homepage: "https://arrival.movie",
+    imdbId: "tt2543164",
+    tvdbId: null,
+    videos: [
+        {
+            key: "abc123",
+            site: "YouTube" as const,
+            type: "Trailer" as const,
+            name: "Arrival - Official Trailer",
+            official: true,
+            publishedAt: "2016-08-16T00:00:00Z",
+        },
+    ],
+    cast: [],
+    watchProviders: null,
+    similarTitles: [],
 };
 
 describe("getRecommendationTitleOverview", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    updateMetadataMock.mockResolvedValue(undefined);
-  });
-
-  it("returns null when the recommendation item does not belong to the user", async () => {
-    findMock.mockResolvedValue(null);
-
-    await expect(getRecommendationTitleOverview("user-1", "missing")).resolves.toBeNull();
-    expect(loadTmdbMock).not.toHaveBeenCalled();
-  });
-
-  it("returns existing TMDB metadata without looking it up again", async () => {
-    findMock.mockResolvedValue(
-      buildItem({
-        providerMetadataJson: JSON.stringify({ metadataSchemaVersion: 2, tmdbDetails }),
-      }),
-    );
-
-    const result = await getRecommendationTitleOverview("user-1", "item-1");
-
-    expect(result?.providerMetadata?.tmdbDetails).toMatchObject({
-      tmdbId: 1,
-      overview: "A linguist works with alien visitors.",
+    beforeEach(() => {
+        vi.clearAllMocks();
+        updateMetadataMock.mockResolvedValue(undefined);
     });
-    expect(loadTmdbMock).not.toHaveBeenCalled();
-    expect(lookupTmdbMock).not.toHaveBeenCalled();
-    expect(updateMetadataMock).not.toHaveBeenCalled();
-  });
 
-  it("loads TMDB details when needed and persists them into provider metadata", async () => {
-    findMock.mockResolvedValue(buildItem({ providerMetadataJson: JSON.stringify({ source: "ai" }) }));
-    loadTmdbMock.mockResolvedValue({
-      baseUrl: "https://api.tmdb.test",
-      secret: "tmdb-token",
-      metadata: { tmdbImageBaseUrl: "https://image.tmdb.test/t/p/" },
+    it("returns null when the recommendation item does not belong to the user", async () => {
+        findMock.mockResolvedValue(null);
+
+        await expect(getRecommendationTitleOverview("user-1", "missing")).resolves.toBeNull();
+        expect(loadTmdbMock).not.toHaveBeenCalled();
     });
-    lookupTmdbMock.mockResolvedValue({ ok: true, details: tmdbDetails });
 
-    const result = await getRecommendationTitleOverview("user-1", "item-1");
+    it("returns existing TMDB metadata without looking it up again", async () => {
+        findMock.mockResolvedValue(
+            buildItem({
+                providerMetadataJson: JSON.stringify({ metadataSchemaVersion: 2, tmdbDetails }),
+            }),
+        );
 
-    expect(lookupTmdbMock).toHaveBeenCalledWith({
-      baseUrl: "https://api.tmdb.test",
-      secret: "tmdb-token",
-      metadata: { tmdbImageBaseUrl: "https://image.tmdb.test/t/p/" },
-      mediaType: "movie",
-      title: "Arrival",
-      year: 2016,
+        const result = await getRecommendationTitleOverview("user-1", "item-1");
+
+        expect(result?.providerMetadata?.tmdbDetails).toMatchObject({
+            tmdbId: 1,
+            overview: "A linguist works with alien visitors.",
+        });
+        expect(loadTmdbMock).not.toHaveBeenCalled();
+        expect(lookupTmdbMock).not.toHaveBeenCalled();
+        expect(updateMetadataMock).not.toHaveBeenCalled();
     });
-    expect(updateMetadataMock).toHaveBeenCalledTimes(1);
-    const persisted = JSON.parse(updateMetadataMock.mock.calls[0]?.[1] ?? "{}");
-    expect(persisted).toMatchObject({
-      source: "ai",
-      posterUrl: "https://image.tmdb.test/poster.jpg",
-      tmdbDetails: {
-        tmdbId: 1,
-        originalLanguage: "en",
-      },
+
+    it("loads TMDB details when needed and persists them into provider metadata", async () => {
+        findMock.mockResolvedValue(
+            buildItem({ providerMetadataJson: JSON.stringify({ source: "ai" }) }),
+        );
+        loadTmdbMock.mockResolvedValue({
+            baseUrl: "https://api.tmdb.test",
+            secret: "tmdb-token",
+            metadata: { tmdbImageBaseUrl: "https://image.tmdb.test/t/p/" },
+        });
+        lookupTmdbMock.mockResolvedValue({ ok: true, details: tmdbDetails });
+
+        const result = await getRecommendationTitleOverview("user-1", "item-1");
+
+        expect(lookupTmdbMock).toHaveBeenCalledWith({
+            baseUrl: "https://api.tmdb.test",
+            secret: "tmdb-token",
+            metadata: { tmdbImageBaseUrl: "https://image.tmdb.test/t/p/" },
+            mediaType: "movie",
+            title: "Arrival",
+            year: 2016,
+        });
+        expect(updateMetadataMock).toHaveBeenCalledTimes(1);
+        const persisted = JSON.parse(updateMetadataMock.mock.calls[0]?.[1] ?? "{}");
+
+        expect(persisted).toMatchObject({
+            source: "ai",
+            posterUrl: "https://image.tmdb.test/poster.jpg",
+            tmdbDetails: {
+                tmdbId: 1,
+                originalLanguage: "en",
+            },
+        });
+        expect(result?.providerMetadata?.tmdbDetails?.overview).toBe(
+            "A linguist works with alien visitors.",
+        );
+        expect(result?.tmdbLookupMessage).toBeNull();
     });
-    expect(result?.providerMetadata?.tmdbDetails?.overview).toBe("A linguist works with alien visitors.");
-    expect(result?.tmdbLookupMessage).toBeNull();
-  });
 
-  it("returns the saved item and a lookup message when TMDB is unavailable", async () => {
-    findMock.mockResolvedValue(buildItem());
-    loadTmdbMock.mockResolvedValue(null);
+    it("returns the saved item and a lookup message when TMDB is unavailable", async () => {
+        findMock.mockResolvedValue(buildItem());
+        loadTmdbMock.mockResolvedValue(null);
 
-    const result = await getRecommendationTitleOverview("user-1", "item-1");
+        const result = await getRecommendationTitleOverview("user-1", "item-1");
 
-    expect(result?.item.title).toBe("Arrival");
-    expect(result?.providerMetadata).toBeNull();
-    expect(result?.tmdbLookupMessage).toBe("Verify TMDB to load richer title details for this recommendation.");
-    expect(lookupTmdbMock).not.toHaveBeenCalled();
-  });
+        expect(result?.item.title).toBe("Arrival");
+        expect(result?.providerMetadata).toBeNull();
+        expect(result?.tmdbLookupMessage).toBe(
+            "Verify TMDB to load richer title details for this recommendation.",
+        );
+        expect(lookupTmdbMock).not.toHaveBeenCalled();
+    });
 });
