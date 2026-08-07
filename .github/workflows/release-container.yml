@@ -25,7 +25,7 @@ jobs:
             SECRET_BOX_KEY: release-secret-box-key-that-is-at-least-thirty-two-characters
         steps:
             - name: Require substantive release notes
-              uses: actions/github-script@v8
+              uses: actions/github-script@v9
               with:
                   script: |
                       const notes = context.payload.release?.body?.trim() ?? "";
