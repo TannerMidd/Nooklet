@@ -25,8 +25,10 @@ The Docker/host operator is a privileged security principal. Host access can rea
 - Nooklet uses local email-and-password credentials.
 - Passwords are salted and hashed with scrypt; plaintext passwords are not stored.
 - Password policy is 12–128 characters with lowercase, uppercase, and numeric characters.
-- Sessions are signed JWTs with a 24-hour maximum age and hourly update cadence.
-- Live account checks invalidate sessions after account disablement or a password change.
+- Sessions use encrypted JWT cookies plus a per-login SQLite validity record, with an absolute 24-hour maximum age. The record and token carry the user's monotonic `auth_generation`.
+- Login issuance transactionally rechecks the generation observed during credential verification. Account disablement and password writes advance the generation and revoke existing records, preventing an already-running login from becoming valid after an invalidation race.
+- Nooklet's UI sign-out action deletes the current validity record before clearing the cookie. A late authenticated response may copy the old cookie back into a browser, but that token remains invalid server-side. Direct `POST /api/auth/signout` is intentionally unavailable; use the application's **Sign out** control.
+- Live account and generation checks invalidate sessions after account disablement or a password change. Tokens that predate the server-side validity and generation claims fail closed and require a fresh sign-in.
 - Temporary passwords created by an administrator or the local recovery tool are restricted to password replacement. The proxy redirects protected pages, protected API routes reject the session, and shared server-action guards refuse other capabilities until the password changes.
 - Login and bootstrap attempts use SQLite-backed rate limits.
 
@@ -38,7 +40,7 @@ Generate independent random values for each installation.
 
 | Variable | Purpose | Rotation effect |
 | --- | --- | --- |
-| `AUTH_SECRET` | Signs authentication state and keys privacy-preserving rate-limit identifiers. It is also the backward-compatible encryption-key fallback when `SECRET_BOX_KEY` is absent. | Existing sessions are invalidated. If it encrypted saved secrets, preserve the old value through `SECRET_BOX_PREVIOUS_KEYS` during rotation. |
+| `AUTH_SECRET` | Encrypts and authenticates session state and keys privacy-preserving rate-limit identifiers. It is also the backward-compatible encryption-key fallback when `SECRET_BOX_KEY` is absent. | Existing sessions are invalidated. If it encrypted saved secrets, preserve the old value through `SECRET_BOX_PREVIOUS_KEYS` during rotation. |
 | `SECRET_BOX_KEY` | Preferred key material for stored integration credentials. | Saved secrets using an older key require that key in `SECRET_BOX_PREVIOUS_KEYS` until re-encrypted. |
 | `SECRET_BOX_PREVIOUS_KEYS` | Semicolon- or newline-separated decryption-only key history used during rotation. | Removing a key too early makes any still-encrypted record unreadable. |
 | `BOOTSTRAP_TOKEN` | One-time proof for creating the first administrator. | Remove it after bootstrap and recreate the container. |
@@ -64,6 +66,14 @@ This protects credentials from casual database inspection, but it is not a defen
 9. Remove the retired key, recreate once more, and re-test.
 
 When moving an older installation from the `AUTH_SECRET` fallback to a dedicated `SECRET_BOX_KEY`, put the old `AUTH_SECRET` in `SECRET_BOX_PREVIOUS_KEYS` during the transition.
+
+Restoring a post-`0044` database also restores its session rows and authentication
+generations. Keep ingress closed and rotate `AUTH_SECRET` before reopening a
+restored production instance, because an unexpired cookie matching a restored
+row could otherwise regain access. If the prior `AUTH_SECRET` encrypted stored
+credentials as the fallback key, retain it in `SECRET_BOX_PREVIOUS_KEYS` during
+the rotation. A pre-`0044` restore instead migrates to an empty session registry,
+so older cookies fail closed.
 
 ## Authorization model
 

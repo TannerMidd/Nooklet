@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
-import { auditEvents, users, type UserRole } from "@/lib/database/schema";
+import { auditEvents, authSessions, users, type UserRole } from "@/lib/database/schema";
 import { buildAuditPayload } from "@/lib/security/audit-payload";
 
 function normalizeEmail(email: string) {
@@ -90,20 +90,23 @@ export async function updateUserPassword(
     ? { mustChangePassword: options.mustChangePassword }
     : {};
 
-  database
-    .update(users)
-    .set({
-      passwordHash,
-      ...passwordState,
-      passwordChangedAt: now,
-      failedLoginAttempts: 0,
-      lockedUntil: null,
-      updatedAt: now,
-    })
-    .where(eq(users.id, userId))
-    .run();
+  return database.transaction((tx) => {
+    tx.update(users)
+      .set({
+        passwordHash,
+        ...passwordState,
+        passwordChangedAt: now,
+        authGeneration: sql`${users.authGeneration} + 1`,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        updatedAt: now,
+      })
+      .where(eq(users.id, userId))
+      .run();
+    tx.delete(authSessions).where(eq(authSessions.userId, userId)).run();
 
-  return findUserById(userId);
+    return tx.select().from(users).where(eq(users.id, userId)).get() ?? null;
+  }, { behavior: "immediate" });
 }
 
 export async function recordFailedLogin(userId: string) {
@@ -183,7 +186,7 @@ export async function updateUserRoleGuarded(
 
     const updated = tx.select().from(users).where(eq(users.id, userId)).get()!;
     return { status: "updated", user: updated, previousUser: target } as const;
-  });
+  }, { behavior: "immediate" });
 }
 
 export async function updateUserDisabledStateGuarded(
@@ -216,13 +219,25 @@ export async function updateUserDisabledStateGuarded(
     }
 
     tx.update(users)
-      .set({ isDisabled, updatedAt: new Date() })
+      .set({
+        isDisabled,
+        ...(isDisabled
+          ? { authGeneration: sql`${users.authGeneration} + 1` }
+          : {}),
+        updatedAt: new Date(),
+      })
       .where(eq(users.id, userId))
       .run();
 
+    if (isDisabled) {
+      // Revocation belongs in the same transaction as disablement. Otherwise a
+      // later re-enable could make a still-unexpired JWT valid again.
+      tx.delete(authSessions).where(eq(authSessions.userId, userId)).run();
+    }
+
     const updated = tx.select().from(users).where(eq(users.id, userId)).get()!;
     return { status: "updated", user: updated, previousUser: target } as const;
-  });
+  }, { behavior: "immediate" });
 }
 
 type CreateAuditEventInput = {

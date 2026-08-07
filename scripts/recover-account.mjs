@@ -38,6 +38,14 @@ async function main() {
   try {
     database.pragma("busy_timeout = 5000");
     const columns = database.prepare("PRAGMA table_info('users')").all();
+    const hasAuthSessions = database.prepare(`
+      SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'auth_sessions'
+    `).get();
+    if (!columns.some((column) => column.name === "auth_generation") || !hasAuthSessions) {
+      throw new Error(
+        "Database schema is outdated. Start the current Nooklet version once to apply migration 0044, then retry account recovery.",
+      );
+    }
     if (!columns.some((column) => column.name === "must_change_password")) {
       database.exec("ALTER TABLE users ADD must_change_password integer DEFAULT false NOT NULL;");
     }
@@ -63,9 +71,11 @@ async function main() {
       database.prepare(`
         UPDATE users
         SET password_hash = ?, password_changed_at = ?, must_change_password = 1,
+            auth_generation = auth_generation + 1,
             failed_login_attempts = 0, locked_until = NULL, updated_at = ?
         WHERE id = ?
       `).run(passwordHash, now, now, user.id);
+      database.prepare("DELETE FROM auth_sessions WHERE user_id = ?").run(user.id);
       database.prepare(`
         INSERT INTO audit_events (id, actor_user_id, event_type, subject_type, subject_id, payload_json)
         VALUES (?, NULL, 'users.password.recovered', 'user', ?, ?)

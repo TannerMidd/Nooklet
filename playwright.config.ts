@@ -1,8 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const port = 42121;
-const baseURL = process.env.NOOKLET_E2E_BASE_URL ?? `http://127.0.0.1:${port}`;
-const databasePath = `./.codex-tmp/e2e-${process.pid}/nooklet.db`;
+const defaultPort = 42121;
+const baseURL = process.env.NOOKLET_E2E_BASE_URL ?? `http://127.0.0.1:${defaultPort}`;
+const baseUrl = new URL(baseURL);
+const port = baseUrl.port || String(defaultPort);
+const databaseUrl = `file:./.codex-tmp/e2e-${process.pid}/nooklet.db`;
 const externalServer = process.env.NOOKLET_E2E_EXTERNAL_SERVER === "1";
 
 export default defineConfig({
@@ -35,10 +37,10 @@ export default defineConfig({
     url: `${baseURL}/bootstrap`,
     timeout: 120_000,
     gracefulShutdown: { signal: "SIGTERM", timeout: 15_000 },
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     env: {
       APP_URL: baseURL,
-      DATABASE_URL: `file:${databasePath}`,
+      DATABASE_URL: databaseUrl,
       AUTH_SECRET: "e2e-auth-secret-generated-only-for-tests-0000000000001",
       SECRET_BOX_KEY: "e2e-box-secret-generated-only-for-tests-00000000000002",
       BOOTSTRAP_TOKEN: "e2e-bootstrap-token-generated-only-for-tests-0000003",

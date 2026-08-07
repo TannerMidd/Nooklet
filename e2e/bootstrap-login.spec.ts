@@ -31,13 +31,17 @@ async function expectNoSeriousAccessibilityViolations(page: Page) {
   expect(violations).toEqual([]);
 }
 
+function isAuthSessionCookie(name: string) {
+  return /^(?:__Secure-)?authjs\.session-token(?:\.\d+)?$/.test(name);
+}
+
 declare global {
   interface Window {
     axe: typeof import("axe-core");
   }
 }
 
-test("first administrator can bootstrap, sign in, and reach the workspace", async ({ page }) => {
+test("first administrator can bootstrap, sign in, and reach the workspace", async ({ context, page }) => {
   await page.goto("/");
   await expect(page).toHaveURL(/\/bootstrap$/);
   await expect(page.getByRole("heading", { name: "First things first." })).toBeVisible();
@@ -53,12 +57,29 @@ test("first administrator can bootstrap, sign in, and reach the workspace", asyn
   await expect(page).toHaveURL(/\/setup$/);
   await expect(page.getByRole("heading", { name: "Setup Center" })).toBeVisible();
   await expect(page.getByText("admin@nooklet.test")).toBeVisible();
+
+  const signedInSessionCookies = (await context.cookies()).filter(({ name }) =>
+    isAuthSessionCookie(name),
+  );
+  expect(signedInSessionCookies.length).toBeGreaterThan(0);
+  expect(signedInSessionCookies.every(({ httpOnly }) => httpOnly)).toBe(true);
+
   await page.getByRole("button", { name: "Sign out" }).click();
 
   await expect(page).toHaveURL(/\/login$/);
-  await page.goto("/login?callbackUrl=/home");
   await expect(page.getByRole("heading", { name: "Welcome back." })).toBeVisible();
   await expectNoSeriousAccessibilityViolations(page);
+
+  await context.addCookies(signedInSessionCookies);
+  const queueResponse = await page.request.get("/api/downloads/queue");
+  expect(queueResponse.status()).toBe(401);
+
+  // Restore the revoked cookie again in case the API response expired it. This
+  // independently proves that the page boundary rejects the same stale session.
+  await context.addCookies(signedInSessionCookies);
+  await page.goto("/home");
+  await expect(page).toHaveURL(/\/login\?callbackUrl=%2Fhome$/);
+  await expect(page.getByRole("heading", { name: "Welcome back." })).toBeVisible();
   await page.getByLabel("Email").fill("admin@nooklet.test");
   await page.getByLabel("Password").fill("E2e-Nooklet-Password-42");
   await page.getByRole("button", { name: "Sign in" }).click();

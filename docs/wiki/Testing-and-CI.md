@@ -12,7 +12,7 @@ Nooklet uses documentation validators, dependency and migration policy checks, a
 | Static analysis | `npm run lint` | ESLint and Next.js rule violations |
 | Unit/integration tests | `npm test` | Domain, repository, adapter, route, and component-core behavior |
 | Node script tests | `npm run test:scripts` | Migration validator, module-boundary validator, storage probe, and worker watchdog behavior |
-| Browser smoke | `npm run test:e2e` | First-admin bootstrap, credentials login, protected home navigation, and serious/critical axe violations in Chromium |
+| Browser smoke | `npm run test:e2e` | First-admin bootstrap, credentials login, stale-cookie rejection after sign-out, protected home navigation, and serious/critical axe violations in Chromium |
 | Dependency advisory gate | `npm run audit:dependencies` | High/critical advisories in production dependencies |
 | Production build | `npm run build` | App Router compilation and standalone bundle generation |
 | Wiki source | `npm run docs:wiki:check` | Required pages/headings, balanced fences, internal links/anchors, and current-main repository source targets |
@@ -26,7 +26,7 @@ Source: [package scripts](https://github.com/TannerMidd/Nooklet/blob/main/packag
 
 ## Vitest environment
 
-Tests are colocated with the code they cover using `*.test.ts` or `*.test.tsx`. [`vitest.setup.ts`](https://github.com/TannerMidd/Nooklet/blob/main/vitest.setup.ts) supplies a deterministic test-only `AUTH_SECRET` and creates a fresh SQLite database in an isolated temporary directory unless a database URL was explicitly provided.
+Tests are colocated with the code they cover using `*.test.ts` or `*.test.tsx`. [`vitest.setup.ts`](https://github.com/TannerMidd/Nooklet/blob/main/vitest.setup.ts) supplies a deterministic test-only `AUTH_SECRET`, replaces any ambient database URL with a fresh SQLite database in an isolated temporary directory, and restores the original process environment after the suite.
 
 [`vitest.config.ts`](https://github.com/TannerMidd/Nooklet/blob/main/vitest.config.ts) maps the `@` alias to `src` and excludes `.next` so a prior production build cannot be collected as a duplicate copy of the tests.
 
@@ -53,7 +53,7 @@ The [CI workflow](https://github.com/TannerMidd/Nooklet/blob/main/.github/workfl
 
 The committed Dependabot configuration proposes weekly npm and GitHub Actions updates. CI still decides whether an update satisfies the lockfile, advisory, type, test, build, and container gates.
 
-Dependency lifecycle scripts are denied unless their exact reviewed package version appears in `package.json#allowScripts`; `.npmrc` makes an unreviewed script a hard install failure. CI also publishes a CycloneDX production dependency SBOM. SemVer tags run the separate release workflow, which publishes the GHCR image with BuildKit SBOM and provenance attestations.
+Dependency lifecycle scripts are denied unless their exact reviewed package version appears in `package.json#allowScripts`; `.npmrc` makes an unreviewed script a hard install failure. CI also publishes a CycloneDX production dependency SBOM. Publishing a GitHub Release with a valid SemVer tag and substantive required note sections runs the separate release workflow, which publishes the GHCR image with BuildKit SBOM and provenance attestations.
 
 ```mermaid
 flowchart LR
@@ -106,7 +106,7 @@ GitHub Wiki content lives in a separate Git repository when published. The workf
 - Wiki, dossier/configurator, published source-link/name, migration-history, and module-boundary validators pass.
 - TypeScript and ESLint pass.
 - The Vitest suite, including focused component accessibility checks, passes against isolated SQLite state.
-- Chromium completes first-admin bootstrap, sign-out, password sign-in, protected navigation, and serious/critical axe scans.
+- Chromium captures the pre-sign-out HttpOnly session cookie, signs out, restores that stale cookie through Playwright's browser context, and confirms a direct protected navigation rejects it. The same flow also covers first-admin bootstrap, password sign-in, protected navigation, and serious/critical axe scans.
 - The Next.js standalone bundle builds.
 - The production image starts non-root with capabilities dropped, `no-new-privileges`, a read-only root filesystem, bounded writable tmpfs paths, PID/memory limits, and bounded container logs.
 - Database initialization and worker readiness can satisfy the public health probe.

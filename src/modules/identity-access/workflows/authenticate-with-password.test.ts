@@ -50,6 +50,7 @@ function buildStoredUser(overrides: Partial<StoredUser> = {}): StoredUser {
     failedLoginAttempts: 0,
     lockedUntil: null,
     passwordChangedAt,
+    authGeneration: 0,
     createdAt: new Date("2025-12-01T00:00:00.000Z"),
     updatedAt: new Date("2025-12-15T00:00:00.000Z"),
     ...overrides,
@@ -81,6 +82,7 @@ describe("authenticateWithPassword", () => {
       role: "user",
       mustChangePassword: false,
       passwordChangedAt: passwordChangedAt.getTime(),
+      authGeneration: 0,
     });
     // No password hash or lockout state should be exposed to the caller.
     expect(result).not.toHaveProperty("passwordHash");
@@ -203,6 +205,7 @@ describe("authenticateWithPassword", () => {
     updateUserPasswordMock.mockResolvedValue(buildStoredUser({
       passwordHash: "scrypt$2$32768$8$3$new-salt$new-key",
       passwordChangedAt: upgradedAt,
+      authGeneration: 1,
     }));
 
     const result = await authenticateWithPassword({
@@ -216,6 +219,7 @@ describe("authenticateWithPassword", () => {
       "scrypt$2$32768$8$3$new-salt$new-key",
     );
     expect(result?.passwordChangedAt).toBe(upgradedAt.getTime());
+    expect(result?.authGeneration).toBe(1);
     expect(clearFailedLoginsMock).not.toHaveBeenCalled();
   });
 

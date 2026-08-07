@@ -8,7 +8,8 @@ const ENVELOPE_VERSION = "v1";
 
 function getKeyMaterial() {
   // Prefer a dedicated SECRET_BOX_KEY so the encryption key is decoupled from the
-  // JWT signing key. Fall back to AUTH_SECRET (HKDF-derived) for backward compatibility.
+  // session encryption/authentication secret. Fall back to AUTH_SECRET
+  // (HKDF-derived) for backward compatibility.
   return env.SECRET_BOX_KEY ?? env.AUTH_SECRET;
 }
 

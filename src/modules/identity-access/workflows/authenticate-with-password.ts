@@ -49,5 +49,6 @@ export async function authenticateWithPassword(input: LoginInput) {
     role: authenticatedUser.role,
     mustChangePassword: authenticatedUser.mustChangePassword,
     passwordChangedAt: authenticatedUser.passwordChangedAt.getTime(),
+    authGeneration: authenticatedUser.authGeneration,
   };
 }

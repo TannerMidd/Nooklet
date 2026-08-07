@@ -104,7 +104,7 @@
             <div><dt>Breakdowns</dt><dd>12 self-contained</dd></div>
             <div><dt>Diagrams</dt><dd>Inline SVG, no runtime dependencies</dd></div>
             <div><dt>Modules</dt><dd>17 under <code>src/modules</code></dd></div>
-            <div><dt>Tables</dt><dd>44 in one SQLite file</dd></div>
+            <div><dt>Tables</dt><dd>45 in one SQLite file</dd></div>
             <div><dt>Baseline</dt><dd>current <code>main</code></dd></div>
           </dl>
           <div class="commit-stamp">
@@ -1319,7 +1319,7 @@
             <div class="section-heading section-heading-split" data-reveal>
               <div>
                 <p class="eyebrow">Breakdown 09</p>
-                <h2 id="bd09-title">Forty-four tables in one SQLite file.</h2>
+                <h2 id="bd09-title">Forty-five tables in one SQLite file.</h2>
               </div>
               <p>
                 One schema file declares every table. Most entity rows use text identifiers and millisecond
@@ -1345,12 +1345,13 @@
                     aria-labelledby="bd09-fig-title"
                     aria-describedby="bd09-fig-desc"
                   >
-                    <rect class="cpd-zone" x="30" y="48" width="275" height="128" rx="12" />
-                    <text class="cpd-lane" x="46" y="74">IDENTITY AND ACCESS &middot; 4</text>
+                    <rect class="cpd-zone" x="30" y="48" width="275" height="146" rx="12" />
+                    <text class="cpd-lane" x="46" y="74">IDENTITY AND ACCESS &middot; 5</text>
                     <text class="cpd-path" x="46" y="98">users</text>
                     <text class="cpd-path" x="46" y="116">preferences</text>
                     <text class="cpd-path" x="46" y="134">audit_events</text>
                     <text class="cpd-path" x="46" y="152">rate_limits</text>
+                    <text class="cpd-path" x="46" y="170">auth_sessions</text>
 
                     <rect class="cpd-zone" x="327" y="48" width="275" height="218" rx="12" />
                     <text class="cpd-lane" x="343" y="74">MEDIA LIBRARY &middot; 9</text>
@@ -1414,28 +1415,29 @@
                     <text class="cpd-path" x="343" y="528">engine_downloads</text>
 
                     <rect class="cpd-node cpd-node-terminal" x="624" y="478" width="275" height="96" rx="10" />
-                    <text class="cpd-kicker" x="642" y="501">NO SESSIONS TABLE</text>
-                    <text class="cpd-title" x="642" y="522">Auth.js runs JWT strategy</text>
-                    <text class="cpd-path" x="642" y="541">the jwt callback re-reads</text>
-                    <text class="cpd-path" x="642" y="559">the live user each request</text>
+                    <text class="cpd-kicker" x="642" y="501">REVOCABLE JWT SESSIONS</text>
+                    <text class="cpd-title" x="642" y="522">Encrypted browser token</text>
+                    <text class="cpd-path" x="642" y="541">auth_sessions rejects stale</text>
+                    <text class="cpd-path" x="642" y="559">cookies after sign-out</text>
                   </svg>
                 </div>
                 <p class="sr-only" id="bd09-fig-desc">
-                  Forty-four tables grouped by owning domain: four for identity and access, nine for the
+                  Forty-five tables grouped by owning domain: five for identity and access, nine for the
                   media library, seven for downloads, six for indexers, six for recommendations, three for
                   watch history, eight platform tables covering stable instance ownership, service connections, storage snapshots,
-                  jobs and notifications, and one for the download engine. There is no sessions table
-                  because Auth.js uses a JWT strategy and its jwt callback re-reads the live user on every
-                  request while requiring the token's password-version claim.
+                  jobs and notifications, and one for the download engine. Auth.js keeps encrypted JWTs in
+                  browser cookies while each token must also match an unexpired <code>auth_sessions</code> row and
+                  the user's current monotonic authentication generation.
                 </p>
               </div>
 
               <figcaption>
-                <span>Trace 09.</span> The missing sessions table is the interesting one. Because the
-                <code>jwt</code> callback re-reads the user row on every request, disabling an account or
-                forcing a password change invalidates an already-issued token without any server-side
-                session store to purge. Tokens issued before the password-version claim existed fail closed once
-                and require a fresh sign-in. The <code>engine_downloads</code> row also carries the full NZB
+                <span>Trace 09.</span> The <code>jwt</code> callback requires the live user, matching authentication
+                generation, and a per-login <code>auth_sessions</code> row. Sign-out deletes that row before clearing
+                the cookie, so a late response cannot make an old token valid again. Disabling an account or writing
+                a password advances the generation and removes active rows in the same transaction, including logins
+                still pending issuance. Tokens missing any validity claim fail closed and require a
+                fresh sign-in. The <code>engine_downloads</code> row also carries the full NZB
                 payload, which is what lets a restart re-run a transfer without returning to the indexer.
               </figcaption>
             </figure>

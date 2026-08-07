@@ -5,19 +5,8 @@ import { classifySessionAccess } from "@/modules/identity-access/session-access"
 
 export const proxy = auth((request) => {
   const accessState = classifySessionAccess(request.auth);
-  const isApiRequest = request.nextUrl.pathname.startsWith("/api/");
 
   if (accessState === "password_change_required") {
-    if (isApiRequest) {
-      return NextResponse.json(
-        {
-          code: "password_change_required",
-          message: "Replace the temporary password before using this endpoint.",
-        },
-        { status: 403, headers: { "Cache-Control": "no-store" } },
-      );
-    }
-
     if (request.nextUrl.pathname !== "/settings/account") {
       const accountUrl = new URL("/settings/account", request.nextUrl);
       accountUrl.searchParams.set("reason", "temporary-password");
@@ -29,13 +18,6 @@ export const proxy = auth((request) => {
 
   if (accessState === "ready") {
     return NextResponse.next();
-  }
-
-  if (isApiRequest) {
-    return NextResponse.json(
-      { code: "unauthorized", message: "Unauthorized" },
-      { status: 401, headers: { "Cache-Control": "no-store" } },
-    );
   }
 
   const loginUrl = new URL("/login", request.nextUrl);
@@ -62,7 +44,5 @@ export const config = {
     "/health/:path*",
     "/admin/:path*",
     "/recommendations/:path*",
-    "/api/downloads/:path*",
-    "/api/service-connections/:path*",
   ],
 };

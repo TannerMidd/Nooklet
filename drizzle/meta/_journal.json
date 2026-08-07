@@ -309,6 +309,13 @@
       "when": 1786069584424,
       "tag": "0043_canonical_instance_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1786074964092,
+      "tag": "0044_auth_session_revocation",
+      "breakpoints": true
     }
   ]
 }

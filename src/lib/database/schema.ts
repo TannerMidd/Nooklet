@@ -18,6 +18,7 @@ export const users = sqliteTable(
     passwordChangedAt: integer("password_changed_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
+    authGeneration: integer("auth_generation").notNull().default(0),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
@@ -26,6 +27,30 @@ export const users = sqliteTable(
       .default(sql`(unixepoch() * 1000)`),
   },
   (table) => [uniqueIndex("users_email_unique").on(table.email)],
+);
+
+/**
+ * Server-side validity records for Auth.js JWT sessions. The browser keeps the
+ * encrypted JWT, while this table provides monotonic revocation so a late
+ * authenticated response cannot restore a session after sign-out.
+ */
+export const authSessions = sqliteTable(
+  "auth_sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    authGeneration: integer("auth_generation").notNull(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("auth_sessions_user_expires_idx").on(table.userId, table.expiresAt),
+    index("auth_sessions_expires_idx").on(table.expiresAt),
+  ],
 );
 
 export const auditEvents = sqliteTable(

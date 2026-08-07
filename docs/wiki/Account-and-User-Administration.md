@@ -63,11 +63,16 @@ Prefer disabling an account to deleting history. The current UI preserves the ac
 
 ### Session invalidation
 
-Sessions use signed JWTs with a 24-hour maximum age and hourly refresh cadence. On subsequent authenticated requests, Nooklet checks the live user record:
+Sessions use encrypted JWT cookies with an absolute 24-hour maximum age. Each login creates a matching `auth_sessions` record tied to the user's monotonic `auth_generation` in SQLite. Session issuance rechecks the generation captured during credential verification. Disabling an account or writing a password advances the generation and revokes existing records, so a pending login cannot survive an invalidation race. On every subsequent authenticated request, Nooklet requires the active record, matching generation, and live user:
 
+- explicitly signed-out sessions lose access, even if a late response tries to refresh the old cookie;
 - disabled accounts lose access;
 - deleted/missing accounts lose access; and
 - a password changed after the token was issued invalidates that token.
+
+Use Nooklet's **Sign out** control to end the current session. It revokes the SQLite record before clearing the browser cookie; direct `POST /api/auth/signout` is intentionally unavailable.
+
+Tokens created before the server-side session and generation claims existed fail closed once and require a fresh sign-in after this upgrade.
 
 An administrator password reset sets a temporary password and forces the target user to choose a private replacement at the next sign-in.
 
@@ -149,7 +154,7 @@ If an account may be compromised:
 2. Reset its password only when access should be restored.
 3. Rotate integration credentials the account could view or replace.
 4. Review shared configuration, notification channels, storage paths, requests, and audit events.
-5. Rotate `AUTH_SECRET` only if the signing key may be exposed; this signs out existing sessions and requires a container recreate.
+5. Rotate `AUTH_SECRET` only if the session-encryption key may be exposed; this signs out existing sessions and requires a container recreate.
 6. Follow [Security model](Security-Model) if encryption keys or backups may be exposed.
 
 ## Source references
@@ -158,4 +163,5 @@ If an account may be compromised:
 - [Managed-user schemas](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/users/schemas/admin-user.ts)
 - [Account recovery tool](https://github.com/TannerMidd/Nooklet/blob/main/scripts/recover-account.mjs)
 - [Authentication and session policy](https://github.com/TannerMidd/Nooklet/blob/main/src/auth.ts)
+- [Server-side session validity repository](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/identity-access/repositories/auth-session-repository.ts)
 - [First-admin workflow](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/identity-access/workflows/create-first-admin.ts)

@@ -27,7 +27,7 @@ Inventory drift that should not be presented as current behavior:
 - Jellyfin is mentioned, but current service/watch-history types are Plex, Tautulli, Trakt, and manual history where applicable.
 - Auth.js currently exposes credentials login only. Trakt's OAuth token is stored connection data, not an Auth.js provider.
 - `credential-vault` and `metadata` are conceptual ownership areas, not physical module directories.
-- The current schema uses JWT sessions and does not implement the ADR's illustrative `sessions`, `oauth_accounts`, or separate service-user-selection tables.
+- The current schema uses encrypted JWT cookies plus a narrow `auth_sessions` revocation registry. It does not use Auth.js database-session strategy or implement the ADR's illustrative OAuth-account and separate service-user-selection tables.
 - The dependency list does not show shadcn/Radix packages; UI primitives are repository components styled with Tailwind.
 - ADR-0001's illustrative project-structure inventory predates the current routes and 17 physical modules; the separate current [project-structure note](https://github.com/TannerMidd/Nooklet/blob/main/docs/architecture/project-structure.md) has been reconciled.
 

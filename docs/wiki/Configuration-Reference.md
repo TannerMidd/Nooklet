@@ -8,7 +8,7 @@ Start from the annotated [`.env.example`](https://github.com/TannerMidd/Nooklet/
 | --- | --- | --- | --- |
 | `APP_URL` | Recommended | `http://localhost:42021` | The canonical HTTP(S) origin users open. Credentials, paths, queries, and fragments are rejected. Set the exact external HTTPS origin behind a reverse proxy. |
 | `DATABASE_URL` | No | `file:./data/nooklet.db` | SQLite database URL. Compose overrides it to `file:/app/data/nooklet.db` so the database remains in the named volume. |
-| `AUTH_SECRET` | Yes | None | Authentication signing secret, 32 characters minimum. Generate a unique random value for every installation. |
+| `AUTH_SECRET` | Yes | None | Authentication encryption/authentication secret, 32 characters minimum. Generate a unique random value for every installation. |
 | `NODE_ENV` | No | `development` | Runtime mode: `development`, `test`, or `production`. The Docker image sets `production`. |
 
 `APP_URL` does not itself choose the TCP listener. Docker publication uses `APP_BIND_ADDRESS` and `APP_PORT`; native production can pass a port to `next start`.

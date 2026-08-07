@@ -22,7 +22,7 @@ git clone https://github.com/TannerMidd/Nooklet.git
 cd Nooklet
 ```
 
-The shipped Compose file builds `nooklet:local` from the checked-out source, so this guide uses `docker compose up -d --build`. SemVer tags also publish attested Linux/AMD64 images to `ghcr.io/tannermidd/nooklet`, but the default Compose service does not pull those images automatically; using a specific registry tag requires an explicit operator override.
+The shipped Compose file builds `nooklet:local` from the checked-out source, so this guide uses `docker compose up -d --build`. Publishing a GitHub Release with a valid SemVer tag and substantive required notes also publishes an attested Linux/AMD64 image to `ghcr.io/tannermidd/nooklet`, but the default Compose service does not pull those images automatically; using a specific registry tag requires an explicit operator override.
 
 ## 2. Create the environment file
 

@@ -123,7 +123,7 @@ This boundary keeps user intent separate from acquisition evidence and makes rec
 ## Runtime composition
 
 - Next.js App Router supplies React Server Components, server actions, and route handlers.
-- Auth.js uses a credentials provider and 24-hour JWT sessions.
+- Auth.js uses a credentials provider, encrypted JWT cookies, and an `auth_sessions` validity registry that provides revocable, absolute-lifetime 24-hour sessions.
 - Drizzle maps the normalized schema to SQLite. Migrations run during database readiness initialization.
 - A Node supervisor runs database migration once, then starts distinct web and worker children. Next.js instrumentation deliberately does not load the worker graph in the production web child.
 - The persisted job worker polls every 15 seconds. Its pass state is written atomically beside SQLite so the web process can evaluate progress without importing worker code.

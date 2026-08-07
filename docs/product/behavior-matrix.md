@@ -30,7 +30,7 @@ Status means:
 
 | Area | Behavior | Acceptance criteria | Owning implementation | Status |
 | --- | --- | --- | --- | --- |
-| Authentication | Users can sign in locally and use a per-user session. | Local login exists, session state is persistent and scoped per user, unauthorized routes redirect or reject cleanly. | identity-access | Implemented |
+| Authentication | Users can sign in locally and use a per-user session. | Local login issues an encrypted JWT backed by a per-login SQLite validity record and monotonic authentication generation; invalidation fences pending logins, UI sign-out is durably revocable, the lifetime is capped at 24 hours, and unauthorized routes redirect or reject cleanly. | identity-access | Implemented |
 | Bootstrap | The first administrator is established without a default admin password. | Fresh install exposes an explicit bootstrap flow once, then disables it after first admin creation. | identity-access | Implemented |
 | Authorization | Admin-only capabilities remain restricted. | Admin routes and screens are guarded server-side and UI-side; non-admin users cannot mutate admin-owned resources or another user's notification rows. Temporary-password accounts must replace that password before using protected actions or APIs. | identity-access and owning workflows | Implemented |
 | User management | Admins can manage user accounts and roles. | Admin UI supports listing users, creating users, updating roles, and disabling or resetting accounts subject to policy. | users | Implemented |

@@ -74,7 +74,7 @@ A backup policy is incomplete until restoration has been rehearsed on an isolate
 
 ## Restore a Docker database
 
-Restoration replaces users, configuration, history, jobs, and request state with the backup's point-in-time contents. It does not roll back media files or downloads. Reconcile any files created after the backup manually.
+Restoration replaces users, authentication generations, session validity records, configuration, history, jobs, and request state with the backup's point-in-time contents. It does not roll back media files or downloads. Reconcile any files created after the backup manually.
 
 The repository provides a backup creator that runs SQLite `quick_check` and an automated test that copies a real online backup into a fresh database and verifies exact rows, blobs, `quick_check`, and `integrity_check`. It does **not** provide an operator-facing restore command or production recovery orchestrator. The commands below remain a manual operator procedure: rehearse them on an isolated instance and verify the recovered application yourself.
 
@@ -84,7 +84,8 @@ The repository provides a backup creator that runs SQLite `quick_check` and an a
 2. Note the current revision with `git rev-parse HEAD`.
 3. If the live database is still readable, create a new verified backup before replacing it.
 4. Put the selected backup in a local `backups` directory beneath the Compose project.
-5. Stop the application cleanly:
+5. Keep public ingress closed for the entire restore. Do not allow browser or API traffic until session invalidation and verification below are complete.
+6. Stop the application cleanly:
 
 ```console
 docker compose stop app
@@ -103,6 +104,26 @@ docker compose run --rm --no-deps -v "./backups:/restore:ro" --entrypoint sh app
 
 The temporary filename keeps the replacement atomic within `/app/data`. Removing WAL/SHM sidecars is safe only because the app is stopped and the restored database is a complete, verified SQLite backup.
 
+### Invalidate restored sessions before reopening ingress
+
+A backup created after migration `0044` contains the point-in-time
+`auth_sessions` rows and user `auth_generation` values. Restoring it can
+reintroduce a validity row that was revoked after the backup. If the deployment
+keeps the same `AUTH_SECRET`, a captured or late browser cookie that has not yet
+reached its absolute expiry can become valid again.
+
+Keep ingress closed and rotate `AUTH_SECRET` to a newly generated independent
+value before starting the restored production instance. If `AUTH_SECRET` was
+also the backward-compatible encryption fallback when stored integration
+credentials were written, preserve its prior value in
+`SECRET_BOX_PREVIOUS_KEYS` before rotating it. Prefer configuring a separate
+`SECRET_BOX_KEY`; verify saved connections after startup and retain the prior
+key until their credentials have been exercised successfully.
+
+A backup from before migration `0044` has no session registry. Applying the
+migration creates an empty registry, so cookies issued by the older build fail
+closed and users must sign in again.
+
 ### Start and verify
 
 ```console
@@ -111,7 +132,7 @@ docker compose ps
 docker compose logs --tail=200 app
 ```
 
-Then query `http://127.0.0.1:42021/api/health` (or the configured host port) and sign in. Pending migrations are applied automatically on first database access.
+Then query `http://127.0.0.1:42021/api/health` (or the configured host port) and sign in. Pending migrations are applied automatically on first database access. Confirm the old session cookies no longer authenticate, verify representative application state, and only then reopen public ingress.
 
 If startup fails, preserve the restored file and logs. Do not repeatedly downgrade and upgrade the same database. Restore the known backup again into a clean, isolated volume while matching the intended application revision.
 
@@ -151,6 +172,8 @@ Use this sequence for routine source-based Docker deployments:
 
 7. Verify `/api/health`, sign in, and exercise one representative workflow.
 8. Record the new revision and backup identifier in the operations log.
+
+The session-revocation migration intentionally creates an empty validity registry for a pre-`0044` database. Browser tokens issued by older builds have no matching server-side record or generation claim, fail closed, and require one fresh sign-in after the upgrade. Have account credentials available before crossing that migration.
 
 Nooklet applies Drizzle migrations automatically. Do not add an undocumented manual migration command to the upgrade procedure.
 

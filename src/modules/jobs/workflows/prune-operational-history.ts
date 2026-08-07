@@ -1,8 +1,9 @@
-import { and, lt, ne } from "drizzle-orm";
+import { and, lt, lte, ne } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
   auditEvents,
+  authSessions,
   notificationDispatchAudit,
   recommendationItemTimelineEvents,
   watchHistorySyncRuns,
@@ -25,6 +26,9 @@ export async function pruneOperationalHistory(options: {
   const database = ensureDatabaseReady();
 
   return database.transaction((tx) => ({
+    expiredAuthSessions: tx.delete(authSessions)
+      .where(lte(authSessions.expiresAt, now))
+      .run().changes,
     auditEvents: tx.delete(auditEvents)
       .where(lt(auditEvents.createdAt, cutoff))
       .run().changes,

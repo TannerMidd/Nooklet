@@ -25,18 +25,29 @@ credentials login flow. Same-origin browser calls can use ordinary `fetch`
 requests after the user signs in. External clients need to preserve Auth.js
 cookies between requests.
 
-The app uses JWT sessions with a 24 hour maximum age. Disabled accounts and
-password changes invalidate existing sessions on subsequent authenticated
-requests. An authenticated account that must replace an administrator-issued
-or recovery password receives `403 password_change_required` from protected
-API routes until that password is changed.
+The app uses encrypted JWT session cookies with an absolute 24 hour maximum
+age. Each login also creates an `auth_sessions` validity record tied to the
+user's monotonic `auth_generation` in SQLite. Session issuance rechecks the
+generation captured during credential verification, and account disablement or
+any password write advances it while revoking existing records. A pending login
+therefore cannot become valid after a disable/re-enable or password-change
+race.
+
+Every authenticated request checks the validity record, generation, and live
+user. The supported UI sign-out action revokes the current record before it
+clears the browser cookie, so an older authenticated response cannot restore
+access by writing that cookie back later. Direct `POST /api/auth/signout` is
+intentionally unavailable; use Nooklet's **Sign out** control. An authenticated
+account that must replace an administrator-issued or recovery password receives
+`403 password_change_required` from protected API routes until that password is
+changed.
 
 ## Route Summary
 
 | Route | Methods | Auth | Purpose | Source |
 | --- | --- | --- | --- | --- |
 | `/api/health` | `GET` | None | Readiness check for database migrations, the background worker, and built-in engine progress. | `src/app/api/health/route.ts` |
-| `/api/auth/[...nextauth]` | `GET`, `POST` | Auth.js-managed | Credentials login, logout, session, CSRF, and provider endpoints. | `src/app/api/auth/[...nextauth]/route.ts` |
+| `/api/auth/[...nextauth]` | `GET`, `POST` | Auth.js-managed | Credentials login, session, CSRF, and provider endpoints; direct protocol sign-out is unavailable. | `src/app/api/auth/[...nextauth]/route.ts` |
 | `/api/downloads/queue` | `GET`, `POST` | Required | Read and control the caller's built-in download queue. | `src/app/api/downloads/queue/route.ts` |
 
 ## Common Error Shape
@@ -124,7 +135,12 @@ Common Auth.js endpoints exposed through this route include:
 | `/api/auth/csrf` | `GET` | Get the CSRF token required by Auth.js form posts. |
 | `/api/auth/session` | `GET` | Read the current session for the caller's cookies. |
 | `/api/auth/callback/credentials` | `POST` | Submit credentials login data. |
-| `/api/auth/signout` | `POST` | Sign out the current session. |
+
+The direct Auth.js `POST /api/auth/signout` action is intentionally unavailable.
+Nooklet signs out through its UI server action, which durably revokes the
+current SQLite validity record before clearing the browser cookie. External
+clients must not treat the raw Auth.js sign-out protocol as a supported logout
+surface.
 
 Credentials login validation:
 

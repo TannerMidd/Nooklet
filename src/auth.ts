@@ -5,6 +5,12 @@ import { env } from "@/lib/env";
 import { consumeRateLimit } from "@/lib/security/rate-limit";
 import { trustedClientAddress } from "@/lib/security/rate-limit-key";
 import { buildLoginRateLimits } from "@/lib/security/login-rate-limit";
+import {
+  AUTH_SESSION_MAX_AGE_SECONDS,
+  isAuthSessionActive,
+  issueAuthSession,
+  revokeAuthSession,
+} from "@/modules/identity-access/repositories/auth-session-repository";
 import { loginInputSchema } from "@/modules/identity-access/schemas/login";
 import { authenticateWithPassword } from "@/modules/identity-access/workflows/authenticate-with-password";
 import { getBootstrapStatus } from "@/modules/identity-access/workflows/bootstrap-status";
@@ -15,18 +21,60 @@ process.env.AUTH_URL ??= env.APP_URL;
 export const authCallbacks = {
   async jwt({ token, user }) {
     if (user) {
+      if (
+        !user.id
+        || typeof user.authGeneration !== "number"
+        || !Number.isSafeInteger(user.authGeneration)
+        || user.authGeneration < 0
+        || typeof user.passwordChangedAt !== "number"
+        || !Number.isSafeInteger(user.passwordChangedAt)
+      ) {
+        return null;
+      }
+
+      const authGeneration = user.authGeneration as number;
+      const passwordChangedAt = user.passwordChangedAt as number;
+      const authSession = await issueAuthSession(
+        user.id,
+        authGeneration,
+        passwordChangedAt,
+      );
+      if (!authSession) return null;
+
       token.role = user.role;
       token.mustChangePassword = user.mustChangePassword;
-      token.pwdChangedAt = user.passwordChangedAt;
+      token.pwdChangedAt = passwordChangedAt;
+      token.authGeneration = authGeneration;
+      token.authSessionId = authSession.id;
       return token;
     }
 
     // On subsequent requests, validate the token against the live user record so
     // disabled accounts and password changes invalidate existing sessions.
     if (token.sub) {
-      const currentUser = await findUserById(token.sub);
+      const authSessionId = token.authSessionId;
+      const authGeneration = token.authGeneration;
+      if (
+        typeof authSessionId !== "string"
+        || authSessionId.length === 0
+        || typeof authGeneration !== "number"
+        || !Number.isSafeInteger(authGeneration)
+        || authGeneration < 0
+      ) {
+        return null;
+      }
 
-      if (!currentUser || currentUser.isDisabled) {
+      const [currentUser, activeSession] = await Promise.all([
+        findUserById(token.sub),
+        isAuthSessionActive(authSessionId, token.sub, authGeneration as number),
+      ]);
+
+      if (
+        !activeSession
+        || !currentUser
+        || currentUser.isDisabled
+        || currentUser.authGeneration !== authGeneration
+      ) {
         return null;
       }
 
@@ -38,7 +86,7 @@ export const authCallbacks = {
         // Fail closed once, requiring those legacy sessions to sign in again.
         return null;
       }
-      if (tokenPwdChangedAt < currentPwdChangedAt) {
+      if (tokenPwdChangedAt !== currentPwdChangedAt) {
         return null;
       }
 
@@ -59,6 +107,18 @@ export const authCallbacks = {
   },
 } satisfies NonNullable<NextAuthConfig["callbacks"]>;
 
+export const authEvents = {
+  async signOut(message) {
+    if (
+      "token" in message
+      && typeof message.token?.authSessionId === "string"
+      && typeof message.token.sub === "string"
+    ) {
+      await revokeAuthSession(message.token.authSessionId, message.token.sub);
+    }
+  },
+} satisfies NonNullable<NextAuthConfig["events"]>;
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: env.AUTH_SECRET,
   // Self-hosted deployments sit behind reverse proxies and bind to arbitrary
@@ -67,8 +127,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
   session: {
     strategy: "jwt",
-    maxAge: 24 * 60 * 60,
-    updateAge: 60 * 60,
+    maxAge: AUTH_SESSION_MAX_AGE_SECONDS,
   },
   pages: {
     signIn: "/login",
@@ -131,9 +190,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           role: user.role,
           mustChangePassword: user.mustChangePassword,
           passwordChangedAt: user.passwordChangedAt,
+          authGeneration: user.authGeneration,
         };
       },
     }),
   ],
   callbacks: authCallbacks,
+  events: authEvents,
 });

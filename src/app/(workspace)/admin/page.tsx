@@ -47,7 +47,7 @@ export default async function AdminPage() {
       <div className="rounded-2xl border border-accent/20 bg-accent/[0.06] p-5 text-sm leading-6 text-foreground">
         <p className="font-semibold">Shared configuration is instance-wide</p>
         <p className="mt-1 text-muted">
-          Administrators can change storage, download clients, indexers, and every user account.
+          Administrators can change storage, built-in downloader settings, indexers, and every user account.
           Keep at least one active administrator, and grant this role only to people you trust.
         </p>
       </div>

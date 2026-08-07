@@ -34,7 +34,10 @@ function reservePort() {
 
 function waitForExit(child) {
   if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
-  return new Promise((resolve) => child.once("exit", resolve));
+  return new Promise((resolve) => {
+    child.once("exit", resolve);
+    child.once("error", resolve);
+  });
 }
 
 async function waitForServer(url, child, timeoutMs = 120_000) {
@@ -70,7 +73,8 @@ async function waitForTestResult(child, timeoutMs = 600_000) {
     }
 
     if (child.exitCode !== null || child.signalCode !== null) {
-      return child.exitCode === 0 ? "passed" : "failed";
+      if (child.exitCode !== 0) return "failed";
+      throw new Error("The E2E test runner exited without reporting its final result.");
     }
 
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -83,18 +87,18 @@ async function stopProcessTree(child) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
 
   if (process.platform === "win32") {
-    child.kill("SIGKILL");
-    await Promise.race([
-      waitForExit(child),
-      new Promise((resolve) => setTimeout(resolve, 2_000)),
-    ]);
-    if (child.exitCode !== null || child.signalCode !== null) return;
-
+    // Prefer the full tree. If a constrained environment blocks taskkill,
+    // still terminate the direct child and let bounded cleanup report any
+    // descendant that failed to exit with Playwright.
     const taskkill = spawn("taskkill.exe", ["/pid", String(child.pid), "/t", "/f"], {
       stdio: "ignore",
       windowsHide: true,
     });
-    await waitForExit(taskkill);
+    await Promise.race([
+      waitForExit(taskkill),
+      new Promise((resolve) => setTimeout(resolve, 5_000)),
+    ]);
+    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
     await Promise.race([
       waitForExit(child),
       new Promise((resolve) => setTimeout(resolve, 5_000)),
@@ -179,16 +183,32 @@ try {
       NOOKLET_E2E_EXTERNAL_SERVER: "1",
     },
     stdio: "inherit",
+    detached: process.platform !== "win32",
     windowsHide: true,
   });
 
   const status = await waitForTestResult(testRunner);
-  exitCode = status === "passed" ? 0 : 1;
+  // `onEnd` is authoritative once emitted even if Playwright keeps a browser or
+  // reporter alive. A concrete nonzero exit still overrides it; otherwise the
+  // process-tree cleanup in `finally` terminates a runner that outlives this grace.
+  await Promise.race([
+    waitForExit(testRunner),
+    new Promise((resolve) => setTimeout(resolve, 2_000)),
+  ]);
+  const runnerExitedWithFailure =
+    (testRunner.exitCode !== null && testRunner.exitCode !== 0)
+    || testRunner.signalCode !== null;
+  exitCode = status === "passed" && !runnerExitedWithFailure ? 0 : 1;
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
 } finally {
   await stopChildren();
-  await rm(temporaryRoot, { recursive: true, force: true });
+  await rm(temporaryRoot, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 250,
+  });
 }
 
 process.exitCode = exitCode;

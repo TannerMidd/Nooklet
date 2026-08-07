@@ -122,7 +122,7 @@ export async function checkpointExistingSeasonFulfillmentCancellation(
   return checkpointFulfillmentCancellation(userId, fulfillment, workLease);
 }
 
-/** Restores the exact plan state when the external downloader rejected removal. */
+/** Restores the exact plan state when the built-in downloader could not remove the transfer. */
 export async function rollbackSeasonFulfillmentCancellation(
   userId: string,
   checkpoint: SeasonFulfillmentCancellationCheckpoint,

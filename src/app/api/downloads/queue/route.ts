@@ -8,24 +8,52 @@ import {
   applyEngineQueueAction,
   EngineQueueActionError,
 } from "@/modules/download-engine/workflows/apply-engine-queue-action";
+import { classifySessionAccess } from "@/modules/identity-access/session-access";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET() {
+async function getQueueActor() {
   const session = await auth();
+  const accessState = classifySessionAccess(session);
 
-  if (!session?.user?.id) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  if (accessState === "password_change_required") {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        {
+          code: "password_change_required",
+          message: "Replace the temporary password before using this endpoint.",
+        },
+        { status: 403, headers: { "Cache-Control": "no-store" } },
+      ),
+    } as const;
   }
 
+  if (accessState !== "ready" || !session?.user?.id) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { code: "unauthorized", message: "Unauthorized" },
+        { status: 401, headers: { "Cache-Control": "no-store" } },
+      ),
+    } as const;
+  }
+
+  return { ok: true, userId: session.user.id } as const;
+}
+
+export async function GET() {
+  const actor = await getQueueActor();
+  if (!actor.ok) return actor.response;
+
   try {
-    return NextResponse.json(await getActiveDownloadQueue(session.user.id), {
+    return NextResponse.json(await getActiveDownloadQueue(actor.userId), {
       status: 200,
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
-    logger.error("download_queue_refresh_failed", { userId: session.user.id, error });
+    logger.error("download_queue_refresh_failed", { userId: actor.userId, error });
     return NextResponse.json(
       { code: "queue_unavailable", message: "Unable to load the download queue right now." },
       { status: 503 },
@@ -34,11 +62,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
+  const actor = await getQueueActor();
+  if (!actor.ok) return actor.response;
 
   let body: unknown;
   try {
@@ -59,8 +84,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const outcome = await applyEngineQueueAction(session.user.id, action.data);
-    const queueState = await getActiveDownloadQueue(session.user.id);
+    const outcome = await applyEngineQueueAction(actor.userId, action.data);
+    const queueState = await getActiveDownloadQueue(actor.userId);
     return NextResponse.json({
       ...queueState,
       action: outcome,
@@ -68,7 +93,7 @@ export async function POST(request: Request) {
     }, { status: 200 });
   } catch (error) {
     logger.error("download_queue_action_failed", {
-      userId: session.user.id,
+      userId: actor.userId,
       actionType: action.data.type,
       error,
     });

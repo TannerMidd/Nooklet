@@ -4,7 +4,7 @@ vi.mock("@/auth", () => ({
   auth: vi.fn((handler: unknown) => handler),
 }));
 
-import { proxy } from "./proxy";
+import { config, proxy } from "./proxy";
 
 type ProxyRequest = {
   auth: {
@@ -18,31 +18,10 @@ type ProxyRequest = {
 
 const invokeProxy = proxy as unknown as (request: ProxyRequest) => Response;
 
-describe("proxy API session enforcement", () => {
-  it("rejects a temporary-password session at a protected API boundary", async () => {
-    const response = invokeProxy({
-      auth: { user: { id: "user-1", mustChangePassword: true } },
-      nextUrl: new URL("http://localhost:42021/api/downloads/queue"),
-    });
-
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toEqual({
-      code: "password_change_required",
-      message: "Replace the temporary password before using this endpoint.",
-    });
-  });
-
-  it("preserves an API-shaped unauthorized response for anonymous callers", async () => {
-    const response = invokeProxy({
-      auth: null,
-      nextUrl: new URL("http://localhost:42021/api/downloads/queue"),
-    });
-
-    expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({
-      code: "unauthorized",
-      message: "Unauthorized",
-    });
+describe("protected page proxy", () => {
+  it("does not route authenticated APIs through cookie-refreshing proxy middleware", () => {
+    expect(config.matcher).not.toContain("/api/downloads/:path*");
+    expect(config.matcher).not.toContain("/api/service-connections/:path*");
   });
 
   it("does not treat the password-change page as public for anonymous callers", () => {

@@ -18,14 +18,16 @@ Use the deployed Nooklet origin:
 
 Protected routes use the Auth.js session cookie created by local credentials login. Same-origin browser clients can use ordinary `fetch` after sign-in. An external client must implement the Auth.js CSRF/cookie flow and retain cookies across requests.
 
-Sessions use JWT strategy with a 24-hour maximum age. Disabled accounts and password changes are checked against the live user record on later authenticated requests. Accounts with an administrator-issued or recovery password receive `403 password_change_required` from protected APIs until they replace that password.
+Sessions use encrypted JWT cookies plus a server-side SQLite validity record, with an absolute 24-hour maximum age. Each record is tied to the user's monotonic `auth_generation`. Login issuance must still match the generation captured during credential verification; disabling an account or writing a password advances the generation and revokes existing records. This prevents a pending login from becoming valid after a disable/re-enable or password-change race.
+
+Later authenticated requests require the active session record, matching generation, and a live user. Nooklet's UI sign-out action revokes the current record before clearing the browser cookie, so a late authenticated response cannot restore access. Direct `POST /api/auth/signout` is intentionally unavailable; use the application's **Sign out** control. Accounts with an administrator-issued or recovery password receive `403 password_change_required` from protected APIs until they replace that password.
 
 ## Route summary
 
 | Route | Methods | Authentication | Purpose |
 | --- | --- | --- | --- |
 | `/api/health` | `GET` | None | Database, worker, and built-in engine readiness |
-| `/api/auth/[...nextauth]` | `GET`, `POST` | Auth.js-managed | Login, logout, CSRF, providers, and session protocol |
+| `/api/auth/[...nextauth]` | `GET`, `POST` | Auth.js-managed | Login, CSRF, providers, and session protocol; direct protocol sign-out is unavailable |
 | `/api/downloads/queue` | `GET`, `POST` | Required | Caller-scoped built-in queue read/control |
 
 Source: [`src/app/api`](https://github.com/TannerMidd/Nooklet/tree/main/src/app/api).
@@ -87,9 +89,8 @@ Common endpoints include:
 | `/api/auth/csrf` | `GET` | Obtain the CSRF token used by Auth.js form posts |
 | `/api/auth/session` | `GET` | Read the current caller session |
 | `/api/auth/callback/credentials` | `POST` | Submit local email/password credentials |
-| `/api/auth/signout` | `POST` | End the current session |
 
-Login is disabled while first-admin bootstrap is still open. Prefer the Nooklet `/login` UI or Auth.js client helpers rather than binding an external integration directly to this protocol.
+Login is disabled while first-admin bootstrap is still open. The direct Auth.js `POST /api/auth/signout` action is intentionally unavailable because the supported logout path must revoke durable session state before clearing the cookie. Use Nooklet's **Sign out** control. Prefer the Nooklet `/login` UI rather than binding an external integration directly to this protocol.
 
 Source: [Auth.js configuration](https://github.com/TannerMidd/Nooklet/blob/main/src/auth.ts).
 

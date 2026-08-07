@@ -34,7 +34,9 @@ const queueState = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  authMock.mockResolvedValue({ user: { id: "user-1" } } as never);
+  authMock.mockResolvedValue({
+    user: { id: "user-1", mustChangePassword: false },
+  } as never);
   getQueueMock.mockResolvedValue(queueState as never);
   applyActionMock.mockResolvedValue({ status: "applied", message: null } as never);
 });
@@ -46,6 +48,27 @@ describe("download queue API", () => {
     const response = await GET();
 
     expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({
+      code: "unauthorized",
+      message: "Unauthorized",
+    });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(getQueueMock).not.toHaveBeenCalled();
+  });
+
+  it("restricts temporary-password sessions at the route boundary", async () => {
+    authMock.mockResolvedValue({
+      user: { id: "user-1", mustChangePassword: true },
+    } as never);
+
+    const response = await GET();
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      code: "password_change_required",
+      message: "Replace the temporary password before using this endpoint.",
+    });
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(getQueueMock).not.toHaveBeenCalled();
   });
 
@@ -54,6 +77,7 @@ describe("download queue API", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("set-cookie")).toBeNull();
     expect(await response.json()).toEqual(queueState);
     expect(getQueueMock).toHaveBeenCalledWith("user-1");
   });

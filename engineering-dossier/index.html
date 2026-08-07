@@ -126,9 +126,9 @@
         <div class="hero-metrics technical-metrics" aria-label="Audited repository scale" data-reveal>
           <p class="metric-label">Audited repository scale</p>
           <div><strong>17</strong><span>domain modules</span></div>
-          <div><strong>44</strong><span>normalized tables</span></div>
-          <div><strong>44</strong><span>SQL migrations</span></div>
-          <div><strong>235</strong><span>executable test files</span></div>
+          <div><strong>45</strong><span>normalized tables</span></div>
+          <div><strong>45</strong><span>SQL migrations</span></div>
+          <div><strong>239</strong><span>executable test files</span></div>
         </div>
       </section>
 
@@ -414,7 +414,7 @@
               <p class="card-kicker">Domain ownership</p>
               <h3>Workflows are the unit of change.</h3>
               <p>
-                The repository contains 143 production workflow files and 94 workflow test files across request,
+                The repository contains 144 production workflow files and 95 workflow test files across request,
                 search, scan, import, recommendation, connection, and history domains.
               </p>
             </article>
@@ -813,7 +813,7 @@
               <h2 id="data-title">Workflow state is normalized and independently auditable.</h2>
             </div>
             <p>
-              Forty-four Drizzle tables separate instance configuration, intent, fulfillment state, queue state, transfer state, import evidence, recommendations,
+              Forty-five Drizzle tables separate instance configuration, identity and session validity, intent, fulfillment state, queue state, transfer state, import evidence, recommendations,
               history, jobs, notifications, credentials, and audit events. SQLite-specific behavior is embraced
               deliberately rather than hidden behind portability claims.
             </p>
@@ -823,19 +823,19 @@
             <header class="tech-figure-header">
               <div>
                 <p class="figure-id">CHART 01 &middot; SCHEMA COMPOSITION</p>
-                <h3 id="schema-chart-title">Forty-four persisted record types by responsibility</h3>
+                <h3 id="schema-chart-title">Forty-five persisted record types by responsibility</h3>
               </div>
             </header>
             <div class="tech-canvas">
-              <div class="schema-stack" role="img" aria-label="Stacked chart of 44 tables: 8 identity, service, storage, and control; 8 library; 15 indexer and download; 9 history and recommendation; 4 jobs and notification">
-                <div class="schema-segment schema-identity" style="--segment: 18.18%"><strong>8</strong><span>Identity + service + storage + control</span></div>
-                <div class="schema-segment schema-library" style="--segment: 18.18%"><strong>8</strong><span>Library</span></div>
-                <div class="schema-segment schema-download" style="--segment: 34.09%"><strong>15</strong><span>Indexer + download</span></div>
-                <div class="schema-segment schema-history" style="--segment: 20.45%"><strong>9</strong><span>History + recommendations</span></div>
-                <div class="schema-segment schema-ops" style="--segment: 9.09%"><strong>4</strong><span>Jobs + notifications</span></div>
+              <div class="schema-stack" role="img" aria-label="Stacked chart of 45 tables: 9 identity, service, storage, and control; 8 library; 15 indexer and download; 9 history and recommendation; 4 jobs and notification">
+                <div class="schema-segment schema-identity" style="--segment: 20%"><strong>9</strong><span>Identity + service + storage + control</span></div>
+                <div class="schema-segment schema-library" style="--segment: 17.78%"><strong>8</strong><span>Library</span></div>
+                <div class="schema-segment schema-download" style="--segment: 33.33%"><strong>15</strong><span>Indexer + download</span></div>
+                <div class="schema-segment schema-history" style="--segment: 20%"><strong>9</strong><span>History + recommendations</span></div>
+                <div class="schema-segment schema-ops" style="--segment: 8.89%"><strong>4</strong><span>Jobs + notifications</span></div>
               </div>
               <div class="schema-legend" aria-hidden="true">
-                <span><i class="schema-identity"></i>Identity + service + storage + control &middot; 8</span>
+                <span><i class="schema-identity"></i>Identity + service + storage + control &middot; 9</span>
                 <span><i class="schema-library"></i>Library &middot; 8</span>
                 <span><i class="schema-download"></i>Indexer + download &middot; 15</span>
                 <span><i class="schema-history"></i>History + recommendations &middot; 9</span>
@@ -843,7 +843,7 @@
               </div>
             </div>
             <figcaption>
-              <span>Chart 1.</span> Counts are derived from the 44 <code>sqliteTable</code> definitions in
+              <span>Chart 1.</span> Counts are derived from the 45 <code>sqliteTable</code> definitions in
               <a href="https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/schema.ts">schema.ts</a>.
               The categories explain responsibility; they are not storage-size measurements.
             </figcaption>
@@ -959,10 +959,11 @@
                 <li><span>0040-0041</span><strong>Filesystem + engine control</strong><small>Durable storage snapshots, pause/cancel intent, and transfer speed</small></li>
                 <li><span>0042</span><strong>Stable shared configuration</strong><small>Persisted instance owner, safe row consolidation, and query indexes</small></li>
                 <li><span>0043</span><strong>Canonical automation</strong><small>One preserved instance-wide schedule per automation type, with legacy duplicates disabled safely</small></li>
+                <li><span>0044</span><strong>Monotonic session validity</strong><small>Per-login records and a user authentication generation close stale-response, password-change, and disable/re-enable races</small></li>
               </ol>
             </div>
             <figcaption>
-              <span>Figure 8.</span> Forty-four migrations span <code>0000</code> through <code>0043</code>.
+              <span>Figure 8.</span> Forty-five migrations span <code>0000</code> through <code>0044</code>.
               Migration <code>0033</code> deliberately repairs a known historical state using idempotent DDL.
               The repository validator enforces contiguous tags, SQL artifacts, and monotonic new timestamps.
               <a href="https://github.com/TannerMidd/Nooklet/tree/main/drizzle">Migration source</a>.
@@ -1209,11 +1210,13 @@
           <div class="security-detail-grid">
             <article data-reveal>
               <p class="card-kicker">Identity</p>
-              <h3>Live-account session checks</h3>
+              <h3>Revocable session checks</h3>
               <p>
                 Passwords use scrypt and timing-safe comparison. Login and bootstrap are throttled. Disabled users
                 and password changes invalidate otherwise live sessions; temporary passwords require replacement.
-                Legacy JWTs without a password-version claim fail closed and require a fresh sign-in.
+                Encrypted JWT cookies also require an active per-login SQLite record and the user's current monotonic
+                authentication generation, so sign-out remains final when an older response arrives late and a pending
+                login cannot survive password or disable/re-enable invalidation. Legacy tokens without every claim fail closed.
               </p>
             </article>
             <article data-reveal>
@@ -1412,14 +1415,14 @@ npm run account:recover -- admin@example.com</code></pre>
               <div class="module-bar" style="--total:11.81%;--source:82.35%;--tests:17.65%">
                 <span>notifications</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>14 + 3</strong>
               </div>
-              <div class="module-bar" style="--total:45.83%;--source:69.70%;--tests:30.30%">
-                <span>nine smaller modules</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>46 + 20</strong>
+              <div class="module-bar" style="--total:48.61%;--source:68.57%;--tests:31.43%">
+                <span>nine smaller modules</span><div><i class="bar-source"></i><i class="bar-tests"></i></div><strong>48 + 22</strong>
               </div>
             </div>
             <figcaption>
-              <span>Chart 3.</span> The 17 domain directories contain 505 TypeScript/TSX files: 329 production and 176
+              <span>Chart 3.</span> The 17 domain directories contain 509 TypeScript/TSX files: 331 production and 178
               test files. There is no separate root registry; the complete
-              <code>src</code> tree contains 772 TypeScript/TSX files, including 230 test files.
+              <code>src</code> tree contains 778 TypeScript/TSX files, including 234 test files.
             </figcaption>
           </figure>
 
@@ -1434,7 +1437,7 @@ npm run account:recover -- admin@example.com</code></pre>
               <ol>
                 <li><span>01</span><strong>Lint</strong><p>Is source quality structurally clean?</p><b>Passed</b></li>
                 <li><span>02</span><strong>Typecheck</strong><p>Do TypeScript contracts compose?</p><b>Passed</b></li>
-                <li><span>03</span><strong>Automated tests</strong><p>Do workflow, policy, component accessibility, and first-run browser behaviors hold?</p><b>234 Vitest/Node files + 1 Playwright spec</b></li>
+                <li><span>03</span><strong>Automated tests</strong><p>Do workflow, policy, component accessibility, and first-run browser behaviors hold?</p><b>238 Vitest/Node files + 1 Playwright spec</b></li>
                 <li><span>04</span><strong>Production build</strong><p>Can the standalone artifact be assembled and sanitized?</p><b>Passed</b></li>
                 <li><span>05</span><strong>Docker smoke</strong><p>Does the hardened runtime start and report healthy?</p><b>Passed</b></li>
                 <li><span>06</span><strong>Playwright + axe</strong><p>Can a user bootstrap, sign in, reach Home, and avoid serious/critical accessibility violations?</p><b>Chromium smoke</b></li>
@@ -1448,9 +1451,9 @@ npm run account:recover -- admin@example.com</code></pre>
           </figure>
 
           <div class="evidence-ledger" data-reveal>
-            <div><span>Repository</span><strong>775 files under <code>src</code></strong><small>772 TypeScript/TSX &middot; 542 production &middot; 230 test</small></div>
+            <div><span>Repository</span><strong>781 files under <code>src</code></strong><small>778 TypeScript/TSX &middot; 544 production &middot; 234 test</small></div>
             <div><span>Application surface</span><strong>27 pages &middot; 16 server-action files &middot; 3 API route files</strong><small>15 actions live under <code>src/app</code>; sign-out lives under <code>src/components/layout</code>.</small></div>
-            <div><span>Workflow layer</span><strong>143 production workflow files</strong><small>94 colocated workflow test files.</small></div>
+            <div><span>Workflow layer</span><strong>144 production workflow files</strong><small>95 colocated workflow test files.</small></div>
             <div><span>Historical overhaul</span><strong><a href="https://github.com/TannerMidd/Nooklet/commit/49432fb1aabd0afc34e00c374ebe8e9507c42776">362 files in commit <code>49432fb</code></a></strong><small>20,879 additions &middot; 7,178 deletions.</small></div>
           </div>
 
