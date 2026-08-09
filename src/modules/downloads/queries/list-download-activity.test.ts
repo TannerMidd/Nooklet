@@ -6,7 +6,7 @@ vi.mock("@/modules/downloads/repositories/download-repository", () => ({
     listRecentDownloadRequestsWithQueueItems: vi.fn(),
 }));
 vi.mock("@/modules/downloads/repositories/season-fulfillment-repository", () => ({
-    listDownloadFulfillmentEpisodesForIds: vi.fn(),
+    listDownloadFulfillmentEpisodeDetailsForIds: vi.fn(),
 }));
 
 import {
@@ -14,14 +14,14 @@ import {
     listDownloadRequestHistoryPage,
     listRecentDownloadRequestsWithQueueItems,
 } from "@/modules/downloads/repositories/download-repository";
-import { listDownloadFulfillmentEpisodesForIds } from "@/modules/downloads/repositories/season-fulfillment-repository";
+import { listDownloadFulfillmentEpisodeDetailsForIds } from "@/modules/downloads/repositories/season-fulfillment-repository";
 
 import { getDownloadActivityPage, listDownloadActivity } from "./list-download-activity";
 
 const listRequestsMock = vi.mocked(listRecentDownloadRequestsWithQueueItems);
 const countHistoryMock = vi.mocked(countDownloadRequestHistory);
 const listHistoryPageMock = vi.mocked(listDownloadRequestHistoryPage);
-const listFulfillmentEpisodesMock = vi.mocked(listDownloadFulfillmentEpisodesForIds);
+const listFulfillmentEpisodesMock = vi.mocked(listDownloadFulfillmentEpisodeDetailsForIds);
 
 function row(queueStatus: "completed" | "failed" | "queued" | null) {
     return {
@@ -162,13 +162,53 @@ describe("listDownloadActivity", () => {
         );
     });
 
-    it("summarizes individual episode recovery without exposing raw child rows", async () => {
+    it("summarizes recovery and exposes ordered unresolved episode details", async () => {
         listRequestsMock.mockResolvedValue([bareFulfillmentRow()] as never);
         listFulfillmentEpisodesMock.mockResolvedValue([
-            { fulfillmentId: "fulfillment-1", status: "succeeded" },
-            { fulfillmentId: "fulfillment-1", status: "active" },
-            { fulfillmentId: "fulfillment-1", status: "retry_wait" },
-            { fulfillmentId: "fulfillment-1", status: "unavailable" },
+            {
+                state: { fulfillmentId: "fulfillment-1", status: "succeeded" },
+                episode: { id: "episode-1", seasonNumber: 1, episodeNumber: 1, title: "Pilot" },
+            },
+            {
+                state: {
+                    fulfillmentId: "fulfillment-1",
+                    status: "active",
+                    attemptCount: 1,
+                    statusMessage: "S01E02 queued.",
+                    nextAttemptAt: null,
+                },
+                episode: {
+                    id: "episode-2",
+                    seasonNumber: 1,
+                    episodeNumber: 2,
+                    title: "Same Old Story",
+                },
+            },
+            {
+                state: {
+                    fulfillmentId: "fulfillment-1",
+                    status: "retry_wait",
+                    attemptCount: 0,
+                    statusMessage: "S01E03 will retry.",
+                    nextAttemptAt: new Date("2026-07-15T14:30:00Z"),
+                },
+                episode: { id: "episode-3", seasonNumber: 1, episodeNumber: 3, title: null },
+            },
+            {
+                state: {
+                    fulfillmentId: "fulfillment-1",
+                    status: "unavailable",
+                    attemptCount: 0,
+                    statusMessage: "S01E04 has no usable release.",
+                    nextAttemptAt: new Date("2026-07-15T20:00:00Z"),
+                },
+                episode: {
+                    id: "episode-4",
+                    seasonNumber: 1,
+                    episodeNumber: 4,
+                    title: "The Arrival",
+                },
+            },
         ] as never);
 
         const [entry] = await listDownloadActivity("user-1");
@@ -187,6 +227,35 @@ describe("listDownloadActivity", () => {
             blocked: 0,
             deferred: 0,
         });
+        expect(entry.seasonEpisodeDetails).toEqual([
+            {
+                episodeId: "episode-2",
+                episodeCode: "S01E02",
+                title: "Same Old Story",
+                status: "active",
+                attemptCount: 1,
+                statusMessage: "S01E02 queued.",
+                nextAttemptAt: null,
+            },
+            {
+                episodeId: "episode-3",
+                episodeCode: "S01E03",
+                title: "Episode 3",
+                status: "retry_wait",
+                attemptCount: 0,
+                statusMessage: "S01E03 will retry.",
+                nextAttemptAt: new Date("2026-07-15T14:30:00Z"),
+            },
+            {
+                episodeId: "episode-4",
+                episodeCode: "S01E04",
+                title: "The Arrival",
+                status: "unavailable",
+                attemptCount: 0,
+                statusMessage: "S01E04 has no usable release.",
+                nextAttemptAt: new Date("2026-07-15T20:00:00Z"),
+            },
+        ]);
     });
 
     it("shows durable cancellation as in progress with an undo action", async () => {

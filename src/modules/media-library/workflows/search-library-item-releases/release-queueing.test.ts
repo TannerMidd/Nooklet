@@ -122,6 +122,50 @@ describe("selectLibraryItemReleaseCandidates", () => {
 });
 
 describe("queueLibraryItemRelease", () => {
+    it.each([
+        "Indexer rate limited the request with 429.",
+        "Indexer request timed out.",
+        "Indexer returned 503 Service Unavailable.",
+    ])(
+        "classifies a completely failed indexer search as transient infrastructure: %s",
+        async (message) => {
+            const queued = await queueLibraryItemRelease("u1", item, {
+                searched: true,
+                query: "Severance S01E02",
+                searchRun: { id: "run1", status: "failed", errorMessage: message },
+                results: [],
+            } as never);
+
+            expect(queueMock).not.toHaveBeenCalled();
+            expect(queued).toMatchObject({
+                queued: false,
+                reason: "search_failed",
+                failureKind: "infrastructure",
+                terminalFailure: false,
+            });
+        },
+    );
+
+    it("classifies a completely failed credential search as terminal infrastructure", async () => {
+        const queued = await queueLibraryItemRelease("u1", item, {
+            searched: true,
+            query: "Severance S01E02",
+            searchRun: {
+                id: "run1",
+                status: "failed",
+                errorMessage: "Indexer returned 401 Unauthorized.",
+            },
+            results: [],
+        } as never);
+
+        expect(queued).toMatchObject({
+            queued: false,
+            reason: "search_failed",
+            failureKind: "infrastructure",
+            terminalFailure: true,
+        });
+    });
+
     it("queues the best matching episode release with title and episode metadata", async () => {
         queueMock.mockResolvedValue({ downloadRequest: { id: "download1" } } as never);
 

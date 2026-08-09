@@ -151,7 +151,7 @@ describe("queueReleaseCandidates", () => {
         const outcome = await queueReleaseCandidates(
             "u1",
             [{ id: "first" }, { id: "second" }, { id: "third" }],
-            { ...context, maxCandidateAttempts: 1 },
+            { ...context, maxCandidateProbeAttempts: 1 },
         );
 
         expect(queueMock).toHaveBeenCalledTimes(3);
@@ -294,16 +294,20 @@ describe("queueReleaseCandidates", () => {
             ),
         );
 
-        const outcome = await queueReleaseCandidates("u1", [{ id: "first" }, { id: "second" }], {
-            ...context,
-            maxCandidateAttempts: 2,
-        });
+        const outcome = await queueReleaseCandidates(
+            "u1",
+            [{ id: "first" }, { id: "second" }],
+            context,
+        );
 
         expect(outcome).toMatchObject({
             queued: false,
             failureKind: "release",
             capacity,
             rejectedResultIds: ["first", "second"],
+            candidateProbeCount: 2,
+            candidateProbeLimitReached: false,
+            candidateSetExhausted: true,
         });
     });
 
@@ -352,7 +356,7 @@ describe("queueReleaseCandidates", () => {
 
         const outcome = await queueReleaseCandidates("u1", [{ id: "first" }, { id: "second" }], {
             ...context,
-            maxCandidateAttempts: 1,
+            maxCandidateProbeAttempts: 1,
         });
 
         expect(queueMock).toHaveBeenCalledTimes(1);
@@ -384,7 +388,7 @@ describe("queueReleaseCandidates", () => {
         });
     });
 
-    it("does not exceed a fulfillment's remaining physical-attempt budget", async () => {
+    it("does not exceed an explicit candidate probe limit", async () => {
         queueMock.mockRejectedValue(
             new QueueIndexerResultWorkflowError(
                 "release_unavailable",
@@ -395,7 +399,7 @@ describe("queueReleaseCandidates", () => {
         const outcome = await queueReleaseCandidates(
             "u1",
             [{ id: "first" }, { id: "second" }, { id: "third" }],
-            { ...context, maxCandidateAttempts: 2 },
+            { ...context, maxCandidateProbeAttempts: 2 },
         );
 
         expect(queueMock).toHaveBeenCalledTimes(2);
@@ -408,6 +412,9 @@ describe("queueReleaseCandidates", () => {
             queued: false,
             failureKind: "release",
             rejectedResultIds: ["first", "second"],
+            candidateProbeCount: 2,
+            candidateProbeLimitReached: true,
+            candidateSetExhausted: false,
         });
     });
 
@@ -428,9 +435,14 @@ describe("queueReleaseCandidates", () => {
         expect(queueMock).toHaveBeenCalledTimes(8);
         expect(outcome).toMatchObject({ queued: false, failureKind: "release" });
         expect(outcome.rejectedResultIds).toHaveLength(8);
+        expect(outcome).toMatchObject({
+            candidateProbeCount: 8,
+            candidateProbeLimitReached: true,
+            candidateSetExhausted: false,
+        });
     });
 
-    it("still tries every candidate when the pass stays under the ceiling", async () => {
+    it("skips four dead candidates and queues the fifth within one pass", async () => {
         queueMock
             .mockRejectedValueOnce(
                 new QueueIndexerResultWorkflowError("release_unavailable", "Gone."),
@@ -438,18 +450,27 @@ describe("queueReleaseCandidates", () => {
             .mockRejectedValueOnce(
                 new QueueIndexerResultWorkflowError("release_unavailable", "Gone."),
             )
-            .mockResolvedValueOnce({ downloadRequest: { id: "download3" } } as never);
+            .mockRejectedValueOnce(
+                new QueueIndexerResultWorkflowError("release_unavailable", "Gone."),
+            )
+            .mockRejectedValueOnce(
+                new QueueIndexerResultWorkflowError("release_unavailable", "Gone."),
+            )
+            .mockResolvedValueOnce({ downloadRequest: { id: "download5" } } as never);
 
         const outcome = await queueReleaseCandidates(
             "u1",
-            [{ id: "first" }, { id: "second" }, { id: "third" }],
+            [{ id: "first" }, { id: "second" }, { id: "third" }, { id: "fourth" }, { id: "fifth" }],
             context,
         );
 
         expect(outcome).toMatchObject({
             queued: true,
-            selectedResultId: "third",
-            rejectedResultIds: ["first", "second"],
+            selectedResultId: "fifth",
+            rejectedResultIds: ["first", "second", "third", "fourth"],
+            candidateProbeCount: 5,
+            candidateProbeLimitReached: false,
+            candidateSetExhausted: false,
         });
     });
 });

@@ -36,6 +36,19 @@ const statusLabels: Record<DownloadActivityEntry["status"], string> = {
     cancelling: "Cancelling",
 };
 
+const seasonEpisodeStatusLabels: Record<
+    DownloadActivityEntry["seasonEpisodeDetails"][number]["status"],
+    string
+> = {
+    pending: "Pending",
+    active: "Active",
+    retry_wait: "Retrying",
+    succeeded: "In library",
+    unavailable: "No release",
+    blocked: "Blocked",
+    deferred: "Deferred",
+};
+
 function statusBadgeVariant(status: DownloadActivityEntry["status"]) {
     if (status === "succeeded") {
         return "accent-cool" as const;
@@ -462,8 +475,9 @@ export function DownloadActivityPanel({ entries }: { entries: DownloadActivityEn
                                                     {entry.failedAttemptCount === 1
                                                         ? " has"
                                                         : "s have"}{" "}
-                                                    been ruled out. No manual retry is needed while
-                                                    this plan is active.
+                                                    been ruled out. Automatic recovery will
+                                                    continue. Search an eligible episode from
+                                                    Library to retry that episode immediately.
                                                 </p>
                                             ) : null}
                                         </div>
@@ -529,6 +543,55 @@ export function DownloadActivityPanel({ entries }: { entries: DownloadActivityEn
                                                 </div>
                                             ))}
                                         </dl>
+                                    ) : null}
+                                    {entry.seasonEpisodeDetails.length > 0 ? (
+                                        <details className="mt-3 rounded-xl border border-cream/[0.08] bg-background/20 p-3">
+                                            <summary className="cursor-pointer text-xs font-semibold text-foreground hover:text-accent">
+                                                View {entry.seasonEpisodeDetails.length} unresolved
+                                                episode
+                                                {entry.seasonEpisodeDetails.length === 1 ? "" : "s"}
+                                            </summary>
+                                            <ul className="mt-3 space-y-2">
+                                                {entry.seasonEpisodeDetails.map((episode) => (
+                                                    <li
+                                                        key={episode.episodeId}
+                                                        className="rounded-lg border border-cream/[0.07] bg-background/30 p-3 text-xs"
+                                                    >
+                                                        <div className="flex flex-wrap items-start justify-between gap-2">
+                                                            <p className="font-medium text-foreground">
+                                                                <span className="font-mono text-muted">
+                                                                    {episode.episodeCode}
+                                                                </span>{" "}
+                                                                {episode.title}
+                                                            </p>
+                                                            <span className="rounded-full border border-cream/[0.1] px-2 py-0.5 font-medium text-muted">
+                                                                {
+                                                                    seasonEpisodeStatusLabels[
+                                                                        episode.status
+                                                                    ]
+                                                                }
+                                                            </span>
+                                                        </div>
+                                                        <p className="mt-1 text-muted">
+                                                            {episode.attemptCount} submitted
+                                                            download attempt
+                                                            {episode.attemptCount === 1 ? "" : "s"}
+                                                        </p>
+                                                        {episode.statusMessage ? (
+                                                            <p className="mt-1 leading-5 text-muted">
+                                                                {episode.statusMessage}
+                                                            </p>
+                                                        ) : null}
+                                                        {episode.nextAttemptAt ? (
+                                                            <p className="mt-1 leading-5 text-muted">
+                                                                Next attempt:{" "}
+                                                                {formatDate(episode.nextAttemptAt)}
+                                                            </p>
+                                                        ) : null}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </details>
                                     ) : null}
                                     {failure ? (
                                         <div className="mt-3 rounded-xl border border-accent-wine/25 bg-accent-wine/10 p-3.5">

@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 
 import { beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
+    downloadRequests,
     engineDownloads,
     indexerSearchResults,
     indexerSearchRuns,
@@ -23,6 +25,7 @@ import {
     findActiveDownloadRequestForFulfillment,
     findDownloadFulfillmentById,
     findOpenSeasonFulfillment,
+    listDownloadFulfillmentEpisodeDetailsForIds,
     listDownloadFulfillmentEpisodes,
     listDownloadFulfillmentEpisodesForIds,
     listDueCancellationDownloadFulfillments,
@@ -233,6 +236,7 @@ describe("season-fulfillment-repository", () => {
     });
 
     it("tracks exact pack and per-episode attempts, exclusions, and active work", async () => {
+        const database = ensureDatabaseReady();
         const owner = seedUserWithTv();
         const fulfillment = await createOrGetOpenSeasonFulfillment({
             userId: owner.userId,
@@ -276,6 +280,14 @@ describe("season-fulfillment-repository", () => {
             searchResultId: secondEpisodeResultId,
             status: "downloading",
         });
+
+        for (const request of [packRequest, firstEpisodeRequest, secondEpisodeRequest]) {
+            database
+                .update(downloadRequests)
+                .set({ submittedAt: new Date() })
+                .where(eq(downloadRequests.id, request.id))
+                .run();
+        }
 
         expect(
             await attachDownloadRequestToFulfillment({
@@ -391,6 +403,12 @@ describe("season-fulfillment-repository", () => {
                 status: "failed",
             });
 
+            database
+                .update(downloadRequests)
+                .set({ submittedAt: new Date() })
+                .where(eq(downloadRequests.id, request.id))
+                .run();
+
             await attachDownloadRequestToFulfillment({
                 userId: owner.userId,
                 fulfillmentId: fulfillment.id,
@@ -455,6 +473,100 @@ describe("season-fulfillment-repository", () => {
                 })
             ).releaseKeys,
         ).toEqual(expect.arrayContaining(["guid:pack-dead"]));
+    });
+
+    it("keeps a preflight rejection excluded without counting it as a submitted attempt", async () => {
+        const owner = seedUserWithTv();
+        const fulfillment = await createOrGetOpenSeasonFulfillment({
+            userId: owner.userId,
+            mediaTitleId: owner.mediaTitleId,
+            seasonId: owner.seasonId,
+            requestedTitle: "Severance Season 1",
+        });
+        const resultId = seedSearchResult(
+            owner.userId,
+            "Severance S01E01 dead release",
+            "dead-before-submit",
+        );
+        const request = await createDownloadRequest({
+            userId: owner.userId,
+            mediaType: "tv",
+            requestedTitle: "Severance S01E01",
+            mediaTitleId: owner.mediaTitleId,
+            seasonId: owner.seasonId,
+            episodeId: owner.episodeId,
+            searchResultId: resultId,
+            status: "failed",
+        });
+
+        await attachDownloadRequestToFulfillment({
+            userId: owner.userId,
+            fulfillmentId: fulfillment.id,
+            requestId: request.id,
+            attemptStrategy: "episode",
+            attemptNumber: 1,
+        });
+
+        await expect(
+            countDownloadFulfillmentAttempts({
+                userId: owner.userId,
+                fulfillmentId: fulfillment.id,
+                attemptStrategy: "episode",
+                episodeId: owner.episodeId,
+            }),
+        ).resolves.toBe(0);
+        await expect(
+            listFulfillmentReleaseExclusions({
+                userId: owner.userId,
+                fulfillmentId: fulfillment.id,
+                attemptStrategy: "episode",
+                episodeId: owner.episodeId,
+            }),
+        ).resolves.toEqual({
+            resultIds: [resultId],
+            releaseKeys: ["guid:dead-before-submit", "title:severance s01e01 dead release"],
+        });
+
+        const packResultId = seedSearchResult(
+            owner.userId,
+            "Severance S01 dead pack",
+            "dead-pack-before-submit",
+        );
+        const packRequest = await createDownloadRequest({
+            userId: owner.userId,
+            mediaType: "tv",
+            requestedTitle: "Severance Season 1",
+            mediaTitleId: owner.mediaTitleId,
+            seasonId: owner.seasonId,
+            searchResultId: packResultId,
+            status: "failed",
+        });
+
+        await attachDownloadRequestToFulfillment({
+            userId: owner.userId,
+            fulfillmentId: fulfillment.id,
+            requestId: packRequest.id,
+            attemptStrategy: "season_pack",
+            attemptNumber: 1,
+        });
+
+        await expect(
+            countDownloadFulfillmentAttempts({
+                userId: owner.userId,
+                fulfillmentId: fulfillment.id,
+                attemptStrategy: "season_pack",
+            }),
+        ).resolves.toBe(0);
+        await expect(
+            listFulfillmentReleaseExclusions({
+                userId: owner.userId,
+                fulfillmentId: fulfillment.id,
+                attemptStrategy: "season_pack",
+            }),
+        ).resolves.toEqual({
+            resultIds: [packResultId],
+            releaseKeys: ["guid:dead-pack-before-submit", "title:severance s01 dead pack"],
+        });
     });
 
     it("updates due fulfillment and episode state without crossing tenants or seasons", async () => {
@@ -557,6 +669,26 @@ describe("season-fulfillment-repository", () => {
                 fulfillmentIds: [fulfillment.id],
             }),
         ).toEqual([]);
+        expect(
+            await listDownloadFulfillmentEpisodeDetailsForIds({
+                userId: owner.userId,
+                fulfillmentIds: [fulfillment.id],
+            }),
+        ).toEqual([
+            {
+                state: expect.objectContaining({
+                    fulfillmentId: fulfillment.id,
+                    episodeId: owner.episodeId,
+                    status: "retry_wait",
+                }),
+                episode: {
+                    id: owner.episodeId,
+                    seasonNumber: 1,
+                    episodeNumber: 1,
+                    title: "Good News About Hell",
+                },
+            },
+        ]);
         await expect(
             upsertDownloadFulfillmentEpisode({
                 userId: owner.userId,

@@ -41,9 +41,10 @@ more physical download attempts.
   attempt time, and operator-visible status message.
 - `download_fulfillment_episodes` stores the independent state and next attempt
   time for each episode considered by fallback.
-- `download_requests` remains the record of one physical release attempt. Its
-  optional fulfillment, strategy, and attempt-number fields connect evidence to
-  the plan without changing the request/import lifecycle.
+- `download_requests` remains the record of one selected release. Its optional
+  fulfillment, strategy, and attempt-number fields connect evidence to the plan
+  without changing the request/import lifecycle. `submittedAt` distinguishes a
+  preflight rejection from a release that actually reached the downloader.
 - At most one open fulfillment exists for a user, title, and season. Repeated
   submissions converge on that plan instead of creating competing coordinators.
 
@@ -70,10 +71,21 @@ stateDiagram-v2
   Episodes --> Blocked: remaining eligible work needs operator repair
 ```
 
-The season-pack strategy may submit at most three automatic physical release
-attempts for a fulfillment. Previously attempted result identifiers and stable
-release keys are excluded within that fulfillment. A successful pack import is
-not assumed to be complete; the workflow reconciles the library against current
+Each search pass may perform at most eight costly candidate probes and forty
+total lightweight candidate inspections. A pack or episode recovery cycle may
+submit at most three releases to the downloader. Preflight rejections remain
+durable plan exclusions but do not consume those three submissions. A submitted
+content failure is also refunded when engine evidence proves that zero bytes
+were downloaded; submitted failures with transferred bytes still consume the
+cycle. The same accounting applies to season packs and individual episodes.
+
+An episode that reaches the eight-probe ceiling or exhausts the current
+candidate set waits six hours without consuming a submission. A search that
+returns no candidates follows the transient schedule beginning at five minutes.
+Legacy child counts are reconciled downward when durable submitted-attempt
+history proves they were inflated, but valid submitted attempts are never added,
+erased, or inferred across recovery cycles. A successful pack import is not
+assumed to be complete; the workflow reconciles the library against current
 episode metadata and falls back for any missing coverage.
 
 If no matching pack exists, all pack alternatives are exhausted, or a pack is
@@ -91,12 +103,17 @@ usable but incomplete, the plan switches to the episode strategy. Fallback:
 
 Recovery is driven by the failure boundary, not by one generic retry flag.
 
-| Failure class                | Examples                                                                                                                                    | Plan behavior                                                                                             |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Release/content              | unavailable NZB, failed transfer, unusable files, release larger than the entire staging filesystem                                         | Exclude that release, try an alternate, then fall back to episodes                                        |
-| Transient search/runtime     | indexer search error, unexpected recoverable workflow error, capacity reserved by active downloads                                          | Persist `retry_wait` and a due time without consuming the release                                         |
-| Conflict/coverage            | equivalent request already active                                                                                                           | Track the active work and recheck coverage later                                                          |
-| Infrastructure/configuration | insufficient non-active free space, wrong staging mount, destination path, downloader connection, credentials, no compatible Newznab source | Stop automatic fan-out without consuming the release and surface a blocked plan requiring operator action |
+| Failure class                | Examples                                                                                                                                       | Plan behavior                                                                                             |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Release/content              | unavailable NZB, failed transfer, unusable files, release larger than the entire staging filesystem                                            | Exclude that release, try an alternate, then fall back to episodes                                        |
+| Transient search/runtime     | every indexer returns 429, timeout, or 5xx; unexpected recoverable workflow error; capacity reserved by active downloads                       | Stop new episode fan-out after the in-flight batch settles, then persist `retry_wait` and a due time      |
+| Conflict/coverage            | equivalent request already active                                                                                                              | Track the active work and recheck coverage later                                                          |
+| Infrastructure/configuration | insufficient non-active free space, wrong staging mount, destination path, downloader configuration, credentials, no compatible Newznab source | Stop automatic fan-out without consuming the release and surface a blocked plan requiring operator action |
+
+A completely failed multi-indexer search is always infrastructure failure. The
+terminal patterns only decide whether it blocks for human repair or retries as
+transient infrastructure. If at least one configured indexer succeeds, recovery
+continues with its results even when other indexers failed.
 
 Immediate alternatives are bounded. An episode that exhausts them becomes
 temporarily unavailable and is searched again on a later cooldown rather than
@@ -122,10 +139,19 @@ of truth.
 ### Notifications and presentation
 
 Activity groups physical requests by fulfillment and shows the aggregate plan as
-recovering while automatic work remains open. Failed attempts are retained as
-evidence but do not present the season as terminal. Lifecycle notifications are
-suppressed while a plan is still recovering and are emitted only for a meaningful
-terminal outcome.
+recovering while automatic work remains open. Compact counters cover the entire
+season, while an expandable ordered list explains each unresolved episode's
+status, submitted-attempt count, reason, and next attempt. Failed attempts are
+retained as evidence but do not present the season as terminal. Lifecycle
+notifications are suppressed while a plan is still recovering and are emitted
+only for a meaningful terminal outcome.
+
+Searching one monitored, aired episode from Library may join an open
+episode-strategy plan. It acquires the plan and episode leases, resets only that
+episode's three-submission cycle, preserves the plan destination and exclusions,
+and recomputes the aggregate after the result. Busy, cancelling, and season-pack
+plans return without creating an independent duplicate. Future, unmonitored, and
+no-plan episodes retain the explicit independent manual behavior.
 
 ## Alternatives considered
 
@@ -165,7 +191,7 @@ an operator-visible stop.
 - Retries exclude only attempts made by the current plan instead of unrelated
   historical requests.
 - Activity can explain strategy, progress, ruled-out attempts, and the next
-  recovery boundary without requiring manual retries.
+  recovery boundary, while an eligible episode can still be retried immediately.
 - Existing files and active episode requests are reused rather than duplicated.
 
 ### Negative

@@ -502,7 +502,7 @@ describe("requestExistingTitleContentWorkflow", () => {
                 fulfillmentId: "fulfillment-1",
                 attemptStrategy: "season_pack",
                 attemptNumber: 1,
-                maxCandidateAttempts: 3,
+                maxCandidateProbeAttempts: 8,
                 workLease: seasonWorkLease,
             },
         );
@@ -519,7 +519,7 @@ describe("requestExistingTitleContentWorkflow", () => {
                 fulfillmentId: "fulfillment-1",
                 attemptStrategy: "season_pack",
                 attemptNumber: 1,
-                maxCandidateAttempts: 3,
+                maxCandidateProbeAttempts: 8,
                 workLease: seasonWorkLease,
             },
         );

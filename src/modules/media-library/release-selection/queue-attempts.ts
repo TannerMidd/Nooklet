@@ -27,7 +27,7 @@ const retryableQueueErrorCodes = new Set([
  * ceiling are not lost: the next search pass resumes with the failed ones
  * excluded.
  */
-const defaultMaxCandidateAttempts = 8;
+export const defaultMaxCandidateProbeAttempts = 8;
 
 /**
  * Ceiling on candidates examined in one pass regardless of budget.
@@ -85,7 +85,7 @@ export type QueueReleaseCandidatesContext = {
     fulfillmentId?: string | null;
     attemptStrategy?: "season_pack" | "episode" | null;
     attemptNumber?: number | null;
-    maxCandidateAttempts?: number | null;
+    maxCandidateProbeAttempts?: number | null;
     workLease?: SeasonFulfillmentWorkLease | null;
 };
 
@@ -100,6 +100,9 @@ export type QueuedReleaseCandidatesOutcome =
           capacity?: DownloadCapacityDetails | null;
           selectedResultId: null;
           rejectedResultIds: string[];
+          candidateProbeCount: number;
+          candidateProbeLimitReached: boolean;
+          candidateSetExhausted: boolean;
           download: null;
       }
     | {
@@ -108,6 +111,9 @@ export type QueuedReleaseCandidatesOutcome =
           message: null;
           selectedResultId: string;
           rejectedResultIds: string[];
+          candidateProbeCount: number;
+          candidateProbeLimitReached: false;
+          candidateSetExhausted: false;
           download: QueuedIndexerResultDownload;
       };
 
@@ -192,16 +198,16 @@ export async function queueReleaseCandidates(
     const rejectedResultIds: string[] = [];
     let lastErrorMessage: string | null = null;
     let lastCapacity: DownloadCapacityDetails | null = null;
-    const candidateAttemptLimit =
-        context.maxCandidateAttempts == null
-            ? Math.min(candidates.length, defaultMaxCandidateAttempts)
-            : Math.max(0, Math.floor(context.maxCandidateAttempts));
+    const candidateProbeLimit =
+        context.maxCandidateProbeAttempts == null
+            ? defaultMaxCandidateProbeAttempts
+            : Math.max(0, Math.floor(context.maxCandidateProbeAttempts));
     let consumedCandidateAttempts = 0;
     let inspectedCandidates = 0;
 
     for (const candidate of candidates) {
         if (
-            consumedCandidateAttempts >= candidateAttemptLimit ||
+            consumedCandidateAttempts >= candidateProbeLimit ||
             inspectedCandidates >= maxCandidateInspections
         ) {
             break;
@@ -224,9 +230,10 @@ export async function queueReleaseCandidates(
                 {
                     fulfillmentId: context.fulfillmentId ?? null,
                     attemptStrategy: context.attemptStrategy ?? null,
-                    attemptNumber: context.attemptNumber
-                        ? context.attemptNumber + consumedCandidateAttempts
-                        : null,
+                    // Every candidate in this pass competes for the same next
+                    // submitted-transfer slot. Preflight rejections must not
+                    // advance the durable submission sequence.
+                    attemptNumber: context.attemptNumber ?? null,
                     workLease: context.workLease ?? null,
                 },
             );
@@ -237,6 +244,9 @@ export async function queueReleaseCandidates(
                 message: null,
                 selectedResultId: candidate.id,
                 rejectedResultIds,
+                candidateProbeCount: consumedCandidateAttempts + 1,
+                candidateProbeLimitReached: false,
+                candidateSetExhausted: false,
                 download,
             };
         } catch (error) {
@@ -260,6 +270,9 @@ export async function queueReleaseCandidates(
                     capacity: error.capacity,
                     selectedResultId: null,
                     rejectedResultIds,
+                    candidateProbeCount: consumedCandidateAttempts,
+                    candidateProbeLimitReached: consumedCandidateAttempts >= candidateProbeLimit,
+                    candidateSetExhausted: false,
                     download: null,
                 };
             }
@@ -271,6 +284,12 @@ export async function queueReleaseCandidates(
         }
     }
 
+    const candidateProbeLimitReached = consumedCandidateAttempts >= candidateProbeLimit;
+    const candidateSetExhausted =
+        !candidateProbeLimitReached &&
+        inspectedCandidates < maxCandidateInspections &&
+        inspectedCandidates >= candidates.length;
+
     return {
         queued: false,
         reason: "queue_failed",
@@ -279,6 +298,9 @@ export async function queueReleaseCandidates(
         capacity: lastCapacity,
         selectedResultId: null,
         rejectedResultIds,
+        candidateProbeCount: consumedCandidateAttempts,
+        candidateProbeLimitReached,
+        candidateSetExhausted,
         download: null,
     };
 }

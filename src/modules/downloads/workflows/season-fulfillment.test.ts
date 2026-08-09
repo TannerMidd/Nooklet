@@ -64,6 +64,7 @@ import {
     queueMissingSeasonEpisodes,
     reconcileSeasonCoverage,
     recordSeasonPackSubmissionOutcome,
+    retryOpenSeasonFulfillmentEpisode,
     runDueSeasonFulfillments,
 } from "./season-fulfillment";
 
@@ -192,7 +193,12 @@ function makeEpisode(id: string, episodeNumber: number, overrides: Record<string
 
 function queuedSearchResult() {
     return {
-        queuedDownload: { queued: true, reason: "queued", message: null },
+        queuedDownload: {
+            queued: true,
+            reason: "queued",
+            message: null,
+            download: { downloadRequest: { id: "download-request-1" } },
+        },
     } as never;
 }
 
@@ -355,6 +361,160 @@ afterEach(() => {
 });
 
 describe("season fulfillment recovery", () => {
+    it("retries only the selected episode inside its open plan and resets only that cycle", async () => {
+        fulfillment = makeFulfillment({ strategy: "episodes", status: "partial" });
+        episodeStates.push(
+            {
+                fulfillmentId: fulfillment.id,
+                episodeId: "episode-1",
+                status: "unavailable",
+                attemptCount: 3,
+                nextAttemptAt: new Date("2026-07-16T00:00:00Z"),
+                statusMessage: "No usable release.",
+                createdAt: fixedNow,
+                updatedAt: fixedNow,
+            },
+            {
+                fulfillmentId: fulfillment.id,
+                episodeId: "episode-2",
+                status: "retry_wait",
+                attemptCount: 2,
+                nextAttemptAt: new Date("2026-07-15T19:00:00Z"),
+                statusMessage: "Waiting to retry.",
+                createdAt: fixedNow,
+                updatedAt: fixedNow,
+            },
+        );
+        findOpenFulfillmentMock.mockImplementation(async () => ({ ...fulfillment }) as never);
+        listExclusionsMock.mockResolvedValue({
+            resultIds: ["dead-result"],
+            releaseKeys: ["guid:indexer:dead"],
+        });
+        countAttemptsMock.mockResolvedValueOnce(2).mockResolvedValueOnce(3);
+        searchMock.mockResolvedValue({
+            queuedDownload: {
+                queued: true,
+                download: { downloadRequest: { id: "planned-request" } },
+            },
+        } as never);
+
+        const result = await retryOpenSeasonFulfillmentEpisode({
+            userId: "user-1",
+            episodeId: "episode-1",
+        });
+
+        expect(result).toEqual({
+            handled: true,
+            status: "queued",
+            message: "S01E01 queued as an individual episode.",
+            downloadRequestId: "planned-request",
+        });
+        expect(searchMock).toHaveBeenCalledTimes(1);
+        expect(searchMock).toHaveBeenCalledWith(
+            "user-1",
+            {
+                titleId: "title-1",
+                episodeId: "episode-1",
+                targetLibraryPathId: "path-1",
+                excludedResultIds: ["dead-result"],
+                excludedReleaseKeys: ["guid:indexer:dead"],
+            },
+            expect.objectContaining({
+                fulfillmentId: "fulfillment-1",
+                attemptStrategy: "episode",
+                attemptNumber: 3,
+                maxCandidateProbeAttempts: 8,
+            }),
+        );
+        expect(episodeStates.find((state) => state.episodeId === "episode-1")?.attemptCount).toBe(
+            1,
+        );
+        expect(episodeStates.find((state) => state.episodeId === "episode-2")?.attemptCount).toBe(
+            2,
+        );
+    });
+
+    it("does not create independent work for active pack, cancelling, future, or no-plan cases", async () => {
+        findOpenFulfillmentMock.mockImplementation(async () => ({ ...fulfillment }) as never);
+
+        await expect(
+            retryOpenSeasonFulfillmentEpisode({ userId: "user-1", episodeId: "episode-1" }),
+        ).resolves.toMatchObject({ handled: true, status: "busy" });
+
+        fulfillment = makeFulfillment({
+            strategy: "episodes",
+            cancellationRequestedAt: fixedNow,
+        });
+        await expect(
+            retryOpenSeasonFulfillmentEpisode({ userId: "user-1", episodeId: "episode-1" }),
+        ).resolves.toMatchObject({ handled: true, status: "busy" });
+
+        findEpisodeMock.mockResolvedValue({
+            title: { id: "title-1" },
+            episode: makeEpisode("episode-1", 1, { airDate: "2026-07-20" }),
+        } as never);
+        await expect(
+            retryOpenSeasonFulfillmentEpisode({ userId: "user-1", episodeId: "episode-1" }),
+        ).resolves.toEqual({ handled: false });
+
+        findEpisodeMock.mockResolvedValue({
+            title: { id: "title-1" },
+            episode: makeEpisode("episode-1", 1, { monitored: false }),
+        } as never);
+        await expect(
+            retryOpenSeasonFulfillmentEpisode({ userId: "user-1", episodeId: "episode-1" }),
+        ).resolves.toEqual({ handled: false });
+
+        findEpisodeMock.mockResolvedValue({
+            title: { id: "title-1" },
+            episode: makeEpisode("episode-1", 1),
+        } as never);
+        findOpenFulfillmentMock.mockResolvedValue(null);
+        await expect(
+            retryOpenSeasonFulfillmentEpisode({ userId: "user-1", episodeId: "episode-1" }),
+        ).resolves.toEqual({ handled: false });
+
+        expect(searchMock).not.toHaveBeenCalled();
+    });
+
+    it("returns active and owned plan states without resetting their transfer counts", async () => {
+        fulfillment = makeFulfillment({ strategy: "episodes", status: "partial" });
+        episodeStates.push({
+            fulfillmentId: fulfillment.id,
+            episodeId: "episode-1",
+            status: "active",
+            attemptCount: 2,
+            nextAttemptAt: null,
+            statusMessage: "Already active.",
+            createdAt: fixedNow,
+            updatedAt: fixedNow,
+        });
+        findOpenFulfillmentMock.mockImplementation(async () => ({ ...fulfillment }) as never);
+        findActiveItemMock.mockResolvedValue({ id: "existing-request" } as never);
+
+        await expect(
+            retryOpenSeasonFulfillmentEpisode({ userId: "user-1", episodeId: "episode-1" }),
+        ).resolves.toMatchObject({
+            handled: true,
+            status: "already_active",
+            downloadRequestId: "existing-request",
+        });
+        expect(episodeStates[0]?.attemptCount).toBe(2);
+        expect(searchMock).not.toHaveBeenCalled();
+
+        findActiveItemMock.mockResolvedValue(null);
+        findEpisodeMock.mockResolvedValue({
+            title: { id: "title-1" },
+            episode: makeEpisode("episode-1", 1, { hasFile: true }),
+        } as never);
+
+        await expect(
+            retryOpenSeasonFulfillmentEpisode({ userId: "user-1", episodeId: "episode-1" }),
+        ).resolves.toMatchObject({ handled: true, status: "already_owned" });
+        expect(episodeStates[0]?.attemptCount).toBe(2);
+        expect(searchMock).not.toHaveBeenCalled();
+    });
+
     it("refunds the episode attempt slot when the failed attempt transferred nothing", async () => {
         fulfillment = makeFulfillment({ strategy: "episodes" });
         episodeStates.push({
@@ -462,7 +622,7 @@ describe("season fulfillment recovery", () => {
                 fulfillmentId: "fulfillment-1",
                 attemptStrategy: "season_pack",
                 attemptNumber: 1,
-                maxCandidateAttempts: 3,
+                maxCandidateProbeAttempts: 8,
                 workLease: expect.objectContaining({
                     requestKey: "season-fulfillment:fulfillment-1:work",
                 }),
@@ -484,7 +644,7 @@ describe("season fulfillment recovery", () => {
                         fulfillmentId: "fulfillment-1",
                         attemptStrategy: "episode",
                         attemptNumber: 1,
-                        maxCandidateAttempts: 3,
+                        maxCandidateProbeAttempts: 8,
                         workLease: expect.objectContaining({
                             requestKey: "season-fulfillment:fulfillment-1:work",
                         }),
@@ -609,7 +769,7 @@ describe("season fulfillment recovery", () => {
             expect.objectContaining({ episodeId: episode.id }),
             expect.objectContaining({
                 attemptStrategy: "episode",
-                maxCandidateAttempts: 3,
+                maxCandidateProbeAttempts: 8,
             }),
         );
         expect(result).toMatchObject({
@@ -662,7 +822,7 @@ describe("season fulfillment recovery", () => {
             expect.objectContaining({
                 attemptStrategy: "episode",
                 attemptNumber: 4,
-                maxCandidateAttempts: 3,
+                maxCandidateProbeAttempts: 8,
             }),
         );
         expect(episodeStates).toContainEqual(
@@ -698,6 +858,42 @@ describe("season fulfillment recovery", () => {
         );
     });
 
+    it("puts eight rejected candidate probes on cooldown without consuming a transfer", async () => {
+        fulfillment = makeFulfillment({ strategy: "episodes" });
+        const episode = makeEpisode("episode-probes", 1);
+
+        listEpisodesMock.mockResolvedValue([episode] as never);
+        countAttemptsMock.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+        searchMock.mockResolvedValue({
+            queuedDownload: {
+                queued: false,
+                reason: "queue_failed",
+                failureKind: "release",
+                message: "Eight candidates were unavailable.",
+                rejectedResultIds: Array.from({ length: 8 }, (_, index) => `dead-${index}`),
+                candidateProbeCount: 8,
+                candidateProbeLimitReached: true,
+                candidateSetExhausted: false,
+                download: null,
+            },
+        } as never);
+
+        await queueMissingSeasonEpisodes({
+            userId: "user-1",
+            fulfillmentId: fulfillment.id,
+            reason: "No season pack was usable.",
+        });
+
+        expect(episodeStates).toContainEqual(
+            expect.objectContaining({
+                episodeId: episode.id,
+                status: "unavailable",
+                attemptCount: 0,
+                nextAttemptAt: new Date("2026-07-16T00:00:00.000Z"),
+            }),
+        );
+    });
+
     it("keeps the long release cooldown once the episode candidate budget is spent", async () => {
         fulfillment = makeFulfillment({ strategy: "episodes" });
         const episode = makeEpisode("episode-spent", 1);
@@ -715,6 +911,7 @@ describe("season fulfillment recovery", () => {
             },
         ];
         listEpisodesMock.mockResolvedValue([episode] as never);
+        countAttemptsMock.mockResolvedValue(3);
         searchMock.mockResolvedValue(noMatchingReleaseResult());
 
         await queueMissingSeasonEpisodes({
@@ -729,6 +926,42 @@ describe("season fulfillment recovery", () => {
                 episodeId: episode.id,
                 status: "unavailable",
                 nextAttemptAt: new Date("2026-07-16T00:00:00.000Z"),
+            }),
+        );
+    });
+
+    it("lowers a legacy-inflated child count without erasing valid submitted attempts", async () => {
+        fulfillment = makeFulfillment({ strategy: "episodes" });
+        const episode = makeEpisode("episode-legacy", 1);
+
+        episodeStates = [
+            {
+                fulfillmentId: fulfillment.id,
+                episodeId: episode.id,
+                status: "retry_wait",
+                attemptCount: 3,
+                nextAttemptAt: fixedNow,
+                statusMessage: "Legacy candidate probes inflated this count.",
+                createdAt: fixedNow,
+                updatedAt: fixedNow,
+            },
+        ];
+        listEpisodesMock.mockResolvedValue([episode] as never);
+        countAttemptsMock.mockResolvedValueOnce(1).mockResolvedValueOnce(2);
+
+        await queueMissingSeasonEpisodes({
+            userId: "user-1",
+            fulfillmentId: fulfillment.id,
+            reason: "Reconciling legacy episode accounting.",
+        });
+
+        expect(searchMock).toHaveBeenCalledTimes(1);
+        expect(episodeStates).toContainEqual(
+            expect.objectContaining({
+                episodeId: episode.id,
+                status: "active",
+                // One valid historical submission remains, plus the new one.
+                attemptCount: 2,
             }),
         );
     });
@@ -777,7 +1010,7 @@ describe("season fulfillment recovery", () => {
             expect.objectContaining({
                 attemptStrategy: "episode",
                 attemptNumber: 4,
-                maxCandidateAttempts: 3,
+                maxCandidateProbeAttempts: 8,
             }),
         );
         expect(episodeStates).toContainEqual(
@@ -831,7 +1064,7 @@ describe("season fulfillment recovery", () => {
             }),
             expect.objectContaining({
                 attemptNumber: 5,
-                maxCandidateAttempts: 1,
+                maxCandidateProbeAttempts: 8,
             }),
         );
         expect(episodeStates).toContainEqual(
@@ -943,10 +1176,10 @@ describe("season fulfillment recovery", () => {
         });
     });
 
-    it("parks a season pack once the transient backoff reaches its ceiling", async () => {
+    it("keeps retrying a season pack at the transient backoff ceiling", async () => {
         countAttemptsMock.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
         // The gap already scheduled between the last write and its next attempt is
-        // how the backoff records elapsed failure; at the ceiling a human is due.
+        // how the backoff records elapsed failure; it remains capped at six hours.
         fulfillment.nextAttemptAt = new Date(fulfillment.updatedAt.getTime() + 6 * 60 * 60 * 1000);
         searchMock.mockResolvedValue({
             queuedDownload: {
@@ -960,7 +1193,10 @@ describe("season fulfillment recovery", () => {
 
         const result = await attemptSeasonPack("user-1", "fulfillment-1");
 
-        expect(result.fulfillment).toMatchObject({ status: "blocked", nextAttemptAt: null });
+        expect(result.fulfillment).toMatchObject({
+            status: "retry_wait",
+            nextAttemptAt: new Date("2026-07-16T00:00:00.000Z"),
+        });
     });
 
     it("reschedules untouched episodes after a transient failure rather than blocking them", async () => {
@@ -1218,6 +1454,47 @@ describe("season fulfillment recovery", () => {
         expect(fulfillment).toMatchObject({ status: "blocked", nextAttemptAt: null });
     });
 
+    it.each([
+        "Every indexer returned 429 Too Many Requests.",
+        "Every indexer request timed out.",
+        "Every indexer returned 503 Service Unavailable.",
+    ])(
+        "stops episode fan-out and retries a total transient search failure: %s",
+        async (message) => {
+            const episodes = Array.from({ length: 6 }, (_, index) =>
+                makeEpisode(`episode-${index + 1}`, index + 1),
+            );
+
+            listEpisodesMock.mockResolvedValue(episodes as never);
+            countAttemptsMock.mockResolvedValue(0);
+            searchMock.mockResolvedValue({
+                queuedDownload: {
+                    queued: false,
+                    reason: "search_failed",
+                    failureKind: "infrastructure",
+                    terminalFailure: false,
+                    message,
+                },
+            } as never);
+
+            const result = await queueMissingSeasonEpisodes({
+                userId: "user-1",
+                fulfillmentId: "fulfillment-1",
+                reason: "No season pack was usable.",
+            });
+
+            expect(searchMock.mock.calls.length).toBeGreaterThan(0);
+            expect(searchMock.mock.calls.length).toBeLessThanOrEqual(3);
+            expect(result).toMatchObject({
+                episodeCount: 6,
+                retryWaitCount: 6,
+                blockedCount: 0,
+                queuedCount: 0,
+            });
+            expect(fulfillment.status).not.toBe("blocked");
+        },
+    );
+
     it("keeps capacity-limited episode children retryable without consuming attempts", async () => {
         const episodes = [makeEpisode("episode-1", 1), makeEpisode("episode-2", 2)];
 
@@ -1297,7 +1574,8 @@ describe("season fulfillment recovery", () => {
             queuedDownload: {
                 queued: false,
                 reason: "search_failed",
-                failureKind: "unknown",
+                failureKind: "infrastructure",
+                terminalFailure: false,
                 message: "The indexer timed out.",
             },
         } as never);
@@ -1390,7 +1668,7 @@ describe("season fulfillment recovery", () => {
                 fulfillmentId: "fulfillment-1",
                 attemptStrategy: "season_pack",
                 attemptNumber: 2,
-                maxCandidateAttempts: 2,
+                maxCandidateProbeAttempts: 8,
                 workLease: expect.objectContaining({
                     requestKey: "season-fulfillment:fulfillment-1:work",
                 }),

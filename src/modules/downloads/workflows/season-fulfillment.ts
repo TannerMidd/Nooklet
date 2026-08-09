@@ -21,10 +21,12 @@ import {
     searchLibraryItemReleasesWorkflow,
     type SearchLibraryItemReleasesResult,
 } from "@/modules/media-library/workflows/search-library-item-releases";
+import { defaultMaxCandidateProbeAttempts } from "@/modules/media-library/release-selection";
 import {
     acquireMediaRequestAttempt,
     releaseMediaRequestAttempt,
     renewMediaRequestAttempt,
+    type MediaRequestAttemptLease,
 } from "@/modules/media-library/public";
 import {
     acquireSeasonFulfillmentWorkLease,
@@ -53,6 +55,7 @@ type Fulfillment = NonNullable<Awaited<ReturnType<typeof findDownloadFulfillment
 type EpisodeState = Awaited<ReturnType<typeof listDownloadFulfillmentEpisodes>>[number];
 type EpisodeAttemptResult = {
     queued: boolean;
+    downloadRequestId?: string | null;
     /**
      * Set for any infrastructure failure so the pass stops fanning out at a
      * downloader or indexer that is already failing. `terminal` separates that
@@ -246,6 +249,22 @@ export type SeasonPackAttemptResult = {
     fallback: SeasonEpisodeFallbackResult | null;
 };
 
+export type TargetedSeasonEpisodeRetryResult =
+    | { handled: false }
+    | {
+          handled: true;
+          status:
+              | "queued"
+              | "already_active"
+              | "already_owned"
+              | "no_release"
+              | "retry_wait"
+              | "blocked"
+              | "busy";
+          message: string;
+          downloadRequestId?: string | null;
+      };
+
 function nowPlus(delayMs: number) {
     return new Date(Date.now() + delayMs);
 }
@@ -283,18 +302,15 @@ function nextTransientRetryAt(previous: RetrySchedulable | null) {
  * misconfigured indexer and wrong for a provider hiccup — one 503 used to end
  * automatic recovery for a whole season.
  *
- * Transient failures now back off instead, doubling from five minutes, and
- * only park once the backoff reaches its six-hour ceiling. By then the
- * condition has persisted long enough that a human really is the next step.
+ * Transient failures back off instead, doubling from five minutes and then
+ * remaining at the six-hour ceiling. Only terminal configuration evidence may
+ * park the plan; rate limits, timeouts, and 5xx responses keep recovering.
  */
 function scheduleInfrastructureRetry(
     outcome: { terminalFailure?: boolean },
     previous: RetrySchedulable | null,
 ): { status: "blocked"; nextAttemptAt: null } | { status: "retry_wait"; nextAttemptAt: Date } {
-    if (
-        outcome.terminalFailure === true ||
-        nextTransientRetryDelayMs(previous) >= maxTransientRetryDelayMs
-    ) {
+    if (outcome.terminalFailure === true) {
         return { status: "blocked", nextAttemptAt: null };
     }
 
@@ -391,13 +407,23 @@ async function attemptEpisode(
     episode: TvEpisodeRecord,
     state: EpisodeState | null,
     workLease: SeasonFulfillmentWorkLease,
+    suppliedEpisodeLease?: MediaRequestAttemptLease,
 ): Promise<EpisodeAttemptResult> {
     const requestKey = `season-fulfillment:${fulfillment.id}:episode:${episode.id}`;
-    const lease = await acquireMediaRequestAttempt(
-        userId,
-        requestKey,
-        SEASON_FULFILLMENT_WORK_LEASE_TTL_MS,
-    );
+    const ownsSuppliedEpisodeLease =
+        suppliedEpisodeLease?.userId === userId && suppliedEpisodeLease.requestKey === requestKey;
+
+    if (suppliedEpisodeLease && !ownsSuppliedEpisodeLease) {
+        throw new Error("The episode recovery lease does not own this episode.");
+    }
+
+    const lease =
+        suppliedEpisodeLease ??
+        (await acquireMediaRequestAttempt(
+            userId,
+            requestKey,
+            SEASON_FULFILLMENT_WORK_LEASE_TTL_MS,
+        ));
 
     if (!lease) {
         return { queued: false } satisfies EpisodeAttemptResult;
@@ -508,7 +534,14 @@ async function attemptEpisode(
         // Child attemptCount is the bounded budget for the current recovery
         // cycle. Durable request history remains the global sequence and exclusion
         // source, so a later cycle can try new releases without repeating old ones.
-        const cycleAttemptCount = Math.max(0, state?.attemptCount ?? 0);
+        // `attemptCount` predates the split between candidate probes and real
+        // transfers. Lower legacy-inflated state when the durable submitted
+        // history proves fewer costly attempts, but never infer a larger current
+        // cycle from attempts made in an older cycle.
+        const cycleAttemptCount = Math.min(
+            Math.max(0, state?.attemptCount ?? 0),
+            Math.max(0, attemptsBefore),
+        );
         const remainingAttempts = Math.max(0, maxAutomaticReleaseAttempts - cycleAttemptCount);
 
         if (remainingAttempts === 0) {
@@ -539,7 +572,7 @@ async function attemptEpisode(
                 fulfillmentId: fulfillment.id,
                 attemptStrategy: "episode",
                 attemptNumber,
-                maxCandidateAttempts: remainingAttempts,
+                maxCandidateProbeAttempts: defaultMaxCandidateProbeAttempts,
                 workLease,
             },
         );
@@ -558,20 +591,13 @@ async function attemptEpisode(
             attemptStrategy: "episode",
             episodeId: episode.id,
         });
-        const rejectedResultIds = result.queuedDownload.rejectedResultIds ?? [];
-        const inferredPhysicalAttempts = result.queuedDownload.queued
-            ? rejectedResultIds.length + 1
-            : result.queuedDownload.reason === "queue_failed"
-              ? result.queuedDownload.failureKind === "release"
-                  ? rejectedResultIds.length
-                  : isTransientCapacityOutcome(result.queuedDownload)
-                    ? 0
-                    : rejectedResultIds.length + 1
-              : 0;
+        const observedSubmittedAttempts = Math.max(0, attemptsAfter - attemptsBefore);
+        const submittedAttemptsUsed = result.queuedDownload.queued
+            ? Math.max(1, observedSubmittedAttempts)
+            : observedSubmittedAttempts;
         const cycleAttemptsUsed = Math.min(
             maxAutomaticReleaseAttempts,
-            cycleAttemptCount +
-                Math.max(0, attemptsAfter - attemptsBefore, inferredPhysicalAttempts),
+            cycleAttemptCount + submittedAttemptsUsed,
         );
 
         if (result.queuedDownload.queued) {
@@ -585,7 +611,10 @@ async function attemptEpisode(
                 statusMessage: `${episodeCode(episode)} queued as an individual episode.`,
             });
 
-            return { queued: true } satisfies EpisodeAttemptResult;
+            return {
+                queued: true,
+                downloadRequestId: result.queuedDownload.download.downloadRequest.id,
+            } satisfies EpisodeAttemptResult;
         }
 
         if (result.queuedDownload.reason === "search_failed") {
@@ -691,6 +720,11 @@ async function attemptEpisode(
         // indexer did not have a minute ago is usually grabbable well before the
         // next six-hour sweep.
         const budgetRemains = cycleAttemptsUsed < maxAutomaticReleaseAttempts;
+        const releaseScanExhausted =
+            result.queuedDownload.reason === "queue_failed" &&
+            result.queuedDownload.failureKind === "release" &&
+            (result.queuedDownload.candidateProbeLimitReached ||
+                result.queuedDownload.candidateSetExhausted);
         const unavailableMessage = episodeStateMessage({
             episode,
             reason:
@@ -704,14 +738,16 @@ async function attemptEpisode(
             userId,
             fulfillmentId: fulfillment.id,
             episodeId: episode.id,
-            status: budgetRemains ? "retry_wait" : "unavailable",
+            status: budgetRemains && !releaseScanExhausted ? "retry_wait" : "unavailable",
             attemptCount: cycleAttemptsUsed,
-            nextAttemptAt: budgetRemains
-                ? nextTransientRetryAt(state)
-                : nowPlus(unavailableReleaseRecheckMs),
-            statusMessage: budgetRemains
-                ? `${unavailableMessage} Nooklet will retry shortly.`
-                : `${unavailableMessage} Nooklet will search for new releases later.`,
+            nextAttemptAt:
+                budgetRemains && !releaseScanExhausted
+                    ? nextTransientRetryAt(state)
+                    : nowPlus(unavailableReleaseRecheckMs),
+            statusMessage:
+                budgetRemains && !releaseScanExhausted
+                    ? `${unavailableMessage} Nooklet will retry shortly.`
+                    : `${unavailableMessage} Nooklet will search for new releases later.`,
         });
 
         return { queued: false } satisfies EpisodeAttemptResult;
@@ -748,7 +784,9 @@ async function attemptEpisode(
 
         return { queued: false } satisfies EpisodeAttemptResult;
     } finally {
-        await releaseMediaRequestAttempt(lease);
+        if (!suppliedEpisodeLease) {
+            await releaseMediaRequestAttempt(lease);
+        }
     }
 }
 
@@ -849,6 +887,251 @@ async function persistFallbackAggregate(
         statusMessage: result.message,
         completedAt: null,
     });
+}
+
+async function recomputeEpisodePlanAggregate(
+    userId: string,
+    fulfillment: Fulfillment,
+    queuedCount: number,
+) {
+    const states = await listDownloadFulfillmentEpisodes({
+        userId,
+        fulfillmentId: fulfillment.id,
+    });
+    const summary = fallbackSummary(fulfillment.id, states, queuedCount);
+
+    await persistFallbackAggregate(userId, fulfillment, summary, states);
+
+    return states;
+}
+
+/**
+ * Gives an explicit episode Search the same durable ownership, destination,
+ * exclusions, and accounting as its open season plan. Returning `handled:
+ * false` deliberately preserves the independent manual override for future or
+ * unmonitored episodes and for episodes with no applicable plan.
+ */
+export async function retryOpenSeasonFulfillmentEpisode(input: {
+    userId: string;
+    episodeId: string;
+}): Promise<TargetedSeasonEpisodeRetryResult> {
+    let ownedEpisode = await findTvEpisodeByIdForUser(input.userId, input.episodeId);
+
+    if (!ownedEpisode) {
+        return { handled: false };
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    if (!ownedEpisode.episode.monitored || !isAired(ownedEpisode.episode, today)) {
+        return { handled: false };
+    }
+
+    let fulfillment = await findOpenSeasonFulfillment({
+        userId: input.userId,
+        mediaTitleId: ownedEpisode.title.id,
+        seasonId: ownedEpisode.episode.seasonId,
+    });
+
+    if (!fulfillment) {
+        return { handled: false };
+    }
+
+    if (fulfillment.cancellationRequestedAt) {
+        return {
+            handled: true,
+            status: "busy",
+            message:
+                "This season plan is still cancelling. Wait for cancellation to finish before searching the episode again.",
+        };
+    }
+
+    if (fulfillment.strategy !== "episodes") {
+        return {
+            handled: true,
+            status: "busy",
+            message:
+                "This season plan is still trying season packs. Wait for it to switch to individual episodes before searching one episode.",
+        };
+    }
+
+    const workClaim = await claimSeasonWork(input.userId, fulfillment.id);
+
+    if (!workClaim) {
+        return {
+            handled: true,
+            status: "busy",
+            message:
+                "This season plan is already working. Try this episode again after the current recovery pass finishes.",
+        };
+    }
+
+    try {
+        const [currentFulfillment, currentEpisode] = await Promise.all([
+            findDownloadFulfillmentById(input.userId, fulfillment.id),
+            findTvEpisodeByIdForUser(input.userId, input.episodeId),
+        ]);
+
+        if (
+            !currentFulfillment ||
+            !fulfillmentIsOpen(currentFulfillment) ||
+            currentFulfillment.cancellationRequestedAt ||
+            currentFulfillment.strategy !== "episodes"
+        ) {
+            return {
+                handled: true,
+                status: "busy",
+                message:
+                    "This season plan changed while the episode search was starting. No separate download was created.",
+            };
+        }
+
+        if (
+            !currentEpisode ||
+            currentEpisode.title.id !== currentFulfillment.mediaTitleId ||
+            currentEpisode.episode.seasonId !== currentFulfillment.seasonId
+        ) {
+            return { handled: false };
+        }
+
+        ownedEpisode = currentEpisode;
+        fulfillment = currentFulfillment;
+        const episode = currentEpisode.episode;
+
+        if (!episode.monitored || !isAired(episode, today)) {
+            return { handled: false };
+        }
+
+        const requestKey = `season-fulfillment:${fulfillment.id}:episode:${episode.id}`;
+        const episodeLease = await acquireMediaRequestAttempt(
+            input.userId,
+            requestKey,
+            SEASON_FULFILLMENT_WORK_LEASE_TTL_MS,
+        );
+
+        if (!episodeLease) {
+            return {
+                handled: true,
+                status: "busy",
+                message: `${episodeCode(episode)} is already being searched by this season plan.`,
+            };
+        }
+
+        try {
+            let state =
+                (
+                    await listDownloadFulfillmentEpisodes({
+                        userId: input.userId,
+                        fulfillmentId: fulfillment.id,
+                    })
+                ).find((candidate) => candidate.episodeId === episode.id) ?? null;
+
+            if (episode.hasFile || state?.status === "succeeded") {
+                state = await upsertDownloadFulfillmentEpisode({
+                    userId: input.userId,
+                    fulfillmentId: fulfillment.id,
+                    episodeId: episode.id,
+                    status: "succeeded",
+                    attemptCount: state?.attemptCount ?? 0,
+                    nextAttemptAt: null,
+                    statusMessage: `${episodeCode(episode)} is already in the library.`,
+                });
+                await recomputeEpisodePlanAggregate(input.userId, fulfillment, 0);
+
+                return {
+                    handled: true,
+                    status: "already_owned",
+                    message: state?.statusMessage ?? "This episode is already in the library.",
+                };
+            }
+
+            const active = await findActiveDownloadRequestForItem({
+                userId: input.userId,
+                mediaTitleId: fulfillment.mediaTitleId,
+                seasonId: fulfillment.seasonId,
+                episodeId: episode.id,
+            });
+
+            if (active) {
+                state = await upsertDownloadFulfillmentEpisode({
+                    userId: input.userId,
+                    fulfillmentId: fulfillment.id,
+                    episodeId: episode.id,
+                    status: "active",
+                    attemptCount: state?.attemptCount ?? 0,
+                    nextAttemptAt: null,
+                    statusMessage: `${episodeCode(episode)} already has an active download.`,
+                });
+                await recomputeEpisodePlanAggregate(input.userId, fulfillment, 0);
+
+                return {
+                    handled: true,
+                    status: "already_active",
+                    message: state?.statusMessage ?? "This episode already has an active download.",
+                    downloadRequestId: active.id,
+                };
+            }
+
+            state = await upsertDownloadFulfillmentEpisode({
+                userId: input.userId,
+                fulfillmentId: fulfillment.id,
+                episodeId: episode.id,
+                status: "pending",
+                attemptCount: 0,
+                nextAttemptAt: new Date(),
+                statusMessage: `${episodeCode(episode)} was selected for an immediate individual retry.`,
+            });
+
+            const attempt = await attemptEpisode(
+                input.userId,
+                fulfillment,
+                episode,
+                state,
+                workClaim.lease,
+                episodeLease,
+            );
+            const states = await recomputeEpisodePlanAggregate(
+                input.userId,
+                fulfillment,
+                attempt.queued ? 1 : 0,
+            );
+            const latest = states.find((candidate) => candidate.episodeId === episode.id);
+            const message =
+                latest?.statusMessage ?? `${episodeCode(episode)} could not be searched right now.`;
+
+            if (attempt.queued) {
+                return {
+                    handled: true,
+                    status: "queued",
+                    message,
+                    downloadRequestId: attempt.downloadRequestId ?? null,
+                };
+            }
+
+            switch (latest?.status) {
+                case "succeeded":
+                    return { handled: true, status: "already_owned", message };
+                case "active":
+                    return { handled: true, status: "already_active", message };
+                case "unavailable":
+                    return { handled: true, status: "no_release", message };
+                case "retry_wait":
+                    return { handled: true, status: "retry_wait", message };
+                case "blocked":
+                    return { handled: true, status: "blocked", message };
+                default:
+                    return {
+                        handled: true,
+                        status: "busy",
+                        message,
+                    };
+            }
+        } finally {
+            await releaseMediaRequestAttempt(episodeLease);
+        }
+    } finally {
+        await releaseSeasonWork(workClaim);
+    }
 }
 
 /**
@@ -1492,7 +1775,7 @@ export async function attemptSeasonPack(
                 fulfillmentId,
                 attemptStrategy: "season_pack",
                 attemptNumber: attemptCount + 1,
-                maxCandidateAttempts: Math.max(0, fulfillment.packAttemptLimit - attemptCount),
+                maxCandidateProbeAttempts: defaultMaxCandidateProbeAttempts,
                 workLease: workClaim.lease,
             },
         );

@@ -95,22 +95,3 @@ export function isTerminalInfrastructureFailure(message: string | null | undefin
         terminalInfrastructurePatterns.some((pattern) => normalized.includes(pattern))
     );
 }
-
-export function isInfrastructureIndexerSearchFailure(message: string | null | undefined) {
-    const normalized = message?.toLowerCase() ?? "";
-
-    return [
-        "no enabled indexers",
-        "no enabled newznab indexers",
-        "no indexers",
-        "api key",
-        "credential",
-        "authentication",
-        "unauthorized",
-        "forbidden",
-        " 401",
-        " 403",
-        "certificate",
-        "invalid base url",
-    ].some((pattern) => normalized.includes(pattern));
-}

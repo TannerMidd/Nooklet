@@ -981,7 +981,8 @@ docker compose ps</code></pre>
                                 <p>
                                     Nooklet may be trying another compatible pack, waiting for
                                     active capacity, switching to missing aired episodes, or
-                                    rechecking an unavailable episode. No manual retry is needed.
+                                    rechecking an unavailable episode. Automatic recovery continues,
+                                    and Library Search can retry one eligible episode immediately.
                                 </p>
                             </article>
                             <article data-reveal>
@@ -1016,8 +1017,8 @@ docker compose ps</code></pre>
                                 <div>
                                     <strong>Alternate compatible packs</strong>
                                     <p>
-                                        Eligible content failures advance through at most three
-                                        physical pack attempts.
+                                        A pass may probe eight candidates, while only three releases
+                                        submitted to the downloader consume the pack budget.
                                     </p>
                                 </div>
                             </li>
@@ -1362,10 +1363,11 @@ docker compose ps</code></pre>
                                 <summary><span>Season</span>A season child attempt failed</summary>
                                 <div>
                                     <p>
-                                        If the group says <strong>Recovering</strong>, wait; Nooklet
-                                        already moved on. If it says <strong>Blocked</strong>,
-                                        repair the named boundary and choose
-                                        <strong>Resume season recovery</strong>.
+                                        If the group says <strong>Recovering</strong>, Nooklet is
+                                        continuing automatically; expand its episode details or use
+                                        Library Search to retry one eligible episode. If it says
+                                        <strong>Blocked</strong>, repair the named boundary and
+                                        choose <strong>Resume season recovery</strong>.
                                     </p>
                                     <a
                                         href="https://github.com/TannerMidd/Nooklet/wiki/Library-and-Requests"

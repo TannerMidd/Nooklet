@@ -12,6 +12,7 @@ export {
     type ReleaseSelectionOptions,
 } from "./candidate-selection";
 export {
+    defaultMaxCandidateProbeAttempts,
     queueReleaseCandidates,
     type QueueReleaseCandidatesContext,
     type QueueFailureKind,

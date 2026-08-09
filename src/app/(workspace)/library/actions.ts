@@ -82,6 +82,7 @@ import { hasActiveDownloadAssociationForTitle } from "@/modules/downloads/querie
 import {
     attemptSeasonPack,
     createSeasonFulfillment,
+    retryOpenSeasonFulfillmentEpisode,
 } from "@/modules/downloads/workflows/season-fulfillment";
 import { createImmediateJob } from "@/modules/jobs/public";
 import { configureLibraryScanSchedule } from "@/modules/media-library/workflows/configure-library-scan-schedule";
@@ -464,6 +465,31 @@ export async function searchLibraryItemReleasesAction(
                     recovery.fulfillment.statusMessage ??
                     "Season recovery is waiting to retry automatically.",
             };
+        }
+
+        if (parsed.data.episodeId) {
+            const planRetry = await retryOpenSeasonFulfillmentEpisode({
+                userId: session.user.id,
+                episodeId: parsed.data.episodeId,
+            });
+
+            if (planRetry.handled) {
+                revalidateMediaTitlePages("tv");
+                revalidatePath("/in-progress");
+
+                return {
+                    status:
+                        planRetry.status === "blocked"
+                            ? "error"
+                            : planRetry.status === "queued" ||
+                                planRetry.status === "already_active" ||
+                                planRetry.status === "already_owned"
+                              ? "success"
+                              : "warning",
+                    message: planRetry.message,
+                    downloadRequestId: planRetry.downloadRequestId ?? null,
+                };
+            }
         }
 
         const result = await searchLibraryItemReleasesWorkflow(session.user.id, parsed.data);

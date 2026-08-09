@@ -23,7 +23,7 @@ export type SearchLibraryItemReleasesContext = {
     fulfillmentId?: string | null;
     attemptStrategy?: "season_pack" | "episode" | null;
     attemptNumber?: number | null;
-    maxCandidateAttempts?: number | null;
+    maxCandidateProbeAttempts?: number | null;
     workLease?: SeasonFulfillmentWorkLease | null;
 };
 

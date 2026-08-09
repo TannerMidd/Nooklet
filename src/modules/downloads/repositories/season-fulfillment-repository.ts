@@ -686,6 +686,49 @@ export async function listDownloadFulfillmentEpisodesForIds(input: {
         .map((row) => row.episode);
 }
 
+export async function listDownloadFulfillmentEpisodeDetailsForIds(input: {
+    userId: string;
+    fulfillmentIds: string[];
+}) {
+    const fulfillmentIds = Array.from(new Set(input.fulfillmentIds));
+
+    if (fulfillmentIds.length === 0) {
+        return [];
+    }
+
+    const database = ensureDatabaseReady();
+
+    return database
+        .select({
+            state: downloadFulfillmentEpisodes,
+            episode: {
+                id: tvEpisodes.id,
+                seasonNumber: tvEpisodes.seasonNumber,
+                episodeNumber: tvEpisodes.episodeNumber,
+                title: tvEpisodes.title,
+            },
+        })
+        .from(downloadFulfillmentEpisodes)
+        .innerJoin(
+            downloadFulfillments,
+            eq(downloadFulfillments.id, downloadFulfillmentEpisodes.fulfillmentId),
+        )
+        .innerJoin(tvEpisodes, eq(tvEpisodes.id, downloadFulfillmentEpisodes.episodeId))
+        .where(
+            and(
+                eq(downloadFulfillments.userId, input.userId),
+                inArray(downloadFulfillments.id, fulfillmentIds),
+            ),
+        )
+        .orderBy(
+            asc(downloadFulfillmentEpisodes.fulfillmentId),
+            asc(tvEpisodes.seasonNumber),
+            asc(tvEpisodes.episodeNumber),
+            asc(tvEpisodes.id),
+        )
+        .all();
+}
+
 export async function listFulfillmentReleaseExclusions(
     input: {
         userId: string;
@@ -752,6 +795,7 @@ export async function countDownloadFulfillmentAttempts(
     const rows = database
         .select({
             requestId: downloadRequests.id,
+            submittedAt: downloadRequests.submittedAt,
             queueItemId: downloadQueueItems.id,
             engineState: engineDownloads.state,
             engineFailureKind: engineDownloads.failureKind,
@@ -780,12 +824,18 @@ export async function countDownloadFulfillmentAttempts(
         )
         .all();
 
-    // A request consumes budget unless every one of its queue items is a
-    // provably budget-free engine failure; requests without engine telemetry
-    // count conservatively.
+    // Preflight-rejected candidates remain durable exclusions, but they never
+    // reached the downloader and therefore do not consume the small transfer
+    // budget. Once submitted, a request consumes budget unless every queue item
+    // is a provably zero-byte content failure.
     const consumingByRequest = new Map<string, boolean>();
 
     for (const row of rows) {
+        if (row.submittedAt === null) {
+            consumingByRequest.set(row.requestId, false);
+            continue;
+        }
+
         const budgetFree =
             row.queueItemId !== null &&
             isBudgetFreeDownloadAttempt({

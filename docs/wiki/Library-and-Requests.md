@@ -41,13 +41,13 @@ Nooklet prevents conflicting active work for the same scoped content and keeps r
 A season request creates one durable plan in **Activity**. A release download is an attempt inside that plan, not the plan itself.
 
 1. Nooklet searches for a matching complete-season pack first.
-2. If a pack fails because of its content or cannot fit even on an empty staging filesystem, Nooklet excludes that release and tries another automatically, up to three physical pack attempts.
+2. Nooklet may probe up to eight candidates in a pass. Preflight rejects are excluded without spending one of the three pack submissions; only releases that reach the downloader count.
 3. If no usable pack exists or pack attempts are exhausted, Nooklet switches to individual episodes without requiring another request.
 4. A pack that imports successfully is checked against current episode coverage. Missing monitored, aired episodes are still queued individually.
 5. Episodes already in the library or already downloading are reused. Future or unmonitored episodes are deferred.
 6. Missing episodes keep independent release history and retry schedules, so one unavailable episode does not discard progress on the rest of the season.
 
-Activity groups the attempts under the season plan and labels it **Recovering** while automatic work remains. A failed child attempt does not mean the season request has failed. Manual retry is only offered after the plan is no longer recovering.
+Activity groups the attempts under the season plan and labels it **Recovering** while automatic work remains. A failed child attempt does not mean the season request has failed. Expand the episode list for exact reasons and retry times. Automatic recovery continues, and **Search** on an eligible Library episode can immediately retry only that episode inside the plan.
 
 To abandon an open plan, choose **Stop season recovery** in Activity. This stops future searches and safely removes the plan's active downloader work while retaining files that have already reached the library. When removing an empty duplicate title, you can instead explicitly select **Stop active season plans and downloads first** in the removal dialog. Nooklet keeps that removal intent queued until cleanup is verified, then removes the title record without deleting imported media files.
 
@@ -67,16 +67,16 @@ Library scans reconcile the configured filesystem with stored media state. Autom
 
 ## Common failures
 
-| Symptom                                | Correct next check                                                                                                         |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Destination cannot be selected         | Attach and verify a destination for that media type.                                                                       |
-| Path is outside approved roots         | Use a container path under `APPROVED_MEDIA_ROOTS`.                                                                         |
-| Scan works but import fails            | The directory may be readable but not writable by the container user.                                                      |
-| TV request selects the wrong scope     | Review season and episode selection before choosing a release.                                                             |
-| A season pack fails                    | Open **Activity**. A **Recovering** plan is already trying an alternate or individual episodes; no manual retry is needed. |
-| No season pack exists                  | Confirm the plan switched to individual episodes. Episodes without releases remain scheduled for a later search.           |
-| Season recovery says blocked           | Read the corrective message, fix storage, destination, downloader, or credentials, then use **Resume season recovery**.    |
-| Completed download remains in progress | Inspect the import worker, engine and destination mounts, archive tools, and destination permissions.                      |
+| Symptom                                | Correct next check                                                                                                                                              |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Destination cannot be selected         | Attach and verify a destination for that media type.                                                                                                            |
+| Path is outside approved roots         | Use a container path under `APPROVED_MEDIA_ROOTS`.                                                                                                              |
+| Scan works but import fails            | The directory may be readable but not writable by the container user.                                                                                           |
+| TV request selects the wrong scope     | Review season and episode selection before choosing a release.                                                                                                  |
+| A season pack fails                    | Open **Activity**. A **Recovering** plan continues automatically; after it switches to episodes, Library **Search** can retry one eligible episode immediately. |
+| No season pack exists                  | Confirm the plan switched to individual episodes. Episodes without releases remain scheduled for a later search.                                                |
+| Season recovery says blocked           | Read the corrective message, fix storage, destination, downloader, or credentials, then use **Resume season recovery**.                                         |
+| Completed download remains in progress | Inspect the import worker, engine and destination mounts, archive tools, and destination permissions.                                                           |
 
 ## Source references
 

@@ -5,10 +5,7 @@ import {
     selectReleaseCandidates,
     type ReleaseSelectionTarget,
 } from "@/modules/media-library/release-selection";
-import {
-    isInfrastructureIndexerSearchFailure,
-    isTerminalInfrastructureFailure,
-} from "@/modules/downloads/workflows/download-failure-classification";
+import { isTerminalInfrastructureFailure } from "@/modules/downloads/workflows/download-failure-classification";
 import { type SeasonFulfillmentWorkLease } from "@/modules/downloads/workflows/season-fulfillment-work-lease";
 
 import { type ResolvedLibrarySearchItem } from "./item-resolution";
@@ -27,6 +24,9 @@ export type LibraryItemQueuedDownload =
           capacity?: DownloadCapacityDetails | null;
           selectedResultId: null;
           rejectedResultIds: string[];
+          candidateProbeCount: number;
+          candidateProbeLimitReached: boolean;
+          candidateSetExhausted: boolean;
           download: null;
       }
     | {
@@ -35,6 +35,9 @@ export type LibraryItemQueuedDownload =
           message: null;
           selectedResultId: string;
           rejectedResultIds: string[];
+          candidateProbeCount: number;
+          candidateProbeLimitReached: false;
+          candidateSetExhausted: false;
           download: QueuedIndexerResultDownload;
       };
 
@@ -44,7 +47,7 @@ type ReleaseQueueingOptions = {
     fulfillmentId?: string | null;
     attemptStrategy?: "season_pack" | "episode" | null;
     attemptNumber?: number | null;
-    maxCandidateAttempts?: number | null;
+    maxCandidateProbeAttempts?: number | null;
     workLease?: SeasonFulfillmentWorkLease | null;
 };
 
@@ -105,14 +108,18 @@ export async function queueLibraryItemRelease(
             queued: false,
             reason: "search_failed",
             message: releaseSearch.searchRun.errorMessage,
-            failureKind: isInfrastructureIndexerSearchFailure(releaseSearch.searchRun.errorMessage)
-                ? "infrastructure"
-                : "unknown",
+            // A failed run means every selected indexer failed and none returned
+            // usable results. The message decides whether a human must repair it;
+            // the failure boundary itself is always infrastructure.
+            failureKind: "infrastructure",
             // A search failure is aggregated indexer error text with no structured
             // code behind it, so the message is genuinely all there is to go on.
             terminalFailure: isTerminalInfrastructureFailure(releaseSearch.searchRun.errorMessage),
             selectedResultId: null,
             rejectedResultIds: [],
+            candidateProbeCount: 0,
+            candidateProbeLimitReached: false,
+            candidateSetExhausted: false,
             download: null,
         };
     }
@@ -126,6 +133,9 @@ export async function queueLibraryItemRelease(
             message: null,
             selectedResultId: null,
             rejectedResultIds: [],
+            candidateProbeCount: 0,
+            candidateProbeLimitReached: false,
+            candidateSetExhausted: false,
             download: null,
         };
     }
@@ -140,7 +150,7 @@ export async function queueLibraryItemRelease(
         fulfillmentId: options.fulfillmentId,
         attemptStrategy: options.attemptStrategy,
         attemptNumber: options.attemptNumber,
-        maxCandidateAttempts: options.maxCandidateAttempts,
+        maxCandidateProbeAttempts: options.maxCandidateProbeAttempts,
         workLease: options.workLease,
     });
 }

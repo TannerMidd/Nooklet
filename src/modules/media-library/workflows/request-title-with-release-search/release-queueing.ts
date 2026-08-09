@@ -5,7 +5,7 @@ import {
     selectReleaseCandidates,
 } from "@/modules/media-library/release-selection";
 import { type MediaTitleRecord } from "@/modules/media-library/repositories/media-library-repository";
-import { isInfrastructureIndexerSearchFailure } from "@/modules/downloads/workflows/download-failure-classification";
+import { isTerminalInfrastructureFailure } from "@/modules/downloads/workflows/download-failure-classification";
 import { type SeasonFulfillmentWorkLease } from "@/modules/downloads/workflows/season-fulfillment-work-lease";
 
 import { type RequestTitleWithReleaseSearchInput } from "./request-validation";
@@ -28,9 +28,13 @@ export type RequestedTitleQueuedDownload =
               | "queue_failed";
           message: string | null;
           failureKind?: "release" | "infrastructure" | "capacity" | "conflict" | "unknown";
+          terminalFailure?: boolean;
           capacity?: DownloadCapacityDetails | null;
           selectedResultId: null;
           rejectedResultIds: string[];
+          candidateProbeCount: number;
+          candidateProbeLimitReached: boolean;
+          candidateSetExhausted: boolean;
           download: null;
       }
     | {
@@ -39,6 +43,9 @@ export type RequestedTitleQueuedDownload =
           message: null;
           selectedResultId: string;
           rejectedResultIds: string[];
+          candidateProbeCount: number;
+          candidateProbeLimitReached: false;
+          candidateSetExhausted: false;
           download: QueuedIndexerResultDownload;
       };
 
@@ -68,7 +75,7 @@ export async function queueRequestedTitleRelease(
         fulfillmentId?: string | null;
         attemptStrategy?: "season_pack" | "episode" | null;
         attemptNumber?: number | null;
-        maxCandidateAttempts?: number | null;
+        maxCandidateProbeAttempts?: number | null;
         workLease?: SeasonFulfillmentWorkLease | null;
     } = {},
 ): Promise<RequestedTitleQueuedDownload> {
@@ -79,6 +86,9 @@ export async function queueRequestedTitleRelease(
             message: null,
             selectedResultId: null,
             rejectedResultIds: [],
+            candidateProbeCount: 0,
+            candidateProbeLimitReached: false,
+            candidateSetExhausted: false,
             download: null,
         };
     }
@@ -90,6 +100,9 @@ export async function queueRequestedTitleRelease(
             message: null,
             selectedResultId: null,
             rejectedResultIds: [],
+            candidateProbeCount: 0,
+            candidateProbeLimitReached: false,
+            candidateSetExhausted: false,
             download: null,
         };
     }
@@ -99,11 +112,13 @@ export async function queueRequestedTitleRelease(
             queued: false,
             reason: "search_failed",
             message: releaseSearch.searchRun.errorMessage,
-            failureKind: isInfrastructureIndexerSearchFailure(releaseSearch.searchRun.errorMessage)
-                ? "infrastructure"
-                : "unknown",
+            failureKind: "infrastructure",
+            terminalFailure: isTerminalInfrastructureFailure(releaseSearch.searchRun.errorMessage),
             selectedResultId: null,
             rejectedResultIds: [],
+            candidateProbeCount: 0,
+            candidateProbeLimitReached: false,
+            candidateSetExhausted: false,
             download: null,
         };
     }
@@ -121,6 +136,9 @@ export async function queueRequestedTitleRelease(
             message: null,
             selectedResultId: null,
             rejectedResultIds: [],
+            candidateProbeCount: 0,
+            candidateProbeLimitReached: false,
+            candidateSetExhausted: false,
             download: null,
         };
     }
@@ -135,7 +153,7 @@ export async function queueRequestedTitleRelease(
         fulfillmentId: options.fulfillmentId,
         attemptStrategy: options.attemptStrategy,
         attemptNumber: options.attemptNumber,
-        maxCandidateAttempts: options.maxCandidateAttempts,
+        maxCandidateProbeAttempts: options.maxCandidateProbeAttempts,
         workLease: options.workLease,
     });
 }

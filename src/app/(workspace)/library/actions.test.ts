@@ -161,6 +161,7 @@ vi.mock("@/modules/downloads/queries/has-active-download-association", () => ({
 vi.mock("@/modules/downloads/workflows/season-fulfillment", () => ({
     attemptSeasonPack: vi.fn(),
     createSeasonFulfillment: vi.fn(),
+    retryOpenSeasonFulfillmentEpisode: vi.fn(),
 }));
 
 import { revalidatePath } from "next/cache";
@@ -208,6 +209,7 @@ import { hasActiveDownloadAssociationForTitle } from "@/modules/downloads/querie
 import {
     attemptSeasonPack,
     createSeasonFulfillment,
+    retryOpenSeasonFulfillmentEpisode,
 } from "@/modules/downloads/workflows/season-fulfillment";
 import { requestExistingTitleContentWorkflow } from "@/modules/media-library/workflows/request-title-with-release-search";
 
@@ -261,11 +263,13 @@ const searchLibraryItemMock = vi.mocked(searchLibraryItemReleasesWorkflow);
 const findTvSeasonMock = vi.mocked(findTvSeasonByIdForUser);
 const attemptSeasonPackMock = vi.mocked(attemptSeasonPack);
 const createSeasonFulfillmentMock = vi.mocked(createSeasonFulfillment);
+const retryOpenSeasonEpisodeMock = vi.mocked(retryOpenSeasonFulfillmentEpisode);
 const requestExistingTitleContentMock = vi.mocked(requestExistingTitleContentWorkflow);
 const revalidateMock = vi.mocked(revalidatePath);
 
 beforeEach(() => {
     vi.clearAllMocks();
+    retryOpenSeasonEpisodeMock.mockResolvedValue({ handled: false });
 });
 
 describe("requestExistingTitleContentAction", () => {
@@ -1046,6 +1050,61 @@ describe("searchLibraryItemReleasesAction", () => {
             status: "success",
             message: "Queued a matching episode release for download.",
             downloadRequestId: "download2",
+        });
+    });
+
+    it("uses an eligible episode's open season plan and returns its queued request", async () => {
+        authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+        const form = validForm();
+
+        form.set("episodeId", episodeId);
+        retryOpenSeasonEpisodeMock.mockResolvedValue({
+            handled: true,
+            status: "queued",
+            message: "S01E02 queued as an individual episode.",
+            downloadRequestId: "planned-download",
+        });
+
+        const result = await searchLibraryItemReleasesAction(
+            initialLibraryItemSearchActionState,
+            form,
+        );
+
+        expect(retryOpenSeasonEpisodeMock).toHaveBeenCalledWith({
+            userId: "u1",
+            episodeId,
+        });
+        expect(searchLibraryItemMock).not.toHaveBeenCalled();
+        expect(revalidateMock).toHaveBeenCalledWith("/library/tv");
+        expect(revalidateMock).toHaveBeenCalledWith("/in-progress");
+        expect(result).toEqual({
+            status: "success",
+            message: "S01E02 queued as an individual episode.",
+            downloadRequestId: "planned-download",
+        });
+    });
+
+    it("does not create an independent episode request while the season plan is busy", async () => {
+        authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+        const form = validForm();
+
+        form.set("episodeId", episodeId);
+        retryOpenSeasonEpisodeMock.mockResolvedValue({
+            handled: true,
+            status: "busy",
+            message: "This season plan is already working.",
+        });
+
+        const result = await searchLibraryItemReleasesAction(
+            initialLibraryItemSearchActionState,
+            form,
+        );
+
+        expect(searchLibraryItemMock).not.toHaveBeenCalled();
+        expect(result).toEqual({
+            status: "warning",
+            message: "This season plan is already working.",
+            downloadRequestId: null,
         });
     });
 

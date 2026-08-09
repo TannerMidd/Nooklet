@@ -72,7 +72,7 @@ stateDiagram-v2
   Episodes --> Blocked: remaining eligible work needs operator repair
 ```
 
-Pack release exclusions belong to the fulfillment, so a new season request does not inherit an unrelated historical retry budget. The current automatic pack limit is three physical release attempts. Release/content failures advance the strategy; infrastructure and configuration failures stop fan-out and surface a blocked state.
+Pack release exclusions belong to the fulfillment, so a new season request does not inherit an unrelated historical retry budget. A search pass inspects at most 40 lightweight candidates and performs at most eight costly candidate probes. Pack and episode cycles each allow three releases that actually reach the downloader. A preflight rejection stays excluded but does not spend a submitted attempt; a zero-byte content failure is refunded. Release/content failures advance the strategy; infrastructure and configuration failures stop fan-out and surface a blocked state.
 
 Capacity has three explicit outcomes:
 
@@ -80,7 +80,11 @@ Capacity has three explicit outcomes:
 - If the release could not fit even on an empty staging filesystem, it is treated as an unusable candidate; Nooklet advances to a smaller pack or episode release.
 - If the release fits the filesystem in principle but current non-active free space does not, Nooklet blocks with a workspace/drive-mapping repair action. The release is not consumed, so **Resume season recovery** can use it after the operator fixes storage.
 
-Episode fallback searches only missing, monitored episodes that have aired (an unknown air date is treated as eligible). It skips owned files, attaches to compatible active work, and runs at most three episode searches concurrently. Each episode retains its own attempt count, release exclusions, status, and next due time.
+Episode fallback searches only missing, monitored episodes that have aired (an unknown air date is treated as eligible). It skips owned files, attaches to compatible active work, and runs at most three episode searches concurrently. Each episode retains its own submitted-attempt count, release exclusions, status, and next due time. Eight rejected probes or exhaustion of the current candidate set schedules the six-hour release cooldown without spending a submitted attempt; a search with no results begins the five-minute exponential schedule.
+
+When every selected indexer fails, the pass is treated as infrastructure failure. A 429, timeout, or 5xx stops new episode fan-out after the current batch of at most three settles and retries with backoff. Missing indexers, credentials, and other terminal setup errors block the untouched children and expose **Resume season recovery**. If at least one indexer succeeds, its results proceed despite failures from other sources.
+
+For an aired, monitored episode in an open individual-episode plan, **Search** in Library performs an immediate targeted retry inside that plan. It resets only that episode's three-submission cycle and retains the plan destination and exclusions. A busy, cancelling, or season-pack plan reports why it cannot start and never creates a duplicate independent request. Future, unmonitored, and no-plan episodes keep the independent manual override.
 
 Retry timing is persisted:
 
@@ -91,7 +95,7 @@ Retry timing is persisted:
 | Active download coverage check                |                                   15 minutes |
 | No episode release currently available        |                                      6 hours |
 
-The 15-second worker pass resumes due plans after a process restart. Activity groups all physical attempts into one season plan and shows **Recovering** until the plan succeeds, becomes blocked, or otherwise reaches a terminal state. Notifications are suppressed while the plan is still recovering.
+The 15-second worker pass resumes due plans after a process restart. Activity groups all physical attempts into one season plan and shows **Recovering** until the plan succeeds, becomes blocked, or otherwise reaches a terminal state. Its expandable unresolved-episode list shows each episode code, title, state, submitted-attempt count, exact reason, and next attempt. Notifications are suppressed while the plan is still recovering.
 
 Use **Stop season recovery** in Activity when you no longer want an open plan to keep searching. Nooklet checkpoints the cancellation, removes and verifies any downloader jobs owned by the plan, closes queue-less pending attempts, and keeps media files that were already imported. For a zero-file duplicate, Library removal also offers an explicit **Stop active season plans and downloads first** option. That persists one safe-removal job, waits for the same verified cleanup, and removes only the library record; imported media files remain on disk.
 
@@ -180,19 +184,19 @@ The import source must resolve inside the finalized directory recorded for the e
 
 ## Failure and recovery guide
 
-| Symptom                                           | Likely boundary                                                    | Recovery                                                                                                                          |
-| ------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| "Not enough disk space" despite free media drives | Engine work or completed-output filesystem                         | Inspect both engine locations in Settings > Storage; move the constrained location to suitable storage and recreate the container |
-| Download restarts after app restart               | Current engine recovery semantics                                  | Expected: per-segment resume is not implemented                                                                                   |
-| RAR/7z extraction fails on native install         | Missing executable                                                 | Install `unrar` or `7zz` with the exact command name on `PATH`                                                                    |
-| Import cannot reach destination                   | Bind mount, approved root, or permissions                          | Verify the container path, `APPROVED_MEDIA_ROOTS`, and write access                                                               |
-| Completed engine output is not imported           | Worker, finalized staging path, or destination path is unavailable | Inspect Activity, `/health`, both engine paths, and destination permissions; retry the import after the path is healthy           |
-| Queue control returns conflict                    | Item entered post-processing or changed state                      | Refresh the queue and wait for repair/extraction to complete                                                                      |
-| Failed season release remains visible             | Attempt history inside a recovering plan                           | Check the plan message in Activity; no manual retry is needed while its status is **Recovering**                                  |
-| No season pack was found                          | Release availability                                               | Expected fallback: Activity should show the individual-episode strategy and each unavailable episode will be searched again later |
-| Season plan is blocked                            | Infrastructure or configuration                                    | Follow the plan message, repair storage/path/downloader/credentials, then use **Resume season recovery**                          |
-| Most episodes queued but one is unavailable       | Per-episode release availability                                   | Leave the plan open; Nooklet preserves completed work and rechecks the unavailable episode after its cooldown                     |
-| No compatible automatic indexer                   | Only Torznab or no enabled Newznab source                          | Configure and verify a Newznab indexer                                                                                            |
+| Symptom                                           | Likely boundary                                                    | Recovery                                                                                                                                            |
+| ------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Not enough disk space" despite free media drives | Engine work or completed-output filesystem                         | Inspect both engine locations in Settings > Storage; move the constrained location to suitable storage and recreate the container                   |
+| Download restarts after app restart               | Current engine recovery semantics                                  | Expected: per-segment resume is not implemented                                                                                                     |
+| RAR/7z extraction fails on native install         | Missing executable                                                 | Install `unrar` or `7zz` with the exact command name on `PATH`                                                                                      |
+| Import cannot reach destination                   | Bind mount, approved root, or permissions                          | Verify the container path, `APPROVED_MEDIA_ROOTS`, and write access                                                                                 |
+| Completed engine output is not imported           | Worker, finalized staging path, or destination path is unavailable | Inspect Activity, `/health`, both engine paths, and destination permissions; retry the import after the path is healthy                             |
+| Queue control returns conflict                    | Item entered post-processing or changed state                      | Refresh the queue and wait for repair/extraction to complete                                                                                        |
+| Failed season release remains visible             | Attempt history inside a recovering plan                           | Check the plan and episode details in Activity; recovery continues automatically, and Library **Search** can retry one eligible episode immediately |
+| No season pack was found                          | Release availability                                               | Expected fallback: Activity should show the individual-episode strategy and each unavailable episode will be searched again later                   |
+| Season plan is blocked                            | Infrastructure or configuration                                    | Follow the plan message, repair storage/path/downloader/credentials, then use **Resume season recovery**                                            |
+| Most episodes queued but one is unavailable       | Per-episode release availability                                   | Leave the plan open; Nooklet preserves completed work and rechecks the unavailable episode after its cooldown                                       |
+| No compatible automatic indexer                   | Only Torznab or no enabled Newznab source                          | Configure and verify a Newznab indexer                                                                                                              |
 
 ## Current limitations
 

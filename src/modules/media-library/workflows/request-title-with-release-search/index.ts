@@ -1,4 +1,5 @@
 import { type MediaTitleRecord } from "@/modules/media-library/repositories/media-library-repository";
+import { defaultMaxCandidateProbeAttempts } from "@/modules/media-library/release-selection";
 import {
     createSeasonFulfillment,
     queueMissingSeasonEpisodes,
@@ -52,6 +53,12 @@ export class RequestTitleAlreadyInFlightError extends Error {
     }
 }
 
+const emptyCandidateProbeOutcome = {
+    candidateProbeCount: 0,
+    candidateProbeLimitReached: false,
+    candidateSetExhausted: false,
+} as const;
+
 export type RequestTitleSelectionResult = {
     target: ReleaseSelectionTarget;
     seasonId: string | null;
@@ -104,6 +111,7 @@ async function executeTitleRequest(
                 "Nooklet could not load season metadata, so it did not queue an unreliable full-series download. Verify TMDB, refresh the title metadata, and try again.",
             selectedResultId: null,
             rejectedResultIds: [],
+            ...emptyCandidateProbeOutcome,
             download: null,
         };
         const releaseSearch: RequestedTitleReleaseSearch = { searched: false };
@@ -180,6 +188,7 @@ async function executeTitleRequest(
                             : "Nooklet could not create this season recovery plan.",
                     selectedResultId: null,
                     rejectedResultIds: [],
+                    ...emptyCandidateProbeOutcome,
                     download: null,
                 },
                 seasonFallback: null,
@@ -201,6 +210,7 @@ async function executeTitleRequest(
                         "Cancellation is pending for this season. Resume the season from Activity before requesting it again.",
                     selectedResultId: null,
                     rejectedResultIds: [],
+                    ...emptyCandidateProbeOutcome,
                     download: null,
                 },
                 seasonFallback: null,
@@ -229,6 +239,7 @@ async function executeTitleRequest(
                         message: "This season recovery plan is already advancing.",
                         selectedResultId: null,
                         rejectedResultIds: [],
+                        ...emptyCandidateProbeOutcome,
                         download: null,
                     },
                     seasonFallback: null,
@@ -248,6 +259,7 @@ async function executeTitleRequest(
                       message: "This season is already using individual episode recovery.",
                       selectedResultId: null,
                       rejectedResultIds: [],
+                      ...emptyCandidateProbeOutcome,
                       download: null,
                   }
                 : await queueRequestedTitleRelease(userId, request, title, releaseSearch, {
@@ -259,10 +271,7 @@ async function executeTitleRequest(
                                 fulfillmentId: fulfillment.id,
                                 attemptStrategy: "season_pack" as const,
                                 attemptNumber: fulfillment.packAttemptCount + 1,
-                                maxCandidateAttempts: Math.max(
-                                    0,
-                                    fulfillment.packAttemptLimit - fulfillment.packAttemptCount,
-                                ),
+                                maxCandidateProbeAttempts: defaultMaxCandidateProbeAttempts,
                                 workLease,
                             }
                           : {}),
@@ -315,6 +324,7 @@ async function executeTitleRequest(
                 message,
                 selectedResultId: null,
                 rejectedResultIds: [],
+                ...emptyCandidateProbeOutcome,
                 download: null,
             };
             let seasonFallback: SeasonEpisodeFallbackResult | null = null;

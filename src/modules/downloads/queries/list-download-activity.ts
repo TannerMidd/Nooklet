@@ -4,7 +4,7 @@ import {
     listDownloadRequestHistoryPage,
     listRecentDownloadRequestsWithQueueItems,
 } from "@/modules/downloads/repositories/download-repository";
-import { listDownloadFulfillmentEpisodesForIds } from "@/modules/downloads/repositories/season-fulfillment-repository";
+import { listDownloadFulfillmentEpisodeDetailsForIds } from "@/modules/downloads/repositories/season-fulfillment-repository";
 import {
     type DownloadFulfillmentEpisodeStatus,
     type DownloadFulfillmentStatus,
@@ -21,6 +21,16 @@ export type SeasonEpisodeProgress = Record<DownloadFulfillmentEpisodeStatus, num
     total: number;
 };
 
+export type SeasonEpisodeDetail = {
+    episodeId: string;
+    episodeCode: string;
+    title: string;
+    status: DownloadFulfillmentEpisodeStatus;
+    attemptCount: number;
+    statusMessage: string | null;
+    nextAttemptAt: Date | null;
+};
+
 export type DownloadActivityEntry = {
     id: string;
     requestId: string | null;
@@ -35,6 +45,7 @@ export type DownloadActivityEntry = {
     nextAttemptAt: Date | null;
     cancellationPending: boolean;
     seasonEpisodeProgress: SeasonEpisodeProgress | null;
+    seasonEpisodeDetails: SeasonEpisodeDetail[];
     attemptCount: number;
     failedAttemptCount: number;
     isRecovering: boolean;
@@ -286,6 +297,7 @@ function mapDownloadActivityRows(rows: DownloadActivityRow[]) {
             nextAttemptAt: fulfillment?.nextAttemptAt ?? null,
             cancellationPending,
             seasonEpisodeProgress: null,
+            seasonEpisodeDetails: [],
             attemptCount: attempts.length,
             failedAttemptCount,
             isRecovering,
@@ -310,13 +322,15 @@ async function addSeasonEpisodeProgress(userId: string, entries: DownloadActivit
         return entries;
     }
 
-    const states = await listDownloadFulfillmentEpisodesForIds({
+    const details = await listDownloadFulfillmentEpisodeDetailsForIds({
         userId,
         fulfillmentIds,
     });
     const byFulfillment = new Map<string, SeasonEpisodeProgress>();
+    const detailsByFulfillment = new Map<string, SeasonEpisodeDetail[]>();
 
-    for (const state of states) {
+    for (const detail of details) {
+        const state = detail.state;
         const progress = byFulfillment.get(state.fulfillmentId) ?? {
             total: 0,
             pending: 0,
@@ -331,6 +345,21 @@ async function addSeasonEpisodeProgress(userId: string, entries: DownloadActivit
         progress.total += 1;
         progress[state.status] += 1;
         byFulfillment.set(state.fulfillmentId, progress);
+
+        if (state.status !== "succeeded") {
+            const unresolved = detailsByFulfillment.get(state.fulfillmentId) ?? [];
+
+            unresolved.push({
+                episodeId: detail.episode.id,
+                episodeCode: `S${String(detail.episode.seasonNumber).padStart(2, "0")}E${String(detail.episode.episodeNumber).padStart(2, "0")}`,
+                title: detail.episode.title?.trim() || `Episode ${detail.episode.episodeNumber}`,
+                status: state.status,
+                attemptCount: state.attemptCount,
+                statusMessage: state.statusMessage,
+                nextAttemptAt: state.nextAttemptAt,
+            });
+            detailsByFulfillment.set(state.fulfillmentId, unresolved);
+        }
     }
 
     return entries.map((entry) => ({
@@ -338,6 +367,9 @@ async function addSeasonEpisodeProgress(userId: string, entries: DownloadActivit
         seasonEpisodeProgress: entry.fulfillmentId
             ? (byFulfillment.get(entry.fulfillmentId) ?? null)
             : null,
+        seasonEpisodeDetails: entry.fulfillmentId
+            ? (detailsByFulfillment.get(entry.fulfillmentId) ?? [])
+            : [],
     }));
 }
 

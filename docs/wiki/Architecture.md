@@ -116,7 +116,7 @@ flowchart LR
   Plan -->|Storage/configuration failure| Blocked["Blocked with corrective message"]
 ```
 
-The fulfillment owns plan-scoped release exclusions, a three-attempt pack budget, retry timing, and grouped Activity presentation. Release failures and packs proven larger than the staging filesystem can advance to another pack or episode fallback. Capacity held by active downloads waits without consuming the release; current free-space/mount, destination, downloader, credential, and compatible-indexer failures block fan-out with a corrective action. A successful pack is reconciled against current monitored, aired episode coverage instead of being assumed complete.
+The fulfillment owns plan-scoped release exclusions, an eight-probe search-pass ceiling, three submitted transfers per pack or episode cycle, retry timing, and grouped Activity presentation. `download_requests.submittedAt` keeps preflight rejects out of the transfer budget while retaining them as exclusions. Release failures and packs proven larger than the staging filesystem can advance to another pack or episode fallback. Capacity held by active downloads waits without consuming the release; current free-space/mount, destination, downloader, credential, and compatible-indexer failures block fan-out with a corrective action. A successful pack is reconciled against current monitored, aired episode coverage instead of being assumed complete.
 
 This boundary keeps user intent separate from acquisition evidence and makes recovery restart-safe without adding an external queue service. See [ADR-0003](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0003-durable-season-fulfillment.md) and [Downloads and Import](Downloads-and-Import#resilient-season-fulfillment).
 

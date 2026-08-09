@@ -85,7 +85,7 @@ After an import, Nooklet queues a targeted library scan containing only the affe
 
 ## Season-plan recovery protocol
 
-`download_fulfillments` is the durable coordinator for a season request; `download_requests` are its physical release attempts. Open plan state includes the active strategy, aggregate status, pack-attempt count and limit, and `nextAttemptAt`. `download_fulfillment_episodes` stores independent child status, attempt count, and due time.
+`download_fulfillments` is the durable coordinator for a season request; `download_requests` record selected candidates and use `submittedAt` to prove which ones reached the downloader. Open plan state includes the active strategy, aggregate status, pack-attempt count and limit, and `nextAttemptAt`. `download_fulfillment_episodes` stores independent child status, submitted-attempt count, and due time. Each pass allows eight costly probes and 40 total lightweight inspections; each pack or episode cycle allows three submitted transfers.
 
 ```mermaid
 sequenceDiagram
@@ -103,7 +103,7 @@ sequenceDiagram
   else episode strategy
     Tick->>Search: search due missing episodes (concurrency 3)
   end
-  Search->>Request: persist each accepted physical attempt
+  Search->>Request: persist candidate evidence and submission time
   Tick->>Plan: persist aggregate state and next due time
   Tick->>Guard: release maintenance key
 ```
