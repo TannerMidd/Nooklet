@@ -1,3 +1,5 @@
+import { createServer } from "node:http";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { env } from "@/lib/env";
@@ -263,6 +265,52 @@ describe("safeFetch redirect refusal", () => {
             expect(init?.dispatcher).toBeDefined();
         } finally {
             fetchSpy.mockRestore();
+        }
+    });
+});
+
+describe("safeFetch runtime dispatcher compatibility", () => {
+    it("performs a real request with Node's fetch and the DNS-pinning dispatcher", async () => {
+        const server = createServer((_request, response) => {
+            response.writeHead(200, { "content-type": "application/json" });
+            response.end('{"status":"ok"}');
+        });
+
+        await new Promise<void>((resolve, reject) => {
+            const handleError = (error: Error) => reject(error);
+
+            server.once("error", handleError);
+            server.listen(0, "127.0.0.1", () => {
+                server.off("error", handleError);
+                resolve();
+            });
+        });
+
+        try {
+            const address = server.address();
+
+            if (!address || typeof address === "string") {
+                throw new Error("Expected the test server to listen on a TCP port.");
+            }
+
+            const response = await safeFetch(`http://127.0.0.1:${address.port}/`, {
+                allowPrivateHosts: true,
+            });
+
+            expect(response.status).toBe(200);
+            await expect(response.json()).resolves.toEqual({ status: "ok" });
+        } finally {
+            await new Promise<void>((resolve, reject) => {
+                server.close((error) => {
+                    if (error) {
+                        reject(error);
+
+                        return;
+                    }
+
+                    resolve();
+                });
+            });
         }
     });
 });
