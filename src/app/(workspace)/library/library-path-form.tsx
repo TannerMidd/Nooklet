@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InlineAlert } from "@/components/ui/inline-alert";
+import type { LibraryMediaType } from "@/lib/database/schema";
 
 function StatusBanner({ state }: { state: LibraryPathActionState }) {
     if (state.status === "idle" || !state.message) {
@@ -39,7 +40,11 @@ function SubmitButton() {
     );
 }
 
-export function LibraryPathForm() {
+export function LibraryPathForm({
+    defaultMediaType = "movie",
+}: {
+    defaultMediaType?: LibraryMediaType;
+}) {
     const [state, formAction] = useActionState(addLibraryPathAction, initialLibraryPathActionState);
 
     return (
@@ -54,11 +59,12 @@ export function LibraryPathForm() {
                     <span className="font-medium text-foreground">Media type</span>
                     <select
                         name="mediaType"
-                        defaultValue="movie"
+                        defaultValue={defaultMediaType}
                         className="min-h-11 w-full rounded-lg border border-cream/[0.08] bg-cream/[0.04] px-3 py-1.5 text-sm text-foreground outline-none transition focus:border-accent/55 focus:bg-cream/[0.04] focus:ring-1 focus:ring-accent/25"
                     >
                         <option value="movie">Movies</option>
                         <option value="tv">TV shows</option>
+                        <option value="youtube">YouTube</option>
                     </select>
                 </label>
             </div>

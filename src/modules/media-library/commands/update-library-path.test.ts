@@ -4,7 +4,9 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 import { eq } from "drizzle-orm";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import { auditEvents, mediaLibraries, mediaLibraryPaths, users } from "@/lib/database/schema";
@@ -12,6 +14,7 @@ import {
     addMediaLibraryPath,
     createMediaLibrary,
 } from "@/modules/media-library/repositories/media-library-repository";
+import { createInitializingSource } from "@/modules/youtube/repositories/youtube-repository";
 
 import { updateLibraryPathCommand, UpdateLibraryPathCommandError } from "./update-library-path";
 
@@ -141,5 +144,60 @@ describe("updateLibraryPathCommand", () => {
                 status: "active",
             }),
         ).rejects.toThrow(UpdateLibraryPathCommandError);
+    });
+
+    it("prevents an associated YouTube root from being disabled, moved, or retyped", async () => {
+        const userId = configurationOwnerId;
+        const youtubeFolder = fs.mkdtempSync(path.join(os.tmpdir(), "nooklet-youtube-"));
+        const youtubeLibrary = await createMediaLibrary({
+            userId,
+            mediaType: "youtube",
+            name: "YouTube",
+            isDefault: true,
+        });
+        const libraryPath = await addMediaLibraryPath({
+            libraryId: youtubeLibrary.id,
+            userId,
+            path: youtubeFolder,
+            label: "YouTube",
+        });
+
+        await createInitializingSource({
+            userId,
+            libraryPathId: libraryPath.id,
+            qualityProfile: "mp4-1080p",
+            source: {
+                kind: "channel_videos",
+                youtubeSourceId: "@nooklet",
+                canonicalUrl: "https://www.youtube.com/@nooklet/videos",
+                title: "Nooklet",
+                channelId: null,
+                channelTitle: "Nooklet",
+                thumbnailUrl: null,
+            },
+        });
+
+        await expect(
+            updateLibraryPathCommand(userId, {
+                pathId: libraryPath.id,
+                mediaType: "movie",
+                libraryName: "Movies",
+                path: youtubeFolder,
+                label: "Retyped",
+                status: "disabled",
+            }),
+        ).rejects.toMatchObject({ code: "youtube_association" });
+
+        const unchanged = ensureDatabaseReady()
+            .select()
+            .from(mediaLibraryPaths)
+            .where(eq(mediaLibraryPaths.id, libraryPath.id))
+            .get();
+
+        expect(unchanged).toMatchObject({
+            libraryId: youtubeLibrary.id,
+            path: youtubeFolder,
+            status: "active",
+        });
     });
 });

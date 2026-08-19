@@ -15,7 +15,9 @@ export async function validateScanSources(
     userId: string,
     request: ScanMediaLibraryInput,
 ): Promise<ValidatedScanSources> {
-    const activeSources = await listActiveMediaLibraryPaths(userId);
+    const activeSources = (await listActiveMediaLibraryPaths(userId)).filter(
+        (source) => source.library.mediaType !== "youtube",
+    );
     const requestedPathIds = request.pathIds ? new Set(request.pathIds) : null;
     const sources = requestedPathIds
         ? activeSources.filter((source) => requestedPathIds.has(source.path.id))

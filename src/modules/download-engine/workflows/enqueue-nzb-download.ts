@@ -10,6 +10,7 @@ import {
     findStorageSnapshot,
 } from "@/modules/storage/public";
 import { getStorageSnapshotStatus } from "@/modules/storage/storage-snapshot-status";
+import { inspectActiveYouTubeCapacityForUsenet } from "@/modules/youtube/public";
 
 export type EnqueueNzbDownloadErrorCode =
     "invalid_nzb" | "insufficient_space" | "storage_unavailable";
@@ -42,6 +43,18 @@ export type EnqueuedNzbDownload = {
 };
 
 const minimumFreeSpaceReserveBytes = 512 * 1024 * 1024;
+
+function pathVolumeIdentity(candidate: string) {
+    const root = path.parse(path.resolve(candidate)).root.toLocaleLowerCase();
+    let hash = 2_166_136_261;
+
+    for (const character of root) {
+        hash ^= character.codePointAt(0) ?? 0;
+        hash = Math.imul(hash, 16_777_619);
+    }
+
+    return hash >>> 0;
+}
 
 function formatCapacity(bytes: number) {
     if (bytes >= 1024 ** 3) {
@@ -93,13 +106,27 @@ async function readDownloadCapacity() {
 
     const work = workSnapshot!;
     const output = outputSnapshot!;
+    const youtubeUsage = await inspectActiveYouTubeCapacityForUsenet(workPath, outputPath, {
+        // Admission stays free of mount I/O: compare canonical drive/root names
+        // conservatively here, then let the isolated runner perform exact
+        // device-id checks immediately before claiming the download.
+        deviceIdFn: async (candidate) => pathVolumeIdentity(candidate),
+    });
+    const workAvailableBytes = Math.max(
+        0,
+        work.freeSpaceBytes! - youtubeUsage.engineWorkFutureGrowthBytes,
+    );
+    const outputAvailableBytes = Math.max(
+        0,
+        output.freeSpaceBytes! - youtubeUsage.engineOutputFutureGrowthBytes,
+    );
     const constrained =
-        work.freeSpaceBytes! <= output.freeSpaceBytes!
-            ? { snapshot: work, directory: workPath }
-            : { snapshot: output, directory: outputPath };
+        workAvailableBytes <= outputAvailableBytes
+            ? { snapshot: work, directory: workPath, availableBytes: workAvailableBytes }
+            : { snapshot: output, directory: outputPath, availableBytes: outputAvailableBytes };
 
     return {
-        availableBytes: constrained.snapshot.freeSpaceBytes!,
+        availableBytes: constrained.availableBytes,
         filesystemCapacityBytes: constrained.snapshot.totalSpaceBytes!,
         constrainedDirectory: constrained.directory,
     };

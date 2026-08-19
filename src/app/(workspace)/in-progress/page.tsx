@@ -16,16 +16,18 @@ import {
     getDownloadActivityPage,
     type DownloadActivityView,
 } from "@/modules/downloads/queries/list-download-activity";
+import { getYouTubeDownloadActivityPage } from "@/modules/youtube/public";
+import { YouTubeActivityContributionPanel } from "@/app/(workspace)/library/youtube/activity-contribution-panel";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Activity" };
 
 type ActivityPageProps = {
-    searchParams?: Promise<{ view?: string; q?: string; page?: string }>;
+    searchParams?: Promise<{ view?: string; q?: string; page?: string; youtubePage?: string }>;
 };
 
-function activityHref(view: DownloadActivityView, query: string, page = 1) {
+function activityHref(view: DownloadActivityView, query: string, page = 1, youtubePage = 1) {
     const params = new URLSearchParams({ view });
 
     if (query) {
@@ -34,6 +36,10 @@ function activityHref(view: DownloadActivityView, query: string, page = 1) {
 
     if (page > 1) {
         params.set("page", String(page));
+    }
+
+    if (youtubePage > 1) {
+        params.set("youtubePage", String(youtubePage));
     }
 
     return `/in-progress?${params.toString()}`;
@@ -53,7 +59,8 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
             ? requestedView
             : "active";
     const requestedPage = Number.parseInt(resolvedSearchParams?.page ?? "1", 10);
-    const [activeQueue, activity] = await Promise.all([
+    const requestedYouTubePage = Number.parseInt(resolvedSearchParams?.youtubePage ?? "1", 10);
+    const [activeQueue, activity, youtubeActivity] = await Promise.all([
         getActiveDownloadQueue(session.user.id),
         getDownloadActivityPage({
             userId: session.user.id,
@@ -61,29 +68,41 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
             query: resolvedSearchParams?.q,
             page: Number.isFinite(requestedPage) ? requestedPage : 1,
         }),
+        getYouTubeDownloadActivityPage(session.user.id, {
+            view: currentView,
+            query: resolvedSearchParams?.q,
+            page: Number.isFinite(requestedYouTubePage) ? requestedYouTubePage : 1,
+        }),
     ]);
+    const combinedCounts = {
+        active: activity.counts.active + youtubeActivity.counts.active,
+        attention: activity.counts.attention + youtubeActivity.counts.attention,
+        completed: activity.counts.completed + youtubeActivity.counts.completed,
+    };
+    const refreshIntervalMs =
+        currentView === "active" && combinedCounts.active > 0 ? 2_000 : 15_000;
 
-    if (!requestedView && activity.counts.active === 0) {
-        if (activity.counts.attention > 0) {
+    if (!requestedView && combinedCounts.active === 0) {
+        if (combinedCounts.attention > 0) {
             redirect(activityHref("attention", activity.query));
         }
 
-        if (activity.counts.completed > 0) {
+        if (combinedCounts.completed > 0) {
             redirect(activityHref("completed", activity.query));
         }
     }
 
     const views = [
-        { value: "active", label: "Active", count: activity.counts.active },
-        { value: "attention", label: "Needs attention", count: activity.counts.attention },
-        { value: "completed", label: "Completed", count: activity.counts.completed },
+        { value: "active", label: "Active", count: combinedCounts.active },
+        { value: "attention", label: "Needs attention", count: combinedCounts.attention },
+        { value: "completed", label: "Completed", count: combinedCounts.completed },
     ] as const;
 
     return (
         <div className="nk-enter space-y-8">
-            <ActivityAutoRefresh />
+            <ActivityAutoRefresh intervalMs={refreshIntervalMs} />
             <PageHeader
-                eyebrow="Live · refreshes every 15 seconds"
+                eyebrow={`Live · refreshes every ${refreshIntervalMs / 1_000} seconds`}
                 title="Activity"
                 description="Track active work, resolve problems with the right recovery action, and review completed imports."
                 actions={<ImportNowButton />}
@@ -144,6 +163,12 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
                           : "Recently completed items"}
                 </h2>
                 <DownloadActivityPanel entries={activity.entries} />
+                {youtubeActivity.entries.length > 0 ? (
+                    <div className="space-y-3 pt-2">
+                        <h3 className="font-heading text-xl text-foreground">YouTube</h3>
+                        <YouTubeActivityContributionPanel entries={youtubeActivity.entries} />
+                    </div>
+                ) : null}
                 {activity.pagination.pageCount > 1 ? (
                     <nav
                         aria-label="Activity history pages"
@@ -155,6 +180,7 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
                                     currentView,
                                     activity.query,
                                     activity.pagination.page - 1,
+                                    youtubeActivity.pagination.page,
                                 )}
                                 className="inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] px-4 font-semibold text-foreground"
                             >
@@ -173,10 +199,53 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
                                     currentView,
                                     activity.query,
                                     activity.pagination.page + 1,
+                                    youtubeActivity.pagination.page,
                                 )}
                                 className="inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] px-4 font-semibold text-foreground"
                             >
                                 Next
+                            </Link>
+                        ) : (
+                            <span />
+                        )}
+                    </nav>
+                ) : null}
+                {youtubeActivity.pagination.pageCount > 1 ? (
+                    <nav
+                        aria-label="YouTube activity pages"
+                        className="flex items-center justify-between gap-3 pt-2 text-sm"
+                    >
+                        {youtubeActivity.pagination.hasPreviousPage ? (
+                            <Link
+                                href={activityHref(
+                                    currentView,
+                                    activity.query,
+                                    activity.pagination.page,
+                                    youtubeActivity.pagination.page - 1,
+                                )}
+                                className="inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] px-4 font-semibold text-foreground"
+                            >
+                                Previous YouTube
+                            </Link>
+                        ) : (
+                            <span />
+                        )}
+                        <span className="text-muted">
+                            YouTube page {youtubeActivity.pagination.page} of{" "}
+                            {youtubeActivity.pagination.pageCount} ·{" "}
+                            {youtubeActivity.pagination.total} items
+                        </span>
+                        {youtubeActivity.pagination.hasNextPage ? (
+                            <Link
+                                href={activityHref(
+                                    currentView,
+                                    activity.query,
+                                    activity.pagination.page,
+                                    youtubeActivity.pagination.page + 1,
+                                )}
+                                className="inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] px-4 font-semibold text-foreground"
+                            >
+                                Next YouTube
                             </Link>
                         ) : (
                             <span />

@@ -17,6 +17,7 @@ import {
     tvEpisodes,
     tvSeasons,
     type MediaFileKind,
+    type LibraryMediaType,
     type MediaLibraryPathStatus,
     type MediaScanRunStatus,
     type MediaQualityProfile,
@@ -26,6 +27,9 @@ import {
 } from "@/lib/database/schema";
 
 export type MediaLibraryRecord = typeof mediaLibraries.$inferSelect;
+export type RecommendationMediaLibraryRecord = Omit<MediaLibraryRecord, "mediaType"> & {
+    mediaType: RecommendationMediaType;
+};
 export type MediaLibraryPathRecord = typeof mediaLibraryPaths.$inferSelect;
 export type MediaTitleRecord = typeof mediaTitles.$inferSelect;
 export type MediaFileRecord = typeof mediaFiles.$inferSelect;
@@ -44,10 +48,14 @@ export type ActiveMediaLibraryPathRecord = {
     library: MediaLibraryRecord;
     path: MediaLibraryPathRecord;
 };
+export type ActiveRecommendationMediaLibraryPathRecord = {
+    library: RecommendationMediaLibraryRecord;
+    path: MediaLibraryPathRecord;
+};
 
 export async function createMediaLibrary(input: {
     userId: string;
-    mediaType: RecommendationMediaType;
+    mediaType: LibraryMediaType;
     name: string;
     isDefault?: boolean;
 }) {
@@ -70,7 +78,7 @@ export async function createMediaLibrary(input: {
 
 export async function findMediaLibraryByName(
     userId: string,
-    mediaType: RecommendationMediaType,
+    mediaType: LibraryMediaType,
     name: string,
 ) {
     const database = ensureDatabaseReady();

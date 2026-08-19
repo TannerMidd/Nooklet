@@ -6,21 +6,21 @@ Nooklet uses documentation validators, dependency and migration policy checks, a
 
 ## Local verification
 
-| Check                         | Command                              | What it catches                                                                                                                                             |
-| ----------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Type safety                   | `npm run typecheck`                  | Type errors across application and tests                                                                                                                    |
-| Static analysis               | `npm run lint`                       | ESLint and Next.js rule violations                                                                                                                          |
-| Unit/integration tests        | `npm test`                           | Domain, repository, adapter, route, and component-core behavior                                                                                             |
-| Node script tests             | `npm run test:scripts`               | Migration validator, module-boundary validator, storage probe, and worker watchdog behavior                                                                 |
-| Browser smoke                 | `npm run test:e2e`                   | First-admin bootstrap, credentials login, stale-cookie rejection after sign-out, protected home navigation, and serious/critical axe violations in Chromium |
-| Dependency advisory gate      | `npm run audit:dependencies`         | High/critical advisories in production dependencies                                                                                                         |
-| Production build              | `npm run build`                      | App Router compilation and standalone bundle generation                                                                                                     |
-| Wiki source                   | `npm run docs:wiki:check`            | Required pages/headings, balanced fences, internal links/anchors, and current-main repository source targets                                                |
-| Published documentation links | `npm run docs:links:check`           | Missing current-main source targets and retired external-downloader names across README, docs, and the dossier                                              |
-| Migration history             | `npm run migrations:check`           | Contiguous journal indexes/tags, SQL artifact presence, timestamp policy, and explicit historical exceptions                                                |
-| Module boundaries             | `npm run boundaries:check`           | Cross-module production imports that bypass a target module's public API for repositories/adapters                                                          |
-| Full repository check         | `npm run check`                      | Documentation/source links, migrations, boundaries, types, lint, infrastructure/application tests, and the production build                                 |
-| Container smoke               | `docker build ...` plus health probe | Image construction, startup, migrations, worker readiness, hardening compatibility                                                                          |
+| Check                         | Command                                    | What it catches                                                                                                                                             |
+| ----------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type safety                   | `npm run typecheck`                        | Type errors across application and tests                                                                                                                    |
+| Static analysis               | `npm run lint`                             | ESLint and Next.js rule violations                                                                                                                          |
+| Unit/integration tests        | `npm test`                                 | Domain, repository, adapter, route, and component-core behavior                                                                                             |
+| Node script tests             | `npm run test:scripts`                     | Migration validator, module-boundary validator, storage probe, and worker watchdog behavior                                                                 |
+| Browser smoke                 | `npm run test:e2e`                         | First-admin bootstrap, credentials login, stale-cookie rejection after sign-out, protected home navigation, and serious/critical axe violations in Chromium |
+| Dependency advisory gate      | `npm run audit:dependencies`               | High/critical advisories in production dependencies                                                                                                         |
+| Production build              | `npm run build`                            | App Router compilation and standalone bundle generation                                                                                                     |
+| Wiki source                   | `npm run docs:wiki:check`                  | Required pages/headings, balanced fences, internal links/anchors, and current-main repository source targets                                                |
+| Published documentation links | `npm run docs:links:check`                 | Missing current-main source targets and retired external-downloader names across README, docs, and the dossier                                              |
+| Migration history             | `npm run migrations:check`                 | Contiguous journal indexes/tags, SQL artifact presence, timestamp policy, and explicit historical exceptions                                                |
+| Module boundaries             | `npm run boundaries:check`                 | Cross-module production imports that bypass a target module's public API for repositories/adapters                                                          |
+| Full repository check         | `npm run check`                            | Documentation/source links, migrations, boundaries, types, lint, infrastructure/application tests, and the production build                                 |
+| Container smoke               | `docker build ...` plus health/tool probes | Image construction, startup, migrations, worker readiness, read-only hardening, and bundled yt-dlp/Node/ffmpeg availability                                 |
 
 Source: [package scripts](https://github.com/TannerMidd/Nooklet/blob/main/package.json).
 

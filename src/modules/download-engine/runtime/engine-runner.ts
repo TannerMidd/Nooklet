@@ -2,6 +2,7 @@ import { rm } from "node:fs/promises";
 import path from "node:path";
 
 import { type EngineDownloadFailureKind, type EngineDownloadState } from "@/lib/database/schema";
+import { withDownloadAdmissionFence } from "@/lib/download-admission";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/observability/logger";
 import { SafeFetchAbortError, SsrfBlockedError } from "@/lib/security/safe-fetch";
@@ -554,11 +555,24 @@ async function runEngineLoop() {
                 break;
             }
 
-            let capacity;
+            const admission = await withDownloadAdmissionFence(async () => {
+                try {
+                    const capacity = await inspectLiveEngineCapacity(candidate);
 
-            try {
-                capacity = await inspectLiveEngineCapacity(candidate);
-            } catch {
+                    if (!capacity.sufficient) {
+                        return { kind: "insufficient" as const };
+                    }
+
+                    return {
+                        kind: "claimed" as const,
+                        download: await claimQueuedEngineDownload(candidate.id),
+                    };
+                } catch {
+                    return { kind: "uncheckable" as const };
+                }
+            });
+
+            if (admission.kind === "uncheckable") {
                 // Nothing was claimed, so there is nothing to unwind — but record why
                 // the queue is not moving before giving the pass up.
                 await markEngineDownloadWaitingForCapacity(
@@ -568,13 +582,13 @@ async function runEngineLoop() {
                 break;
             }
 
-            if (!capacity.sufficient) {
+            if (admission.kind === "insufficient") {
                 await markEngineDownloadWaitingForCapacity(candidate.id, capacityWaitMessage);
                 deferred.add(candidate.id);
                 continue;
             }
 
-            const download = await claimQueuedEngineDownload(candidate.id);
+            const download = admission.download;
 
             if (!download) {
                 // Paused, cancelled or claimed elsewhere between the peek and the

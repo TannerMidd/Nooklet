@@ -37,6 +37,11 @@ vi.mock("@/modules/media-library/workflows/delete-media-title-with-files", () =>
 vi.mock("@/modules/media-library/workflows/retire-media-title-preserving-files", () => ({
     retireMediaTitlePreservingFilesWorkflow: vi.fn(),
 }));
+vi.mock("@/modules/youtube/public", () => ({
+    ensureYouTubeRunnerStarted: vi.fn(() => Promise.resolve()),
+    syncAllActiveYouTubeSources: vi.fn(),
+    syncYouTubeSourceNow: vi.fn(),
+}));
 vi.mock("@/lib/jobs/worker-heartbeat", async (importOriginal) => {
     const original = await importOriginal<typeof import("@/lib/jobs/worker-heartbeat")>();
 
@@ -58,6 +63,11 @@ import { deleteMediaTitleWithFilesWorkflow } from "@/modules/media-library/workf
 import { retireMediaTitlePreservingFilesWorkflow } from "@/modules/media-library/workflows/retire-media-title-preserving-files";
 import { scanMediaLibraryWorkflow } from "@/modules/media-library/workflows/scan-library";
 import { searchMissingMonitoredContentWorkflow } from "@/modules/media-library/workflows/search-missing-monitored";
+import {
+    ensureYouTubeRunnerStarted,
+    syncAllActiveYouTubeSources,
+    syncYouTubeSourceNow,
+} from "@/modules/youtube/public";
 
 import { backgroundWorkerStaleAfterMs } from "@/lib/jobs/worker-readiness";
 
@@ -81,6 +91,9 @@ const deleteMediaTitleWithFilesMock = vi.mocked(deleteMediaTitleWithFilesWorkflo
 const retireMediaTitleMock = vi.mocked(retireMediaTitlePreservingFilesWorkflow);
 const scanMediaLibraryMock = vi.mocked(scanMediaLibraryWorkflow);
 const searchMissingContentMock = vi.mocked(searchMissingMonitoredContentWorkflow);
+const ensureYouTubeRunnerMock = vi.mocked(ensureYouTubeRunnerStarted);
+const syncAllYouTubeSourcesMock = vi.mocked(syncAllActiveYouTubeSources);
+const syncYouTubeSourceMock = vi.mocked(syncYouTubeSourceNow);
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -96,6 +109,8 @@ beforeEach(() => {
         queuedCount: 0,
         unmatchedCount: 0,
     });
+    syncAllYouTubeSourcesMock.mockResolvedValue([]);
+    syncYouTubeSourceMock.mockResolvedValue({} as never);
     deleteMediaTitleWithFilesMock.mockResolvedValue({
         removedTitle: {},
         fileOutcomes: [],
@@ -130,6 +145,7 @@ describe("runDueJobs", () => {
         expect(reconcileRequestCancellationsMock.mock.invocationCallOrder[0]).toBeLessThan(
             importCompletedEngineDownloadsMock.mock.invocationCallOrder[0],
         );
+        expect(ensureYouTubeRunnerMock).toHaveBeenCalledTimes(1);
         expect(claimDueJobsMock).toHaveBeenCalledWith("watch-history-sync", expect.any(Date), 1);
         expect(claimDueJobsMock).toHaveBeenCalledWith("media-library-scan", expect.any(Date), 1);
         expect(claimDueJobsMock).toHaveBeenCalledWith("recommendation-run", expect.any(Date), 1);
@@ -486,6 +502,76 @@ describe("runDueJobs", () => {
         await runDueJobs();
 
         expect(scanMediaLibraryMock).toHaveBeenCalledWith("user1", {});
+    });
+
+    it("runs the shared YouTube source schedule", async () => {
+        claimDueJobsMock.mockImplementation(async (jobType) =>
+            jobType === "youtube-source-sync"
+                ? ([
+                      {
+                          id: "job-youtube-all",
+                          userId: "admin-1",
+                          jobType: "youtube-source-sync",
+                          targetType: "youtube",
+                          targetKey: "all",
+                          scheduleMinutes: 360,
+                          runToken: "run-youtube-all",
+                      },
+                  ] as never)
+                : [],
+        );
+
+        await runDueJobs();
+
+        expect(syncAllYouTubeSourcesMock).toHaveBeenCalledTimes(1);
+        expect(syncYouTubeSourceMock).not.toHaveBeenCalled();
+    });
+
+    it("runs a targeted personal YouTube source sync", async () => {
+        claimDueJobsMock.mockImplementation(async (jobType) =>
+            jobType === "youtube-source-sync"
+                ? ([
+                      {
+                          id: "job-youtube-source",
+                          userId: "user-1",
+                          jobType: "youtube-source-sync",
+                          targetType: "youtube-source",
+                          targetKey: "11111111-1111-4111-8111-111111111111",
+                          scheduleMinutes: 0,
+                          runToken: "run-youtube-source",
+                      },
+                  ] as never)
+                : [],
+        );
+
+        await runDueJobs();
+
+        expect(syncYouTubeSourceMock).toHaveBeenCalledWith(
+            "user-1",
+            "11111111-1111-4111-8111-111111111111",
+        );
+    });
+
+    it("runs an on-demand all-sources YouTube sync without replacing the recurring job", async () => {
+        claimDueJobsMock.mockImplementation(async (jobType) =>
+            jobType === "youtube-source-sync"
+                ? ([
+                      {
+                          id: "job-youtube-run-now",
+                          userId: "admin-1",
+                          jobType: "youtube-source-sync",
+                          targetType: "youtube-run-now",
+                          targetKey: "all:1787112000000",
+                          scheduleMinutes: 0,
+                          runToken: "run-youtube-now",
+                      },
+                  ] as never)
+                : [],
+        );
+
+        await runDueJobs();
+
+        expect(syncAllYouTubeSourcesMock).toHaveBeenCalledTimes(1);
     });
 
     it("runs due missing-content search jobs", async () => {

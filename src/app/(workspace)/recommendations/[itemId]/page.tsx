@@ -106,11 +106,11 @@ export default async function RecommendationOverviewPage({
         ? `${details.voteAverage.toFixed(1)} from ${details.voteCount ?? 0} votes`
         : null;
     const qualityProfiles = listMediaQualityProfiles();
-    const libraryOptions = libraryOverview.libraries.map((library) => ({
-        id: library.id,
-        name: library.name,
-        mediaType: library.mediaType,
-    }));
+    const libraryOptions = libraryOverview.libraries.flatMap((library) =>
+        library.mediaType === "youtube"
+            ? []
+            : [{ id: library.id, name: library.name, mediaType: library.mediaType }],
+    );
 
     return (
         <div className="space-y-5">

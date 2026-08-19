@@ -145,12 +145,14 @@ jobs:
                     nooklet-ci:${{ github.sha }}
 
                   host_port="$(docker port "$container" 42021/tcp | awk -F: '{print $NF}')"
+                  healthy=0
                   for attempt in $(seq 1 60); do
                     if curl --fail --silent --show-error \
                       "http://127.0.0.1:${host_port}/api/health" \
                       --output health.json; then
                       cat health.json
-                      exit 0
+                      healthy=1
+                      break
                     fi
 
                     if [ "$(docker inspect --format '{{.State.Running}}' "$container")" != "true" ]; then
@@ -161,5 +163,14 @@ jobs:
                     sleep 2
                   done
 
-                  echo "Container did not become healthy within 120 seconds."
-                  exit 1
+                  if [ "$healthy" -ne 1 ]; then
+                    echo "Container did not become healthy within 120 seconds."
+                    exit 1
+                  fi
+
+                  docker exec "$container" /usr/local/bin/yt-dlp --version
+                  docker exec "$container" node --version
+                  docker exec "$container" python3 --version
+                  docker exec "$container" /usr/bin/ffmpeg -version
+                  docker exec "$container" python3 -c \
+                    "import zipfile; archive = zipfile.ZipFile('/usr/local/bin/yt-dlp'); assert any(name.startswith(('yt_dlp/ejs/', 'yt_dlp_ejs/')) for name in archive.namelist()), 'yt-dlp EJS bundle is missing'"

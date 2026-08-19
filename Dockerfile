@@ -43,13 +43,29 @@ RUN npm run build
 FROM node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d AS runner
 WORKDIR /app
 
+# yt-dlp's official Unix zipimport executable is architecture-independent. Pin
+# the immutable release asset and verify its published digest during the image
+# build so the production container never downloads executable components at
+# runtime. The official zipimport artifact also bundles the matching EJS
+# challenge scripts; Node 24 in this base image is the JavaScript runtime.
+ARG YT_DLP_VERSION=2026.07.04
+ARG YT_DLP_SHA256=495be29ff4d9d4e9be7eabdfef225221e5d5282e77f2f505abc6dca80349f3fd
+ARG BGUTIL_PROVIDER_VERSION=1.3.1
+ARG BGUTIL_PROVIDER_PLUGIN_SHA256=b8ceec7f76143da172aaf5ebeec0c2d218e5680c063b931586bca48567069b38
+
 # The built-in download engine shells out to par2 (repair + obfuscated-name
 # restoration), unrar (RAR sets — Debian's 7zz ships without the RAR codec),
-# and 7zz (zip/7z) during finalization; all live in this image so no external
-# download tooling is required. unrar comes from the non-free component.
+# and 7zz (zip/7z) during finalization. YouTube transfers use the pinned
+# yt-dlp zipimport executable, Python, ffmpeg, and this image's Node runtime.
+# All live in the image so no external download tooling is required at runtime.
+# unrar comes from the non-free component.
 RUN sed -i 's/Components: main/Components: main contrib non-free non-free-firmware/' /etc/apt/sources.list.d/debian.sources \
   && apt-get update \
-  && apt-get install -y --no-install-recommends par2 7zip unrar ca-certificates tini \
+  && apt-get install -y --no-install-recommends par2 7zip unrar ca-certificates tini python3 ffmpeg \
+  && python3 -c "import hashlib, pathlib, sys, urllib.request; version, expected = sys.argv[1:]; target = pathlib.Path('/usr/local/bin/yt-dlp'); data = urllib.request.urlopen(f'https://github.com/yt-dlp/yt-dlp/releases/download/{version}/yt-dlp', timeout=60).read(); actual = hashlib.sha256(data).hexdigest(); actual == expected or sys.exit(f'yt-dlp checksum mismatch: expected {expected}, got {actual}'); target.write_bytes(data); target.chmod(0o755)" "${YT_DLP_VERSION}" "${YT_DLP_SHA256}" \
+  && test "$(/usr/local/bin/yt-dlp --version)" = "${YT_DLP_VERSION}" \
+  && mkdir -p /usr/local/share/yt-dlp-plugins \
+  && python3 -c "import hashlib, pathlib, sys, urllib.request; version, expected = sys.argv[1:]; target = pathlib.Path('/usr/local/share/yt-dlp-plugins/bgutil-ytdlp-pot-provider.zip'); data = urllib.request.urlopen(f'https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/download/{version}/bgutil-ytdlp-pot-provider.zip', timeout=60).read(); actual = hashlib.sha256(data).hexdigest(); actual == expected or sys.exit(f'bgutil provider plugin checksum mismatch: expected {expected}, got {actual}'); target.write_bytes(data)" "${BGUTIL_PROVIDER_VERSION}" "${BGUTIL_PROVIDER_PLUGIN_SHA256}" \
   && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production \
@@ -57,7 +73,12 @@ ENV NODE_ENV=production \
     PORT=42021 \
     HOSTNAME=0.0.0.0 \
     DATABASE_URL=file:/app/data/nooklet.db \
-    DOWNLOAD_ENGINE_DIR=/app/data/downloads
+    DOWNLOAD_ENGINE_DIR=/app/data/downloads \
+    YT_DLP_PATH=/usr/local/bin/yt-dlp \
+    FFMPEG_PATH=/usr/bin/ffmpeg \
+    YOUTUBE_WORK_DIR=/app/data/youtube \
+    YT_DLP_PLUGIN_DIR=/usr/local/share/yt-dlp-plugins \
+    YOUTUBE_POT_PROVIDER_URL=http://youtube-pot-provider:4416
 
 # Standalone output bundles only the dependencies the server actually imports
 # under .next/standalone. We still need the Drizzle migrations folder at
@@ -77,9 +98,12 @@ COPY --from=builder /app/scripts/lib/storage-probe-coordinator.mjs ./scripts/lib
 COPY --from=builder /app/scripts/lib/worker-heartbeat-watchdog.mjs ./scripts/lib/worker-heartbeat-watchdog.mjs
 COPY --from=builder /app/scripts/lib/structured-log.mjs ./scripts/lib/structured-log.mjs
 COPY --from=builder /app/scripts/validate-media-directory.mjs ./scripts/validate-media-directory.mjs
+COPY --from=builder /app/LICENSE /app/THIRD_PARTY_NOTICES.md ./licenses/
 
-# Persist data outside the image. The volume is mounted here in compose.
-RUN mkdir -p /app/data && chown -R node:node /app
+# Persist data outside the image. The volume is mounted here in compose. The
+# YouTube incomplete workspace therefore remains writable and restart-safe even
+# when Compose runs the rest of the image read-only.
+RUN mkdir -p /app/data/youtube/incomplete && chown -R node:node /app
 
 USER node
 

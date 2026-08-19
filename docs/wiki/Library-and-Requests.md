@@ -36,6 +36,16 @@ Movies are requested as a title. TV requests can carry season and episode scope.
 
 Nooklet prevents conflicting active work for the same scoped content and keeps request state visible while the downloader and import worker progress. A title is not considered available merely because an NZB was queued; the import must complete and the library must observe the resulting file.
 
+## YouTube library
+
+YouTube is a dedicated area at `/library/youtube`; it does not enter the movie/TV metadata or missing-content workflows. Use **Search** to find a public channel or video, or paste a supported YouTube video, playlist, or channel URL. An administrator must first attach a shared YouTube destination in **Settings → Storage**. Regular users can create personal monitors and downloads against the available shared destinations.
+
+An individual video opens the destination and quality dialog without creating a monitor. A channel result exposes its regular **Videos** feed and public playlists. When creating a source, select any existing videos to queue now and choose whether future additions should download automatically. The complete initialization baseline never auto-queues the unselected backlog.
+
+Removing a monitor or observing that a remote playlist no longer contains an item does not delete downloaded files. YouTube records remain authoritative for files Nooklet imported; normal movie/TV scans and missing-content searches exclude YouTube paths.
+
+See [YouTube monitoring and downloads](YouTube-Monitoring-and-Downloads) for source controls, profiles, retry behavior, scope, and permission responsibilities.
+
 ## What happens when you request a season
 
 A season request creates one durable plan in **Activity**. A release download is an attempt inside that plan, not the plan itself.

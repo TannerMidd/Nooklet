@@ -51,6 +51,20 @@ Keep a verified database backup before key rotation. Losing both the active and 
 | `APPROVED_MEDIA_ROOTS`     | Empty in the application; `/media` in the example          | Semicolon- or newline-separated directories Nooklet may use for library scanning and file operations. Empty fails closed outside tests.       |
 | `DOWNLOAD_ENGINE_WORK_DIR` | `./data/engine-work`; same image default under `/app/data` | Scratch root for incomplete articles, assembly, repair, and extraction. Docker users should normally keep it on the Linux-native data volume. |
 | `DOWNLOAD_ENGINE_DIR`      | `./data/downloads`; image default `/app/data/downloads`    | Completed-output staging root for the built-in downloader. It may point at a spacious bind mount.                                             |
+| `YOUTUBE_WORK_DIR`         | `./data/youtube`; image default `/app/data/youtube`        | Persistent scratch root for incomplete YouTube transfers and valid restart-resumable `.part` files.                                           |
+
+## YouTube tool overrides
+
+| Variable                   | Native default | Docker image default               | Purpose                                                                                                              |
+| -------------------------- | -------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `YT_DLP_PATH`              | `yt-dlp`       | `/usr/local/bin/yt-dlp`            | Official yt-dlp executable used for public YouTube discovery, enumeration, and downloads.                            |
+| `FFMPEG_PATH`              | `ffmpeg`       | `/usr/bin/ffmpeg`                  | ffmpeg executable used when selected audio and video streams require merging.                                        |
+| `YT_DLP_PLUGIN_DIR`        | unset          | `/usr/local/share/yt-dlp-plugins`  | Optional directory containing pinned yt-dlp plugins. Docker includes the checksum-verified PO-token provider plugin. |
+| `YOUTUBE_POT_PROVIDER_URL` | unset          | `http://youtube-pot-provider:4416` | Optional internal BgUtils provider origin used for public-video proof-of-origin tokens.                              |
+
+The production image pins and checksum-verifies yt-dlp during the build, includes its bundled EJS scripts, and uses the existing Node 24 runtime for YouTube JavaScript challenges. It never downloads executable components at runtime. Native operators must install and update yt-dlp, Python where the Unix zipimport artifact requires it, Node, and ffmpeg themselves. See [YouTube monitoring and downloads](YouTube-Monitoring-and-Downloads) and the official [yt-dlp EJS requirements](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
+
+When YouTube explicitly challenges guest traffic, configure the shared signed-in session in **Settings → Connections → YouTube access**. The credential is application-managed and encrypted in SQLite; there is no plaintext cookie-path environment variable. Docker uses `/tmp` tmpfs for per-process cookie leases. Native installations must provide a private writable operating-system temporary directory.
 
 Docker configuration must use container paths. A spacious host staging disk mounted as `/downloads` should normally use:
 
@@ -58,6 +72,7 @@ Docker configuration must use container paths. A spacious host staging disk moun
 APPROVED_MEDIA_ROOTS=/media
 DOWNLOAD_ENGINE_WORK_DIR=/app/data/engine-work
 DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine
+YOUTUBE_WORK_DIR=/app/data/youtube
 ```
 
 See [Storage and path mapping](Storage-and-Path-Mapping) before changing these values.
@@ -127,6 +142,9 @@ SECRET_BOX_KEY=<unique-random-encryption-key>
 APPROVED_MEDIA_ROOTS=/media
 DOWNLOAD_ENGINE_WORK_DIR=/app/data/engine-work
 DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine
+YT_DLP_PATH=/usr/local/bin/yt-dlp
+FFMPEG_PATH=/usr/bin/ffmpeg
+YOUTUBE_WORK_DIR=/app/data/youtube
 
 TRUST_PROXY_HEADERS=false
 PRIVATE_SERVICE_HOST_ALLOWLIST=

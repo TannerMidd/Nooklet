@@ -25,6 +25,7 @@
 
 - [Discover and recommendations](Discover-and-Recommendations)
 - [Library and requests](Library-and-Requests)
+- [YouTube monitoring](YouTube-Monitoring-and-Downloads)
 - [Downloads and import](Downloads-and-Import)
 - [Watch history](Watch-History)
 - [Automation and notifications](Automation-and-Notifications)

@@ -418,6 +418,28 @@ describe("addLibraryPathAction", () => {
         expect(revalidateMock).toHaveBeenCalledWith("/library");
         expect(result).toEqual({ status: "success", message: "Library folder added." });
     });
+
+    it("passes YouTube storage through and refreshes the YouTube page", async () => {
+        authMock.mockResolvedValue({ user: { id: "u1", role: "admin" } } as never);
+        addLibraryPathMock.mockResolvedValue(undefined as never);
+        const form = validForm();
+
+        form.set("mediaType", "youtube");
+        form.set("libraryName", "YouTube");
+        form.set("path", "/media/youtube");
+        form.set("label", "YouTube");
+
+        const result = await addLibraryPathAction(initialLibraryPathActionState, form);
+
+        expect(addLibraryPathMock).toHaveBeenCalledWith("u1", {
+            mediaType: "youtube",
+            libraryName: "YouTube",
+            path: "/media/youtube",
+            label: "YouTube",
+        });
+        expect(revalidateMock).toHaveBeenCalledWith("/library/youtube");
+        expect(result).toEqual({ status: "success", message: "Library folder added." });
+    });
 });
 
 describe("scanLibraryAction", () => {

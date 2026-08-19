@@ -2,6 +2,7 @@ import { mkdir, statfs } from "node:fs/promises";
 
 import { env } from "@/lib/env";
 import { getInFlightEngineDownloadCapacityUsage } from "@/modules/download-engine/queue/engine-repository";
+import { inspectActiveYouTubeCapacityForUsenet } from "@/modules/youtube/public";
 
 const minimumFreeSpaceReserveBytes = 512 * 1024 * 1024;
 /** Room for the assembled download plus an unpacked copy, as at admission. */
@@ -31,10 +32,14 @@ export async function inspectLiveEngineCapacity(candidate: {
         mkdir(env.DOWNLOAD_ENGINE_WORK_DIR, { recursive: true }),
         mkdir(env.DOWNLOAD_ENGINE_DIR, { recursive: true }),
     ]);
-    const [workFilesystem, outputFilesystem, usage] = await Promise.all([
+    const [workFilesystem, outputFilesystem, usage, youtubeUsage] = await Promise.all([
         statfs(env.DOWNLOAD_ENGINE_WORK_DIR),
         statfs(env.DOWNLOAD_ENGINE_DIR),
         getInFlightEngineDownloadCapacityUsage(),
+        inspectActiveYouTubeCapacityForUsenet(
+            env.DOWNLOAD_ENGINE_WORK_DIR,
+            env.DOWNLOAD_ENGINE_DIR,
+        ),
     ]);
     const workAvailableBytes = workFilesystem.bavail * workFilesystem.bsize;
     const outputAvailableBytes = outputFilesystem.bavail * outputFilesystem.bsize;
@@ -43,8 +48,11 @@ export async function inspectLiveEngineCapacity(candidate: {
         Number.isSafeInteger(candidate.totalBytes) && candidate.totalBytes > 0
             ? candidate.totalBytes * workspaceMultiplier
             : 0;
-    const requiredBytes =
+    const baseRequiredBytes =
         minimumFreeSpaceReserveBytes + usage.activeWorkspaceBytes + candidateBytes;
+    const workRequiredBytes = baseRequiredBytes + youtubeUsage.engineWorkFutureGrowthBytes;
+    const outputRequiredBytes = baseRequiredBytes + youtubeUsage.engineOutputFutureGrowthBytes;
+    const requiredBytes = Math.max(workRequiredBytes, outputRequiredBytes);
 
     return {
         availableBytes,
@@ -52,6 +60,7 @@ export async function inspectLiveEngineCapacity(candidate: {
         sufficient:
             Number.isSafeInteger(availableBytes) &&
             Number.isSafeInteger(requiredBytes) &&
-            availableBytes >= requiredBytes,
+            workAvailableBytes >= workRequiredBytes &&
+            outputAvailableBytes >= outputRequiredBytes,
     };
 }

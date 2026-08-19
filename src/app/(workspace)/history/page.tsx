@@ -74,11 +74,11 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
         listMediaLibraryPathOptions(session.user.id),
     ]);
     const qualityProfiles = listMediaQualityProfiles();
-    const libraryOptions = libraryOverview.libraries.map((library) => ({
-        id: library.id,
-        name: library.name,
-        mediaType: library.mediaType,
-    }));
+    const libraryOptions = libraryOverview.libraries.flatMap((library) =>
+        library.mediaType === "youtube"
+            ? []
+            : [{ id: library.id, name: library.name, mediaType: library.mediaType }],
+    );
     const resolvedSearchParams = await searchParams;
     const currentView =
         resolvedSearchParams?.view === "tv" || resolvedSearchParams?.view === "movie"

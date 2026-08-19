@@ -1,6 +1,20 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
+const serverOnlyMarkerPlugin = {
+    name: "server-only-marker",
+    setup(build) {
+        build.onResolve({ filter: /^server-only$/ }, () => ({
+            path: "server-only",
+            namespace: "nooklet-marker",
+        }));
+        build.onLoad({ filter: /.*/, namespace: "nooklet-marker" }, () => ({
+            contents: "",
+            loader: "js",
+        }));
+    },
+};
+
 export async function createWorkerBuildOptions({
     root = process.cwd(),
     outputDirectory = path.resolve(root, ".next", "worker"),
@@ -18,7 +32,7 @@ export async function createWorkerBuildOptions({
         sourcemap: true,
         packages: "bundle",
         external: ["better-sqlite3"],
-        plugins,
+        plugins: [serverOnlyMarkerPlugin, ...plugins],
         logLevel: "info",
     };
 }

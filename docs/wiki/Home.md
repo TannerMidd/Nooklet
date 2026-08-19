@@ -16,6 +16,7 @@ Prefer a visual introduction? Start with the public [Feature guide](https://tann
 | Reach the first successful request                 | [First-time setup](First-Time-Setup)                                                              |
 | Fix an “insufficient disk space” message           | [Storage and path mapping](Storage-and-Path-Mapping#download-capacity-policy)                     |
 | Connect TMDB, Usenet, Plex, or another service     | [Service connections](Service-Connections)                                                        |
+| Archive a public YouTube channel or video          | [YouTube monitoring and downloads](YouTube-Monitoring-and-Downloads)                              |
 | Back up or upgrade safely                          | [Backup, restore, and upgrades](Backup-Restore-and-Upgrades)                                      |
 | Diagnose an unhealthy container or failed request  | [Troubleshooting](Troubleshooting)                                                                |
 | Understand the system design                       | [Architecture](Architecture) and the [engineering dossier](https://tannermidd.github.io/Nooklet/) |
@@ -51,6 +52,7 @@ Setup Center reports whether the movie and TV request paths are actually ready. 
 
 - [Discover and recommendations](Discover-and-Recommendations)
 - [Library and requests](Library-and-Requests)
+- [YouTube monitoring and downloads](YouTube-Monitoring-and-Downloads)
 - [Downloads and import](Downloads-and-Import)
 - [Watch history](Watch-History)
 - [Automation and notifications](Automation-and-Notifications)

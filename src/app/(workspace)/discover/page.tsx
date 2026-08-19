@@ -474,11 +474,17 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
                         filters,
                         selectedRailKey,
                     )}
-                    libraries={libraryOverview.libraries.map((library) => ({
-                        id: library.id,
-                        name: library.name,
-                        mediaType: library.mediaType,
-                    }))}
+                    libraries={libraryOverview.libraries.flatMap((library) =>
+                        library.mediaType === "youtube"
+                            ? []
+                            : [
+                                  {
+                                      id: library.id,
+                                      name: library.name,
+                                      mediaType: library.mediaType,
+                                  },
+                              ],
+                    )}
                     qualityProfiles={qualityProfiles}
                     pathOptions={pathOptions}
                 />

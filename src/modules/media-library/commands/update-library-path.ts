@@ -5,6 +5,7 @@ import {
 import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
     createMediaLibrary,
+    findMediaLibraryByIdForUser,
     findMediaLibraryByName,
     findMediaLibraryPathByIdForUser,
     findMediaLibraryPathByUserPath,
@@ -16,12 +17,17 @@ import {
     updateLibraryPathInputSchema,
 } from "@/modules/media-library/schemas/library-path";
 import { recordAuditEvent } from "@/modules/users/commands/record-audit-event";
+import { hasYouTubeAssociationForLibraryPath } from "@/modules/youtube/public";
 
 export class UpdateLibraryPathCommandError extends Error {
     constructor(
         message: string,
         public readonly code:
-            "folder_not_found" | "path_already_exists" | "path_not_found" | "path_not_allowed",
+            | "folder_not_found"
+            | "path_already_exists"
+            | "path_not_found"
+            | "path_not_allowed"
+            | "youtube_association",
     ) {
         super(message);
         this.name = "UpdateLibraryPathCommandError";
@@ -50,6 +56,22 @@ export async function updateLibraryPathCommand(
         }
 
         throw error;
+    }
+
+    const existingLibrary = await findMediaLibraryByIdForUser(ownerUserId, existingPath.libraryId);
+    const retainedByYouTube = await hasYouTubeAssociationForLibraryPath(parsed.pathId);
+
+    if (
+        retainedByYouTube &&
+        (existingLibrary?.mediaType !== "youtube" ||
+            parsed.mediaType !== "youtube" ||
+            parsed.status !== "active" ||
+            canonicalPath !== existingPath.path)
+    ) {
+        throw new UpdateLibraryPathCommandError(
+            "This folder is retained by a YouTube monitor or download record. Keep its YouTube type, active status, and filesystem location; move personal monitors to another YouTube folder before changing this root.",
+            "youtube_association",
+        );
     }
 
     const duplicatePath = await findMediaLibraryPathByUserPath(ownerUserId, canonicalPath);

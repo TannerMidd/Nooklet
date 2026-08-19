@@ -132,6 +132,22 @@ The supervisors also watch the persisted worker heartbeat. If it has not advance
 
 The **Built-in download engine** card distinguishes idle, active, and degraded operation. It shows the persisted stage and progress time, unresolved infrastructure failures, and any unexpected detached-loop failure. Bad individual releases classified as content failures remain in Activity rather than degrading the engine as a whole.
 
+## YouTube diagnostics
+
+The authenticated health experience reports the installed yt-dlp, Node, and ffmpeg versions, recent source-sync failures, durable YouTube queue state, and the YouTube runner heartbeat. These details are authenticated because tool errors and destination context can disclose operational information.
+
+Missing or incompatible YouTube tools block only YouTube capability. They do not make movie/TV setup unavailable and do not by themselves turn the public readiness probe into HTTP 503. A transfer that is actively claimed but has stopped making progress degrades health, because the runner is expected to advance or persist a safe failure. An idle queue with a recorded source error remains a feature-level action in the authenticated screen.
+
+When YouTube work fails:
+
+1. Confirm `YT_DLP_PATH`, `FFMPEG_PATH`, and `YOUTUBE_WORK_DIR` in the authenticated diagnostics.
+2. Check the reported tool versions; Docker should show the image-pinned yt-dlp and its Node 24 runtime.
+3. Inspect the latest source-sync or transfer error and its next retry time.
+4. Verify the selected YouTube destination in **Settings → Storage**.
+5. Use **Retry** or **Sync now** only after correcting a terminal tool/path problem; transient network and rate-limit failures already use bounded retries.
+
+See [YouTube monitoring and downloads](YouTube-Monitoring-and-Downloads) for the supported content scope and exact retry schedule.
+
 ## Frozen-mount containment
 
 Docker Desktop presents Windows bind mounts through a filesystem bridge. A

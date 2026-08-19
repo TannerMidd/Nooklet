@@ -7,17 +7,22 @@ vi.mock("node:fs/promises", () => ({
 vi.mock("@/modules/download-engine/queue/engine-repository", () => ({
     getInFlightEngineDownloadCapacityUsage: vi.fn(),
 }));
+vi.mock("@/modules/youtube/public", () => ({
+    inspectActiveYouTubeCapacityForUsenet: vi.fn(),
+}));
 
 import { mkdir, statfs } from "node:fs/promises";
 
 import { env } from "@/lib/env";
 import { getInFlightEngineDownloadCapacityUsage } from "@/modules/download-engine/queue/engine-repository";
+import { inspectActiveYouTubeCapacityForUsenet } from "@/modules/youtube/public";
 
 import { inspectLiveEngineCapacity } from "./live-capacity";
 
 const mkdirMock = vi.mocked(mkdir);
 const statfsMock = vi.mocked(statfs);
 const usageMock = vi.mocked(getInFlightEngineDownloadCapacityUsage);
+const youtubeUsageMock = vi.mocked(inspectActiveYouTubeCapacityForUsenet);
 const reserveBytes = 512 * 1024 * 1024;
 
 beforeEach(() => {
@@ -26,6 +31,12 @@ beforeEach(() => {
     usageMock.mockResolvedValue({
         activeRemainingBytes: 100,
         activeWorkspaceBytes: 1_000,
+    });
+    youtubeUsageMock.mockResolvedValue({
+        activeDownloadCount: 0,
+        activeDownloadId: null,
+        engineWorkFutureGrowthBytes: 0,
+        engineOutputFutureGrowthBytes: 0,
     });
 });
 
@@ -58,6 +69,29 @@ describe("inspectLiveEngineCapacity", () => {
         await expect(inspectLiveEngineCapacity({ totalBytes: 2_000 })).resolves.toMatchObject({
             availableBytes: requiredBytes - 1,
             requiredBytes,
+            sufficient: false,
+        });
+    });
+
+    it("reserves active YouTube future growth on each shared filesystem", async () => {
+        const baseRequiredBytes = reserveBytes + 1_000 + 4_000;
+
+        youtubeUsageMock.mockResolvedValue({
+            activeDownloadCount: 1,
+            activeDownloadId: "youtube-1",
+            engineWorkFutureGrowthBytes: 2_000,
+            engineOutputFutureGrowthBytes: 8_000,
+        });
+        statfsMock.mockImplementation(
+            async (target) =>
+                (target === env.DOWNLOAD_ENGINE_WORK_DIR
+                    ? { bavail: baseRequiredBytes + 2_000, bsize: 1 }
+                    : { bavail: baseRequiredBytes + 8_000 - 1, bsize: 1 }) as never,
+        );
+
+        await expect(inspectLiveEngineCapacity({ totalBytes: 2_000 })).resolves.toEqual({
+            availableBytes: baseRequiredBytes + 2_000,
+            requiredBytes: baseRequiredBytes + 8_000,
             sufficient: false,
         });
     });

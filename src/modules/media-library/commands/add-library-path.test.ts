@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import { auditEvents, mediaLibraries, users } from "@/lib/database/schema";
+import { getYouTubeRequestOptions } from "@/modules/youtube/public";
 
 import { addLibraryPathCommand, LibraryPathCommandError } from "./add-library-path";
 
@@ -60,6 +61,34 @@ describe("addLibraryPathCommand", () => {
         expect(storedLibrary?.name).toBe("Movies");
         expect(libraryPath.label).toBe("Movie root");
         expect(auditEvent?.eventType).toBe("media-library.path.created");
+    });
+
+    it("exposes a newly attached YouTube folder as a YouTube download destination", async () => {
+        const userId = await seedUser();
+        const libraryFolder = fs.mkdtempSync(path.join(os.tmpdir(), "nooklet-youtube-"));
+
+        const libraryPath = await addLibraryPathCommand(userId, {
+            mediaType: "youtube",
+            libraryName: "YouTube",
+            path: libraryFolder,
+            label: "YouTube root",
+        });
+
+        const requestOptions = await getYouTubeRequestOptions(userId);
+        const storedLibrary = ensureDatabaseReady()
+            .select()
+            .from(mediaLibraries)
+            .where(eq(mediaLibraries.id, libraryPath.libraryId))
+            .get();
+
+        expect(storedLibrary?.mediaType).toBe("youtube");
+        expect(requestOptions.destinations).toEqual([
+            expect.objectContaining({
+                id: libraryPath.id,
+                label: "YouTube root",
+                path: libraryPath.path,
+            }),
+        ]);
     });
 
     it("rejects a folder that does not exist", async () => {

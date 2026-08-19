@@ -10,16 +10,21 @@ vi.mock("@/modules/storage/repositories/storage-snapshot-repository", () => ({
     downloadWorkspaceSnapshotId: "download-workspace",
     findStorageSnapshot: vi.fn(),
 }));
+vi.mock("@/modules/youtube/public", () => ({
+    inspectActiveYouTubeCapacityForUsenet: vi.fn(),
+}));
 
 import { env } from "@/lib/env";
 import { createEngineDownloadWithCapacityReservation } from "@/modules/download-engine/queue/engine-repository";
 import { findStorageSnapshot } from "@/modules/storage/repositories/storage-snapshot-repository";
 import { storageSnapshotFreshnessMs } from "@/modules/storage/storage-snapshot-status";
+import { inspectActiveYouTubeCapacityForUsenet } from "@/modules/youtube/public";
 
 import { EnqueueNzbDownloadError, enqueueNzbDownloadWorkflow } from "./enqueue-nzb-download";
 
 const createMock = vi.mocked(createEngineDownloadWithCapacityReservation);
 const snapshotMock = vi.mocked(findStorageSnapshot);
+const youtubeUsageMock = vi.mocked(inspectActiveYouTubeCapacityForUsenet);
 const workFreeBytes = 900_000_000;
 const outputFreeBytes = 1_200_000_000;
 const nzbXml = [
@@ -70,6 +75,12 @@ beforeEach(() => {
         activeWorkspaceBytes: 0,
         requiredBytes: 512 * 1024 * 1024 + 2_000,
     } as never);
+    youtubeUsageMock.mockResolvedValue({
+        activeDownloadCount: 0,
+        activeDownloadId: null,
+        engineWorkFutureGrowthBytes: 0,
+        engineOutputFutureGrowthBytes: 0,
+    });
 });
 
 describe("enqueueNzbDownloadWorkflow", () => {
@@ -167,6 +178,26 @@ describe("enqueueNzbDownloadWorkflow", () => {
         expect(createMock).toHaveBeenCalledWith(
             expect.anything(),
             expect.objectContaining({ availableBytes: constrainedFree }),
+        );
+    });
+
+    it("subtracts active YouTube future growth before reserving Usenet capacity", async () => {
+        youtubeUsageMock.mockResolvedValue({
+            activeDownloadCount: 1,
+            activeDownloadId: "youtube-1",
+            engineWorkFutureGrowthBytes: 100_000_000,
+            engineOutputFutureGrowthBytes: 500_000_000,
+        });
+
+        await enqueueNzbDownloadWorkflow("user-1", {
+            name: "Movie",
+            category: "movies",
+            nzbXml,
+        });
+
+        expect(createMock).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ availableBytes: outputFreeBytes - 500_000_000 }),
         );
     });
 

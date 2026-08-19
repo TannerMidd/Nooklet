@@ -6,6 +6,9 @@ export default defineConfig({
     resolve: {
         alias: {
             "@": fileURLToPath(new URL("./src", import.meta.url)),
+            // Next aliases this marker during framework builds. Vitest runs the
+            // server modules directly, so resolve the marker to an empty module.
+            "server-only": fileURLToPath(new URL("./vitest.server-only.ts", import.meta.url)),
         },
     },
     test: {

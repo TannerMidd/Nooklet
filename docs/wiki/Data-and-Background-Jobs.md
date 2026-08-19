@@ -28,6 +28,7 @@ The current [schema](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/dat
 | Identity and configuration | Users, the stable instance-configuration owner, audit events, preferences, service connections, and encrypted service secrets |
 | Library and indexers       | Libraries, folders, titles, episodes, files, scans, indexers, categories, secrets, searches, and protected search results     |
 | Downloads                  | Durable season/episode fulfillments, physical requests, queue items, import runs/files, and built-in engine records           |
+| YouTube                    | User-scoped monitored sources, videos, remote membership, sync state, and durable transfer/import rows                        |
 | Watch history and jobs     | History sources/runs/items and persisted jobs                                                                                 |
 | Recommendations            | Runs, items, metrics, timeline events, feedback, and hidden state                                                             |
 | Security and notifications | Rate limits, request-attempt guards, notification channels/events, and delivery audit                                         |
@@ -58,7 +59,7 @@ The diagram is intentionally selective. Use the schema and migration history for
 
 The container, native, and development supervisors start a standalone [worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts) beside the Next.js web child. [Next.js instrumentation](https://github.com/TannerMidd/Nooklet/blob/main/src/instrumentation.ts) initializes only the web database client and never starts background work. The worker performs a pass immediately, then every 15 seconds.
 
-Seven persisted job types are supported:
+Eight persisted job types are supported:
 
 - `watch-history-sync`
 - `recommendation-run`
@@ -67,8 +68,11 @@ Seven persisted job types are supported:
 - `metadata-refresh`
 - `download-import`
 - `media-title-delete`
+- `youtube-source-sync`
 
-Cancellation reconciliation, built-in download imports, operational-history retention, and due season-fulfillment recovery are maintenance work run by the worker. User-requested scans, import retries, file deletions, and safe stop-then-remove title requests are also persisted as immediate jobs so their filesystem work never executes in the web process. A safe title-removal job re-enables its unique immediate job while downloader verification is pending and deletes only the library record after active associations clear. The built-in engine runner is kicked from maintenance and drains its own persisted queue.
+Cancellation reconciliation, built-in download imports, YouTube transfer dispatch, operational-history retention, and due season-fulfillment recovery are maintenance work run by the worker. User-requested scans, import retries, file deletions, and safe stop-then-remove title requests are persisted as immediate jobs so their filesystem work never executes in the web process. A user's **Sync now** or initialization retry for one personal YouTube source is different: the authenticated Server Action performs that network enumeration inline and persists its membership result directly. The administrator's shared **Run now** control creates an immediate persisted `youtube-source-sync` job, while the global recurring schedule is also persisted. A safe title-removal job re-enables its unique immediate job while downloader verification is pending and deletes only the library record after active associations clear. The built-in engine and YouTube runners drain separate persisted queues and may each own one active transfer.
+
+`youtube-source-sync` performs a complete flat enumeration for one user-owned source. Initialization records the baseline without auto-queuing unselected history; later successful complete runs atomically update membership and queue newly discovered eligible videos once. Failed or partial enumeration never marks older membership removed. The shared schedule defaults to six hours and is administrator-configurable from 15 minutes to one week.
 
 Filesystem-backed immediate jobs run serially first (`download-import`, `media-title-delete`, then `media-library-scan`). They do not use lease heartbeats as proof of worker progress, so a wedged mount cannot be hidden by an unrelated network job. Maintenance runs next, in this deliberate order:
 

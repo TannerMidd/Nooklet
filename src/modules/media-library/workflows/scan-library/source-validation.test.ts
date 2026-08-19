@@ -15,8 +15,14 @@ beforeEach(() => vi.clearAllMocks());
 describe("validateScanSources", () => {
     it("limits an import-triggered scan to the affected paths", async () => {
         const sources = [
-            { path: { id: "11111111-1111-4111-8111-111111111111" } },
-            { path: { id: "22222222-2222-4222-8222-222222222222" } },
+            {
+                library: { mediaType: "movie" },
+                path: { id: "11111111-1111-4111-8111-111111111111" },
+            },
+            {
+                library: { mediaType: "tv" },
+                path: { id: "22222222-2222-4222-8222-222222222222" },
+            },
         ];
 
         listPathsMock.mockResolvedValue(sources as never);
@@ -26,6 +32,23 @@ describe("validateScanSources", () => {
         });
 
         expect(result.sources).toEqual([sources[1]]);
+    });
+
+    it("excludes YouTube roots from movie and TV scans", async () => {
+        const movieSource = {
+            library: { mediaType: "movie" },
+            path: { id: "11111111-1111-4111-8111-111111111111" },
+        };
+        const youtubeSource = {
+            library: { mediaType: "youtube" },
+            path: { id: "22222222-2222-4222-8222-222222222222" },
+        };
+
+        listPathsMock.mockResolvedValue([movieSource, youtubeSource] as never);
+
+        const result = await validateScanSources("user-1", {});
+
+        expect(result.sources).toEqual([movieSource]);
     });
 
     it("fails closed when every requested path is inactive", async () => {

@@ -1,6 +1,6 @@
 # Docker installation
 
-Docker Compose is the recommended way to run Nooklet. It provides the supported Node.js runtime, native media-processing tools, a persistent SQLite volume, a health check, and conservative container security defaults.
+Docker Compose is the recommended way to run Nooklet. It provides the supported Node.js runtime, native media-processing tools, a persistent SQLite volume, a health check, and conservative container security defaults. The image also includes Python, ffmpeg, and a pinned checksum-verified official yt-dlp zipimport executable with bundled EJS challenge scripts.
 
 ## Prerequisites
 
@@ -92,6 +92,7 @@ services:
         volumes:
             - "/srv/media/movies:/media/movies"
             - "/srv/media/tv:/media/tv"
+            - "/srv/media/youtube:/media/youtube"
             - "/srv/nooklet-downloads:/downloads"
 ```
 
@@ -103,6 +104,7 @@ services:
         volumes:
             - "D:/Media/Movies:/media/movies"
             - "D:/Media/TV:/media/tv"
+            - "D:/Media/YouTube:/media/youtube"
             - "F:/Nooklet/Downloads:/downloads"
 ```
 
@@ -114,9 +116,10 @@ For these examples, set:
 APPROVED_MEDIA_ROOTS=/media
 DOWNLOAD_ENGINE_WORK_DIR=/app/data/engine-work
 DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine
+YOUTUBE_WORK_DIR=/app/data/youtube
 ```
 
-The work directory normally stays on Docker's Linux-native data volume while completed output uses the bind mount. Both paths belong to the built-in downloader and must be reachable and writable; see [Storage and path mapping](Storage-and-Path-Mapping).
+The Usenet and YouTube work directories normally stay on Docker's Linux-native data volume while completed Usenet output uses the bind mount. These paths must be reachable and writable; see [Storage and path mapping](Storage-and-Path-Mapping). Add `/media/youtube` as a YouTube destination in **Settings → Storage** after bootstrap.
 
 ## 4. Build and start
 
@@ -138,6 +141,8 @@ The Compose deployment:
 - keeps the root filesystem read-only and grants bounded writable tmpfs paths only where the runtime needs them;
 - applies PID and memory ceilings plus bounded JSON-file log rotation;
 - restarts unless explicitly stopped.
+
+The root filesystem remains read-only at runtime. SQLite, engine work, and the default YouTube workspace are all beneath the writable `/app/data` volume; yt-dlp, its bundled EJS scripts, Python, ffmpeg, and Node are installed in the immutable image. Nooklet never asks yt-dlp to download executable components at runtime.
 
 Database migrations run automatically during application startup. There is no separate migration command for a normal installation or upgrade.
 
@@ -173,6 +178,16 @@ docker compose up -d --force-recreate
 ```
 
 Continue with [First-time setup](First-Time-Setup).
+
+To verify the bundled YouTube toolchain:
+
+```bash
+docker compose exec app yt-dlp --version
+docker compose exec app node --version
+docker compose exec app ffmpeg -version
+```
+
+The pinned version and checksum are declared in the [Dockerfile](https://github.com/TannerMidd/Nooklet/blob/main/Dockerfile). License and source references are recorded in [Third-party notices](https://github.com/TannerMidd/Nooklet/blob/main/THIRD_PARTY_NOTICES.md).
 
 ## Remote access and reverse proxies
 

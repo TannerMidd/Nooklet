@@ -116,6 +116,13 @@ export async function mergeLibraryScanFiles(
     const observedPathsByLibraryPath = new Map<string, Set<string>>();
 
     for (const file of scan.files) {
+        // YouTube roots are authoritative in the dedicated YouTube tables and
+        // must never enter the movie/TV scanner even if a caller bypasses the
+        // normal source-validation workflow.
+        if (file.source.library.mediaType === "youtube") {
+            continue;
+        }
+
         const title = await upsertMediaTitle({
             userId,
             libraryId: file.source.library.id,

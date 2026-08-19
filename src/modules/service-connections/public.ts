@@ -8,4 +8,9 @@ export {
     type TmdbTitleDetails,
     type TmdbTitleSearchResult,
 } from "./adapters/tmdb";
-export { findServiceConnectionByType } from "./repositories/service-connection-repository";
+export {
+    deleteServiceConnection,
+    findServiceConnectionByType,
+    saveServiceConnection,
+    updateServiceConnectionVerification,
+} from "./repositories/service-connection-repository";

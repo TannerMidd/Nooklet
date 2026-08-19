@@ -8,6 +8,7 @@ export const serviceConnectionTypeSchema = z.enum([
     "tmdb",
     "tvdb",
     "trakt",
+    "youtube",
 ]);
 export const serviceConnectionIntentSchema = z.enum(["save", "test-save", "verify", "disconnect"]);
 

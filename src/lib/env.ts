@@ -66,6 +66,16 @@ const filesystemPathFromEnv = z
     .max(4096)
     .refine((value) => !value.includes("\0"), "Filesystem paths cannot contain null bytes.");
 
+const optionalFilesystemPathFromEnv = z.preprocess(
+    (value) => (typeof value === "string" && value.trim().length === 0 ? undefined : value),
+    filesystemPathFromEnv.optional(),
+);
+
+const optionalHttpOriginFromEnv = z.preprocess(
+    (value) => (typeof value === "string" && value.trim().length === 0 ? undefined : value),
+    appUrlFromEnv.optional(),
+);
+
 const optionalListFromEnv = z
     .string()
     .max(32_768)
@@ -105,6 +115,14 @@ const envShape = {
     // (Linux-native filesystem) and only the finalized output crosses onto
     // DOWNLOAD_ENGINE_DIR with a single sequential copy.
     DOWNLOAD_ENGINE_WORK_DIR: filesystemPathFromEnv.default("./data/engine-work"),
+    // YouTube tooling is bundled in Docker and may be overridden for native installs.
+    // All transfer state stays under this persistent work directory until a final,
+    // containment-checked import into an attached YouTube library root.
+    YT_DLP_PATH: filesystemPathFromEnv.default("yt-dlp"),
+    FFMPEG_PATH: filesystemPathFromEnv.default("ffmpeg"),
+    YOUTUBE_WORK_DIR: filesystemPathFromEnv.default("./data/youtube"),
+    YT_DLP_PLUGIN_DIR: optionalFilesystemPathFromEnv,
+    YOUTUBE_POT_PROVIDER_URL: optionalHttpOriginFromEnv,
     // Maximum time to wait for an AI provider to return a recommendation batch.
     // Slow local models (LM Studio / Ollama) and large reasoning models routinely
     // exceed several minutes; recommendation runs already execute on the

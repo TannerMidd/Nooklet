@@ -28,11 +28,17 @@ export async function getReadiness(userId: string) {
                 new Set(indexer.categories.map((category) => category.mediaType)),
             ),
         })),
-        destinations: storage.libraryDestinations.map((destination) => ({
-            mediaType: destination.mediaType,
-            reachable: destination.live && destination.readable,
-            writable: destination.writable,
-        })),
+        destinations: storage.libraryDestinations.flatMap((destination) =>
+            destination.mediaType === "youtube"
+                ? []
+                : [
+                      {
+                          mediaType: destination.mediaType,
+                          reachable: destination.live && destination.readable,
+                          writable: destination.writable,
+                      },
+                  ],
+        ),
         downloadWorkspace: {
             reachable: storage.downloadWorkspace.reachable,
             writable: storage.downloadWorkspace.writable,

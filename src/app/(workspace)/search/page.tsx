@@ -65,11 +65,11 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                 initialQuery={params.query}
                 initialMediaType={params.mediaType}
                 initialState={initialState}
-                libraries={libraryOverview.libraries.map((library) => ({
-                    id: library.id,
-                    name: library.name,
-                    mediaType: library.mediaType,
-                }))}
+                libraries={libraryOverview.libraries.flatMap((library) =>
+                    library.mediaType === "youtube"
+                        ? []
+                        : [{ id: library.id, name: library.name, mediaType: library.mediaType }],
+                )}
                 qualityProfiles={qualityProfiles}
                 pathOptions={pathOptions}
             />

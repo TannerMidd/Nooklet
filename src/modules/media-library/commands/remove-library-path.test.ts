@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 
 import { eq } from "drizzle-orm";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import { auditEvents, mediaLibraryPaths, users } from "@/lib/database/schema";
@@ -13,10 +15,12 @@ import {
     addMediaLibraryPath,
     createMediaLibrary,
 } from "@/modules/media-library/repositories/media-library-repository";
+import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
+import { createInitializingSource } from "@/modules/youtube/repositories/youtube-repository";
 
 import { removeLibraryPathCommand, RemoveLibraryPathCommandError } from "./remove-library-path";
 
-async function seedUser() {
+async function seedUser(role: "admin" | "user" = "user") {
     const database = ensureDatabaseReady();
     const userId = randomUUID();
 
@@ -27,7 +31,7 @@ async function seedUser() {
             email: `${userId}@test.local`,
             displayName: "test",
             passwordHash: "x",
-            role: "user",
+            role,
         })
         .run();
 
@@ -40,7 +44,7 @@ beforeEach(() => {
 
 describe("removeLibraryPathCommand", () => {
     it("removes a library path and records an audit event", async () => {
-        const userId = await seedUser();
+        const userId = await seedUser("admin");
         const library = await createMediaLibrary({
             userId,
             mediaType: "movie",
@@ -114,6 +118,49 @@ describe("removeLibraryPathCommand", () => {
             removeLibraryPathCommand(userId, { pathId: libraryPath.id }),
         ).rejects.toMatchObject({ code: "active_download" });
 
+        expect(
+            ensureDatabaseReady()
+                .select()
+                .from(mediaLibraryPaths)
+                .where(eq(mediaLibraryPaths.id, libraryPath.id))
+                .get()?.id,
+        ).toBe(libraryPath.id);
+    });
+
+    it("reports a friendly conflict for a YouTube root retained by a monitor", async () => {
+        const userId = await seedUser("admin");
+        const ownerUserId = await resolveInstanceConfigurationOwnerId(userId);
+        const library = await createMediaLibrary({
+            userId: ownerUserId,
+            mediaType: "youtube",
+            name: "YouTube",
+            isDefault: true,
+        });
+        const libraryPath = await addMediaLibraryPath({
+            libraryId: library.id,
+            userId: ownerUserId,
+            path: "F:/Media/YouTube",
+            label: "YouTube",
+        });
+
+        await createInitializingSource({
+            userId,
+            libraryPathId: libraryPath.id,
+            qualityProfile: "mp4-1080p",
+            source: {
+                kind: "channel_videos",
+                youtubeSourceId: "@nooklet",
+                canonicalUrl: "https://www.youtube.com/@nooklet/videos",
+                title: "Nooklet",
+                channelId: null,
+                channelTitle: "Nooklet",
+                thumbnailUrl: null,
+            },
+        });
+
+        await expect(
+            removeLibraryPathCommand(userId, { pathId: libraryPath.id }),
+        ).rejects.toMatchObject({ code: "youtube_association" });
         expect(
             ensureDatabaseReady()
                 .select()

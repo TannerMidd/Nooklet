@@ -1,12 +1,13 @@
 # Storage and path mapping
 
-Nooklet uses three distinct storage stages:
+Nooklet uses four distinct storage areas:
 
 1. **Download work** holds incomplete articles, assembled files, repairs, and extraction under `DOWNLOAD_ENGINE_WORK_DIR`.
 2. **Completed-download staging** holds finalized output under `DOWNLOAD_ENGINE_DIR` until import succeeds.
-3. **Final library destinations** hold imported movies and TV episodes.
+3. **YouTube work** holds incomplete video streams and merged output under `YOUTUBE_WORK_DIR` until safe publish.
+4. **Final library destinations** hold imported movies, TV episodes, and Nooklet-managed YouTube videos.
 
-The image defaults in-flight work to `/app/data/engine-work` on Docker's Linux-native named volume. This avoids high-concurrency random I/O on a Windows bind mount. A finalized result may still cross to `DOWNLOAD_ENGINE_DIR`, and import then crosses to its selected media destination.
+The image defaults Usenet in-flight work to `/app/data/engine-work` and YouTube work to `/app/data/youtube` on Docker's Linux-native named volume. This avoids high-concurrency random I/O on a Windows bind mount. A finalized result then crosses to its selected media destination.
 
 ## The Docker path model
 
@@ -14,21 +15,24 @@ The image defaults in-flight work to `/app/data/engine-work` on Docker's Linux-n
 flowchart LR
     H1["Host: D:/Media/Movies"] -->|"bind mount"| C1["Container: /media/movies"]
     H2["Host: F:/Nooklet/Downloads"] -->|"bind mount"| C2["Container: /downloads"]
+    H3["Host: D:/Media/YouTube"] -->|"bind mount"| C3["Container: /media/youtube"]
     C1 --> UI["Nooklet storage settings"]
     C2 --> ENV["DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine"]
     WORK["DOWNLOAD_ENGINE_WORK_DIR\n/app/data/engine-work"] --> PRE["Cached admission + worker preflight"]
     ENV --> PRE
     PRE --> IMP["Repair, extract, and import"]
     IMP --> C1
+    YTWORK["YOUTUBE_WORK_DIR\n/app/data/youtube"] --> C3
 ```
 
 Nooklet runs inside the container and cannot use `D:\Media\Movies` or `F:\...` directly. Configure the path on the **right-hand side** of each mount in Nooklet.
 
-| Host folder            | Container path  | Nooklet configuration                               |
-| ---------------------- | --------------- | --------------------------------------------------- |
-| `D:/Media/Movies`      | `/media/movies` | Attach `/media/movies` as a movie folder            |
-| `D:/Media/TV`          | `/media/tv`     | Attach `/media/tv` as a TV folder                   |
-| `F:/Nooklet/Downloads` | `/downloads`    | Set `DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine` |
+| Host folder            | Container path   | Nooklet configuration                               |
+| ---------------------- | ---------------- | --------------------------------------------------- |
+| `D:/Media/Movies`      | `/media/movies`  | Attach `/media/movies` as a movie folder            |
+| `D:/Media/TV`          | `/media/tv`      | Attach `/media/tv` as a TV folder                   |
+| `D:/Media/YouTube`     | `/media/youtube` | Attach `/media/youtube` as a YouTube folder         |
+| `F:/Nooklet/Downloads` | `/downloads`     | Set `DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine` |
 
 ## Recommended Compose override
 
@@ -40,6 +44,7 @@ services:
         volumes:
             - "D:/Media/Movies:/media/movies"
             - "D:/Media/TV:/media/tv"
+            - "D:/Media/YouTube:/media/youtube"
             - "F:/Nooklet/Downloads:/downloads"
 ```
 
@@ -121,7 +126,7 @@ For Docker, an approved root alone does not create access. A matching volume mou
 
 ## Final library destinations
 
-Use **Settings -> Storage** to attach movie and TV folders and select default import destinations. A final destination is ready when it is reachable, readable, and writable. Nooklet evaluates movie and TV destinations separately, so a healthy movie folder does not make the TV request path ready.
+Use **Settings -> Storage** to attach movie, TV, and YouTube folders and select default import destinations. A final destination is ready when it is reachable, readable, and writable. Nooklet evaluates each destination type separately, so a healthy movie folder does not make the TV or YouTube path ready. Administrators manage these shared paths; users select among attached YouTube roots for their own monitors and downloads.
 
 Removing a folder configuration does not delete its existing media files. File deletions performed through supported workflows remain constrained to canonical files inside an approved, registered library.
 
@@ -143,7 +148,7 @@ Nooklet records finalized output under `DOWNLOAD_ENGINE_DIR`; there is no second
 
 ## Built-in data volume
 
-Compose mounts the named volume `nooklet-data` at `/app/data`. The database always lives at `/app/data/nooklet.db` in Compose, regardless of a host-style `DATABASE_URL` in `.env`. The image-default in-flight workspace `/app/data/engine-work` and completed-output staging `/app/data/downloads` therefore persist across container recreation, but may share a smaller Docker-managed filesystem.
+Compose mounts the named volume `nooklet-data` at `/app/data`. The database always lives at `/app/data/nooklet.db` in Compose, regardless of a host-style `DATABASE_URL` in `.env`. The image-default in-flight workspace `/app/data/engine-work`, completed-output staging `/app/data/downloads`, and YouTube workspace `/app/data/youtube` therefore persist across container recreation, but may share a smaller Docker-managed filesystem.
 
 Do not run `docker compose down -v` unless intentionally deleting the persistent database volume.
 

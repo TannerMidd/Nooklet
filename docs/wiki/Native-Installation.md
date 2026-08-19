@@ -9,9 +9,12 @@ Native installation is intended for development and advanced operators who prefe
 - Git
 - Build support for native Node dependencies if a matching binary is unavailable
 - `par2`, `unrar`, and `7zz` on `PATH` for complete built-in download repair and extraction
+- yt-dlp, Python 3.11 or newer for the official Unix zipimport artifact, and ffmpeg for YouTube discovery, transfer, and stream merging
 - A process supervisor for an always-on production deployment
 
-Nooklet can start without the three media-processing executables, but built-in downloads that require repair or archive extraction will not finalize correctly. The Docker image installs all three.
+Nooklet can start without these optional media-processing capabilities. Missing `par2`, `unrar`, or `7zz` blocks the built-in finalization that needs it; missing yt-dlp or ffmpeg blocks only YouTube readiness. The Docker image installs the complete toolchain.
+
+Use an official yt-dlp distribution and verify it against the checksums published with the selected immutable [yt-dlp release](https://github.com/yt-dlp/yt-dlp/releases). The official Unix zipimport and PyInstaller distributions include their matching EJS scripts. Nooklet uses Node 24 as the JavaScript challenge runtime and does not enable runtime component downloads; see the official [EJS setup guide](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
 
 ## 1. Clone and install dependencies
 
@@ -55,6 +58,9 @@ SECRET_BOX_KEY=<independent-random-value>
 APPROVED_MEDIA_ROOTS=/srv/media
 DOWNLOAD_ENGINE_WORK_DIR=/srv/nooklet/engine-work
 DOWNLOAD_ENGINE_DIR=/srv/downloads/nooklet-engine
+YT_DLP_PATH=/usr/local/bin/yt-dlp
+FFMPEG_PATH=/usr/bin/ffmpeg
+YOUTUBE_WORK_DIR=/srv/nooklet/youtube
 ```
 
 On Windows, use normal absolute host paths and separate multiple approved roots with semicolons:
@@ -63,6 +69,9 @@ On Windows, use normal absolute host paths and separate multiple approved roots 
 APPROVED_MEDIA_ROOTS=D:\Media;E:\Archive
 DOWNLOAD_ENGINE_WORK_DIR=F:\NookletData\EngineWork
 DOWNLOAD_ENGINE_DIR=F:\Downloads\Nooklet
+YT_DLP_PATH=C:\Tools\yt-dlp.exe
+FFMPEG_PATH=C:\Tools\ffmpeg.exe
+YOUTUBE_WORK_DIR=F:\NookletData\YouTube
 ```
 
 Do not approve an entire filesystem root. Each configured media folder must exist, resolve to a directory, and remain within one of the approved roots.
@@ -116,6 +125,8 @@ Open the application, create the first administrator, then follow [First-time se
 - Relative paths are resolved from the process working directory. Absolute paths are safer for supervised deployments.
 - `DATABASE_URL=file:./data/nooklet.db` creates the database beneath the repository working directory.
 - `DOWNLOAD_ENGINE_WORK_DIR` holds incomplete, assembled, repaired, and extracted data; `DOWNLOAD_ENGINE_DIR` holds completed output awaiting import. Both filesystems are checked for built-in download capacity, and the tighter one limits admission.
+- `YOUTUBE_WORK_DIR` holds restart-safe incomplete YouTube transfers. Final files publish to the YouTube root selected in **Settings → Storage**, not to the work directory.
+- `YT_DLP_PATH` and `FFMPEG_PATH` may be an executable name on `PATH` or an explicit executable path. Verify them under the same service account with `yt-dlp --version` and `ffmpeg -version`.
 - `APPROVED_MEDIA_ROOTS` fails closed when empty; engine completion paths are constrained by `DOWNLOAD_ENGINE_DIR` and the persisted engine item.
 - Windows UNC, device, and raw filesystem paths are rejected as media roots. Mount network storage through the operating system or container host and expose a normal local path instead.
 - Symlinks do not bypass the canonical approved-root checks.

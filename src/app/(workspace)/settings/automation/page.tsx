@@ -18,6 +18,12 @@ import { getMetadataRefreshSettings } from "@/modules/media-library/queries/get-
 import { getMissingSearchSettings } from "@/modules/media-library/queries/get-missing-search-settings";
 import { listHistoryJobs } from "@/modules/jobs/queries/list-history-jobs";
 import { getWatchHistoryOverview } from "@/modules/watch-history/queries/get-watch-history-overview";
+import { YouTubeAutomationPanel } from "@/app/(workspace)/library/youtube/automation-panel";
+import {
+    runYouTubeSyncNowAction,
+    updateYouTubeSyncScheduleAction,
+} from "@/app/(workspace)/settings/automation/youtube-actions";
+import { getYouTubeAutomationSettings } from "@/modules/youtube/public";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Automation" };
@@ -29,13 +35,15 @@ export default async function AutomationSettingsPage() {
         return null;
     }
 
-    const [scan, missing, metadataRefresh, historyOverview, historyJobs] = await Promise.all([
-        getLibraryScanSettings(session.user.id),
-        getMissingSearchSettings(session.user.id),
-        getMetadataRefreshSettings(session.user.id),
-        getWatchHistoryOverview(session.user.id),
-        listHistoryJobs(session.user.id, "watch-history-sync"),
-    ]);
+    const [scan, missing, metadataRefresh, historyOverview, historyJobs, youtubeSettings] =
+        await Promise.all([
+            getLibraryScanSettings(session.user.id),
+            getMissingSearchSettings(session.user.id),
+            getMetadataRefreshSettings(session.user.id),
+            getWatchHistoryOverview(session.user.id),
+            listHistoryJobs(session.user.id, "watch-history-sync"),
+            getYouTubeAutomationSettings(session.user.id),
+        ]);
     const historyJobBySource = new Map(
         historyJobs
             .filter((job) => job.targetType === "watch-history-source")
@@ -83,6 +91,14 @@ export default async function AutomationSettingsPage() {
                         <MetadataRefreshSettingsForm settings={metadataRefresh} />
                         <RunMetadataRefreshButton />
                     </Panel>
+                    <YouTubeAutomationPanel
+                        settings={{
+                            ...youtubeSettings,
+                            intervalMinutes: youtubeSettings.scheduleMinutes,
+                        }}
+                        saveAction={updateYouTubeSyncScheduleAction}
+                        runNowAction={runYouTubeSyncNowAction}
+                    />
                 </>
             )}
 

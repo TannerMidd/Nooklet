@@ -234,7 +234,9 @@ export function StorageOverviewView({ overview }: { overview: StorageOverview })
                                                 >
                                                     {destination.mediaType === "tv"
                                                         ? "TV"
-                                                        : "Movies"}
+                                                        : destination.mediaType === "youtube"
+                                                          ? "YouTube"
+                                                          : "Movies"}
                                                 </Badge>
                                                 {destination.isDownloadDefault ? (
                                                     <Badge variant="highlight">Default</Badge>

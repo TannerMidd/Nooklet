@@ -48,6 +48,8 @@ function spaceBarTone(percent: number) {
 
 function DriveRow({ entry }: { entry: LibraryDriveEntry }) {
     const percent = usedPercent(entry);
+    const mediaLabel =
+        entry.mediaType === "tv" ? "TV" : entry.mediaType === "youtube" ? "YouTube" : "Movies";
 
     return (
         <li className="rounded-lg border border-cream/[0.08] bg-cream/[0.03] px-3.5 py-3">
@@ -56,7 +58,7 @@ function DriveRow({ entry }: { entry: LibraryDriveEntry }) {
                     <div className="flex flex-wrap items-center gap-2">
                         <p className="font-medium text-foreground">{entry.label}</p>
                         <Badge variant={entry.mediaType === "tv" ? "accent-cool" : "accent"}>
-                            {entry.mediaType === "tv" ? "TV" : "Movies"}
+                            {mediaLabel}
                         </Badge>
                         {entry.isDownloadDefault ? (
                             <Badge variant="highlight">Default</Badge>
@@ -99,7 +101,7 @@ export function LibraryDrivesPanel({ entries }: { entries: LibraryDriveEntry[] }
         <div className="space-y-3">
             <p className="text-sm leading-6 text-muted">
                 Downloads without an explicit destination go to the default folder for their media
-                type. Marked folders are preselected in every request form.
+                type, including YouTube. Marked folders are preselected in request forms.
             </p>
             <ul className="grid gap-2.5 lg:grid-cols-2">
                 {entries.map((entry) => (

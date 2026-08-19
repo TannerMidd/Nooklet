@@ -11,8 +11,11 @@ Nooklet persists recurring work in SQLite and executes it through a separately s
 | `media-library-scan`     | Reconcile a configured library destination. |
 | `missing-content-search` | Search for monitored missing content.       |
 | `metadata-refresh`       | Refresh stored title metadata.              |
+| `youtube-source-sync`    | Reconcile public monitored YouTube sources. |
 
 Schedules, last outcomes, and next runs survive an application restart. Use **Run now** for an intentional one-off execution; do not shorten every schedule to diagnose one failure.
+
+YouTube source sync uses one shared administrator-managed interval for active sources. It defaults to six hours and accepts values from 15 minutes through one week. A user may still choose **Sync now** on a personal source; administrators can use **Run now** for the shared job. Failed initialization remains explicit and can be retried without treating the pre-existing backlog as new content.
 
 ## Notification channels
 

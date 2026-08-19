@@ -1,6 +1,6 @@
 import pathModule from "node:path";
 
-import { type RecommendationMediaType } from "@/lib/database/schema";
+import { type LibraryMediaType } from "@/lib/database/schema";
 import { listActiveMediaLibraryPaths } from "@/modules/media-library/repositories/media-library-repository";
 import { libraryDestinationSnapshotId, listStorageSnapshots } from "@/modules/storage/public";
 import {
@@ -14,7 +14,7 @@ export type LibraryDriveEntry = {
     path: string;
     effectivePath: string;
     libraryName: string;
-    mediaType: RecommendationMediaType;
+    mediaType: LibraryMediaType;
     isDownloadDefault: boolean;
     freeSpaceBytes: number | null;
     totalSpaceBytes: number | null;

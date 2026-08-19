@@ -26,6 +26,7 @@ The Docker/host operator is a privileged security principal. Host access can rea
 - Passwords are salted and hashed with scrypt; plaintext passwords are not stored.
 - Password policy is 12–128 characters with lowercase, uppercase, and numeric characters.
 - Sessions use encrypted JWT cookies plus a per-login SQLite validity record, with an absolute 24-hour maximum age. The record and token carry the user's monotonic `auth_generation`.
+- Optional YouTube extraction cookies are accepted only from administrators, restricted to Netscape-format `youtube.com` entries, live-tested before replacement, encrypted with the application secret box, and decrypted only into a per-process mode-`0600` tmpfs lease that is removed in a `finally` cleanup.
 - Login issuance transactionally rechecks the generation observed during credential verification. Account disablement and password writes advance the generation and revoke existing records, preventing an already-running login from becoming valid after an invalidation race.
 - Nooklet's UI sign-out action deletes the current validity record before clearing the cookie. A late authenticated response may copy the old cookie back into a browser, but that token remains invalid server-side. Direct `POST /api/auth/signout` is intentionally unavailable; use the application's **Sign out** control.
 - Live account and generation checks invalidate sessions after account disablement or a password change. Tokens that predate the server-side validity and generation claims fail closed and require a fresh sign-in.

@@ -13,6 +13,7 @@ import { statusTone } from "@/components/ui/status-tone";
 import { listUserJobs } from "@/modules/jobs/queries/list-user-jobs";
 import { type ReadinessCapability } from "@/modules/readiness/evaluate-readiness";
 import { getReadiness } from "@/modules/readiness/queries/get-readiness";
+import { getYouTubeHealth } from "@/modules/youtube/public";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,8 @@ function jobLabel(jobType: string) {
             return "Download import";
         case "media-title-delete":
             return "Media title removal";
+        case "youtube-source-sync":
+            return "YouTube source sync";
         default:
             return "Background task";
     }
@@ -67,6 +70,8 @@ function jobRecovery(jobType: string) {
             return { href: "/in-progress", label: "Open Activity" };
         case "media-title-delete":
             return { href: "/library", label: "Open library" };
+        case "youtube-source-sync":
+            return { href: "/library/youtube?view=sources", label: "Review YouTube sources" };
         case "media-library-scan":
         case "metadata-refresh":
         case "missing-content-search":
@@ -83,6 +88,10 @@ function jobFailureGuidance(jobType: string, scheduleMinutes: number) {
 
     if (jobType === "media-title-delete") {
         return "Verify the library disk is available, then retry removal from the Library.";
+    }
+
+    if (jobType === "youtube-source-sync") {
+        return "Review the source error, then retry initialization or sync from the YouTube library.";
     }
 
     if (scheduleMinutes === 0) {
@@ -139,9 +148,10 @@ export default async function HealthPage() {
         return null;
     }
 
-    const [readiness, jobs] = await Promise.all([
+    const [readiness, jobs, youtubeHealth] = await Promise.all([
         getReadiness(session.user.id),
         listUserJobs(session.user.id),
+        getYouTubeHealth(),
     ]);
     const { evaluation, services, watchHistory, worker, downloadEngine } = readiness;
     const readyCapabilities = evaluation.capabilities.filter((entry) => entry.status === "ready");
@@ -316,6 +326,101 @@ export default async function HealthPage() {
                         Engine degradation is diagnostic only: it keeps HTTP readiness at 200 while
                         the web process and scheduler remain responsive, and never kills an active
                         repair or extraction.
+                    </p>
+                </article>
+
+                <article
+                    className={`mt-3 rounded-xl border p-4 text-sm leading-6 ${statusTone(youtubeHealth.degraded ? "failed" : youtubeHealth.ready ? (youtubeHealth.activeDownloads > 0 ? "running" : "verified") : "idle")}`}
+                >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <p className="font-semibold text-foreground">YouTube downloader</p>
+                            <p className="mt-1 text-muted">
+                                {!youtubeHealth.ready
+                                    ? "YouTube tools are unavailable. Movie, TV, and Usenet capabilities remain unaffected."
+                                    : youtubeHealth.runnerStalled
+                                      ? "An active YouTube transfer stopped recording runner progress."
+                                      : youtubeHealth.activeDownloads > 0
+                                        ? `${youtubeHealth.activeDownloads} YouTube transfer${youtubeHealth.activeDownloads === 1 ? " is" : "s are"} active.`
+                                        : "YouTube discovery and downloads are ready; no transfer is active."}
+                            </p>
+                        </div>
+                        <Badge
+                            variant={
+                                youtubeHealth.degraded || !youtubeHealth.ready
+                                    ? "wine"
+                                    : youtubeHealth.activeDownloads > 0
+                                      ? "accent-cool"
+                                      : "neutral"
+                            }
+                        >
+                            {youtubeHealth.degraded
+                                ? "Needs attention"
+                                : youtubeHealth.ready
+                                  ? youtubeHealth.activeDownloads > 0
+                                      ? "Active"
+                                      : "Ready"
+                                  : "Unavailable"}
+                        </Badge>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted">
+                        <span>yt-dlp {youtubeHealth.tools.ytDlp.version ?? "not detected"}</span>
+                        <span>ffmpeg {youtubeHealth.tools.ffmpeg.version ?? "not detected"}</span>
+                        <span>Node {youtubeHealth.tools.node.version ?? "not detected"}</span>
+                        <span>
+                            EJS {youtubeHealth.tools.ejs.available ? "bundled" : "not detected"}
+                        </span>
+                        <span>
+                            Work directory {youtubeHealth.tools.workDirectory.path}
+                            {youtubeHealth.tools.workDirectory.writable ? " writable" : " blocked"}
+                        </span>
+                        <span>{youtubeHealth.queuedDownloads} queued</span>
+                        <span>{youtubeHealth.retryingDownloads} retrying</span>
+                        <span>{youtubeHealth.sourcesWithErrors} source errors</span>
+                        <span>
+                            Runner heartbeat {formatDate(youtubeHealth.lastRunnerHeartbeatAt)}
+                        </span>
+                    </div>
+                    {!youtubeHealth.ready || youtubeHealth.runnerStalled ? (
+                        <details className="mt-3 rounded-lg border border-cream/[0.08] bg-black/10 px-3 py-2">
+                            <summary className="cursor-pointer font-semibold text-foreground">
+                                YouTube diagnostics
+                            </summary>
+                            <ul className="mt-2 space-y-1 text-xs leading-5 text-muted">
+                                {!youtubeHealth.tools.ytDlp.available ? (
+                                    <li>
+                                        yt-dlp: {youtubeHealth.tools.ytDlp.error ?? "Unavailable"}
+                                    </li>
+                                ) : null}
+                                {!youtubeHealth.tools.ffmpeg.available ? (
+                                    <li>
+                                        ffmpeg: {youtubeHealth.tools.ffmpeg.error ?? "Unavailable"}
+                                    </li>
+                                ) : null}
+                                {!youtubeHealth.tools.node.available ? (
+                                    <li>Node: {youtubeHealth.tools.node.error ?? "Unavailable"}</li>
+                                ) : null}
+                                {!youtubeHealth.tools.ejs.available ? (
+                                    <li>EJS: {youtubeHealth.tools.ejs.error ?? "Unavailable"}</li>
+                                ) : null}
+                                {!youtubeHealth.tools.workDirectory.writable ? (
+                                    <li>
+                                        Work directory:{" "}
+                                        {youtubeHealth.tools.workDirectory.error ?? "Unavailable"}
+                                    </li>
+                                ) : null}
+                                {youtubeHealth.runnerStalled ? (
+                                    <li>
+                                        The transfer runner heartbeat is stale. Restart Nooklet;
+                                        valid partial files resume automatically.
+                                    </li>
+                                ) : null}
+                            </ul>
+                        </details>
+                    ) : null}
+                    <p className="mt-3 text-xs text-muted">
+                        Missing tools block only YouTube readiness. A stalled active transfer is
+                        degraded without changing HTTP health for an otherwise responsive app.
                     </p>
                 </article>
             </Panel>

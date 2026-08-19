@@ -30,12 +30,19 @@ function LibraryDestinationCard({
     href: string;
     title: string;
     description: string;
-    tone: "warm" | "cool";
+    tone: "warm" | "cool" | "video";
 }) {
+    const toneClass =
+        tone === "warm"
+            ? "bg-[linear-gradient(120deg,rgba(232,165,80,0.10),transparent_60%),rgba(255,244,230,0.03)]"
+            : tone === "cool"
+              ? "bg-[linear-gradient(120deg,rgba(127,181,164,0.10),transparent_60%),rgba(255,244,230,0.03)]"
+              : "bg-[linear-gradient(120deg,rgba(230,62,62,0.12),transparent_60%),rgba(255,244,230,0.03)]";
+
     return (
         <Link
             href={href}
-            className={`relative flex items-center justify-between gap-3 rounded-2xl border border-cream/[0.08] p-[22px] transition hover:-translate-y-0.5 hover:border-cream/[0.16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${tone === "warm" ? "bg-[linear-gradient(120deg,rgba(232,165,80,0.10),transparent_60%),rgba(255,244,230,0.03)]" : "bg-[linear-gradient(120deg,rgba(127,181,164,0.10),transparent_60%),rgba(255,244,230,0.03)]"}`}
+            className={`relative flex items-center justify-between gap-3 rounded-2xl border border-cream/[0.08] p-[22px] transition hover:-translate-y-0.5 hover:border-cream/[0.16] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${toneClass}`}
         >
             <LinkPendingOverlay />
             <span>
@@ -63,7 +70,7 @@ export default async function LibraryPage() {
             <PageHeader
                 eyebrow="Your media"
                 title="Library"
-                description="Browse movies and series here. Storage, folder administration, and automation live in Settings."
+                description="Browse movies, series, and saved YouTube videos here. Storage, folder administration, and automation live in Settings."
                 actions={
                     <div className="flex flex-wrap gap-2">
                         <LibraryScanButton />
@@ -88,7 +95,7 @@ export default async function LibraryPage() {
 
             {overview.totals.paths === 0 && overview.totals.titles === 0 ? (
                 <EmptyState
-                    message="No media folders are attached yet. Finish Storage setup before scanning a library or requesting a download."
+                    message="No media folders are attached yet. Add storage before scanning a library or downloading a YouTube video."
                     action={
                         <Link
                             href="/settings/storage"
@@ -98,22 +105,28 @@ export default async function LibraryPage() {
                         </Link>
                     }
                 />
-            ) : (
-                <div className="grid gap-4 sm:grid-cols-2">
-                    <LibraryDestinationCard
-                        href="/library/movies"
-                        title="Movies"
-                        description={`${sumCounts(movieLibraries, "titleCount")} titles · ${sumCounts(movieLibraries, "fileCount")} files`}
-                        tone="warm"
-                    />
-                    <LibraryDestinationCard
-                        href="/library/tv"
-                        title="TV series"
-                        description={`${sumCounts(tvLibraries, "titleCount")} series · ${sumCounts(tvLibraries, "fileCount")} files`}
-                        tone="cool"
-                    />
-                </div>
-            )}
+            ) : null}
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <LibraryDestinationCard
+                    href="/library/movies"
+                    title="Movies"
+                    description={`${sumCounts(movieLibraries, "titleCount")} titles · ${sumCounts(movieLibraries, "fileCount")} files`}
+                    tone="warm"
+                />
+                <LibraryDestinationCard
+                    href="/library/tv"
+                    title="TV series"
+                    description={`${sumCounts(tvLibraries, "titleCount")} series · ${sumCounts(tvLibraries, "fileCount")} files`}
+                    tone="cool"
+                />
+                <LibraryDestinationCard
+                    href="/library/youtube"
+                    title="YouTube"
+                    description="Search videos, monitor channels and playlists, and manage saved downloads."
+                    tone="video"
+                />
+            </div>
         </div>
     );
 }

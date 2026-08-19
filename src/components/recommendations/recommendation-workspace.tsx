@@ -135,11 +135,11 @@ export async function RecommendationWorkspace({
             listMediaLibraryPathOptions(session.user.id),
         ]);
     const qualityProfiles = listMediaQualityProfiles();
-    const libraryOptions = libraryOverview.libraries.map((library) => ({
-        id: library.id,
-        name: library.name,
-        mediaType: library.mediaType,
-    }));
+    const libraryOptions = libraryOverview.libraries.flatMap((library) =>
+        library.mediaType === "youtube"
+            ? []
+            : [{ id: library.id, name: library.name, mediaType: library.mediaType }],
+    );
 
     const aiProvider = connectionSummaries.find((summary) => summary.serviceType === "ai-provider");
     const tmdb = connectionSummaries.find((summary) => summary.serviceType === "tmdb") ?? null;

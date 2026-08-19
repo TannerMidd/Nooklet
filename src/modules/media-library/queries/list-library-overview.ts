@@ -7,7 +7,7 @@ import {
     mediaLibraries,
     mediaLibraryPaths,
     mediaTitles,
-    type RecommendationMediaType,
+    type LibraryMediaType,
 } from "@/lib/database/schema";
 
 export type LibraryPathSummary = {
@@ -22,7 +22,7 @@ export type LibraryPathSummary = {
 export type LibrarySummary = {
     id: string;
     name: string;
-    mediaType: RecommendationMediaType;
+    mediaType: LibraryMediaType;
     isDefault: boolean;
     pathCount: number;
     titleCount: number;

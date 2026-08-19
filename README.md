@@ -2,7 +2,7 @@
 
 # Nooklet
 
-**Discover, request, download, and organize movies and TV from one self-hosted app.**
+**Discover, request, download, and organize movies, TV, and permitted public YouTube videos from one self-hosted app.**
 
 Native Usenet downloading, intelligent recommendations, and clear operational status—without requiring a separate media manager.
 
@@ -39,11 +39,12 @@ Nooklet brings the full media workflow into one coherent interface. Plex, Tautul
 | TMDB discovery, search, artwork, cast, trailers, and watch-provider context       | Direct Newznab search with movie, season, and episode request flows                                                |
 | Optional recommendations from any OpenAI-compatible provider                      | Native NNTP downloading with persisted queue state, pause/resume, verified cancellation, and restart-safe recovery |
 | Movie and TV library views with scanning, monitoring, and file awareness          | PAR2 verification and repair, archive extraction, and organized imports                                            |
+| Public YouTube video/channel search plus channel or playlist monitoring           | Restart-safe yt-dlp downloads with bounded quality profiles and organized YouTube imports                          |
 | Guided setup, storage preflight, diagnostics, audit history, and recovery actions | One built-in downloader plus optional Plex, Tautulli, and Trakt context                                            |
 
 ## Run Nooklet
 
-Docker Compose is the recommended installation path. It packages the web app, background worker, SQLite database, downloader, PAR2, UnRAR, and 7-Zip into one reproducible deployment.
+Docker Compose is the recommended installation path. It packages the web app, background worker, SQLite database, downloader, PAR2, UnRAR, 7-Zip, Python, ffmpeg, and a pinned checksum-verified official yt-dlp distribution into one reproducible deployment.
 
 Prerequisites: Docker Engine with Docker Compose v2, Git, writable media-library folders, and enough Docker or host storage for downloader work. A dedicated bind-mounted staging folder is recommended when the Docker data volume is not large enough.
 
@@ -67,10 +68,11 @@ services:
         volumes:
             - "/srv/media/tv:/media/tv"
             - "/srv/media/movies:/media/movies"
+            - "/srv/media/youtube:/media/youtube"
             - "/srv/nooklet-downloads:/downloads"
 ```
 
-Use quoted forward-slash paths on Windows, such as `"F:/Nooklet/Downloads:/downloads"`. Then set `DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine` and `APPROVED_MEDIA_ROOTS=/media` in `.env`.
+Use quoted forward-slash paths on Windows, such as `"F:/Nooklet/Downloads:/downloads"`. Then set `DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine`, keep `YOUTUBE_WORK_DIR=/app/data/youtube`, and set `APPROVED_MEDIA_ROOTS=/media` in `.env`.
 
 ### 3. Start the app
 
@@ -95,6 +97,12 @@ If a request reports insufficient space, open **Settings → Storage** and inspe
 
 See [Storage and path mapping](https://github.com/TannerMidd/Nooklet/wiki/Storage-and-Path-Mapping) for capacity rules, NAS examples, engine staging, and permissions.
 
+## YouTube archiving scope
+
+Library's YouTube area can search public channels/videos, accept supported YouTube URLs, download selected videos, and monitor a channel's regular Videos feed or a public playlist. Existing backlog selection is explicit; successful later syncs queue newly discovered eligible regular videos. See [YouTube monitoring and downloads](https://github.com/TannerMidd/Nooklet/wiki/YouTube-Monitoring-and-Downloads) for setup, profiles, retry behavior, and current exclusions.
+
+Nooklet does not use a YouTube API key or Google OAuth. When YouTube blocks a server's guest traffic, an administrator may explicitly upload a dedicated YouTube-only cookie export under Settings → Connections; Nooklet validates it live, encrypts it at rest, and exposes it to yt-dlp only through short-lived private tmpfs files. Download or archive content only when you have permission; you are responsible for complying with the content owner's terms and applicable law.
+
 ## Documentation and architecture
 
 - **[Feature guide](https://tannermidd.github.io/Nooklet/features/)** — a visual tour of discovery, requests, resilient seasons, native downloads, Library, and operations.
@@ -118,4 +126,4 @@ Use `npm run check` for the complete documentation, migration-history, module-bo
 
 ## Security and license
 
-Report vulnerabilities through a [private GitHub security advisory](https://github.com/TannerMidd/Nooklet/security/advisories/new), not a public issue. Nooklet is released under the [MIT License](LICENSE).
+Report vulnerabilities through a [private GitHub security advisory](https://github.com/TannerMidd/Nooklet/security/advisories/new), not a public issue. Nooklet is released under the [MIT License](LICENSE); bundled runtime components retain their own [third-party notices](THIRD_PARTY_NOTICES.md).

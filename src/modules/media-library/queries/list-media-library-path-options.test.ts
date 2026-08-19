@@ -13,6 +13,7 @@ import {
 
 import {
     listMediaLibraryPathOptions,
+    listYoutubeMediaLibraryPathOptions,
     resolveDefaultMediaLibraryDownloadTarget,
     resolveMediaLibraryDownloadTarget,
 } from "./list-media-library-path-options";
@@ -57,6 +58,11 @@ describe("listMediaLibraryPathOptions", () => {
             name: "Movies",
         });
         const tvLibrary = await createMediaLibrary({ userId, mediaType: "tv", name: "TV Shows" });
+        const youtubeLibrary = await createMediaLibrary({
+            userId,
+            mediaType: "youtube",
+            name: "YouTube",
+        });
         const moviesPath = await addMediaLibraryPath({
             libraryId: movieLibrary.id,
             userId,
@@ -76,6 +82,13 @@ describe("listMediaLibraryPathOptions", () => {
             path: "G:/Media/TV",
             label: "TV drive",
         });
+        const youtubePath = await addMediaLibraryPath({
+            libraryId: youtubeLibrary.id,
+            userId,
+            path: "H:/Media/YouTube",
+            label: "YouTube drive",
+        });
+
         await updateMediaLibraryPath({
             id: disabledPath.id,
             userId,
@@ -95,6 +108,14 @@ describe("listMediaLibraryPathOptions", () => {
             mediaType: "movie",
             label: "Movie drive",
         });
+
+        expect(await listYoutubeMediaLibraryPathOptions(userId)).toEqual([
+            expect.objectContaining({
+                id: youtubePath.id,
+                mediaType: "youtube",
+                path: "H:/Media/YouTube",
+            }),
+        ]);
     });
 });
 

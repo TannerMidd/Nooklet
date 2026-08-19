@@ -64,6 +64,14 @@ export const serviceConnectionDefinitions = [
         secretLabel: "OAuth credentials",
         defaultBaseUrl: "https://api.trakt.tv",
     },
+    {
+        serviceType: "youtube",
+        displayName: "YouTube access",
+        description:
+            "Authenticate public-video extraction when YouTube challenges this server's guest session.",
+        secretLabel: "YouTube cookies.txt",
+        defaultBaseUrl: "https://www.youtube.com",
+    },
 ] as const satisfies readonly ServiceConnectionDefinition[];
 
 export function getServiceConnectionDefinition(

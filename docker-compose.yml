@@ -38,6 +38,11 @@ services:
             # path like ./data/nooklet.db doesn't accidentally land outside the
             # mounted volume.
             DATABASE_URL: file:/app/data/nooklet.db
+            YT_DLP_PLUGIN_DIR: /usr/local/share/yt-dlp-plugins
+            YOUTUBE_POT_PROVIDER_URL: http://youtube-pot-provider:4416
+        depends_on:
+            youtube-pot-provider:
+                condition: service_healthy
         volumes:
             - nooklet-data:/app/data
             # Bind-mount your media library roots so the scanner can read files.
@@ -49,6 +54,39 @@ services:
             # DOWNLOAD_ENGINE_DIR points beneath /downloads (for example, set
             # DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine in .env).
             # - /host/path/to/downloads:/downloads
+
+    youtube-pot-provider:
+        image: nooklet-youtube-pot-provider:fbe4ed47
+        build:
+            context: .
+            dockerfile: Dockerfile.youtube-pot-provider
+        restart: unless-stopped
+        init: true
+        user: "1000:1000"
+        read_only: true
+        tmpfs:
+            - /tmp
+        security_opt:
+            - no-new-privileges:true
+        cap_drop:
+            - ALL
+        pids_limit: 128
+        mem_limit: 512m
+        logging:
+            driver: json-file
+            options:
+                max-size: "5m"
+                max-file: "2"
+        healthcheck:
+            interval: 15s
+            timeout: 5s
+            start_period: 10s
+            retries: 3
+            test:
+                - CMD
+                - node
+                - -e
+                - fetch('http://127.0.0.1:4416').then(()=>process.exit(0)).catch(()=>process.exit(1))
 
 volumes:
     nooklet-data:

@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 import { ConnectionCard } from "./connection-card";
+import { YouTubeAccessCard } from "./youtube-access-card";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,14 @@ const connectionGroups = [
         title: "Download releases",
         description: "Nooklet's built-in downloader needs a Usenet server.",
         connections: [{ serviceType: "usenet-server", requirement: "Required for downloads" }],
+    },
+    {
+        title: "Download public videos",
+        description:
+            "Use a dedicated YouTube session only when YouTube blocks this server's guest traffic.",
+        connections: [
+            { serviceType: "youtube", requirement: "Required when guest access is challenged" },
+        ],
     },
     {
         title: "Personalize recommendations",
@@ -87,17 +96,25 @@ export default async function ConnectionsSettingsPage() {
                             <p className="mt-1 text-sm leading-6 text-muted">{group.description}</p>
                         </div>
                         <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-                            {cards.map(({ summary, requirement }) => (
-                                <ConnectionCard
-                                    key={summary.serviceType}
-                                    summary={summary}
-                                    canManage={
-                                        session.user.role === "admin" ||
-                                        summary.serviceType === "trakt"
-                                    }
-                                    requirement={requirement}
-                                />
-                            ))}
+                            {cards.map(({ summary, requirement }) =>
+                                summary.serviceType === "youtube" ? (
+                                    <YouTubeAccessCard
+                                        key={summary.serviceType}
+                                        summary={summary}
+                                        canManage={session.user.role === "admin"}
+                                    />
+                                ) : (
+                                    <ConnectionCard
+                                        key={summary.serviceType}
+                                        summary={summary}
+                                        canManage={
+                                            session.user.role === "admin" ||
+                                            summary.serviceType === "trakt"
+                                        }
+                                        requirement={requirement}
+                                    />
+                                ),
+                            )}
                         </div>
                     </section>
                 );

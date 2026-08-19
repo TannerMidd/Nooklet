@@ -164,6 +164,8 @@ export async function addLibraryPathAction(
     }
 
     revalidatePath("/library");
+    revalidatePath("/library/youtube");
+    revalidatePath("/settings/storage");
 
     return { status: "success", message: "Library folder added." };
 }
@@ -194,6 +196,7 @@ export async function scanLibraryAction(
         });
 
         revalidatePath("/library");
+        revalidatePath("/library/youtube");
 
         return {
             status: "success",
@@ -245,6 +248,8 @@ export async function updateLibraryPathAction(
     }
 
     revalidatePath("/library");
+    revalidatePath("/library/youtube");
+    revalidatePath("/settings/storage");
 
     return { status: "success", message: "Library folder updated." };
 }
@@ -284,6 +289,8 @@ export async function removeLibraryPathAction(
     }
 
     revalidatePath("/library");
+    revalidatePath("/library/youtube");
+    revalidatePath("/settings/storage");
 
     return { status: "success", message: "Library folder removed." };
 }
@@ -1052,12 +1059,13 @@ export async function setDefaultDownloadPathAction(
         const updated = await setDefaultDownloadPathCommand(session.user.id, parsed.data);
 
         revalidatePath("/library");
+        revalidatePath("/library/youtube");
         revalidatePath("/search");
         revalidatePath("/discover");
 
         return {
             status: "success",
-            message: `${updated.path.label} is now the default ${updated.library.mediaType === "tv" ? "TV" : "movie"} download folder.`,
+            message: `${updated.path.label} is now the default ${updated.library.mediaType === "tv" ? "TV" : updated.library.mediaType === "youtube" ? "YouTube" : "movie"} download folder.`,
         };
     } catch (error) {
         if (error instanceof SetDefaultDownloadPathCommandError) {

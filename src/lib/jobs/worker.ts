@@ -35,6 +35,11 @@ import {
     writeBackgroundWorkerHeartbeat,
 } from "@/lib/jobs/worker-heartbeat";
 import { logger } from "@/lib/observability/logger";
+import {
+    ensureYouTubeRunnerStarted,
+    syncAllActiveYouTubeSources,
+    syncYouTubeSourceNow,
+} from "@/modules/youtube/public";
 
 type WorkerState = {
     started?: boolean;
@@ -401,6 +406,22 @@ async function executeJob(job: StoredJob) {
         return runMetadataRefreshJob(job);
     }
 
+    if (job.jobType === "youtube-source-sync") {
+        if (
+            (job.targetType === "youtube" &&
+                (job.targetKey === "all" || job.targetKey === "manual")) ||
+            (job.targetType === "youtube-run-now" && job.targetKey.startsWith("all:"))
+        ) {
+            return syncAllActiveYouTubeSources();
+        }
+
+        if (job.targetType === "youtube-source") {
+            return syncYouTubeSourceNow(job.userId, job.targetKey);
+        }
+
+        throw new Error(`Unsupported YouTube sync target: ${job.targetType}.`);
+    }
+
     if (job.targetType !== "watch-history-source") {
         throw new Error(`Unsupported job target type: ${job.targetType}.`);
     }
@@ -474,6 +495,8 @@ async function runMaintenancePass() {
         // container to unhealthy. Deliberately not a timer: a wedged mount must
         // still surface, so only completed units count.
         await ensureEngineRunnerStarted();
+        recordWorkerProgress();
+        await ensureYouTubeRunnerStarted();
         recordWorkerProgress();
         await reconcilePendingSeasonFulfillmentCancellations();
         recordWorkerProgress();
@@ -562,6 +585,7 @@ const scheduledJobTypes: JobType[] = [
     "recommendation-run",
     "missing-content-search",
     "metadata-refresh",
+    "youtube-source-sync",
 ];
 const preMaintenanceJobTypes = new Set<JobType>([
     "download-import",

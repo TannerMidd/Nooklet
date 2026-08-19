@@ -3,7 +3,6 @@ import { readdir, stat } from "node:fs/promises";
 
 import { resolveApprovedMediaDirectory } from "@/lib/security/filesystem-policy";
 import { type ActiveMediaLibraryPathRecord } from "@/modules/media-library/repositories/media-library-repository";
-
 import { type ValidatedScanSources } from "./source-validation";
 
 const mediaExtensions = new Set([

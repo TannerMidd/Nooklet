@@ -93,7 +93,7 @@ function ActionMessage({ state }: { state: DownloadActivityActionState }) {
     );
 }
 
-export function ActivityAutoRefresh() {
+export function ActivityAutoRefresh({ intervalMs = 15_000 }: { intervalMs?: number }) {
     const router = useRouter();
 
     useEffect(() => {
@@ -101,10 +101,10 @@ export function ActivityAutoRefresh() {
             if (document.visibilityState === "visible") {
                 router.refresh();
             }
-        }, 15_000);
+        }, intervalMs);
 
         return () => window.clearInterval(interval);
-    }, [router]);
+    }, [intervalMs, router]);
 
     return null;
 }

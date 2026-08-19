@@ -28,6 +28,7 @@ const instanceServiceConnectionTypes = new Set<ServiceConnectionType>([
     "tmdb",
     "tvdb",
     "usenet-server",
+    "youtube",
 ]);
 
 async function resolveServiceConnectionOwnerId(userId: string, serviceType: ServiceConnectionType) {

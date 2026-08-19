@@ -2,7 +2,7 @@
 
 > Applies to the current `main` implementation. Last source review: 2026-08-07.
 
-Nooklet fetches Usenet releases through its built-in downloader. Nooklet owns the request, queue, transfer, repair, extraction, import, media-file, and audit records end to end.
+Nooklet fetches movie and TV releases through its built-in Usenet downloader and public videos through its dedicated YouTube runner. Nooklet owns each request, queue, transfer, import, and audit record end to end; Usenet repair and archive extraction remain specific to movie/TV releases.
 
 ## End-to-end flow
 
@@ -50,6 +50,16 @@ A complete built-in download path requires:
 TMDB is required by the current setup-readiness path for reliable discovery and title identity. AI is optional and is not required to search for or request a known title.
 
 Torznab settings may still exist for compatibility, but automatic acquisition searches exclude them before ranking. If no enabled Newznab source is available, the request stops with a setup action instead of repeatedly retrying or selecting an unqueueable torrent. Torrent transport is not implemented.
+
+## YouTube transfer lane
+
+YouTube downloads are durable rows owned by the requesting user and identified by the video, destination, and quality profile. They appear in the same **Activity** experience with progress, cancellation, retry, failure, and completed-import state, but they do not change the existing authenticated Usenet queue API. YouTube activity is queried and paginated independently so a long archive does not make every Activity page unbounded.
+
+The worker runs one YouTube transfer at a time. It can coexist with the one-at-a-time Usenet engine; both active transfers contribute to capacity decisions. YouTube work stages beneath `YOUTUBE_WORK_DIR/incomplete/<download-id>`, resumes valid `.part` files after a restart, and publishes only after a final cancellation and destination-containment check.
+
+Imports use the selected YouTube root and organize the first completed profile as `<channel>/<playlist>/<date> - <title> [<video-id>].<ext>`. Channel-feed and individual-video downloads use `Videos` in place of the playlist name. If another profile for that video and root produces different bytes, its import receives a deterministic `[quality-profile]` suffix so neither artifact is silently reused or overwritten. MP4 profiles prefer mergeable streams at or below their height ceiling without CPU-heavy transcoding; `best` uses the best mergeable formats offered by the extractor. Remote playlist changes and monitor deletion never remove a completed file. Plex **Other Videos** libraries require the **Folders** view to display this directory hierarchy; their default grid remains flat.
+
+Transient network and rate-limit failures retry on a bounded 15-minute, 1-hour, 6-hour, and 24-hour schedule. Private, removed, live, or positively identified Short content is terminal without repeated retries. See [YouTube monitoring and downloads](YouTube-Monitoring-and-Downloads) for the full scope and workflow.
 
 ## Resilient season fulfillment
 

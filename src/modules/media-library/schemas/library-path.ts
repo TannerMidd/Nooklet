@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-import { mediaLibraryPathStatuses, recommendationMediaTypes } from "@/lib/database/schema";
+import { libraryMediaTypes, mediaLibraryPathStatuses } from "@/lib/database/schema";
 
 export const addLibraryPathInputSchema = z.object({
-    mediaType: z.enum(recommendationMediaTypes),
+    mediaType: z.enum(libraryMediaTypes),
     libraryName: z
         .string()
         .trim()
@@ -21,7 +21,7 @@ export type AddLibraryPathInput = z.infer<typeof addLibraryPathInputSchema>;
 
 export const updateLibraryPathInputSchema = z.object({
     pathId: z.string().min(1, "Choose a library folder."),
-    mediaType: z.enum(recommendationMediaTypes),
+    mediaType: z.enum(libraryMediaTypes),
     libraryName: z
         .string()
         .trim()

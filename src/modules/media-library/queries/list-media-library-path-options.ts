@@ -49,11 +49,51 @@ export async function listMediaLibraryPathOptions(
     const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
     const rows = loadRows(instanceOwnerId);
 
+    return rows
+        .filter(
+            (row): row is typeof row & { library: { mediaType: RecommendationMediaType } } =>
+                row.library.mediaType !== "youtube",
+        )
+        .map(({ library, path }) => ({
+            id: path.id,
+            libraryId: library.id,
+            libraryName: library.name,
+            mediaType: library.mediaType,
+            label: path.label,
+            path: path.path,
+            isDownloadDefault: path.isDownloadDefault,
+        }));
+}
+
+export async function listYoutubeMediaLibraryPathOptions(
+    userId: string,
+): Promise<Array<Omit<MediaLibraryPathOption, "mediaType"> & { mediaType: "youtube" }>> {
+    const database = ensureDatabaseReady();
+    const instanceOwnerId = await resolveInstanceConfigurationOwnerId(userId);
+    const rows = database
+        .select({ library: mediaLibraries, path: mediaLibraryPaths })
+        .from(mediaLibraryPaths)
+        .innerJoin(mediaLibraries, eq(mediaLibraries.id, mediaLibraryPaths.libraryId))
+        .where(
+            and(
+                eq(mediaLibraryPaths.userId, instanceOwnerId),
+                eq(mediaLibraryPaths.status, "active"),
+                eq(mediaLibraries.mediaType, "youtube"),
+            ),
+        )
+        .orderBy(
+            desc(mediaLibraryPaths.isDownloadDefault),
+            asc(mediaLibraries.name),
+            asc(mediaLibraryPaths.label),
+            asc(mediaLibraryPaths.path),
+        )
+        .all();
+
     return rows.map(({ library, path }) => ({
         id: path.id,
         libraryId: library.id,
         libraryName: library.name,
-        mediaType: library.mediaType,
+        mediaType: "youtube",
         label: path.label,
         path: path.path,
         isDownloadDefault: path.isDownloadDefault,

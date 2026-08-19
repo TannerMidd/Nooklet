@@ -190,6 +190,7 @@ export const serviceConnectionTypes = [
     "tmdb",
     "tvdb",
     "trakt",
+    "youtube",
 ] as const;
 export const serviceConnectionScopes = ["user", "shared"] as const;
 export const serviceConnectionStatuses = ["configured", "verified", "error"] as const;
@@ -238,6 +239,7 @@ export const serviceSecrets = sqliteTable("service_secrets", {
 });
 
 export const recommendationMediaTypes = ["tv", "movie"] as const;
+export const libraryMediaTypes = ["tv", "movie", "youtube"] as const;
 
 export const mediaLibraryPathStatuses = ["active", "disabled"] as const;
 export const mediaTitleStatuses = ["requested", "available", "missing"] as const;
@@ -320,6 +322,27 @@ export const engineDownloadFailureKinds = [
     "cancelled",
     "unknown",
 ] as const;
+export const youtubeSourceKinds = ["channel_videos", "playlist"] as const;
+export const youtubeQualityProfiles = ["mp4-720p", "mp4-1080p", "mp4-2160p", "best"] as const;
+export const youtubeSourceStatuses = ["initializing", "active", "paused", "error"] as const;
+export const youtubeVideoContentKinds = ["regular", "short", "live", "unknown"] as const;
+export const youtubeVideoAvailabilities = ["public", "private", "removed", "unavailable"] as const;
+export const youtubeDownloadStatuses = [
+    "queued",
+    "downloading",
+    "retry_wait",
+    "importing",
+    "completed",
+    "failed",
+    "cancelled",
+] as const;
+export const youtubeDownloadControlIntents = ["cancel"] as const;
+export const youtubeDownloadFailureKinds = [
+    "retryable",
+    "content",
+    "infrastructure",
+    "cancelled",
+] as const;
 
 export const mediaLibraries = sqliteTable(
     "media_libraries",
@@ -328,7 +351,7 @@ export const mediaLibraries = sqliteTable(
         userId: text("user_id")
             .notNull()
             .references(() => users.id, { onDelete: "cascade" }),
-        mediaType: text("media_type", { enum: recommendationMediaTypes }).notNull(),
+        mediaType: text("media_type", { enum: libraryMediaTypes }).notNull(),
         name: text("name").notNull(),
         isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
         createdAt: integer("created_at", { mode: "timestamp_ms" })
@@ -378,6 +401,180 @@ export const mediaLibraryPaths = sqliteTable(
         uniqueIndex("media_library_paths_user_path_unique").on(table.userId, table.path),
         index("media_library_paths_library_idx").on(table.libraryId),
         index("media_library_paths_user_status_idx").on(table.userId, table.status),
+    ],
+);
+
+export const youtubeSources = sqliteTable(
+    "youtube_sources",
+    {
+        id: text("id").primaryKey(),
+        userId: text("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        sourceKind: text("source_kind", { enum: youtubeSourceKinds }).notNull(),
+        youtubeSourceId: text("youtube_source_id").notNull(),
+        canonicalUrl: text("canonical_url").notNull(),
+        title: text("title").notNull(),
+        channelId: text("channel_id"),
+        channelTitle: text("channel_title"),
+        thumbnailUrl: text("thumbnail_url"),
+        libraryPathId: text("library_path_id")
+            .notNull()
+            .references(() => mediaLibraryPaths.id, { onDelete: "restrict" }),
+        qualityProfile: text("quality_profile", { enum: youtubeQualityProfiles })
+            .notNull()
+            .default("mp4-1080p"),
+        status: text("status", { enum: youtubeSourceStatuses }).notNull().default("initializing"),
+        baselineCompletedAt: integer("baseline_completed_at", { mode: "timestamp_ms" }),
+        lastSyncedAt: integer("last_synced_at", { mode: "timestamp_ms" }),
+        lastError: text("last_error"),
+        createdAt: integer("created_at", { mode: "timestamp_ms" })
+            .notNull()
+            .default(sql`(unixepoch() * 1000)`),
+        updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+            .notNull()
+            .default(sql`(unixepoch() * 1000)`),
+    },
+    (table) => [
+        uniqueIndex("youtube_sources_user_kind_external_unique").on(
+            table.userId,
+            table.sourceKind,
+            table.youtubeSourceId,
+        ),
+        index("youtube_sources_user_status_idx").on(table.userId, table.status),
+        index("youtube_sources_library_path_idx").on(table.libraryPathId),
+    ],
+);
+
+export const youtubeSourceSelections = sqliteTable(
+    "youtube_source_selections",
+    {
+        sourceId: text("source_id")
+            .notNull()
+            .references(() => youtubeSources.id, { onDelete: "cascade" }),
+        youtubeVideoId: text("youtube_video_id").notNull(),
+        createdAt: integer("created_at", { mode: "timestamp_ms" })
+            .notNull()
+            .default(sql`(unixepoch() * 1000)`),
+    },
+    (table) => [
+        primaryKey({ columns: [table.sourceId, table.youtubeVideoId] }),
+        index("youtube_source_selections_source_idx").on(table.sourceId),
+    ],
+);
+
+export const youtubeVideos = sqliteTable(
+    "youtube_videos",
+    {
+        id: text("id").primaryKey(),
+        userId: text("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        youtubeVideoId: text("youtube_video_id").notNull(),
+        channelId: text("channel_id"),
+        channelTitle: text("channel_title"),
+        title: text("title").notNull(),
+        description: text("description"),
+        publishedAt: integer("published_at", { mode: "timestamp_ms" }),
+        durationSeconds: integer("duration_seconds"),
+        thumbnailUrl: text("thumbnail_url"),
+        webpageUrl: text("webpage_url").notNull(),
+        contentKind: text("content_kind", { enum: youtubeVideoContentKinds })
+            .notNull()
+            .default("unknown"),
+        availability: text("availability", { enum: youtubeVideoAvailabilities })
+            .notNull()
+            .default("public"),
+        createdAt: integer("created_at", { mode: "timestamp_ms" })
+            .notNull()
+            .default(sql`(unixepoch() * 1000)`),
+        updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+            .notNull()
+            .default(sql`(unixepoch() * 1000)`),
+    },
+    (table) => [
+        uniqueIndex("youtube_videos_user_video_unique").on(table.userId, table.youtubeVideoId),
+        index("youtube_videos_user_published_idx").on(table.userId, table.publishedAt),
+    ],
+);
+
+export const youtubeSourceVideos = sqliteTable(
+    "youtube_source_videos",
+    {
+        sourceId: text("source_id")
+            .notNull()
+            .references(() => youtubeSources.id, { onDelete: "cascade" }),
+        videoId: text("video_id")
+            .notNull()
+            .references(() => youtubeVideos.id, { onDelete: "cascade" }),
+        remotePresent: integer("remote_present", { mode: "boolean" }).notNull().default(true),
+        firstSeenAt: integer("first_seen_at", { mode: "timestamp_ms" })
+            .notNull()
+            .default(sql`(unixepoch() * 1000)`),
+        lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" })
+            .notNull()
+            .default(sql`(unixepoch() * 1000)`),
+        removedAt: integer("removed_at", { mode: "timestamp_ms" }),
+        autoQueuedAt: integer("auto_queued_at", { mode: "timestamp_ms" }),
+    },
+    (table) => [
+        primaryKey({ columns: [table.sourceId, table.videoId] }),
+        index("youtube_source_videos_source_present_idx").on(table.sourceId, table.remotePresent),
+        index("youtube_source_videos_video_idx").on(table.videoId),
+    ],
+);
+
+export const youtubeDownloads = sqliteTable(
+    "youtube_downloads",
+    {
+        id: text("id").primaryKey(),
+        userId: text("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        videoId: text("video_id")
+            .notNull()
+            .references(() => youtubeVideos.id, { onDelete: "cascade" }),
+        sourceId: text("source_id").references(() => youtubeSources.id, { onDelete: "set null" }),
+        libraryPathId: text("library_path_id")
+            .notNull()
+            .references(() => mediaLibraryPaths.id, { onDelete: "restrict" }),
+        qualityProfile: text("quality_profile", { enum: youtubeQualityProfiles }).notNull(),
+        status: text("status", { enum: youtubeDownloadStatuses }).notNull().default("queued"),
+        controlIntent: text("control_intent", { enum: youtubeDownloadControlIntents }),
+        progressPercent: real("progress_percent").notNull().default(0),
+        downloadedBytes: integer("downloaded_bytes").notNull().default(0),
+        totalBytes: integer("total_bytes"),
+        bytesPerSecond: integer("bytes_per_second"),
+        etaSeconds: integer("eta_seconds"),
+        attemptCount: integer("attempt_count").notNull().default(0),
+        nextAttemptAt: integer("next_attempt_at", { mode: "timestamp_ms" }),
+        failureKind: text("failure_kind", { enum: youtubeDownloadFailureKinds }),
+        errorMessage: text("error_message"),
+        stagingPath: text("staging_path"),
+        finalPath: text("final_path"),
+        startedAt: integer("started_at", { mode: "timestamp_ms" }),
+        completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+        createdAt: integer("created_at", { mode: "timestamp_ms" })
+            .notNull()
+            .default(sql`(unixepoch() * 1000)`),
+        updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+            .notNull()
+            .default(sql`(unixepoch() * 1000)`),
+    },
+    (table) => [
+        uniqueIndex("youtube_downloads_user_video_path_quality_unique").on(
+            table.userId,
+            table.videoId,
+            table.libraryPathId,
+            table.qualityProfile,
+        ),
+        index("youtube_downloads_status_attempt_idx").on(
+            table.status,
+            table.nextAttemptAt,
+            table.createdAt,
+        ),
+        index("youtube_downloads_user_created_idx").on(table.userId, table.createdAt),
+        index("youtube_downloads_source_idx").on(table.sourceId),
     ],
 );
 
@@ -1082,6 +1279,7 @@ export const jobTypes = [
     "metadata-refresh",
     "download-import",
     "media-title-delete",
+    "youtube-source-sync",
 ] as const;
 export const jobStatuses = ["idle", "running", "succeeded", "failed"] as const;
 
@@ -1507,6 +1705,15 @@ export type WatchHistorySyncStatus = (typeof watchHistorySyncStatuses)[number];
 export type JobType = (typeof jobTypes)[number];
 export type JobStatus = (typeof jobStatuses)[number];
 export type RecommendationMediaType = (typeof recommendationMediaTypes)[number];
+export type LibraryMediaType = (typeof libraryMediaTypes)[number];
+export type YoutubeSourceKind = (typeof youtubeSourceKinds)[number];
+export type YoutubeQualityProfile = (typeof youtubeQualityProfiles)[number];
+export type YoutubeSourceStatus = (typeof youtubeSourceStatuses)[number];
+export type YoutubeVideoContentKind = (typeof youtubeVideoContentKinds)[number];
+export type YoutubeVideoAvailability = (typeof youtubeVideoAvailabilities)[number];
+export type YoutubeDownloadStatus = (typeof youtubeDownloadStatuses)[number];
+export type YoutubeDownloadControlIntent = (typeof youtubeDownloadControlIntents)[number];
+export type YoutubeDownloadFailureKind = (typeof youtubeDownloadFailureKinds)[number];
 export type RecommendationRunStatus = (typeof recommendationRunStatuses)[number];
 export type RecommendationFeedbackValue = (typeof recommendationFeedbackValues)[number];
 export type RecommendationTimelineEventType = (typeof recommendationTimelineEventTypes)[number];

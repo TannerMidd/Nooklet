@@ -112,6 +112,7 @@ export function LibraryPathManager({
                 >
                     <option value="movie">Movies</option>
                     <option value="tv">TV shows</option>
+                    <option value="youtube">YouTube</option>
                 </select>
                 <Input
                     name="libraryName"
@@ -158,9 +159,9 @@ export function LibraryPathManager({
                 title={`Remove ${libraryPath.label}?`}
                 description={
                     <>
-                        Nooklet will stop scanning this folder and stop offering it as a request
-                        destination. Files on disk are kept. Removal is blocked while a download or
-                        import still targets the folder.
+                        Nooklet will stop offering this folder as a destination. Files on disk are
+                        kept. Removal is blocked while a download, import, or YouTube monitor still
+                        references the folder.
                     </>
                 }
                 confirmLabel="Remove folder"

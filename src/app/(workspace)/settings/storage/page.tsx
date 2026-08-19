@@ -10,6 +10,7 @@ import { StorageOverviewView } from "@/components/storage/storage-overview";
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
+import type { LibraryMediaType } from "@/lib/database/schema";
 import { listLibraryOverview } from "@/modules/media-library/queries/list-library-overview";
 import { getStorageOverview } from "@/modules/storage/queries/get-storage-overview";
 
@@ -32,7 +33,11 @@ function LibraryFolderManager({ overview }: { overview: LibraryOverview }) {
                     <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-semibold text-foreground">{library.name}</h3>
                         <Badge variant={library.mediaType === "tv" ? "accent-cool" : "accent"}>
-                            {library.mediaType === "tv" ? "TV" : "Movies"}
+                            {library.mediaType === "tv"
+                                ? "TV"
+                                : library.mediaType === "youtube"
+                                  ? "YouTube"
+                                  : "Movies"}
                         </Badge>
                         <span className="text-xs text-muted">
                             {library.pathCount} {library.pathCount === 1 ? "folder" : "folders"}
@@ -53,14 +58,25 @@ function LibraryFolderManager({ overview }: { overview: LibraryOverview }) {
     );
 }
 
-export default async function StorageSettingsPage() {
+function requestedMediaType(value: string | string[] | undefined): LibraryMediaType {
+    const candidate = Array.isArray(value) ? value[0] : value;
+
+    return candidate === "tv" || candidate === "youtube" ? candidate : "movie";
+}
+
+export default async function StorageSettingsPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ mediaType?: string | string[] }>;
+}) {
     const session = await auth();
 
     if (!session?.user?.id) {
         return null;
     }
 
-    const [overview, libraryOverview] = await Promise.all([
+    const [{ mediaType }, overview, libraryOverview] = await Promise.all([
+        searchParams,
         getStorageOverview(session.user.id),
         session.user.role === "admin" ? listLibraryOverview(session.user.id) : null,
     ]);
@@ -93,7 +109,7 @@ export default async function StorageSettingsPage() {
                 <>
                     <Panel
                         title="Default import destinations"
-                        description="Choose the fallback movie and TV folders used when a request does not specify one."
+                        description="Choose fallback movie, TV, and YouTube folders used when a request does not specify one."
                     >
                         <LibraryDrivesPanel entries={overview.libraryDestinations} />
                     </Panel>
@@ -102,7 +118,7 @@ export default async function StorageSettingsPage() {
                         title="Attach a final library folder"
                         description="The folder must exist inside an approved media root and be writable by the Nooklet process."
                     >
-                        <LibraryPathForm />
+                        <LibraryPathForm defaultMediaType={requestedMediaType(mediaType)} />
                     </Panel>
 
                     <Panel

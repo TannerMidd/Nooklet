@@ -12,7 +12,8 @@ export type ConnectionActionState = {
             | "usenetUsername"
             | "usenetPassword"
             | "traktClientId"
-            | "traktAccessToken",
+            | "traktAccessToken"
+            | "cookiesFile",
             string
         >
     >;
