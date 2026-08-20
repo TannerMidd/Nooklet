@@ -1,4 +1,4 @@
-import { createSetupCommand } from "./configurator-core.js";
+import { createSetupCommand } from "./configurator-core.js?v=20260820-youtube";
 
 const root = document.querySelector("[data-configurator]");
 
