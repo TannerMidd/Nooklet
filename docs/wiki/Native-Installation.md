@@ -118,7 +118,7 @@ On Windows PowerShell:
 Invoke-RestMethod http://localhost:42021/api/health
 ```
 
-Open the application, create the first administrator, then follow [First-time setup](First-Time-Setup). Delete the entire `BOOTSTRAP_TOKEN=...` line from `.env` and restart the supervised process after bootstrap completes.
+Open the application, create the first administrator, then follow [First-time setup](First-Time-Setup). Nooklet automatically closes `/bootstrap` as soon as an administrator exists and refuses later bootstrap attempts. Confirm `/api/health` and normal sign-in. Optional defense-in-depth is to remove the entire `BOOTSTRAP_TOKEN=...` line from `.env` and restart the supervised process so the token leaves the runtime environment; this is not required for normal operation. Nooklet does not edit `.env` for you.
 
 ## Native filesystem notes
 

@@ -22,18 +22,17 @@ The web bootstrap is available only when:
 1. no administrator exists in the database; and
 2. `BOOTSTRAP_TOKEN` is configured in the runtime environment.
 
-Open `/bootstrap`, enter the one-time token, and create the first account. Passwords must be 12–128 characters and contain at least one lowercase letter, uppercase letter, and number.
+Open `/bootstrap`, enter the one-time token, and create the first account. Passwords must be 12–128 characters and contain at least one lowercase letter, uppercase letter, and number. Nooklet automatically closes `/bootstrap` as soon as an administrator exists and refuses later bootstrap attempts.
 
-After bootstrap:
+Confirm normal sign-in and `/api/health`. Removing the token from the host `.env` is not required for normal operation, and Nooklet does not edit that file.
 
-1. Delete the entire `BOOTSTRAP_TOKEN=...` line from `.env`.
-2. Recreate the container so the token leaves the runtime environment:
+For optional defense-in-depth, remove the entire `BOOTSTRAP_TOKEN=...` line from `.env`, then recreate the Docker container or restart the native process so the token leaves the runtime environment. This does not delete the administrator. For Docker:
 
-    ```console
-    docker compose up -d --force-recreate
-    ```
+```console
+docker compose up -d --force-recreate
+```
 
-3. Confirm normal sign-in and `/api/health`.
+For a native install, restart the supervised process after saving `.env`.
 
 Do not reuse `AUTH_SECRET`, `SECRET_BOX_KEY`, an account password, or an API key as the bootstrap token.
 

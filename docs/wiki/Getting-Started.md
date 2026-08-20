@@ -56,11 +56,10 @@ The bind-mounted completed-output folder can live on the same physical disk as t
 ## Installation sequence
 
 1. Complete [Docker installation](Docker-Installation), including the `/api/health` check. Use [Native installation](Native-Installation) only when you intentionally chose the advanced path.
-2. Open Nooklet and create the first administrator with the one-time bootstrap token.
-3. Delete the `BOOTSTRAP_TOKEN=...` line from `.env`, then recreate the Docker container or restart the native process.
-4. Follow [First-time setup](First-Time-Setup) in order: TMDB, Usenet, Newznab, final storage, and worker health.
-5. Confirm at least one of **Movie downloads** or **TV downloads** is marked **Ready** in **Setup Center**.
-6. Search for a small, unambiguous title and submit a controlled first request.
+2. Open Nooklet and create the first administrator with the printed one-time bootstrap token. Nooklet automatically closes `/bootstrap` as soon as an administrator exists and refuses later bootstrap attempts.
+3. After sign-in, continue in **Setup Center** and follow [First-time setup](First-Time-Setup) in order: TMDB, Usenet, Newznab, final storage, and worker health.
+4. Confirm at least one of **Movie downloads** or **TV downloads** is marked **Ready** in **Setup Center**.
+5. Search for a small, unambiguous title and submit a controlled first request.
 
 The detailed guided sequence is in [First-time setup](First-Time-Setup).
 

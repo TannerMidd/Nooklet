@@ -73,15 +73,8 @@ Prefer to inspect and enter every value yourself? Follow the **[manual Docker in
 ### Finish the first login
 
 1. Open [http://localhost:42021](http://localhost:42021).
-2. Enter the printed `BOOTSTRAP_TOKEN` and create the first administrator.
-3. Delete the entire `BOOTSTRAP_TOKEN=...` line from `.env`.
-4. From the Nooklet repository folder, apply that change:
-
-    ```bash
-    docker compose up -d --force-recreate
-    ```
-
-5. Follow **[First-time setup](https://github.com/TannerMidd/Nooklet/wiki/First-Time-Setup)** to connect TMDB, Newznab, and Usenet for Movie/TV requests; attach the final library folders; and make a small test request. Attach an optional YouTube destination separately, typically at `/media/youtube`.
+2. Enter the printed one-time `BOOTSTRAP_TOKEN` and create the first administrator. Nooklet automatically closes `/bootstrap` as soon as an administrator exists and refuses later bootstrap attempts.
+3. Continue with **[First-time setup](https://github.com/TannerMidd/Nooklet/wiki/First-Time-Setup)** in **Setup Center** to connect TMDB, Newznab, and Usenet for Movie/TV requests; attach the final library folders; and make a small test request. Attach an optional YouTube destination separately, typically at `/media/youtube`.
 
 If the setup command does not report a healthy app, do not delete data or volumes. Use the **[Docker installation recovery steps](https://github.com/TannerMidd/Nooklet/wiki/Docker-Installation#installation-recovery)** or the **[symptom-based troubleshooting guide](https://github.com/TannerMidd/Nooklet/wiki/Troubleshooting)**.
 

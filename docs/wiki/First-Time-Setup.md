@@ -18,23 +18,16 @@ You also need at least one final movie or TV library folder. For Docker, it must
 
 ## 1. Create the first administrator
 
-Before the first start, set an independent `BOOTSTRAP_TOKEN` in the runtime environment. Open Nooklet and enter:
+Use the printed one-time `BOOTSTRAP_TOKEN` from the setup builder or installation process. For a manual installation, set an independent `BOOTSTRAP_TOKEN` in the runtime environment before the first start. Open Nooklet and enter:
 
 - the exact one-time bootstrap token;
 - a display name between 2 and 80 characters;
 - a valid email address;
 - a password between 12 and 128 characters containing uppercase, lowercase, and numeric characters.
 
-The operation is transactional and only succeeds while no administrator exists. Successful bootstrap creates the administrator, records an audit event, and closes the first-admin path.
+The operation is transactional and only succeeds while no administrator exists. Successful bootstrap creates the administrator, records an audit event, and Nooklet automatically closes `/bootstrap` as soon as an administrator exists and refuses later bootstrap attempts.
 
-Afterward, delete the entire `BOOTSTRAP_TOKEN=...` line from `.env` and apply the environment change:
-
-```bash
-# Docker
-docker compose up -d --force-recreate
-```
-
-For a native installation, restart the Node.js process. Deleting the line does not delete the administrator; it disables only the temporary first-account credential.
+Optional defense-in-depth only: an operator may later remove `BOOTSTRAP_TOKEN=...` from `.env` and recreate the Docker container or restart the native process to remove it from runtime. This is not required for normal operation, and Nooklet never edits the host `.env` automatically.
 
 ## 2. Open Setup Center
 

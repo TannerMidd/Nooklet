@@ -26,8 +26,8 @@ Prefer a visual introduction? Start with the public [Feature guide](https://tann
 ## The shortest path to a request
 
 1. Install with [Docker Compose](Docker-Installation).
-2. Create the first administrator and remove the one-time bootstrap token.
-3. Verify TMDB and a Usenet server for the built-in downloader.
+2. Create the first administrator with the printed one-time bootstrap token. Nooklet automatically closes `/bootstrap` as soon as an administrator exists and refuses later bootstrap attempts.
+3. Continue in **Setup Center**: verify TMDB and a Usenet server for the built-in downloader.
 4. Verify a Newznab indexer with the right movie or TV categories.
 5. Attach a writable media destination and confirm storage capacity in **Settings → Storage**.
 
