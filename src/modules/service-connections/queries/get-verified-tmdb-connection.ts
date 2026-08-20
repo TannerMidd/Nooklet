@@ -10,7 +10,8 @@ export type VerifiedTmdbConnection = {
 /**
  * Loads the user's TMDB connection if it has been verified and is fully
  * configured. Returns `null` when the user has no TMDB connection, the
- * connection has not been verified, or required fields are missing.
+ * connection has not been verified, the saved credential cannot be decrypted,
+ * or required fields are missing.
  *
  * Shared by `recommendations` (enrichment) and `discover` (browse rails).
  */
@@ -27,9 +28,17 @@ export async function getVerifiedTmdbConnection(
         return null;
     }
 
+    let secret: string;
+
+    try {
+        secret = decryptSecret(connection.secret.encryptedValue);
+    } catch {
+        return null;
+    }
+
     return {
         baseUrl: connection.connection.baseUrl,
-        secret: decryptSecret(connection.secret.encryptedValue),
+        secret,
         metadata: connection.metadata,
     };
 }

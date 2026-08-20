@@ -22,6 +22,7 @@ vi.mock("@/modules/service-connections/workflows/verify-configured-service-conne
 import { auth } from "@/auth";
 import { saveConfiguredServiceConnection } from "@/modules/service-connections/workflows/save-service-connection";
 import { testAndSaveServiceConnection } from "@/modules/service-connections/workflows/test-and-save-service-connection";
+import { verifyConfiguredServiceConnection } from "@/modules/service-connections/workflows/verify-configured-service-connection";
 
 import { initialConnectionActionState } from "./action-state";
 import { submitConnectionAction } from "./actions";
@@ -29,6 +30,7 @@ import { submitConnectionAction } from "./actions";
 const authMock = vi.mocked(auth);
 const saveMock = vi.mocked(saveConfiguredServiceConnection);
 const testAndSaveMock = vi.mocked(testAndSaveServiceConnection);
+const verifyMock = vi.mocked(verifyConfiguredServiceConnection);
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -75,6 +77,37 @@ describe("submitConnectionAction", () => {
         });
         expect(saveMock).not.toHaveBeenCalled();
     });
+
+    it.each([
+        ["tmdb", "apiKey"],
+        ["usenet-server", "usenetPassword"],
+        ["trakt", "traktAccessToken"],
+    ] as const)(
+        "maps an unreadable %s credential to its rendered field when verifying",
+        async (serviceType, credentialField) => {
+            authMock.mockResolvedValue({ user: { id: "admin-1", role: "admin" } } as never);
+            verifyMock.mockResolvedValue({
+                ok: false,
+                message: "The saved credential could not be read. Enter it again before verifying.",
+                field: "apiKey",
+            });
+            const form = new FormData();
+
+            form.set("intent", "verify");
+            form.set("serviceType", serviceType);
+
+            const result = await submitConnectionAction(initialConnectionActionState, form);
+
+            expect(result).toEqual({
+                status: "error",
+                message: "The saved credential could not be read. Enter it again before verifying.",
+                fieldErrors: {
+                    [credentialField]:
+                        "The saved credential could not be read. Enter it again before verifying.",
+                },
+            });
+        },
+    );
 
     it("uses test-and-save for an administrator's structured Usenet draft", async () => {
         authMock.mockResolvedValue({ user: { id: "admin-1", role: "admin" } } as never);

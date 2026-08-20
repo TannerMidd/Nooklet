@@ -1,4 +1,4 @@
-import { encryptSecret, maskSecret } from "@/lib/security/secret-box";
+import { decryptSecret, encryptSecret, maskSecret } from "@/lib/security/secret-box";
 import { createAuditEvent } from "@/modules/users/public";
 import {
     type AiProviderConnectionInput,
@@ -28,6 +28,18 @@ export async function saveConfiguredServiceConnection(
             message: "Enter the API key for this service.",
             field: "apiKey",
         };
+    }
+
+    if (!secretValue && existingRecord?.secret) {
+        try {
+            decryptSecret(existingRecord.secret.encryptedValue);
+        } catch {
+            return {
+                ok: false,
+                message: "The saved credential could not be read. Enter it again before saving.",
+                field: "apiKey",
+            };
+        }
     }
 
     const definition = getServiceConnectionDefinition(input.serviceType);

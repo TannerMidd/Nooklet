@@ -11,11 +11,20 @@ import {
     aiProviderConnectionSchema,
     serviceConnectionIntentSchema,
     serviceConnectionTypeSchema,
+    type ServiceConnectionTypeInput,
 } from "@/modules/service-connections/schemas/service-connection";
 import { disconnectServiceConnection } from "@/modules/service-connections/workflows/disconnect-service-connection";
 import { saveConfiguredServiceConnection } from "@/modules/service-connections/workflows/save-service-connection";
 import { testAndSaveServiceConnection } from "@/modules/service-connections/workflows/test-and-save-service-connection";
 import { verifyConfiguredServiceConnection } from "@/modules/service-connections/workflows/verify-configured-service-connection";
+
+function credentialFieldForService(serviceType: ServiceConnectionTypeInput) {
+    return serviceType === "usenet-server"
+        ? "usenetPassword"
+        : serviceType === "trakt"
+          ? "traktAccessToken"
+          : "apiKey";
+}
 
 export async function submitConnectionAction(
     _previousState: ConnectionActionState,
@@ -73,6 +82,12 @@ export async function submitConnectionAction(
         return {
             status: result.ok ? "success" : "error",
             message: result.message,
+            fieldErrors:
+                !result.ok && result.field
+                    ? {
+                          [credentialFieldForService(serviceType)]: result.message,
+                      }
+                    : undefined,
         };
     }
 
@@ -183,12 +198,7 @@ export async function submitConnectionAction(
 
     revalidatePath("/settings/connections");
 
-    const credentialField =
-        serviceType === "usenet-server"
-            ? "usenetPassword"
-            : serviceType === "trakt"
-              ? "traktAccessToken"
-              : "apiKey";
+    const credentialField = credentialFieldForService(serviceType);
 
     return {
         status: result.ok ? "success" : "error",

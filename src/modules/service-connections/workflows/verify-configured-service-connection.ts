@@ -8,10 +8,13 @@ import {
 } from "@/modules/service-connections/repositories/service-connection-repository";
 import { type ServiceConnectionTypeInput } from "@/modules/service-connections/schemas/service-connection";
 
+export type VerifyConfiguredServiceConnectionResult =
+    { ok: true; message: string } | { ok: false; message: string; field?: "apiKey" };
+
 export async function verifyConfiguredServiceConnection(
     userId: string,
     serviceType: ServiceConnectionTypeInput,
-) {
+): Promise<VerifyConfiguredServiceConnectionResult> {
     const record = await findServiceConnectionByType(userId, serviceType);
 
     if (!record || !record.secret) {
@@ -21,10 +24,37 @@ export async function verifyConfiguredServiceConnection(
         };
     }
 
+    let secret: string;
+
+    try {
+        secret = decryptSecret(record.secret.encryptedValue);
+    } catch {
+        const message = "The saved credential could not be read. Enter it again before verifying.";
+
+        await updateServiceConnectionVerification(
+            record.connection.id,
+            "error",
+            message,
+            record.metadata,
+        );
+        await createAuditEvent({
+            actorUserId: userId,
+            eventType: "service-connections.verification-failed",
+            subjectType: "service-connection",
+            subjectId: serviceType,
+            payloadJson: JSON.stringify({
+                serviceType,
+                ok: false,
+            }),
+        });
+
+        return { ok: false, message, field: "apiKey" };
+    }
+
     const verificationResult = await verifyServiceConnection({
         serviceType,
         baseUrl: record.connection.baseUrl ?? "",
-        secret: decryptSecret(record.secret.encryptedValue),
+        secret,
         metadata: record.metadata,
     });
 

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/security/secret-box", () => ({
+    decryptSecret: vi.fn(() => "saved-secret"),
     encryptSecret: vi.fn((value: string) => `enc(${value})`),
     maskSecret: vi.fn((value: string) => `mask(${value})`),
 }));
@@ -14,7 +15,7 @@ vi.mock("@/modules/users/repositories/user-repository", () => ({
     createAuditEvent: vi.fn(),
 }));
 
-import { encryptSecret, maskSecret } from "@/lib/security/secret-box";
+import { decryptSecret, encryptSecret, maskSecret } from "@/lib/security/secret-box";
 import {
     findServiceConnectionByType,
     saveServiceConnection,
@@ -26,6 +27,7 @@ import { saveConfiguredServiceConnection } from "./save-service-connection";
 const findMock = vi.mocked(findServiceConnectionByType);
 const saveMock = vi.mocked(saveServiceConnection);
 const auditMock = vi.mocked(createAuditEvent);
+const decryptMock = vi.mocked(decryptSecret);
 const encryptMock = vi.mocked(encryptSecret);
 const maskMock = vi.mocked(maskSecret);
 
@@ -37,6 +39,7 @@ describe("saveConfiguredServiceConnection", () => {
         findMock.mockResolvedValue(null);
         saveMock.mockResolvedValue(undefined as never);
         auditMock.mockResolvedValue(undefined as never);
+        decryptMock.mockImplementation(() => "saved-secret");
     });
 
     it("rejects with field=apiKey when no API key is provided and no existing secret is on file", async () => {
@@ -218,6 +221,59 @@ describe("saveConfiguredServiceConnection", () => {
         expect(saveMock).toHaveBeenCalledTimes(1);
         expect(saveMock.mock.calls[0]?.[0]?.secretUpdate).toBeUndefined();
         expect(encryptMock).not.toHaveBeenCalled();
+    });
+
+    it("returns an actionable error and leaves the record unchanged when the saved secret is unreadable", async () => {
+        findMock.mockResolvedValue({
+            connection: { baseUrl: "https://tautulli.test" },
+            secret: { encryptedValue: "old-enc", maskedValue: "old-mask" },
+            metadata: null,
+        } as never);
+        decryptMock.mockImplementation(() => {
+            throw new Error("Unable to decrypt secret with the configured encryption keys.");
+        });
+
+        const result = await saveConfiguredServiceConnection(USER_ID, {
+            serviceType: "tautulli",
+            baseUrl: "https://tautulli.test",
+            apiKey: "",
+        });
+
+        expect(result).toEqual({
+            ok: false,
+            message: "The saved credential could not be read. Enter it again before saving.",
+            field: "apiKey",
+        });
+        expect(saveMock).not.toHaveBeenCalled();
+        expect(auditMock).not.toHaveBeenCalled();
+    });
+
+    it("replaces an unreadable saved secret when a new credential is supplied", async () => {
+        findMock.mockResolvedValue({
+            connection: { baseUrl: "https://tautulli.test" },
+            secret: { encryptedValue: "old-enc", maskedValue: "old-mask" },
+            metadata: { rootFolders: [{ path: "/tv", label: "TV" }] },
+        } as never);
+        decryptMock.mockImplementation(() => {
+            throw new Error("Unable to decrypt secret with the configured encryption keys.");
+        });
+
+        const result = await saveConfiguredServiceConnection(USER_ID, {
+            serviceType: "tautulli",
+            baseUrl: "https://tautulli.test",
+            apiKey: "replacement-key",
+        });
+
+        expect(result.ok).toBe(true);
+        expect(decryptMock).not.toHaveBeenCalled();
+        expect(saveMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                secretUpdate: {
+                    encryptedValue: "enc(replacement-key)",
+                    maskedValue: "mask(replacement-key)",
+                },
+            }),
+        );
     });
 
     it("returns a service-named success message that does not leak the secret", async () => {
