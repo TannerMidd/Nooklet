@@ -81,6 +81,86 @@ function extractPowerShellPayload(command, name) {
     return Buffer.from(match[1], "base64").toString("utf8");
 }
 
+const mixedSetup = createSetupCommand(
+    {
+        platform: "windows",
+        libraries: [
+            { type: "movies", path: "G:/Media/Movies", field: "drive-path-1" },
+            { type: "youtube", path: "H:/Media/YouTube", field: "drive-path-2" },
+            { type: "tv", path: "I:/Media/TV", field: "drive-path-3" },
+            { type: "youtube", path: "J:/Media/YouTube-Archive", field: "drive-path-4" },
+            { type: "movies", path: "K:/Media/Movies-Archive", field: "drive-path-5" },
+        ],
+        downloadPath: "L:/Nooklet/Downloads",
+    },
+    {
+        counter: 40,
+        getRandomValues(bytes) {
+            this.counter += 1;
+            bytes.fill(this.counter);
+
+            return bytes;
+        },
+    },
+);
+
+assert.equal(mixedSetup.errors.length, 0);
+assert.deepEqual(
+    mixedSetup.value.libraries.map(({ type, target }) => ({ type, target })),
+    [
+        { type: "movies", target: "/media/movies" },
+        { type: "youtube", target: "/media/youtube" },
+        { type: "tv", target: "/media/tv" },
+        { type: "youtube", target: "/media/youtube-2" },
+        { type: "movies", target: "/media/movies-2" },
+    ],
+);
+assert.deepEqual(
+    mixedSetup.mappings.map(({ label, target }) => ({ label, target })),
+    [
+        { label: "Movie library", target: "/media/movies" },
+        { label: "YouTube library", target: "/media/youtube" },
+        { label: "TV library", target: "/media/tv" },
+        { label: "YouTube library", target: "/media/youtube-2" },
+        { label: "Movie library", target: "/media/movies-2" },
+        { label: "Completed-download staging", target: "/downloads" },
+    ],
+);
+
+const mixedOverride = extractPowerShellPayload(mixedSetup.command, "GeneratedOverride");
+
+assert.match(mixedOverride, /source: "H:\/Media\/YouTube"[\s\S]*target: "\/media\/youtube"/);
+assert.match(
+    mixedOverride,
+    /source: "J:\/Media\/YouTube-Archive"[\s\S]*target: "\/media\/youtube-2"/,
+);
+assert.deepEqual(JSON.parse(extractPowerShellPayload(mixedSetup.command, "DockerHostPathsJson")), [
+    "G:/Media/Movies",
+    "H:/Media/YouTube",
+    "I:/Media/TV",
+    "J:/Media/YouTube-Archive",
+    "K:/Media/Movies-Archive",
+    "L:/Nooklet/Downloads",
+]);
+
+for (const type of [undefined, "", "podcasts"]) {
+    const invalidType = createSetupCommand({
+        platform: "windows",
+        libraries: [{ type, path: "G:/Media/Unknown", field: "drive-path-1" }],
+        downloadPath: "L:/Nooklet/Downloads",
+    });
+
+    assert.equal(invalidType.command, "");
+    assert.equal(invalidType.value, null);
+    assert.equal(invalidType.mappings.length, 0);
+    assert.ok(
+        invalidType.errors.some(
+            ({ field, message }) =>
+                field === "drive-path-1" && message === "Choose Movies, TV, or YouTube.",
+        ),
+    );
+}
+
 const generatedEnvironment = extractPowerShellPayload(windowsSetup.command, "GeneratedEnv");
 const generatedOverride = extractPowerShellPayload(windowsSetup.command, "GeneratedOverride");
 const generatedHostPaths = JSON.parse(
@@ -199,11 +279,11 @@ if (!parsedPosix.error || parsedPosix.error.code !== "ENOENT") {
 
         try {
             const fakeBin = join(fixtureRoot, "bin");
-            const moviePath = join(fixtureRoot, "media", "movies");
+            const youtubePath = join(fixtureRoot, "media", "youtube");
             const downloadPath = join(fixtureRoot, "downloads");
 
             await mkdir(fakeBin, { recursive: true });
-            await mkdir(moviePath, { recursive: true });
+            await mkdir(youtubePath, { recursive: true });
             await mkdir(downloadPath, { recursive: true });
             await mkdir(join(fixtureRoot, ".git"));
             await writeFile(join(fixtureRoot, "docker-compose.yml"), "name: nooklet\n");
@@ -236,7 +316,7 @@ exit 0
             const runtimeSetup = createSetupCommand(
                 {
                     platform: "linux",
-                    libraries: [{ type: "movies", path: moviePath, field: "drive-path-1" }],
+                    libraries: [{ type: "youtube", path: youtubePath, field: "drive-path-1" }],
                     downloadPath,
                 },
                 {
@@ -277,7 +357,7 @@ exit 0
             const replacementSetup = createSetupCommand(
                 {
                     platform: "linux",
-                    libraries: [{ type: "movies", path: moviePath, field: "drive-path-1" }],
+                    libraries: [{ type: "youtube", path: youtubePath, field: "drive-path-1" }],
                     downloadPath,
                 },
                 {
@@ -339,9 +419,15 @@ exit 0
 const controllerSource = await readFile("engineering-dossier/configurator.js", "utf8");
 const guideSource = await readFile("engineering-dossier/guide/index.html", "utf8");
 
+assert.match(controllerSource, /youtubeOption\.value = "youtube"/);
+assert.match(controllerSource, /D:\/Media\/YouTube/);
+assert.match(controllerSource, /\/srv\/media\/youtube/);
+assert.match(controllerSource, /\/Volumes\/Media\/YouTube/);
+
 assert.match(guideSource, /id="docker-configurator"/);
 assert.match(guideSource, /src="\.\.\/configurator\.js"/);
 assert.match(guideSource, /connect-src 'none'/);
+assert.equal((guideSource.match(/<option value="youtube">YouTube<\/option>/g) ?? []).length, 2);
 
 for (const forbiddenApi of [
     /\bfetch\s*\(/,

@@ -1,6 +1,12 @@
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
 const ENV_REFERENCE = /\$(?:\{[^}]*\}|[A-Za-z_][A-Za-z0-9_]*|\()|%[^%]+%/;
 const BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const LIBRARY_TYPES = ["movies", "tv", "youtube"];
+const LIBRARY_LABELS = {
+    movies: "Movie library",
+    tv: "TV library",
+    youtube: "YouTube library",
+};
 
 function error(field, message) {
     return { field, message };
@@ -122,23 +128,29 @@ export function validateSetupInput(input) {
     const libraries = [];
 
     for (const [index, item] of (input?.libraries ?? []).entries()) {
+        const field = String(item?.field ?? `drive-path-${index + 1}`);
+        const typeField = String(item?.typeField ?? field);
+
+        if (!LIBRARY_TYPES.includes(item?.type)) {
+            errors.push(error(typeField, "Choose Movies, TV, or YouTube."));
+            continue;
+        }
+
         if (!String(item?.path ?? "").trim()) {
             continue;
         }
 
-        const field = String(item?.field ?? `drive-path-${index + 1}`);
-        const type = item?.type === "tv" ? "tv" : "movies";
         const normalized = normalizeHostPath(item.path, platform, field);
 
         if (normalized.error) {
             errors.push(normalized.error);
         } else {
-            libraries.push({ field, type, path: normalized.value });
+            libraries.push({ field, type: item.type, path: normalized.value });
         }
     }
 
     if (libraries.length === 0) {
-        errors.push(error("libraries", "Add at least one movie or TV folder."));
+        errors.push(error("libraries", "Add at least one movie, TV, or YouTube folder."));
     }
 
     const download = normalizeHostPath(input?.downloadPath, platform, "quick-download-path");
@@ -170,7 +182,7 @@ export function validateSetupInput(input) {
         return { errors, value: null };
     }
 
-    const counts = { movies: 0, tv: 0 };
+    const counts = { movies: 0, tv: 0, youtube: 0 };
 
     return {
         errors,
@@ -788,7 +800,7 @@ export function createSetupCommand(input, randomSource = globalThis.crypto) {
             : buildPosixCommand(environment, override, validation.value);
     const mappings = [
         ...validation.value.libraries.map(({ path, target, type }) => ({
-            label: type === "tv" ? "TV library" : "Movie library",
+            label: LIBRARY_LABELS[type],
             path,
             target,
         })),

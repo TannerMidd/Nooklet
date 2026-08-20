@@ -19,9 +19,11 @@ It supports an optional shared, administrator-managed YouTube cookie session whe
 
 Text search is best-effort because it depends on YouTube behavior exposed through yt-dlp. Pasting a supported URL is the reliable fallback.
 
+YouTube is an optional, independent library path. It does not require TMDB, Newznab, or Usenet. In Docker, bind the host archive folder to `/media/youtube` and use that as the final destination; completed-download staging is Usenet-only, while `/app/data/youtube` is temporary YouTube work storage.
+
 ## Prerequisites
 
-1. An administrator attaches at least one writable YouTube destination in **Settings → Storage**. The path must remain within `APPROVED_MEDIA_ROOTS`.
+1. An administrator attaches at least one writable YouTube destination in **Settings → Storage**. In Docker, `/media/youtube` is the recommended final target when its host folder is bind-mounted there. The path must remain within `APPROVED_MEDIA_ROOTS`; do not select `/app/data/youtube` as a final library.
 2. The background worker is responsive.
 3. yt-dlp, Python, Node.js, and ffmpeg are available to the worker. The production Docker image includes them; native installations must provide them.
 4. `YOUTUBE_WORK_DIR` is writable and has enough space for incomplete transfers and merging.
@@ -67,6 +69,8 @@ Changing a source's destination or quality affects future queue entries. A durab
 ## Transfer and import behavior
 
 Nooklet runs one YouTube transfer at a time. It may coexist with the built-in Usenet engine, and both contribute to storage capacity checks. Incomplete work lives under:
+
+Completed-download staging at `/downloads/nooklet-engine` is Usenet-only and separate from YouTube final storage.
 
 ```text
 <YOUTUBE_WORK_DIR>/incomplete/<download-id>
@@ -129,7 +133,7 @@ docker compose exec app node --version
 docker compose exec app ffmpeg -version
 ```
 
-The image is read-only compatible because `/app/data` is the persistent writable volume and the default `YOUTUBE_WORK_DIR` is `/app/data/youtube`.
+The image is read-only compatible because `/app/data` is the persistent writable volume and the default `YOUTUBE_WORK_DIR` is `/app/data/youtube`. That path is temporary work storage only. Final YouTube files publish beneath the selected destination, typically `/media/youtube`; `/app/data/youtube` is never the final library.
 
 Current YouTube playback enforcement can require a per-video proof-of-origin token for sustained
 media requests even when public metadata and a short test chunk succeed. Docker Compose therefore

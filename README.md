@@ -50,18 +50,18 @@ Docker Compose is the recommended installation path. It packages the web app, ba
 
 - Docker Desktop, or Docker Engine with Docker Compose v2
 - Git
-- At least one existing movie or TV library folder
-- A separate existing folder for completed-download staging
+- At least one existing final library folder: Movies, TV, or YouTube
+- A separate existing folder for completed-download staging (Usenet output)
 - Enough free space in Docker's data storage for in-flight work, repair, and extraction
 
-On Windows or macOS, start Docker Desktop and wait until its Linux engine is running. On Linux, start Docker Engine. A first movie or TV request also needs TMDB credentials, a Newznab indexer, and a Usenet provider; you add those inside Nooklet after installation.
+On Windows or macOS, start Docker Desktop and wait until its Linux engine is running. On Linux, start Docker Engine. A first movie or TV request also needs TMDB credentials, a Newznab indexer, and a Usenet provider; you add those inside Nooklet after installation. YouTube archiving is optional and independent of those Movie/TV prerequisites.
 
 ### Easiest route: use the setup builder
 
 Open the **[Docker setup builder](https://tannermidd.github.io/Nooklet/guide/#docker-configurator)**. It runs entirely in your browser and does not send your folders or generated secrets anywhere.
 
 1. Choose the operating system that runs Docker.
-2. Enter your existing media folders and completed-download staging folder.
+2. Enter at least one existing final library folder (Movies, TV, or YouTube), then enter the separate completed-download staging folder.
 3. Open PowerShell on Windows or Terminal on Linux/macOS in the parent folder where Nooklet should be installed.
 4. Paste the generated private command once.
 5. Wait for the command to report `Nooklet is healthy` and print the one-time bootstrap token.
@@ -81,14 +81,14 @@ Prefer to inspect and enter every value yourself? Follow the **[manual Docker in
     docker compose up -d --force-recreate
     ```
 
-5. Follow **[First-time setup](https://github.com/TannerMidd/Nooklet/wiki/First-Time-Setup)** to connect TMDB, Newznab, and Usenet; attach the final library folders; and make a small test request.
+5. Follow **[First-time setup](https://github.com/TannerMidd/Nooklet/wiki/First-Time-Setup)** to connect TMDB, Newznab, and Usenet for Movie/TV requests; attach the final library folders; and make a small test request. Attach an optional YouTube destination separately, typically at `/media/youtube`.
 
 If the setup command does not report a healthy app, do not delete data or volumes. Use the **[Docker installation recovery steps](https://github.com/TannerMidd/Nooklet/wiki/Docker-Installation#installation-recovery)** or the **[symptom-based troubleshooting guide](https://github.com/TannerMidd/Nooklet/wiki/Troubleshooting)**.
 
 ## Storage paths, without surprises
 
 > [!IMPORTANT]
-> Nooklet runs inside Docker, so the app uses container paths—not Windows drive letters or host paths. If `F:/Nooklet/Downloads` is mounted as `/downloads`, configure Nooklet with `/downloads`. The built-in engine checks both its in-flight workspace (`DOWNLOAD_ENGINE_WORK_DIR`) and completed-output staging (`DOWNLOAD_ENGINE_DIR`); the filesystem with less usable capacity limits admission. Neither is the final movie or TV destination.
+> Nooklet runs inside Docker, so the app uses container paths—not Windows drive letters or host paths. If `F:/Nooklet/Downloads` is mounted as `/downloads`, configure Nooklet with `/downloads`. The built-in engine checks both its in-flight workspace (`DOWNLOAD_ENGINE_WORK_DIR`) and completed-output staging (`DOWNLOAD_ENGINE_DIR`); the filesystem with less usable capacity limits admission. Neither is a final library destination. For YouTube, bind the host archive folder to `/media/youtube`; `/app/data/youtube` is temporary work storage, not the final library.
 
 If a request reports insufficient space, open **Settings → Storage** and inspect both effective engine paths. Environment or bind-mount changes require `docker compose up -d --force-recreate`.
 
@@ -96,7 +96,7 @@ See [Storage and path mapping](https://github.com/TannerMidd/Nooklet/wiki/Storag
 
 ## YouTube archiving scope
 
-Library's YouTube area can search public channels/videos, accept supported YouTube URLs, download selected videos, and monitor a channel's regular Videos feed or a public playlist. Existing backlog selection is explicit; successful later syncs queue newly discovered eligible regular videos. See [YouTube monitoring and downloads](https://github.com/TannerMidd/Nooklet/wiki/YouTube-Monitoring-and-Downloads) for setup, profiles, retry behavior, and current exclusions.
+Library's YouTube area can search public channels/videos, accept supported YouTube URLs, download selected videos, and monitor a channel's regular Videos feed or a public playlist. Existing backlog selection is explicit; successful later syncs queue newly discovered eligible regular videos. YouTube is an optional final library type: map its host folder to `/media/youtube`; completed-download staging remains separate Usenet output, and `/app/data/youtube` is temporary work storage. YouTube does not require TMDB, Newznab, or Usenet. See [YouTube monitoring and downloads](https://github.com/TannerMidd/Nooklet/wiki/YouTube-Monitoring-and-Downloads) for setup, profiles, retry behavior, and current exclusions.
 
 Nooklet does not use a YouTube API key or Google OAuth. When YouTube blocks a server's guest traffic, an administrator may explicitly upload a dedicated YouTube-only cookie export under Settings → Connections; Nooklet validates it live, encrypts it at rest, and exposes it to yt-dlp only through short-lived private temporary files. Docker keeps those leases on `/tmp` tmpfs; native installs use the operating system's private temporary directory. Download or archive content only when you have permission; you are responsible for complying with the content owner's terms and applicable law.
 
