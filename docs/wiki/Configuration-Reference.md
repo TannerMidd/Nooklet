@@ -26,11 +26,11 @@ The image sets its internal `PORT=42021` and `HOSTNAME=0.0.0.0`. Normally these 
 
 ## Bootstrap and secret encryption
 
-| Variable                   | Required                  | Rules and lifecycle                                                                                                                                          |
-| -------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `BOOTSTRAP_TOKEN`          | For web first-admin setup | Independent random value, 32-512 characters. Remove it after creating the administrator.                                                                     |
-| `SECRET_BOX_KEY`           | Strongly recommended      | Independent 32-512 character key used to encrypt stored connection credentials. When absent, Nooklet falls back to `AUTH_SECRET` for backward compatibility. |
-| `SECRET_BOX_PREVIOUS_KEYS` | During rotation only      | Superseded encryption keys separated by semicolons or new lines. Valid values are 32-512 characters each.                                                    |
+| Variable                   | Required                  | Rules and lifecycle                                                                                                                                                                                                                                                                                                 |
+| -------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BOOTSTRAP_TOKEN`          | For web first-admin setup | Independent random value, 32-512 characters, required until the first administrator exists. Nooklet then closes `/bootstrap` automatically and refuses later attempts. Removing it from `.env` and recreating/restarting to clear the runtime copy is optional defense-in-depth, not required for normal operation. |
+| `SECRET_BOX_KEY`           | Strongly recommended      | Independent 32-512 character key used to encrypt stored connection credentials. When absent, Nooklet falls back to `AUTH_SECRET` for backward compatibility.                                                                                                                                                        |
+| `SECRET_BOX_PREVIOUS_KEYS` | During rotation only      | Superseded encryption keys separated by semicolons or new lines. Valid values are 32-512 characters each.                                                                                                                                                                                                           |
 
 Generate `AUTH_SECRET`, `BOOTSTRAP_TOKEN`, and `SECRET_BOX_KEY` independently. Never commit `.env` or paste these values into support logs.
 
@@ -154,7 +154,7 @@ AI_RECOMMENDATIONS_TIMEOUT_MS=1800000
 OPERATIONAL_RETENTION_DAYS=365
 ```
 
-Delete the entire `BOOTSTRAP_TOKEN=...` line and recreate the container after the first administrator is created.
+After you create the first administrator with the one-time token, Nooklet automatically closes `/bootstrap` and refuses later bootstrap attempts. Optional defense-in-depth is to delete the entire `BOOTSTRAP_TOKEN=...` line from `.env` and recreate the Docker container or restart the native process so the token leaves the runtime environment; this is not required for normal operation. Nooklet does not edit the host `.env` for you.
 
 ## Implementation references
 

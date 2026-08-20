@@ -44,7 +44,7 @@ Generate independent random values for each installation.
 | `AUTH_SECRET`              | Encrypts and authenticates session state and keys privacy-preserving rate-limit identifiers. It is also the backward-compatible encryption-key fallback when `SECRET_BOX_KEY` is absent. | Existing sessions are invalidated. If it encrypted saved secrets, preserve the old value through `SECRET_BOX_PREVIOUS_KEYS` during rotation. |
 | `SECRET_BOX_KEY`           | Preferred key material for stored integration credentials.                                                                                                                               | Saved secrets using an older key require that key in `SECRET_BOX_PREVIOUS_KEYS` until re-encrypted.                                          |
 | `SECRET_BOX_PREVIOUS_KEYS` | Semicolon- or newline-separated decryption-only key history used during rotation.                                                                                                        | Removing a key too early makes any still-encrypted record unreadable.                                                                        |
-| `BOOTSTRAP_TOKEN`          | One-time proof for creating the first administrator.                                                                                                                                     | Remove it after bootstrap and recreate the container.                                                                                        |
+| `BOOTSTRAP_TOKEN`          | One-time proof for creating the first administrator. Nooklet automatically closes `/bootstrap` as soon as an administrator exists and refuses later attempts.                            | Removing it from `.env` and recreating/restarting to clear the runtime copy is optional defense-in-depth, not required for normal operation. |
 
 Each value must be 32–512 characters where configured. Known placeholder values are rejected at startup. Never commit `.env`, reuse one secret for multiple purposes, or paste secrets into issues and chat transcripts.
 
@@ -173,7 +173,7 @@ For higher-risk access, place Nooklet behind a maintained HTTPS proxy and, where
 ## Deployment checklist
 
 - [ ] Unique `AUTH_SECRET`, `SECRET_BOX_KEY`, and temporary `BOOTSTRAP_TOKEN` generated securely.
-- [ ] `BOOTSTRAP_TOKEN` removed after first-admin creation.
+- [ ] Optional defense-in-depth completed: remove `BOOTSTRAP_TOKEN` from `.env` and recreate/restart so it leaves the runtime environment (not required for normal operation).
 - [ ] `.env`, database backups, and proxy certificates excluded from source control.
 - [ ] Loopback-only binding retained, or LAN/public ingress restricted intentionally.
 - [ ] HTTPS terminates at a maintained reverse proxy for any non-local access.

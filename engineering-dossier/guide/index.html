@@ -371,8 +371,11 @@
                                 <div>
                                     <strong>Create the administrator</strong>
                                     <p>
-                                        Use the one-time bootstrap token, then remove it and
-                                        recreate the container.
+                                        Use the printed one-time bootstrap token to create the first
+                                        administrator. Nooklet automatically closes
+                                        <code>/bootstrap</code> as soon as an administrator exists
+                                        and refuses later bootstrap attempts; continue in Setup
+                                        Center.
                                     </p>
                                 </div>
                             </li>
@@ -779,11 +782,11 @@
                                     <p>
                                         It contains newly generated secrets and may remain in your
                                         clipboard and shell history. The terminal prints your
-                                        one-time bootstrap token after startup. Create the first
-                                        administrator, delete the entire
-                                        <code>BOOTSTRAP_TOKEN=...</code> line from
-                                        <code>.env</code>, then run
-                                        <code>docker compose up -d --force-recreate</code>.
+                                        one-time bootstrap token after startup. Use it to create the
+                                        first administrator. Nooklet automatically closes
+                                        <code>/bootstrap</code> as soon as an administrator exists
+                                        and refuses later bootstrap attempts; continue in Setup
+                                        Center.
                                     </p>
                                 </div>
                             </section>
@@ -820,21 +823,14 @@
                                 <span>01</span>
                                 <h3>Create the first administrator</h3>
                                 <p>
-                                    Enter the exact one-time bootstrap token, a valid email, display
-                                    name, and strong password.
+                                    Enter the printed one-time bootstrap token, a valid email,
+                                    display name, and strong password. Nooklet automatically closes
+                                    <code>/bootstrap</code> as soon as an administrator exists and
+                                    refuses later bootstrap attempts.
                                 </p>
                             </article>
                             <article data-reveal>
                                 <span>02</span>
-                                <h3>Remove bootstrap access</h3>
-                                <p>
-                                    Delete the entire <code>BOOTSTRAP_TOKEN=...</code> line from
-                                    <code>.env</code>, then recreate the container so the route
-                                    closes.
-                                </p>
-                            </article>
-                            <article data-reveal>
-                                <span>03</span>
                                 <h3>Verify TMDB</h3>
                                 <p>
                                     Open <strong>Settings → Connections</strong>, test the
@@ -842,7 +838,7 @@
                                 </p>
                             </article>
                             <article data-reveal>
-                                <span>04</span>
+                                <span>03</span>
                                 <h3>Verify downloading</h3>
                                 <p>
                                     Configure and verify a TLS Usenet server for the built-in
@@ -850,7 +846,7 @@
                                 </p>
                             </article>
                             <article data-reveal>
-                                <span>05</span>
+                                <span>04</span>
                                 <h3>Add Newznab</h3>
                                 <p>
                                     Enable the provider, select Movies and/or TV categories, then
@@ -858,7 +854,7 @@
                                 </p>
                             </article>
                             <article data-reveal>
-                                <span>06</span>
+                                <span>05</span>
                                 <h3>Attach a destination</h3>
                                 <p>
                                     In <strong>Settings → Storage</strong>, choose a container path
@@ -866,7 +862,7 @@
                                 </p>
                             </article>
                             <article data-reveal>
-                                <span>07</span>
+                                <span>06</span>
                                 <h3>Check the worker</h3>
                                 <p>
                                     Open <strong>Health &amp; readiness</strong>. The background

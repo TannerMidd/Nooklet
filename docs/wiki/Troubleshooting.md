@@ -253,7 +253,7 @@ The local recovery script changes the password, forces a first-sign-in replaceme
 
 If sign-in redirects to `/settings/account?reason=temporary-password`, this is expected: replace the administrator-issued or recovery password before using the rest of the app.
 
-If `/bootstrap` is unavailable, an administrator may already exist. If no administrator exists but `BOOTSTRAP_TOKEN` was removed, restore a newly generated token to `.env`, recreate, complete bootstrap, then remove it and recreate again.
+If `/bootstrap` is unavailable, an administrator may already exist; after successful bootstrap, Nooklet closes the route automatically and refuses later attempts. If the database genuinely has no administrator and the runtime `BOOTSTRAP_TOKEN` is absent, restore or generate a new independent token in `.env`, recreate the Docker container or restart the native process, and complete bootstrap. Confirm that `/api/health` is healthy. Removing the token and recreating/restarting again afterward is optional defense-in-depth, not required for normal operation.
 
 ## OCI `setns` or defunct-container recovery
 
