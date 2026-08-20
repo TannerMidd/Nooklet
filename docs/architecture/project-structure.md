@@ -12,7 +12,8 @@ behavior comes from the [behavior matrix](../product/behavior-matrix.md).
   types, and explicit workflows.
 - UI routes stay separate for login, bootstrap, account, preferences,
   connections, admin, TV recommendations, movie recommendations, built-in
-  library management, direct media search, active downloads, and history.
+  library management (including YouTube), direct media search, active downloads,
+  and history.
 - Shared framework code belongs in `src/lib` or `src/components`, not inside
   a generic service layer.
 - Product behavior is sourced from the behavior matrix, not from any one
@@ -35,6 +36,9 @@ src/
       home/
       in-progress/
       library/
+        movies/
+        tv/
+        youtube/
       movies/
       recommendations/
       search/
@@ -71,6 +75,7 @@ src/
     storage/
     users/
     watch-history/
+    youtube/
 ```
 
 ## Module template

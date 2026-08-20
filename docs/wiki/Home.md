@@ -1,8 +1,8 @@
 # Nooklet documentation
 
-Nooklet is a self-hosted workspace for discovering, recommending, requesting, downloading, and organizing movies and TV. This Wiki is the operator and contributor handbook; the [README](https://github.com/TannerMidd/Nooklet#readme) remains the five-minute introduction.
+Nooklet is a self-hosted workspace for discovering, recommending, requesting, downloading, and organizing movies and TV. This Wiki is the operator and contributor handbook; the [README](https://github.com/TannerMidd/Nooklet#readme) remains the short introduction.
 
-> **New installation?** Follow [Getting started](Getting-Started), then complete [First-time setup](First-Time-Setup). Docker Compose is the recommended deployment.
+> **New installation?** Follow one route: [Getting started](Getting-Started) → [Docker installation](Docker-Installation) → [First-time setup](First-Time-Setup). Docker Compose is recommended; the [Docker setup builder](https://tannermidd.github.io/Nooklet/guide/#docker-configurator) is the easiest path for a new instance.
 
 Prefer a visual introduction? Start with the public [Feature guide](https://tannermidd.github.io/Nooklet/features/). For a clean, curated route through setup, daily use, and common recovery, open the [User guide](https://tannermidd.github.io/Nooklet/guide/). This Wiki remains the canonical source for detailed operator runbooks.
 
@@ -11,8 +11,9 @@ Prefer a visual introduction? Start with the public [Feature guide](https://tann
 | I want to…                                         | Start here                                                                                        |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | Understand what Nooklet can do                     | [Feature guide](https://tannermidd.github.io/Nooklet/features/)                                   |
+| Install Nooklet with the fewest manual steps       | [Docker setup builder](https://tannermidd.github.io/Nooklet/guide/#docker-configurator)           |
+| Install Nooklet manually with Docker               | [Docker installation](Docker-Installation)                                                        |
 | Follow the clean path from setup through daily use | [User guide](https://tannermidd.github.io/Nooklet/guide/)                                         |
-| Install Nooklet with Docker                        | [Docker installation](Docker-Installation)                                                        |
 | Reach the first successful request                 | [First-time setup](First-Time-Setup)                                                              |
 | Fix an “insufficient disk space” message           | [Storage and path mapping](Storage-and-Path-Mapping#download-capacity-policy)                     |
 | Connect TMDB, Usenet, Plex, or another service     | [Service connections](Service-Connections)                                                        |
@@ -84,4 +85,4 @@ Nooklet is an actively developed, single-instance application built around separ
 
 ---
 
-Documentation last reviewed against `main`: **August 6, 2026**.
+Installation and first-run documentation last reviewed against `main`: **August 19, 2026**.

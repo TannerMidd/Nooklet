@@ -9,8 +9,9 @@
 **Start here**
 
 - [Getting started](Getting-Started)
+- [Guided Docker setup](https://tannermidd.github.io/Nooklet/guide/#docker-configurator)
 - [Docker installation](Docker-Installation)
-- [Native installation](Native-Installation)
+- [Native installation (advanced)](Native-Installation)
 - [First-time setup](First-Time-Setup)
 
 **Configure**

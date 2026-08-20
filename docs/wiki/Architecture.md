@@ -1,8 +1,8 @@
 # Architecture
 
-> Applies to the current `main` implementation. Last source review: 2026-08-06.
+> Applies to the current `main` implementation. Last source review: 2026-08-19.
 
-Nooklet is a supervised, single-container application with separate Node.js processes for the Next.js web server and background worker. SQLite is the durable system of record and the cross-process coordination boundary; media and download files remain on operator-controlled filesystems. This separation keeps the UI available when an unhealthy Docker Desktop bind mount blocks a worker-side filesystem call.
+Nooklet has one supervised application container with separate Node.js processes for the Next.js web server and background worker. The default Compose deployment also starts an internal YouTube proof-of-origin provider sidecar. SQLite is the durable system of record and the cross-process coordination boundary; media and download files remain on operator-controlled filesystems. This separation keeps the UI available when an unhealthy Docker Desktop bind mount blocks a worker-side filesystem call.
 
 For repository metrics and deeper implementation evidence, see the [engineering dossier](https://tannermidd.github.io/Nooklet/). For the decisions that shaped this design, see [Architecture Decisions](Architecture-Decisions).
 
@@ -16,18 +16,22 @@ flowchart LR
   Worker["Nooklet worker\njobs + downloads + imports"]
   DB[("SQLite\n/app/data/nooklet.db")]
   Stage["Download work + completed staging\nDOWNLOAD_ENGINE_WORK_DIR / DOWNLOAD_ENGINE_DIR"]
-  Media["TV and movie libraries\napproved roots"]
+  YouTubeWork["YouTube work\nYOUTUBE_WORK_DIR"]
+  Media["Movie, TV, and YouTube libraries\napproved roots"]
   AI["OpenAI-compatible provider"]
   Metadata["TMDB / TVDB"]
   History["Plex / Tautulli / Trakt"]
   Indexers["Newznab indexers"]
   News["Usenet server"]
+  YouTube["Public YouTube"]
+  Pot["Internal PO-token provider"]
   Notify["Discord / Apprise / webhook"]
 
   Person --> Proxy --> App
   App <--> DB
   Worker <--> DB
   Worker <--> Stage
+  Worker <--> YouTubeWork
   Worker <--> Media
   App --> AI
   App --> Metadata
@@ -38,6 +42,8 @@ flowchart LR
   Worker --> History
   Worker --> Indexers
   Worker --> News
+  Worker --> YouTube
+  Worker --> Pot
   Worker --> Notify
 ```
 
@@ -128,10 +134,12 @@ This boundary keeps user intent separate from acquisition evidence and makes rec
 - A Node supervisor runs database migration once, then starts distinct web and worker children. Next.js instrumentation deliberately does not load the worker graph in the production web child.
 - The persisted job worker polls every 15 seconds. Its pass state is written atomically beside SQLite so the web process can evaluate progress without importing worker code.
 - The built-in downloader uses a worker-process async runner and an NNTP connection pool for the active transfer. Control intent and speed are persisted because process-local signals cannot cross the web/worker boundary.
+- The YouTube module owns discovery, source synchronization, a durable one-at-a-time download runner, yt-dlp/ffmpeg subprocesses, restart-safe work under `YOUTUBE_WORK_DIR`, and containment-checked publication into approved YouTube library paths.
+- The default Compose deployment starts a separate, internal `youtube-pot-provider` service. It is not published to the host; yt-dlp in the application container reaches it over the Compose network.
 - Storage capacity is sampled by a disposable probe child. Pages read SQLite snapshots and never probe bind mounts directly.
 - `tini` is PID 1 in the Docker image; the supervisor forwards termination and applies bounded child shutdown.
 
-Primary sources: [instrumentation](https://github.com/TannerMidd/Nooklet/blob/main/src/instrumentation.ts), [database client](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/client.ts), [job worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts), [engine runner](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/download-engine/runtime/engine-runner.ts), and [Dockerfile](https://github.com/TannerMidd/Nooklet/blob/main/Dockerfile).
+Primary sources: [instrumentation](https://github.com/TannerMidd/Nooklet/blob/main/src/instrumentation.ts), [database client](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/client.ts), [job worker](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker.ts), [engine runner](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/download-engine/runtime/engine-runner.ts), [YouTube runner](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/youtube/runtime/download-runner.ts), [Compose services](https://github.com/TannerMidd/Nooklet/blob/main/docker-compose.yml), and [Dockerfile](https://github.com/TannerMidd/Nooklet/blob/main/Dockerfile).
 
 ## Domain ownership
 
@@ -156,6 +164,7 @@ The physical modules under [`src/modules`](https://github.com/TannerMidd/Nooklet
 | `storage`             | Persisted staging/destination snapshots and isolated capacity inspection                                          |
 | `users`               | Accounts, roles, password hashing, and recovery state                                                             |
 | `watch-history`       | Manual, Plex, Tautulli, and Trakt history synchronization                                                         |
+| `youtube`             | Public discovery, monitors, source sync, durable transfer, cookie access, and safe library publication            |
 
 `credential-vault` and `metadata` appear in older design documents as conceptual ownership areas, but they are not physical module directories in the current tree. Secret handling is implemented across `src/lib/security`, `service-connections`, and indexer repositories; metadata adapters currently live primarily in `service-connections` and media workflows.
 
@@ -170,7 +179,9 @@ flowchart TB
     Supervisor --> Jobs["Background worker process"]
     Supervisor --> Probe["Disposable storage probe"]
     Jobs --> Engine["Download-engine runner"]
+    Jobs --> YouTubeRunner["YouTube runner + yt-dlp / ffmpeg"]
   end
+  Provider["youtube-pot-provider sidecar"]
   Volume[("nooklet-data volume")]
   DownloadMount["Host download folder"]
   MediaMount["Host media folders"]
@@ -180,15 +191,18 @@ flowchart TB
   Jobs <--> Volume
   Probe <--> Volume
   Engine <--> DownloadMount
+  YouTubeRunner <--> Volume
+  YouTubeRunner --> Provider
+  YouTubeRunner <--> MediaMount
   Jobs <--> MediaMount
   Probe <--> MediaMount
 ```
 
-The shipped Compose configuration persists `/app/data` in a named volume and publishes port 42021 on loopback by default. Media and download bind mounts are optional operator configuration. See [Storage and Path Mapping](Storage-and-Path-Mapping).
+The shipped Compose configuration persists `/app/data` in a named volume, publishes only application port 42021 on loopback by default, and keeps the provider sidecar internal to the Compose network. Media and download bind mounts are operator configuration. See [Storage and Path Mapping](Storage-and-Path-Mapping).
 
 ## Architectural constraints
 
-- One supervised container is the supported topology. The web and worker are separate OS processes, not horizontally scalable replicas.
+- One supervised application container and its internal provider sidecar are the supported Compose topology. The web and worker are separate OS processes, not horizontally scalable replicas.
 - SQLite and durable control rows coordinate the two children. Process-local import locks remain worker-only implementation details and are not distributed coordination primitives.
 - A process restart reclaims persisted jobs through leases, but an interrupted native download restarts from its stored NZB rather than resuming individual segments.
 - Season recovery schedules and renewable per-plan work leases survive restart in SQLite. The maintenance loop is serialized inside the single supported worker process.
@@ -203,6 +217,7 @@ The shipped Compose configuration persists `/app/data` in a named volume and pub
 
 - [App Router source](https://github.com/TannerMidd/Nooklet/tree/main/src/app)
 - [Domain modules](https://github.com/TannerMidd/Nooklet/tree/main/src/modules)
+- [YouTube module](https://github.com/TannerMidd/Nooklet/tree/main/src/modules/youtube)
 - [Database schema](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/schema.ts)
 - [Architecture principles](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0001-architecture-principles.md)
 - [Durable season fulfillment decision](https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0003-durable-season-fulfillment.md)

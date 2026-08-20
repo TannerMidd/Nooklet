@@ -13,7 +13,10 @@ From the deployment directory:
 docker compose config --quiet
 docker compose ps
 docker compose logs --tail=200 app
+docker compose logs --tail=200 youtube-pot-provider
 ```
+
+The app waits for `youtube-pot-provider` to become healthy. If the app never starts and its log is empty, inspect the provider log first.
 
 Then query the host-published probe (change `42021` if needed):
 
@@ -71,6 +74,7 @@ Avoid posting the full output of `docker compose config`; it can contain expande
 
 ```console
 docker compose logs --tail=300 app
+docker compose logs --tail=300 youtube-pot-provider
 ```
 
 Common environment failures include:

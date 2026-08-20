@@ -1,15 +1,15 @@
 # Getting started
 
-Nooklet is a self-hosted application for discovering, requesting, downloading, and organizing movies and TV. This guide gets a new instance from an empty machine to a verified first request without requiring every optional integration.
+Nooklet is a self-hosted application for discovering, requesting, downloading, and organizing movies and TV. This page is the map from an empty machine to a verified first request. Follow the linked guides in order; optional integrations can wait.
 
-## Choose an installation path
+## Recommended path
 
-| Path                                       | Best for                                                        | You provide                                                                       |
-| ------------------------------------------ | --------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| [Docker installation](Docker-Installation) | Most home servers, NAS hosts, and always-on deployments         | Docker Compose, media folders, and service credentials                            |
-| [Native installation](Native-Installation) | Development and operators who manage Node.js processes directly | Node.js 24, native archive tools, process supervision, and filesystem permissions |
+| Path                                       | Use it when                                                                                                      |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| [Docker installation](Docker-Installation) | **Recommended for almost everyone.** Docker supplies and supervises the complete supported runtime.              |
+| [Native installation](Native-Installation) | Advanced/development only. You will manage Node.js, every native media tool, filesystem access, and supervision. |
 
-Docker Compose is the recommended path. The image already contains Node.js, SQLite support, PAR2, UnRAR, 7-Zip, the background worker, and the built-in downloader.
+For the fewest manual steps, open the [Docker setup builder](https://tannermidd.github.io/Nooklet/guide/#docker-configurator). It generates one private command for a new installation, verifies the selected folders, starts Nooklet, and waits for application health. Use the full [Docker installation](Docker-Installation) page when you prefer to enter every value yourself.
 
 ## What is required
 
@@ -38,27 +38,29 @@ flowchart LR
 | Watch history              | No        | Plex, Tautulli, Trakt, or manual imports                                                                   |
 | Notifications              | No        | Discord, Apprise, or a generic webhook                                                                     |
 
-## Before you begin
+## Credentials and folders to gather
 
-Gather the following:
+You can install and open Nooklet with Docker, Git, one media folder, one separate completed-download staging folder, and enough Docker data-storage capacity. Before the first movie or TV request, also gather:
 
-- A host folder for movie media and/or TV media.
-- Enough Docker or host storage for the built-in downloader's work and staging data; a dedicated host staging folder is recommended when the main data volume is not suitable.
-- A TMDB API credential.
-- A Newznab indexer account and API key.
-- Usenet server credentials.
-- Three independently generated secrets for `AUTH_SECRET`, `BOOTSTRAP_TOKEN`, and `SECRET_BOX_KEY`.
+- **TMDB credential** — identifies titles and supplies metadata and artwork.
+- **Newznab API key** — searches an indexer for releases.
+- **Usenet credentials** — let the built-in downloader retrieve a selected release.
+- **Movie and/or TV library folder** — the final destination for imported files.
+- **Completed-download folder** — a separate host location for output waiting to be imported.
+- **Docker data storage** — enough capacity for the named volume that holds in-flight downloads, repair, and extraction work.
 
-A bind-mounted staging folder can live on the same physical disk as the media library, but it is a separate runtime path and a separate capacity check. See [Storage and path mapping](Storage-and-Path-Mapping) before starting the container.
+The guided Docker setup generates `AUTH_SECRET`, `BOOTSTRAP_TOKEN`, and `SECRET_BOX_KEY` for you. A manual install requires three independently generated values.
+
+The bind-mounted completed-output folder can live on the same physical disk as the media library, but it is a separate runtime path. Docker's `/app/data` volume is a second capacity location for in-flight and extraction work. See [Storage and path mapping](Storage-and-Path-Mapping) before starting the container.
 
 ## Installation sequence
 
-1. Follow [Docker installation](Docker-Installation) or [Native installation](Native-Installation).
-2. Open the application and create the first administrator with the one-time bootstrap token.
-3. Use **Setup Center** to configure TMDB, the built-in downloader, an indexer, and storage.
-4. Confirm at least one of **Movie downloads** or **TV downloads** is marked **Ready**.
-5. Search for a title and submit a small first request.
-6. Remove `BOOTSTRAP_TOKEN` from the environment after the administrator exists.
+1. Complete [Docker installation](Docker-Installation), including the `/api/health` check. Use [Native installation](Native-Installation) only when you intentionally chose the advanced path.
+2. Open Nooklet and create the first administrator with the one-time bootstrap token.
+3. Delete the `BOOTSTRAP_TOKEN=...` line from `.env`, then recreate the Docker container or restart the native process.
+4. Follow [First-time setup](First-Time-Setup) in order: TMDB, Usenet, Newznab, final storage, and worker health.
+5. Confirm at least one of **Movie downloads** or **TV downloads** is marked **Ready** in **Setup Center**.
+6. Search for a small, unambiguous title and submit a controlled first request.
 
 The detailed guided sequence is in [First-time setup](First-Time-Setup).
 
@@ -70,11 +72,19 @@ Instance services, indexers, storage, and download infrastructure serve every us
 
 The container and external monitors use `GET /api/health`. A healthy response confirms the database is reachable and the background worker is responsive. Setup Center performs the broader product-readiness evaluation, including verified services, indexers, and writable storage.
 
-```bash
-curl http://localhost:42021/api/health
+**Linux or macOS**
+
+```console
+curl --fail-with-body http://127.0.0.1:42021/api/health
 ```
 
-The health route returns HTTP `503` when the database is unavailable or the worker is not responsive. A responsive worker whose recent maintenance pass reported an error can return HTTP `200` with a degraded status in the response body; use **Health & readiness** in the app for details.
+**Windows PowerShell**
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:42021/api/health | ConvertTo-Json -Depth 5
+```
+
+Continue when the response is HTTP `200` with top-level `"status": "ok"` and `checks.database` and `checks.backgroundWorker` both set to `"ok"`. HTTP `503` means the database or worker is unavailable. HTTP `200` with `"status": "degraded"` means the app is responsive but needs attention; use **Health & readiness** and [Health and diagnostics](Health-and-Diagnostics) before making the first request.
 
 ## Next steps
 

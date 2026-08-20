@@ -95,10 +95,11 @@
                     <p class="eyebrow">Technical architecture baseline <span>2026.08</span></p>
                     <h1 id="hero-title">Nooklet, traced<br /><em>end to end.</em></h1>
                     <p class="hero-lede">
-                        A source-backed engineering dossier for the single-container media system:
-                        authenticated request boundaries, explicit domain workflows, native NNTP
-                        transfer, normalized persistence, failure recovery, filesystem policy, and
-                        verified production delivery.
+                        A source-backed engineering dossier for the supervised application container
+                        and its internal YouTube provider sidecar: authenticated request boundaries,
+                        explicit domain workflows, native NNTP and YouTube transfer, normalized
+                        persistence, failure recovery, filesystem policy, and verified production
+                        delivery.
                     </p>
                     <div class="hero-actions">
                         <a class="button button-primary" href="#architecture"
@@ -164,10 +165,10 @@
                     data-reveal
                 >
                     <p class="metric-label">Audited repository scale</p>
-                    <div><strong>17</strong><span>domain modules</span></div>
-                    <div><strong>45</strong><span>normalized tables</span></div>
-                    <div><strong>45</strong><span>SQL migrations</span></div>
-                    <div><strong>239</strong><span>executable test files</span></div>
+                    <div><strong>18</strong><span>domain modules</span></div>
+                    <div><strong>50</strong><span>normalized tables</span></div>
+                    <div><strong>48</strong><span>SQL migrations</span></div>
+                    <div><strong>265</strong><span>executable test files</span></div>
                 </div>
             </section>
 
@@ -265,8 +266,9 @@
                         <span class="driver-code">QA-04</span>
                         <h3>Low operational load</h3>
                         <p>
-                            One container owns the web runtime, worker, download engine, migrations,
-                            and health surface.
+                            One supervised application container owns the web runtime, worker,
+                            download engines, migrations, and health surface; one internal sidecar
+                            supplies YouTube proof-of-origin tokens.
                         </p>
                     </article>
                 </div>
@@ -344,14 +346,15 @@
                         <div>
                             <p class="eyebrow">Runtime and dependency architecture</p>
                             <h2 id="architecture-title">
-                                One deployment unit. Explicit internal boundaries.
+                                One application boundary. Explicit internal services.
                             </h2>
                         </div>
                         <p>
                             Next.js handles delivery and authenticated interaction. Named workflows
                             own use cases. Repositories own transactions. Typed adapters own
-                            protocols. The worker and native downloader share the same process, but
-                            their durable state remains outside process memory.
+                            protocols. The worker hosts the Usenet and YouTube runners, while their
+                            durable state remains outside process memory. Compose adds one internal
+                            YouTube proof-of-origin provider sidecar.
                         </p>
                     </div>
 
@@ -411,10 +414,10 @@
                                     </div>
                                     <div class="diagram-node node-runtime">
                                         <span class="node-kind">Execution</span>
-                                        <strong>Worker + download engine</strong>
+                                        <strong>Worker + download engines</strong>
                                         <small
-                                            >Scheduled lanes, NNTP transfer, import
-                                            maintenance</small
+                                            >Scheduled lanes, NNTP and YouTube transfer,
+                                            import</small
                                         >
                                     </div>
                                 </div>
@@ -439,10 +442,8 @@
                                 </div>
                                 <div class="diagram-node node-external">
                                     <span class="node-kind">Acquisition</span>
-                                    <strong
-                                        >Indexers &middot; TLS NNTP &middot; built-in queue</strong
-                                    >
-                                    <small>Verified connections and owned results</small>
+                                    <strong>Indexers &middot; TLS NNTP &middot; YouTube</strong>
+                                    <small>Owned results, yt-dlp, internal token sidecar</small>
                                 </div>
                                 <div class="diagram-node node-external">
                                     <span class="node-kind">Context and delivery</span>
@@ -455,10 +456,11 @@
                             </div>
                         </div>
                         <figcaption>
-                            <span>Figure 1.</span> The container supervises separate web and worker
-                            processes; only SQLite and approved filesystems are durable. External
-                            dependencies are optional, typed edges rather than generic proxy
-                            targets. Source:
+                            <span>Figure 1.</span> The application container supervises separate web
+                            and worker processes, while Compose keeps the YouTube token provider in
+                            an unexposed sidecar. Only SQLite and approved filesystems are durable.
+                            External dependencies are typed edges rather than generic proxy targets.
+                            Source:
                             <a
                                 href="https://github.com/TannerMidd/Nooklet/blob/main/docs/adr/ADR-0001-architecture-principles.md"
                                 >ADR-0001</a
@@ -574,7 +576,7 @@
                             <p class="card-kicker">Domain ownership</p>
                             <h3>Workflows are the unit of change.</h3>
                             <p>
-                                The repository contains 144 production workflow files and 95
+                                The repository contains 147 production workflow files and 98
                                 workflow test files across request, search, scan, import,
                                 recommendation, connection, and history domains.
                             </p>
@@ -1206,8 +1208,8 @@
                             </h2>
                         </div>
                         <p>
-                            Forty-five Drizzle tables separate instance configuration, identity and
-                            session validity, intent, fulfillment state, queue state, transfer
+                            Fifty Drizzle tables separate instance configuration, identity and
+                            session validity, intent, fulfillment state, Usenet and YouTube transfer
                             state, import evidence, recommendations, history, jobs, notifications,
                             credentials, and audit events. SQLite-specific behavior is embraced
                             deliberately rather than hidden behind portability claims.
@@ -1219,7 +1221,7 @@
                             <div>
                                 <p class="figure-id">CHART 01 &middot; SCHEMA COMPOSITION</p>
                                 <h3 id="schema-chart-title">
-                                    Forty-five persisted record types by responsibility
+                                    Fifty persisted record types by responsibility
                                 </h3>
                             </div>
                         </header>
@@ -1227,28 +1229,22 @@
                             <div
                                 class="schema-stack"
                                 role="img"
-                                aria-label="Stacked chart of 45 tables: 9 identity, service, storage, and control; 8 library; 15 indexer and download; 9 history and recommendation; 4 jobs and notification"
+                                aria-label="Stacked chart of 50 tables: 9 identity, service, storage, and control; 8 library; 20 indexer, download, and YouTube; 9 history and recommendation; 4 jobs and notification"
                             >
-                                <div class="schema-segment schema-identity" style="--segment: 20%">
+                                <div class="schema-segment schema-identity" style="--segment: 18%">
                                     <strong>9</strong
                                     ><span>Identity + service + storage + control</span>
                                 </div>
-                                <div
-                                    class="schema-segment schema-library"
-                                    style="--segment: 17.78%"
-                                >
+                                <div class="schema-segment schema-library" style="--segment: 16%">
                                     <strong>8</strong><span>Library</span>
                                 </div>
-                                <div
-                                    class="schema-segment schema-download"
-                                    style="--segment: 33.33%"
-                                >
-                                    <strong>15</strong><span>Indexer + download</span>
+                                <div class="schema-segment schema-download" style="--segment: 40%">
+                                    <strong>20</strong><span>Indexer + download + YouTube</span>
                                 </div>
-                                <div class="schema-segment schema-history" style="--segment: 20%">
+                                <div class="schema-segment schema-history" style="--segment: 18%">
                                     <strong>9</strong><span>History + recommendations</span>
                                 </div>
-                                <div class="schema-segment schema-ops" style="--segment: 8.89%">
+                                <div class="schema-segment schema-ops" style="--segment: 8%">
                                     <strong>4</strong><span>Jobs + notifications</span>
                                 </div>
                             </div>
@@ -1259,8 +1255,8 @@
                                 >
                                 <span><i class="schema-library"></i>Library &middot; 8</span>
                                 <span
-                                    ><i class="schema-download"></i>Indexer + download &middot;
-                                    15</span
+                                    ><i class="schema-download"></i>Indexer + download + YouTube
+                                    &middot; 20</span
                                 >
                                 <span
                                     ><i class="schema-history"></i>History + recommendations
@@ -1272,7 +1268,7 @@
                             </div>
                         </div>
                         <figcaption>
-                            <span>Chart 1.</span> Counts are derived from the 45
+                            <span>Chart 1.</span> Counts are derived from the 50
                             <code>sqliteTable</code> definitions in
                             <a
                                 href="https://github.com/TannerMidd/Nooklet/blob/main/src/lib/database/schema.ts"
@@ -1350,7 +1346,8 @@
                             both an aggregate user outcome and the technical history needed to
                             explain how it was reached. Shared service, indexer, and library
                             configuration resolves through one persisted instance owner rather than
-                            changing with administrator ordering.
+                            changing with administrator ordering. YouTube uses a parallel durable
+                            source, membership, selection, download, and imported-file model.
                         </figcaption>
                     </figure>
 
@@ -1507,11 +1504,19 @@
                                         races</small
                                     >
                                 </li>
+                                <li>
+                                    <span>0045-0047</span><strong>Engine cleanup + YouTube</strong
+                                    ><small
+                                        >Removes a dead engine state and adds YouTube sources,
+                                        selections, downloads, imported files, and atomic source
+                                        membership</small
+                                    >
+                                </li>
                             </ol>
                         </div>
                         <figcaption>
-                            <span>Figure 8.</span> Forty-five migrations span
-                            <code>0000</code> through <code>0044</code>. Migration
+                            <span>Figure 8.</span> Forty-eight migrations span
+                            <code>0000</code> through <code>0047</code>. Migration
                             <code>0033</code> deliberately repairs a known historical state using
                             idempotent DDL. The repository validator enforces contiguous tags, SQL
                             artifacts, and monotonic new timestamps.
@@ -2254,11 +2259,11 @@ npm run account:recover -- admin@example.com</code></pre>
                             </div>
                             <div
                                 class="module-bar"
-                                style="--total: 27.08%; --source: 69.23%; --tests: 30.77%"
+                                style="--total: 27.78%; --source: 67.5%; --tests: 32.5%"
                             >
                                 <span>indexers</span>
                                 <div><i class="bar-source"></i><i class="bar-tests"></i></div>
-                                <strong>27 + 12</strong>
+                                <strong>27 + 13</strong>
                             </div>
                             <div
                                 class="module-bar"
@@ -2278,6 +2283,14 @@ npm run account:recover -- admin@example.com</code></pre>
                             </div>
                             <div
                                 class="module-bar"
+                                style="--total: 18.06%; --source: 53.85%; --tests: 46.15%"
+                            >
+                                <span>youtube</span>
+                                <div><i class="bar-source"></i><i class="bar-tests"></i></div>
+                                <strong>14 + 12</strong>
+                            </div>
+                            <div
+                                class="module-bar"
                                 style="--total: 11.81%; --source: 82.35%; --tests: 17.65%"
                             >
                                 <span>notifications</span>
@@ -2294,10 +2307,10 @@ npm run account:recover -- admin@example.com</code></pre>
                             </div>
                         </div>
                         <figcaption>
-                            <span>Chart 3.</span> The 17 domain directories contain 509
-                            TypeScript/TSX files: 331 production and 178 test files. There is no
-                            separate root registry; the complete <code>src</code> tree contains 778
-                            TypeScript/TSX files, including 234 test files.
+                            <span>Chart 3.</span> The 18 domain directories contain 536
+                            TypeScript/TSX files: 345 production and 191 test files. There is no
+                            separate root registry; the complete <code>src</code> tree contains 831
+                            TypeScript/TSX files, including 260 test files.
                         </figcaption>
                     </figure>
 
@@ -2367,24 +2380,24 @@ npm run account:recover -- admin@example.com</code></pre>
 
                     <div class="evidence-ledger" data-reveal>
                         <div>
-                            <span>Repository</span><strong>781 files under <code>src</code></strong
+                            <span>Repository</span><strong>834 files under <code>src</code></strong
                             ><small
-                                >778 TypeScript/TSX &middot; 544 production &middot; 234 test</small
+                                >831 TypeScript/TSX &middot; 571 production &middot; 260 test</small
                             >
                         </div>
                         <div>
                             <span>Application surface</span
                             ><strong
-                                >27 pages &middot; 16 server-action files &middot; 3 API route
+                                >28 pages &middot; 19 server-action files &middot; 3 API route
                                 files</strong
                             ><small
-                                >15 actions live under <code>src/app</code>; sign-out lives under
+                                >18 actions live under <code>src/app</code>; sign-out lives under
                                 <code>src/components/layout</code>.</small
                             >
                         </div>
                         <div>
-                            <span>Workflow layer</span><strong>144 production workflow files</strong
-                            ><small>95 colocated workflow test files.</small>
+                            <span>Workflow layer</span><strong>147 production workflow files</strong
+                            ><small>98 colocated workflow test files.</small>
                         </div>
                         <div>
                             <span>Historical overhaul</span
@@ -2621,7 +2634,8 @@ npm run account:recover -- admin@example.com</code></pre>
                             <h3>Domain and workflow ownership</h3>
                             <p>
                                 Defines the modular-monolith shape, normalized data, typed adapter
-                                boundaries, and single-container constraint.
+                                boundaries, and the single supervised application-container
+                                constraint.
                             </p>
                         </a>
                         <a
@@ -2712,7 +2726,7 @@ npm run account:recover -- admin@example.com</code></pre>
                 </nav>
                 <p class="revision">
                     Source snapshot <code>current main &middot; release candidate</code
-                    ><br />Technical dossier revised August 7, 2026
+                    ><br />Technical dossier revised August 19, 2026
                 </p>
             </div>
         </footer>

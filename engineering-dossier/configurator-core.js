@@ -453,7 +453,7 @@ function buildPowerShellCommand(environment, override, configuration) {
     }
     $HasArtifacts = Test-NookletDockerArtifacts
     if ($EnvState -eq 'missing' -and $HasArtifacts) {
-      throw 'A Nooklet container or data volume already exists, but this folder has no .env holding its secrets. Starting over with new secrets would make that data unreadable. If nothing in it matters, run docker rm -f nooklet and docker volume rm nooklet_nooklet-data, then paste this same command again.'
+      throw 'A Nooklet container or data volume already exists, but this folder has no .env holding its secrets. Stop: do not delete the container or volume, and do not generate replacement secrets. Restore the original .env from your secure backup, then paste this same command again. If it cannot be recovered, preserve the volume and follow https://github.com/TannerMidd/Nooklet/wiki/Docker-Installation#installation-recovery.'
     }
     if ($EnvState -eq 'matching') {
       Write-Host 'Reusing matching .env.'
@@ -695,7 +695,7 @@ ${hostChecks}
     has_artifacts=true
   fi
   if [ "$env_state" = 'missing' ] && [ "$has_artifacts" = true ]; then
-    printf 'A Nooklet container or data volume already exists, but this folder has no .env holding its secrets. Starting over with new secrets would make that data unreadable. If nothing in it matters, run docker rm -f nooklet and docker volume rm nooklet_nooklet-data, then paste this same command again.\\n' >&2
+    printf 'A Nooklet container or data volume already exists, but this folder has no .env holding its secrets. Stop: do not delete the container or volume, and do not generate replacement secrets. Restore the original .env from your secure backup, then paste this same command again. If it cannot be recovered, preserve the volume and follow https://github.com/TannerMidd/Nooklet/wiki/Docker-Installation#installation-recovery.\\n' >&2
     exit 1
   fi
   if [ "$env_state" = 'matching' ]; then
@@ -793,7 +793,7 @@ export function createSetupCommand(input, randomSource = globalThis.crypto) {
             target,
         })),
         {
-            label: "Downloads / staging",
+            label: "Completed-download staging",
             path: validation.value.downloadPath,
             target: "/downloads",
         },

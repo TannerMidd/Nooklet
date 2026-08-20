@@ -4,18 +4,19 @@ Use this page to find the right level of detail and to understand which artifact
 
 ## Start with the task, not the subsystem
 
-| Task                                    | Primary guide                                                        | Follow-up                                                    |
-| --------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------ |
-| See what Nooklet does                   | [Feature guide](https://tannermidd.github.io/Nooklet/features/)      | [Engineering dossier](https://tannermidd.github.io/Nooklet/) |
-| Follow a curated setup and usage path   | [User guide](https://tannermidd.github.io/Nooklet/guide/)            | [Getting started](Getting-Started)                           |
-| New Docker installation                 | [Getting started](Getting-Started)                                   | [First-time setup](First-Time-Setup)                         |
-| Fix storage or path errors              | [Storage and path mapping](Storage-and-Path-Mapping)                 | [Troubleshooting](Troubleshooting)                           |
-| Add or verify integrations              | [Service connections](Service-Connections)                           | [Indexers](Indexers)                                         |
-| Understand a request end to end         | [Downloads and import](Downloads-and-Import)                         | [Data and background jobs](Data-and-Background-Jobs)         |
-| Monitor or archive public YouTube media | [YouTube monitoring and downloads](YouTube-Monitoring-and-Downloads) | [Storage and path mapping](Storage-and-Path-Mapping)         |
-| Upgrade or recover                      | [Backup, restore, and upgrades](Backup-Restore-and-Upgrades)         | [Health and diagnostics](Health-and-Diagnostics)             |
-| Change the code                         | [Development guide](Development-Guide)                               | [Testing and CI](Testing-and-CI)                             |
-| Review design and risk                  | [Architecture](Architecture)                                         | [Security model](Security-Model)                             |
+| Task                                    | Primary guide                                                                           | Follow-up                                                    |
+| --------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| See what Nooklet does                   | [Feature guide](https://tannermidd.github.io/Nooklet/features/)                         | [Engineering dossier](https://tannermidd.github.io/Nooklet/) |
+| Follow a curated setup and usage path   | [User guide](https://tannermidd.github.io/Nooklet/guide/)                               | [Getting started](Getting-Started)                           |
+| New guided Docker installation          | [Docker setup builder](https://tannermidd.github.io/Nooklet/guide/#docker-configurator) | [First-time setup](First-Time-Setup)                         |
+| New manual Docker installation          | [Docker installation](Docker-Installation)                                              | [First-time setup](First-Time-Setup)                         |
+| Fix storage or path errors              | [Storage and path mapping](Storage-and-Path-Mapping)                                    | [Troubleshooting](Troubleshooting)                           |
+| Add or verify integrations              | [Service connections](Service-Connections)                                              | [Indexers](Indexers)                                         |
+| Understand a request end to end         | [Downloads and import](Downloads-and-Import)                                            | [Data and background jobs](Data-and-Background-Jobs)         |
+| Monitor or archive public YouTube media | [YouTube monitoring and downloads](YouTube-Monitoring-and-Downloads)                    | [Storage and path mapping](Storage-and-Path-Mapping)         |
+| Upgrade or recover                      | [Backup, restore, and upgrades](Backup-Restore-and-Upgrades)                            | [Health and diagnostics](Health-and-Diagnostics)             |
+| Change the code                         | [Development guide](Development-Guide)                                                  | [Testing and CI](Testing-and-CI)                             |
+| Review design and risk                  | [Architecture](Architecture)                                                            | [Security model](Security-Model)                             |
 
 ## Documentation authority
 
@@ -37,4 +38,4 @@ Every operational change should update the code, tests, `.env.example` when rele
 
 ---
 
-Last reviewed: **August 6, 2026**.
+Installation paths last reviewed: **August 19, 2026**.

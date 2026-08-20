@@ -26,7 +26,7 @@ Open `/bootstrap`, enter the one-time token, and create the first account. Passw
 
 After bootstrap:
 
-1. Remove `BOOTSTRAP_TOKEN` from `.env`.
+1. Delete the entire `BOOTSTRAP_TOKEN=...` line from `.env`.
 2. Recreate the container so the token leaves the runtime environment:
 
     ```console
