@@ -423,9 +423,10 @@ assert.match(controllerSource, /youtubeOption\.value = "youtube"/);
 assert.match(controllerSource, /D:\/Media\/YouTube/);
 assert.match(controllerSource, /\/srv\/media\/youtube/);
 assert.match(controllerSource, /\/Volumes\/Media\/YouTube/);
+assert.match(controllerSource, /\.\/configurator-core\.js\?v=20260820-youtube/);
 
 assert.match(guideSource, /id="docker-configurator"/);
-assert.match(guideSource, /src="\.\.\/configurator\.js"/);
+assert.match(guideSource, /src="\.\.\/configurator\.js\?v=20260820-youtube"/);
 assert.match(guideSource, /connect-src 'none'/);
 assert.equal((guideSource.match(/<option value="youtube">YouTube<\/option>/g) ?? []).length, 2);
 
