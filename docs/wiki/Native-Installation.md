@@ -5,7 +5,7 @@ Native installation is intended for development and advanced operators who prefe
 ## Requirements
 
 - Node.js `>=24.15.0`
-- npm
+- npm `>=11.16.0 <12`
 - Git
 - Build support for native Node dependencies if a matching binary is unavailable
 - `par2`, `unrar`, and `7zz` on `PATH` for complete built-in download repair and extraction
@@ -45,7 +45,7 @@ Windows PowerShell:
 Copy-Item .env.example .env
 ```
 
-Generate independent values for `AUTH_SECRET`, `BOOTSTRAP_TOKEN`, and `SECRET_BOX_KEY`, then edit `.env`. `AUTH_SECRET` must be at least 32 characters; the other two accept 32-512 characters. Known placeholder values are rejected.
+Use the platform-specific generators in [Docker installation](Docker-Installation#2-create-env-and-generate-secrets) to create independent values for `AUTH_SECRET`, `BOOTSTRAP_TOKEN`, and `SECRET_BOX_KEY`, then edit `.env`. `AUTH_SECRET` must be at least 32 characters; the other two accept 32-512 characters. Known placeholder values and reused values are rejected.
 
 For a host-native installation, paths are resolved on the machine running Node.js. A minimal example is:
 
@@ -118,7 +118,7 @@ On Windows PowerShell:
 Invoke-RestMethod http://localhost:42021/api/health
 ```
 
-Open the application, create the first administrator, then follow [First-time setup](First-Time-Setup). Remove `BOOTSTRAP_TOKEN` from `.env` and restart the supervised process after bootstrap completes.
+Open the application, create the first administrator, then follow [First-time setup](First-Time-Setup). Delete the entire `BOOTSTRAP_TOKEN=...` line from `.env` and restart the supervised process after bootstrap completes.
 
 ## Native filesystem notes
 

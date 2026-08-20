@@ -132,11 +132,11 @@
                         </div>
                         <div>
                             <dt>Modules</dt>
-                            <dd>17 under <code>src/modules</code></dd>
+                            <dd>18 under <code>src/modules</code></dd>
                         </div>
                         <div>
                             <dt>Tables</dt>
-                            <dd>45 in one SQLite file</dd>
+                            <dd>50 in one SQLite file</dd>
                         </div>
                         <div>
                             <dt>Baseline</dt>
@@ -1451,7 +1451,8 @@
                             <div>
                                 <p class="eyebrow">Breakdown 05</p>
                                 <h2 id="bd05-title">
-                                    One container, one supervisor, three long-lived children.
+                                    One application container, one supervisor, two long-lived
+                                    children.
                                 </h2>
                             </div>
                             <p>
@@ -1459,6 +1460,8 @@
                                 from JavaScript. Enough blocked calls exhaust the process-wide
                                 filesystem thread pool and page rendering stops. The answer is
                                 process isolation: filesystem work never runs in the web runtime.
+                                The YouTube proof-of-origin provider is a separate internal Compose
+                                sidecar and is outside this application-container supervision tree.
                             </p>
                         </div>
 
@@ -1693,14 +1696,15 @@
                                     tini is PID 1 and starts container-supervisor.mjs, which forces
                                     NODE_ENV to production and then runs the worker bundle once with
                                     --migrate-only, awaiting its exit so migrations complete before
-                                    any long-lived process opens SQLite. It then spawns three
-                                    children: the Next.js web server, the background worker, and a
-                                    disposable storage probe. If the web process exits, the
-                                    supervisor shuts the whole container down. If the worker exits
-                                    or its persisted heartbeat stops advancing, it is restarted with
-                                    exponential backoff starting at one second and capped at thirty
-                                    seconds. Normal termination first asks the worker to drain its
-                                    active pass.
+                                    any long-lived process opens SQLite. It then spawns two
+                                    long-lived children: the Next.js web server and the background
+                                    worker. Separate storage-probe children are disposable; each
+                                    performs one bounded refresh and exits. If the web process
+                                    exits, the supervisor shuts the whole container down. If the
+                                    worker exits or its persisted heartbeat stops advancing, it is
+                                    restarted with exponential backoff starting at one second and
+                                    capped at thirty seconds. Normal termination first asks the
+                                    worker to drain its active pass.
                                 </p>
                             </div>
 
@@ -2987,7 +2991,7 @@
                         <div class="section-heading section-heading-split" data-reveal>
                             <div>
                                 <p class="eyebrow">Breakdown 09</p>
-                                <h2 id="bd09-title">Forty-five tables in one SQLite file.</h2>
+                                <h2 id="bd09-title">Fifty tables in one SQLite file.</h2>
                             </div>
                             <p>
                                 One schema file declares every table. Most entity rows use text
@@ -3015,7 +3019,7 @@
                                 >
                                     <svg
                                         class="cpd"
-                                        viewBox="0 0 930 700"
+                                        viewBox="0 0 930 730"
                                         role="img"
                                         aria-labelledby="bd09-fig-title"
                                         aria-describedby="bd09-fig-desc"
@@ -3224,6 +3228,31 @@
                                         </text>
 
                                         <rect
+                                            class="cpd-zone"
+                                            x="327"
+                                            y="574"
+                                            width="275"
+                                            height="138"
+                                            rx="12"
+                                        />
+                                        <text class="cpd-lane" x="343" y="600">
+                                            YOUTUBE &middot; 5
+                                        </text>
+                                        <text class="cpd-path" x="343" y="624">
+                                            youtube_sources
+                                        </text>
+                                        <text class="cpd-path" x="343" y="642">
+                                            youtube_source_selections
+                                        </text>
+                                        <text class="cpd-path" x="343" y="660">youtube_videos</text>
+                                        <text class="cpd-path" x="343" y="678">
+                                            youtube_source_videos
+                                        </text>
+                                        <text class="cpd-path" x="343" y="696">
+                                            youtube_downloads
+                                        </text>
+
+                                        <rect
                                             class="cpd-node cpd-node-terminal"
                                             x="624"
                                             y="478"
@@ -3246,15 +3275,16 @@
                                     </svg>
                                 </div>
                                 <p class="sr-only" id="bd09-fig-desc">
-                                    Forty-five tables grouped by owning domain: five for identity
-                                    and access, nine for the media library, seven for downloads, six
-                                    for indexers, six for recommendations, three for watch history,
+                                    Fifty tables grouped by owning domain: five for identity and
+                                    access, nine for the media library, seven for downloads, six for
+                                    indexers, six for recommendations, three for watch history,
                                     eight platform tables covering stable instance ownership,
                                     service connections, storage snapshots, jobs and notifications,
-                                    and one for the download engine. Auth.js keeps encrypted JWTs in
-                                    browser cookies while each token must also match an unexpired
-                                    <code>auth_sessions</code> row and the user's current monotonic
-                                    authentication generation.
+                                    one for the download engine, and five for YouTube sources,
+                                    selections, videos, membership, and downloads. Auth.js keeps
+                                    encrypted JWTs in browser cookies while each token must also
+                                    match an unexpired <code>auth_sessions</code> row and the user's
+                                    current monotonic authentication generation.
                                 </p>
                             </div>
 
@@ -3292,6 +3322,12 @@
                                     <a
                                         href="https://github.com/TannerMidd/Nooklet/tree/main/drizzle"
                                         ><code>drizzle/</code></a
+                                    >
+                                </li>
+                                <li>
+                                    <a
+                                        href="https://github.com/TannerMidd/Nooklet/tree/main/src/modules/youtube"
+                                        ><code>src/modules/youtube/</code></a
                                     >
                                 </li>
                             </ul>
@@ -4343,7 +4379,7 @@
                     <a href="https://github.com/TannerMidd/Nooklet/wiki">Wiki</a>
                     <a href="https://github.com/TannerMidd/Nooklet/issues">Support</a>
                 </nav>
-                <p class="revision">Code paths<br />Reviewed August 7, 2026</p>
+                <p class="revision">Code paths<br />Reviewed August 19, 2026</p>
             </div>
         </footer>
     </body>

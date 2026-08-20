@@ -148,7 +148,7 @@ Nooklet records finalized output under `DOWNLOAD_ENGINE_DIR`; there is no second
 
 ## Built-in data volume
 
-Compose mounts the named volume `nooklet-data` at `/app/data`. The database always lives at `/app/data/nooklet.db` in Compose, regardless of a host-style `DATABASE_URL` in `.env`. The image-default in-flight workspace `/app/data/engine-work`, completed-output staging `/app/data/downloads`, and YouTube workspace `/app/data/youtube` therefore persist across container recreation, but may share a smaller Docker-managed filesystem.
+Compose mounts the logical volume key `nooklet-data` at `/app/data`; Docker normally displays its actual name as `nooklet_nooklet-data` for the default project. The database always lives at `/app/data/nooklet.db` in Compose, regardless of a host-style `DATABASE_URL` in `.env`. The image-default in-flight workspace `/app/data/engine-work`, completed-output staging `/app/data/downloads`, and YouTube workspace `/app/data/youtube` therefore persist across container recreation, but may share a smaller Docker-managed filesystem.
 
 Do not run `docker compose down -v` unless intentionally deleting the persistent database volume.
 

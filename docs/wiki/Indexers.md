@@ -56,6 +56,7 @@ Use lower numbers for preferred providers. Equal numbers are deterministically o
 
 An indexer satisfies a request path only when all of these are true:
 
+- its protocol is **Newznab**;
 - it is enabled;
 - its latest status is **Verified**;
 - it has at least one category mapped to the requested media type.
@@ -82,6 +83,10 @@ Confirm all three readiness signals:
 1. Status is **Verified**, not merely **Configured**.
 2. **Use this indexer in searches** is enabled.
 3. The requested media type has a category selected.
+
+### An upgraded instance still has a Torznab row
+
+Legacy Torznab rows are never used for release searches. Remove the old row and add the provider only if it exposes a Newznab endpoint. In the current release, a legacy row can still satisfy Setup Center's enabled/verified/category projection, so do not treat that badge as evidence that Torznab search is supported.
 
 ### Test returns unauthorized
 

@@ -42,51 +42,48 @@ Nooklet brings the full media workflow into one coherent interface. Plex, Tautul
 | Public YouTube video/channel search plus channel or playlist monitoring           | Restart-safe yt-dlp downloads with bounded quality profiles and organized YouTube imports                          |
 | Guided setup, storage preflight, diagnostics, audit history, and recovery actions | One built-in downloader plus optional Plex, Tautulli, and Trakt context                                            |
 
-## Run Nooklet
+## Install Nooklet
 
-Docker Compose is the recommended installation path. It packages the web app, background worker, SQLite database, downloader, PAR2, UnRAR, 7-Zip, Python, ffmpeg, and a pinned checksum-verified official yt-dlp distribution into one reproducible deployment.
+Docker Compose is the recommended installation path. It packages the web app, background worker, SQLite database, downloader, repair and extraction tools, Python, ffmpeg, and yt-dlp into one deployment.
 
-Prerequisites: Docker Engine with Docker Compose v2, Git, writable media-library folders, and enough Docker or host storage for downloader work. A dedicated bind-mounted staging folder is recommended when the Docker data volume is not large enough.
+### What you need
 
-### 1. Clone and prepare the environment
+- Docker Desktop, or Docker Engine with Docker Compose v2
+- Git
+- At least one existing movie or TV library folder
+- A separate existing folder for completed-download staging
+- Enough free space in Docker's data storage for in-flight work, repair, and extraction
 
-```bash
-git clone https://github.com/TannerMidd/Nooklet.git
-cd Nooklet
-cp .env.example .env
-```
+On Windows or macOS, start Docker Desktop and wait until its Linux engine is running. On Linux, start Docker Engine. A first movie or TV request also needs TMDB credentials, a Newznab indexer, and a Usenet provider; you add those inside Nooklet after installation.
 
-On Windows PowerShell, use `Copy-Item .env.example .env` for the final command. In `.env`, set three independent random values for `AUTH_SECRET`, `BOOTSTRAP_TOKEN`, and `SECRET_BOX_KEY`. The [Docker installation guide](https://github.com/TannerMidd/Nooklet/wiki/Docker-Installation) includes copy-and-paste secret generators for every platform.
+### Easiest route: use the setup builder
 
-### 2. Mount your storage
+Open the **[Docker setup builder](https://tannermidd.github.io/Nooklet/guide/#docker-configurator)**. It runs entirely in your browser and does not send your folders or generated secrets anywhere.
 
-Create the host folders first, then add a machine-specific `docker-compose.override.yml`:
+1. Choose the operating system that runs Docker.
+2. Enter your existing media folders and completed-download staging folder.
+3. Open PowerShell on Windows or Terminal on Linux/macOS in the parent folder where Nooklet should be installed.
+4. Paste the generated private command once.
+5. Wait for the command to report `Nooklet is healthy` and print the one-time bootstrap token.
 
-```yaml
-services:
-    app:
-        volumes:
-            - "/srv/media/tv:/media/tv"
-            - "/srv/media/movies:/media/movies"
-            - "/srv/media/youtube:/media/youtube"
-            - "/srv/nooklet-downloads:/downloads"
-```
+The command checks Docker and Git, clones Nooklet, creates the private environment and mount files, verifies that the container can write to every selected folder, builds the images, starts the services, and waits for application health. Keep the generated command private because it contains installation secrets.
 
-Use quoted forward-slash paths on Windows, such as `"F:/Nooklet/Downloads:/downloads"`. Then set `DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine`, keep `YOUTUBE_WORK_DIR=/app/data/youtube`, and set `APPROVED_MEDIA_ROOTS=/media` in `.env`.
+Prefer to inspect and enter every value yourself? Follow the **[manual Docker installation guide](https://github.com/TannerMidd/Nooklet/wiki/Docker-Installation)**. It includes separate Windows, Linux, and macOS commands, exact storage mappings, success checks, and recovery steps.
 
-### 3. Start the app
+### Finish the first login
 
-```bash
-docker compose config --quiet
-docker compose up -d --build
-docker compose ps
-```
+1. Open [http://localhost:42021](http://localhost:42021).
+2. Enter the printed `BOOTSTRAP_TOKEN` and create the first administrator.
+3. Delete the entire `BOOTSTRAP_TOKEN=...` line from `.env`.
+4. From the Nooklet repository folder, apply that change:
 
-Open [http://localhost:42021](http://localhost:42021), enter the bootstrap token, and create the first administrator. Setup Center then verifies TMDB, indexers, downloading, storage, and the background worker against the real request path.
+    ```bash
+    docker compose up -d --force-recreate
+    ```
 
-After the administrator exists, clear `BOOTSTRAP_TOKEN` in `.env` and recreate the container so the one-time bootstrap route is disabled.
+5. Follow **[First-time setup](https://github.com/TannerMidd/Nooklet/wiki/First-Time-Setup)** to connect TMDB, Newznab, and Usenet; attach the final library folders; and make a small test request.
 
-**Next:** follow the [first-time setup guide](https://github.com/TannerMidd/Nooklet/wiki/First-Time-Setup) or open the full [Docker installation guide](https://github.com/TannerMidd/Nooklet/wiki/Docker-Installation) for NAS mounts, reverse proxies, Windows paths, and production hardening.
+If the setup command does not report a healthy app, do not delete data or volumes. Use the **[Docker installation recovery steps](https://github.com/TannerMidd/Nooklet/wiki/Docker-Installation#installation-recovery)** or the **[symptom-based troubleshooting guide](https://github.com/TannerMidd/Nooklet/wiki/Troubleshooting)**.
 
 ## Storage paths, without surprises
 
@@ -101,7 +98,7 @@ See [Storage and path mapping](https://github.com/TannerMidd/Nooklet/wiki/Storag
 
 Library's YouTube area can search public channels/videos, accept supported YouTube URLs, download selected videos, and monitor a channel's regular Videos feed or a public playlist. Existing backlog selection is explicit; successful later syncs queue newly discovered eligible regular videos. See [YouTube monitoring and downloads](https://github.com/TannerMidd/Nooklet/wiki/YouTube-Monitoring-and-Downloads) for setup, profiles, retry behavior, and current exclusions.
 
-Nooklet does not use a YouTube API key or Google OAuth. When YouTube blocks a server's guest traffic, an administrator may explicitly upload a dedicated YouTube-only cookie export under Settings → Connections; Nooklet validates it live, encrypts it at rest, and exposes it to yt-dlp only through short-lived private tmpfs files. Download or archive content only when you have permission; you are responsible for complying with the content owner's terms and applicable law.
+Nooklet does not use a YouTube API key or Google OAuth. When YouTube blocks a server's guest traffic, an administrator may explicitly upload a dedicated YouTube-only cookie export under Settings → Connections; Nooklet validates it live, encrypts it at rest, and exposes it to yt-dlp only through short-lived private temporary files. Docker keeps those leases on `/tmp` tmpfs; native installs use the operating system's private temporary directory. Download or archive content only when you have permission; you are responsible for complying with the content owner's terms and applicable law.
 
 ## Documentation and architecture
 

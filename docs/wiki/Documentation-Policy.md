@@ -57,7 +57,7 @@ Use plain language first, then the exact configuration name, state, or type. Dis
 - Date repository counts and generated metrics; avoid undated numbers that will silently drift.
 - Separate a successful unit/build/smoke check from production, scale, security, or accessibility certification.
 - Mark inferences as inferences.
-- Preserve honest limitations such as the single-container/single-instance topology, missing segment resume, or unsupported torrent transport.
+- Preserve honest limitations such as the single supervised application-container/single-instance topology, its internal provider sidecar, missing segment resume, or unsupported torrent transport.
 
 ## Diagrams
 
@@ -131,7 +131,7 @@ Before publishing documentation:
 
 ## Known documentation-system debt at this baseline
 
-The current narrative sources were reconciled against implementation on 2026-08-06. Remaining drift-prevention work is mechanical:
+The current narrative sources were reconciled against implementation on 2026-08-19. Remaining drift-prevention work is mechanical:
 
 - Repository metrics in the engineering dossier are copied values rather than generated or source-validated values.
 - `.env.example`/environment-schema parity and public API examples are not contract-tested.

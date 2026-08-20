@@ -1,6 +1,6 @@
 # Backup, restore, and upgrades
 
-Nooklet stores application state in SQLite. In the standard Docker deployment, the database is `/app/data/nooklet.db` inside the `nooklet-data` volume. Treat a verified, off-host database copy as a required part of every upgrade or recovery plan.
+Nooklet stores application state in SQLite. In the standard Docker deployment, the database is `/app/data/nooklet.db` inside the volume whose Compose key is `nooklet-data`; Docker normally displays the actual default-project volume as `nooklet_nooklet-data`. Treat a verified, off-host database copy as a required part of every upgrade or recovery plan.
 
 > [!CAUTION]
 > `docker compose down -v` deletes the named data volume. Ordinary updates never require `-v`.
@@ -13,7 +13,8 @@ Nooklet stores application state in SQLite. In the standard Docker deployment, t
 | Authentication and encryption keys                         | `.env` on the host                                                | No                             | Back up securely and separately; never commit it.                                                                  |
 | Built-in in-flight workspace                               | `/app/data/engine-work` by default, or `DOWNLOAD_ENGINE_WORK_DIR` | No                             | Preserve only if attempting low-level recovery of active downloads; per-segment resume is not currently supported. |
 | Built-in completed-output staging                          | `/app/data/downloads` by image default, or `DOWNLOAD_ENGINE_DIR`  | No                             | Preserve unimported completed output. A bind-mounted staging drive needs its own backup policy.                    |
-| Final movie and TV files                                   | Operator-defined bind mounts                                      | No                             | Protect with the media storage system's backup or redundancy plan.                                                 |
+| YouTube in-flight workspace                                | `/app/data/youtube` by image default, or `YOUTUBE_WORK_DIR`       | No                             | Preserve it only when restart-resumable in-flight transfers matter to the recovery plan.                           |
+| Final movie, TV, and YouTube files                         | Operator-defined bind mounts                                      | No                             | Protect with the media storage system's backup or redundancy plan.                                                 |
 | Compose overrides and reverse-proxy configuration          | Host files                                                        | No                             | Store sanitized templates in version control; protect live secrets separately.                                     |
 
 Database backups contain password hashes, operational history, and encrypted integration credentials. Encryption of saved credentials does not make the backup public-safe: restrict access and encrypt off-host copies at rest.
@@ -28,7 +29,20 @@ Choose a unique timestamped filename. The backup command refuses to overwrite an
 mkdir -p backups
 docker compose exec app node scripts/backup-database.mjs /app/data/backups/nooklet-2026-07-15T1700Z.db
 docker compose cp app:/app/data/backups/nooklet-2026-07-15T1700Z.db ./backups/nooklet-2026-07-15T1700Z.db
+```
+
+Then record the hash with the command for your operating system.
+
+**Linux**
+
+```console
 sha256sum ./backups/nooklet-2026-07-15T1700Z.db
+```
+
+**macOS**
+
+```console
+shasum -a 256 ./backups/nooklet-2026-07-15T1700Z.db
 ```
 
 **Windows PowerShell**
@@ -84,8 +98,16 @@ The repository provides a backup creator that runs SQLite `quick_check` and an a
 2. Note the current revision with `git rev-parse HEAD`.
 3. If the live database is still readable, create a new verified backup before replacing it.
 4. Put the selected backup in a local `backups` directory beneath the Compose project.
-5. Keep public ingress closed for the entire restore. Do not allow browser or API traffic until session invalidation and verification below are complete.
-6. Stop the application cleanly:
+5. Confirm that the image's non-root runtime user can read the selected host backup:
+
+    ```console
+    docker compose run --rm --no-deps -v "./backups:/restore:ro" --entrypoint sh app -c 'test -r /restore/nooklet-2026-07-15T1700Z.db && echo "Backup is readable."'
+    ```
+
+    The backup tool uses mode `0600` on POSIX systems. If this check fails on Linux, grant read access to container UID `1000` with a narrow host ACL for this one file, rerun the check, and remove that ACL after restoration. Do not make a database backup world-readable.
+
+6. Keep public ingress closed for the entire restore. Do not allow browser or API traffic until session invalidation and verification below are complete.
+7. Stop the application cleanly:
 
 ```console
 docker compose stop app

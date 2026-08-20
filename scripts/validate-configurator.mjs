@@ -325,7 +325,9 @@ exit 0
 
             assert.notEqual(artifactRefusal.status, 0);
             assert.match(artifactRefusal.stderr, /container or data volume already exists/);
-            assert.match(artifactRefusal.stderr, /docker volume rm nooklet_nooklet-data/);
+            assert.match(artifactRefusal.stderr, /do not delete the container or volume/);
+            assert.match(artifactRefusal.stderr, /Restore the original \.env/);
+            assert.doesNotMatch(artifactRefusal.stderr, /docker (?:rm|volume rm)/);
             await assert.rejects(readFile(join(fixtureRoot, ".env")));
             await assert.rejects(readFile(join(fixtureRoot, "docker-compose.override.yml")));
         } finally {

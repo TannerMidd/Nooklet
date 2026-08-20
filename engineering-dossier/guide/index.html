@@ -452,58 +452,54 @@
                     <section class="guide-section" id="install" aria-labelledby="install-title">
                         <div class="guide-section-heading" data-reveal>
                             <p class="eyebrow">Step 1</p>
-                            <h2 id="install-title">Install with Docker Compose.</h2>
+                            <h2 id="install-title">Prepare Docker and choose one setup route.</h2>
                             <p>
-                                Docker is the recommended route. It supplies Node.js, the worker,
-                                SQLite, the native downloader, PAR2, UnRAR, and 7-Zip as one
-                                reproducible deployment.
+                                Docker is the recommended route. For a new installation, use the
+                                setup builder below. It verifies the prerequisites, folders,
+                                generated configuration, startup, and health instead of asking you
+                                to assemble those steps by hand.
                             </p>
                         </div>
 
                         <div class="guide-callout guide-callout-neutral" data-reveal>
-                            <strong>Before you begin</strong>
+                            <strong>Have these ready before you start</strong>
                             <p>
-                                Have Docker Compose v2, Git, a media folder, a separate staging
-                                folder for native downloads, TMDB credentials, a Newznab account,
-                                and Usenet server credentials.
+                                Start Docker's Linux engine and have Git, at least one existing
+                                media folder, a separate existing completed-download staging folder,
+                                and enough free space in Docker's data storage. TMDB, Newznab, and
+                                Usenet credentials are needed later in Setup Center, not to start
+                                the container.
                             </p>
                         </div>
 
                         <div class="guide-command-grid">
                             <article class="guide-command-card" data-reveal>
-                                <p class="card-kicker">Clone + environment</p>
-                                <h3>Prepare the project.</h3>
-                                <div class="code-block">
-                                    <button type="button" data-copy-target="clone-command">
-                                        Copy
-                                    </button>
-                                    <pre
-                                        id="clone-command"
-                                    ><code>git clone https://github.com/TannerMidd/Nooklet.git
-cd Nooklet
-cp .env.example .env</code></pre>
-                                </div>
+                                <p class="card-kicker">Recommended</p>
+                                <h3>Let the setup builder verify the installation.</h3>
                                 <p>
-                                    On Windows PowerShell, replace the final command with
-                                    <code>Copy-Item .env.example .env</code>.
+                                    Choose your operating system and existing folders below. The
+                                    generated private command creates the configuration, checks
+                                    every mount, builds the images, and waits for Nooklet to become
+                                    healthy.
                                 </p>
+                                <a class="button button-primary" href="#docker-configurator"
+                                    >Open the setup builder</a
+                                >
                             </article>
 
                             <article class="guide-command-card" data-reveal>
-                                <p class="card-kicker">Start + verify</p>
-                                <h3>Build the runtime.</h3>
-                                <div class="code-block">
-                                    <button type="button" data-copy-target="start-command">
-                                        Copy
-                                    </button>
-                                    <pre id="start-command"><code>docker compose config --quiet
-docker compose up -d --build
-docker compose ps</code></pre>
-                                </div>
+                                <p class="card-kicker">Manual alternative</p>
+                                <h3>Enter and inspect every value yourself.</h3>
                                 <p>
-                                    Open <code>http://localhost:42021</code> after the service is
-                                    healthy.
+                                    The complete runbook separates Windows, Linux, and macOS; shows
+                                    the full environment and mount files; and defines the exact
+                                    healthy response before first login.
                                 </p>
+                                <a
+                                    class="button button-secondary"
+                                    href="https://github.com/TannerMidd/Nooklet/wiki/Docker-Installation"
+                                    >Open the manual guide</a
+                                >
                             </article>
                         </div>
 
@@ -582,11 +578,13 @@ docker compose ps</code></pre>
                                 Choose your folders. Paste one command.
                             </h2>
                             <p>
-                                Pick the operating system that runs Docker, add your movie and TV
-                                folders, and choose download staging. Nooklet generates everything
-                                needed for a new install: the repository, private environment, drive
-                                mounts, container build, writable-mount check, startup, and health
-                                check.
+                                Pick the operating system that runs Docker, add your existing movie
+                                and TV folders, and choose a separate existing folder for completed
+                                downloads awaiting import. Nooklet generates everything needed for a
+                                new install: the repository, private environment, drive mounts,
+                                container build, writable-mount check, startup, and health check.
+                                In-flight download, repair, and extraction work uses Docker's data
+                                volume, which must also have enough free space.
                             </p>
                         </div>
 
@@ -701,7 +699,7 @@ docker compose ps</code></pre>
                                 </div>
 
                                 <label class="quick-download-field">
-                                    <span>Downloads / staging folder</span>
+                                    <span>Completed-download staging folder</span>
                                     <input
                                         id="quick-download-path"
                                         type="text"
@@ -711,8 +709,9 @@ docker compose ps</code></pre>
                                         aria-describedby="quick-download-help quick-download-error"
                                     />
                                     <small id="quick-download-help">
-                                        Choose an existing folder. Nooklet checks free space here
-                                        and needs room for both the download and extraction.
+                                        Choose an existing folder for completed Usenet output before
+                                        import. In-flight, repair, and extraction work uses Docker's
+                                        separate data volume.
                                     </small>
                                     <strong
                                         id="quick-download-error"
@@ -771,7 +770,8 @@ docker compose ps</code></pre>
                                         It contains newly generated secrets and may remain in your
                                         clipboard and shell history. The terminal prints your
                                         one-time bootstrap token after startup. Create the first
-                                        administrator, clear <code>BOOTSTRAP_TOKEN</code> from
+                                        administrator, delete the entire
+                                        <code>BOOTSTRAP_TOKEN=...</code> line from
                                         <code>.env</code>, then run
                                         <code>docker compose up -d --force-recreate</code>.
                                     </p>
@@ -818,8 +818,9 @@ docker compose ps</code></pre>
                                 <span>02</span>
                                 <h3>Remove bootstrap access</h3>
                                 <p>
-                                    Clear <code>BOOTSTRAP_TOKEN</code> in <code>.env</code>, then
-                                    recreate the container so the route closes.
+                                    Delete the entire <code>BOOTSTRAP_TOKEN=...</code> line from
+                                    <code>.env</code>, then recreate the container so the route
+                                    closes.
                                 </p>
                             </article>
                             <article data-reveal>
@@ -1553,7 +1554,7 @@ docker compose ps</code></pre>
                         >Security</a
                     >
                 </nav>
-                <p class="revision">User guide<br />Reviewed August 6, 2026</p>
+                <p class="revision">User guide<br />Reviewed August 19, 2026</p>
             </div>
         </footer>
 

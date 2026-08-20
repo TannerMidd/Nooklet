@@ -154,7 +154,7 @@ AI_RECOMMENDATIONS_TIMEOUT_MS=1800000
 OPERATIONAL_RETENTION_DAYS=365
 ```
 
-Remove `BOOTSTRAP_TOKEN` and recreate the container after the first administrator is created.
+Delete the entire `BOOTSTRAP_TOKEN=...` line and recreate the container after the first administrator is created.
 
 ## Implementation references
 
