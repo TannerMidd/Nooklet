@@ -351,7 +351,7 @@
                             <p>
                                 Configure one complete movie <strong>or</strong> TV path first.
                                 Recommendations, watch history, notifications, and the other media
-                                type can wait.
+                                type can wait. YouTube is an optional, independent library path.
                             </p>
                         </div>
 
@@ -381,8 +381,9 @@
                                 <div>
                                     <strong>Verify metadata + acquisition</strong>
                                     <p>
-                                        Test TMDB, one Newznab indexer, and the built-in
-                                        downloader's Usenet connection.
+                                        For Movie/TV requests, test TMDB, one Newznab indexer, and
+                                        the built-in downloader's Usenet connection. YouTube does
+                                        not require those services.
                                     </p>
                                 </div>
                             </li>
@@ -391,8 +392,8 @@
                                 <div>
                                     <strong>Attach storage</strong>
                                     <p>
-                                        Use container-visible paths for a writable destination and,
-                                        for native Usenet, staging.
+                                        Use container-visible paths for final destinations;
+                                        completed download staging is separate Usenet output.
                                     </p>
                                 </div>
                             </li>
@@ -421,7 +422,7 @@
                         <div class="readiness-panel" id="first-request-checklist" data-reveal>
                             <div>
                                 <p class="card-kicker">Ready means verified, not merely saved</p>
-                                <h3>One complete request path needs all six checks.</h3>
+                                <h3>One complete movie or TV request path needs all six checks.</h3>
                             </div>
                             <ul>
                                 <li><span aria-hidden="true">✓</span> TMDB is verified.</li>
@@ -467,8 +468,9 @@
                                 Start Docker's Linux engine and have Git, at least one existing
                                 media folder, a separate existing completed-download staging folder,
                                 and enough free space in Docker's data storage. TMDB, Newznab, and
-                                Usenet credentials are needed later in Setup Center, not to start
-                                the container.
+                                Usenet credentials are needed later in Setup Center for Movie/TV
+                                requests, not to start the container. YouTube is optional and does
+                                not require those credentials.
                             </p>
                         </div>
 
@@ -578,9 +580,12 @@
                                 Choose your folders. Paste one command.
                             </h2>
                             <p>
-                                Pick the operating system that runs Docker, add your existing movie
-                                and TV folders, and choose a separate existing folder for completed
-                                downloads awaiting import. Nooklet generates everything needed for a
+                                Pick the operating system that runs Docker, add at least one
+                                existing final library folder for Movies, TV, or YouTube, and choose
+                                a separate existing folder for completed Usenet downloads awaiting
+                                import. A YouTube row maps to the final library target
+                                <code>/media/youtube</code>; its <code>/app/data/youtube</code> path
+                                is temporary work storage. Nooklet generates everything needed for a
                                 new install: the repository, private environment, drive mounts,
                                 container build, writable-mount check, startup, and health check.
                                 In-flight download, repair, and extraction work uses Docker's data
@@ -625,7 +630,9 @@
                                         <h3>Media folders</h3>
                                         <p>
                                             Add every existing final library folder Nooklet should
-                                            be able to use.
+                                            be able to use. YouTube is optional and maps to
+                                            <code>/media/youtube</code>; it is independent of the
+                                            Movie/TV Usenet setup.
                                         </p>
                                     </div>
                                     <button type="button" data-add-drive>
@@ -643,6 +650,7 @@
                                             >
                                                 <option value="movies">Movies</option>
                                                 <option value="tv">TV</option>
+                                                <option value="youtube">YouTube</option>
                                             </select>
                                         </label>
                                         <label>
@@ -674,6 +682,7 @@
                                             >
                                                 <option value="movies">Movies</option>
                                                 <option value="tv" selected>TV</option>
+                                                <option value="youtube">YouTube</option>
                                             </select>
                                         </label>
                                         <label>
@@ -711,7 +720,8 @@
                                     <small id="quick-download-help">
                                         Choose an existing folder for completed Usenet output before
                                         import. In-flight, repair, and extraction work uses Docker's
-                                        separate data volume.
+                                        separate data volume. This staging path is separate from any
+                                        optional YouTube final library.
                                     </small>
                                     <strong
                                         id="quick-download-error"

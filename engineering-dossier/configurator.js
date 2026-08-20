@@ -23,11 +23,23 @@ if (root) {
 
     function placeholder(type) {
         if (platform() === "windows") {
+            if (type === "youtube") {
+                return "D:/Media/YouTube";
+            }
+
             return type === "tv" ? "D:/Media/TV" : "D:/Media/Movies";
         }
 
         if (platform() === "macos") {
+            if (type === "youtube") {
+                return "/Volumes/Media/YouTube";
+            }
+
             return type === "tv" ? "/Volumes/Media/TV" : "/Volumes/Media/Movies";
+        }
+
+        if (type === "youtube") {
+            return "/srv/media/youtube";
         }
 
         return type === "tv" ? "/srv/media/tv" : "/srv/media/movies";
@@ -82,6 +94,7 @@ if (root) {
         const select = document.createElement("select");
         const movieOption = document.createElement("option");
         const tvOption = document.createElement("option");
+        const youtubeOption = document.createElement("option");
         const pathLabel = document.createElement("label");
         const pathText = document.createElement("span");
         const input = document.createElement("input");
@@ -96,7 +109,9 @@ if (root) {
         movieOption.textContent = "Movies";
         tvOption.value = "tv";
         tvOption.textContent = "TV";
-        select.append(movieOption, tvOption);
+        youtubeOption.value = "youtube";
+        youtubeOption.textContent = "YouTube";
+        select.append(movieOption, tvOption, youtubeOption);
         typeLabel.append(typeText, select);
         pathText.textContent = "Host folder";
         input.id = `drive-path-${sequence}`;

@@ -30,8 +30,8 @@ You need these items to install and open Nooklet:
 
 - Docker Desktop, or Docker Engine with Docker Compose v2;
 - Git;
-- at least one existing movie or TV library folder; and
-- a separate existing folder for completed-download staging.
+- at least one existing final library folder for Movies, TV, or YouTube; and
+- a separate existing folder for completed-download staging (Usenet output).
 
 Keep the completed-download folder outside the media library so staged files are never scanned as finished media. Nooklet uses two capacity locations by default:
 
@@ -47,6 +47,8 @@ You need these credentials later, inside **Setup Center**, before the first movi
 | TMDB credential   | Identifies titles and supplies metadata and artwork        |
 | Newznab API key   | Searches an indexer for movie or TV releases               |
 | Usenet credential | Lets Nooklet's built-in downloader retrieve those releases |
+
+These credentials are for Movie/TV requests only. YouTube archiving is optional and independent: it needs an approved YouTube destination and the YouTube toolchain, not TMDB, Newznab, or Usenet.
 
 ### Confirm Docker is ready
 
@@ -141,7 +143,7 @@ Use this `.env` as the single source for Docker port and address values. Do not 
 
 Create `docker-compose.override.yml` beside `docker-compose.yml`. This machine-specific file is ignored by Git.
 
-Choose the example for the operating system that runs Docker. Keep only the movie and TV entries you actually use, replace every left-side source path, and leave the right-side target paths unchanged.
+Choose the example for the operating system that runs Docker. Keep only the library entries you actually use, optionally add a YouTube entry, replace every left-side source path, and leave the right-side target paths unchanged.
 
 **Windows example**
 
@@ -214,13 +216,14 @@ services:
                   create_host_path: false
 ```
 
-If you also want a separate YouTube archive, add one more bind with the same structure—for example, map the host's YouTube folder to `/media/youtube`. Later, select `/media/youtube` as the destination in Nooklet. Do not use `/app/data/youtube` as the final library; that path is temporary download work inside the Nooklet data volume.
+YouTube is optional and independent of Movie/TV setup. If you want a separate YouTube archive, add one more bind with the same structure—for example, map the host's YouTube folder to `/media/youtube`. Later, select `/media/youtube` as the final destination in Nooklet. Do not use `/app/data/youtube` as the final library; that path is temporary download work inside the Nooklet data volume.
 
 The source is the real folder on the Docker host. The target is the path inside the container and is the only form you enter in Nooklet:
 
 ```text
 host folder                         container path used by Nooklet
 D:/Media/Movies              ->     /media/movies
+/srv/media/youtube           ->     /media/youtube
 /srv/nooklet-downloads       ->     /downloads
 ```
 
@@ -233,7 +236,7 @@ DOWNLOAD_ENGINE_DIR=/downloads/nooklet-engine
 YOUTUBE_WORK_DIR=/app/data/youtube
 ```
 
-Do not put Windows drive letters or other host paths in these Docker environment values. Nooklet runs inside the container and sees only `/app/data`, `/downloads`, and `/media/...`.
+Do not put Windows drive letters or other host paths in these Docker environment values. Nooklet runs inside the container and sees only `/app/data`, `/downloads`, and `/media/...`. `/app/data/youtube` is temporary YouTube work storage, never a final library.
 
 ## 4. Validate, build, and start
 
@@ -312,7 +315,7 @@ Immediately disable the one-time bootstrap route:
 
 Deleting this environment line does not delete the administrator. It only removes the temporary server-side credential that allowed the first account to be created.
 
-Continue with [First-time setup](First-Time-Setup) to connect TMDB, Newznab, and Usenet and to attach `/media/movies` or `/media/tv` as a final destination.
+For Movie/TV requests, continue with [First-time setup](First-Time-Setup) to connect TMDB, Newznab, and Usenet and attach `/media/movies` or `/media/tv` as a final destination. YouTube is optional and independent; attach `/media/youtube` as its final destination when you want a YouTube archive.
 
 ## Installation recovery
 
@@ -338,8 +341,9 @@ For other failures, use [Troubleshooting](Troubleshooting). When asking for help
 
 - The database is always `/app/data/nooklet.db` in the Compose volume whose logical key is `nooklet-data`. With the default project name, Docker normally displays the actual volume as `nooklet_nooklet-data`.
 - In-flight download work stays under `/app/data/engine-work` by default.
-- Completed Usenet output waits under `/downloads/nooklet-engine` when you use the recommended bind mount.
+- Completed Usenet output waits under `/downloads/nooklet-engine` when you use the recommended bind mount; this staging path is Usenet-only.
 - Final movie and TV files go to the library folder selected in **Settings → Storage**.
+- Final YouTube files go to the selected YouTube library, typically `/media/youtube`; `/app/data/youtube` remains temporary work storage.
 - The container root filesystem is read-only; persistent data lives in the named volume and your explicit bind mounts.
 - Database migrations run automatically during startup. A normal install or upgrade has no separate migration command.
 
