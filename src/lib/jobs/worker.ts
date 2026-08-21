@@ -114,7 +114,7 @@ function recordWorkerProgress(at = new Date()) {
 /**
  * Translate bytes actually read or written by a filesystem workflow into a
  * throttled worker heartbeat. Unrelated timers never call this reporter, so a
- * mount-blocked operation still goes stale and is recycled.
+ * mount-blocked operation still makes health visibly stale.
  */
 export function createWorkerFilesystemProgressHeartbeat(
     options: {
@@ -530,6 +530,13 @@ async function runJobLane(jobType: JobType) {
             return;
         }
 
+        const jobStartedAt = Date.now();
+
+        logger.info("worker_job_started", {
+            jobId: job.id,
+            jobType: job.jobType,
+        });
+
         const heartbeat = setInterval(() => {
             void heartbeatJobRun(job.id, job.runToken)
                 .then((result) => {
@@ -549,11 +556,26 @@ async function runJobLane(jobType: JobType) {
 
         try {
             await executeJob(job);
-            await completeJobRun(job.id, job.runToken);
+            const resultPersisted = await completeJobRun(job.id, job.runToken);
+
+            logger.info("worker_job_completed", {
+                jobId: job.id,
+                jobType: job.jobType,
+                durationMs: Date.now() - jobStartedAt,
+                resultPersisted,
+            });
         } catch (error) {
             const message = workerErrorMessage(error);
 
-            await failJobRun(job.id, job.runToken, message);
+            const resultPersisted = await failJobRun(job.id, job.runToken, message);
+
+            logger.error("worker_job_failed", {
+                jobId: job.id,
+                jobType: job.jobType,
+                durationMs: Date.now() - jobStartedAt,
+                resultPersisted,
+                errorMessage: message,
+            });
 
             if (job.jobType === "watch-history-sync") {
                 await safeDispatchNotificationWorkflow({

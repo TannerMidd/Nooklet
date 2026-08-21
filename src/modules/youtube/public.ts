@@ -26,7 +26,7 @@ export {
     inspectYouTubeLiveCapacity,
     YOUTUBE_ADMISSION_HEADROOM_BYTES,
 } from "@/modules/youtube/runtime/live-capacity";
-import type { YouTubeVideoDTO } from "@/modules/youtube/types";
+import type { YouTubeSourceSummaryDTO, YouTubeVideoDTO } from "@/modules/youtube/types";
 import { consumeRateLimit, formatRetryAfter } from "@/lib/security/rate-limit";
 import { YouTubeDomainError } from "@/modules/youtube/errors";
 import {
@@ -179,18 +179,23 @@ export async function discoverPublicYouTubeChannel(
             );
         }
 
-        const [enumeration, playlistDiscovery] = await Promise.all([
-            adapter.enumerate(classified.canonicalUrl),
-            adapter
-                .listChannelPlaylists(classified.canonicalUrl, options.playlistLimit ?? 50)
-                .then((playlists) => ({ playlists, error: null }))
-                .catch((error: unknown) => ({ playlists: [], error })),
-        ]);
+        const enumeration = await adapter.enumerate(classified.canonicalUrl);
+        let publicPlaylists: YouTubeSourceSummaryDTO[] = [];
+        let playlistDiscoveryError: unknown = null;
+
+        try {
+            publicPlaylists = await adapter.listChannelPlaylists(
+                classified.canonicalUrl,
+                options.playlistLimit ?? 50,
+            );
+        } catch (error: unknown) {
+            playlistDiscoveryError = error;
+        }
 
         return {
             enumeration,
-            publicPlaylists: playlistDiscovery.playlists,
-            playlistDiscoveryError: playlistDiscovery.error,
+            publicPlaylists,
+            playlistDiscoveryError,
         };
     });
 }

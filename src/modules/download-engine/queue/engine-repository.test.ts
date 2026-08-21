@@ -17,7 +17,7 @@ import {
     listEngineDownloadsWithControlIntent,
     listUnimportedFinishedEngineDownloads,
     markEngineDownloadImported,
-    requeueStrandedEngineDownloads,
+    recoverStrandedEngineDownloads,
     requestEngineDownloadControl,
     resumePausedEngineDownload,
     resolveEngineDownloadPayload,
@@ -219,7 +219,7 @@ describe("engine repository", () => {
         expect(await requestEngineDownloadControl(userId, record.id, "pause")).toMatchObject({
             controlIntent: "pause",
         });
-        await requeueStrandedEngineDownloads();
+        await recoverStrandedEngineDownloads();
 
         expect(await findEngineDownloadById(userId, record.id)).toMatchObject({
             state: "paused",
@@ -322,16 +322,54 @@ describe("engine repository", () => {
         );
     });
 
-    it("requeues stranded in-flight downloads after a restart", async () => {
+    it("parks stranded in-flight downloads until the user explicitly resumes them", async () => {
         const record = await createEngineDownload(baseInput());
 
         await claimNextQueuedEngineDownload();
+        await updateEngineDownloadProgress(record.id, {
+            downloadedBytes: 500_000,
+            completedSegments: 5,
+            failedSegments: 1,
+            bytesPerSecond: 42_000,
+        });
 
         expect((await findEngineDownloadById(userId, record.id))?.state).toBe("fetching");
 
-        await requeueStrandedEngineDownloads();
+        await recoverStrandedEngineDownloads();
 
-        expect((await findEngineDownloadById(userId, record.id))?.state).toBe("queued");
+        expect(await findEngineDownloadById(userId, record.id)).toMatchObject({
+            state: "paused",
+            controlIntent: null,
+            downloadedBytes: 500_000,
+            completedSegments: 5,
+            failedSegments: 1,
+            bytesPerSecond: null,
+            failureKind: "infrastructure",
+            errorMessage:
+                "The background worker stopped while this download was active. Resume to restart the transfer from the beginning.",
+        });
+
+        expect(await claimNextQueuedEngineDownload()).toBeNull();
+        expect(await resumePausedEngineDownload(userId, record.id)).toBe(true);
+        expect(await findEngineDownloadById(userId, record.id)).toMatchObject({
+            state: "queued",
+            downloadedBytes: 0,
+            completedSegments: 0,
+            failedSegments: 0,
+            bytesPerSecond: null,
+            failureKind: null,
+            errorMessage: null,
+        });
+        expect(await claimNextQueuedEngineDownload()).toMatchObject({
+            id: record.id,
+            state: "fetching",
+            downloadedBytes: 0,
+            completedSegments: 0,
+            failedSegments: 0,
+            bytesPerSecond: null,
+            failureKind: null,
+            errorMessage: null,
+        });
     });
 
     it("orders the active queue by priority for reordering", async () => {

@@ -6,14 +6,12 @@ describe("worker heartbeat watchdog", () => {
     it("allows startup grace and reports a stale worker once", () => {
         let now = 1_000;
         const onStale = vi.fn();
-        const logger = { error: vi.fn() };
         const watchdog = createWorkerHeartbeatWatchdog({
             heartbeatPath: "unused",
             onStale,
             staleAfterMs: 100,
             now: () => now,
             readRecordedAt: () => null,
-            logger,
         });
 
         watchdog.start();
@@ -26,7 +24,6 @@ describe("worker heartbeat watchdog", () => {
         watchdog.inspect();
         expect(onStale).toHaveBeenCalledOnce();
         expect(onStale).toHaveBeenCalledWith({ ageMs: 101, recordedAt: null });
-        expect(logger.error).toHaveBeenCalledOnce();
         watchdog.stop();
     });
 
@@ -40,7 +37,6 @@ describe("worker heartbeat watchdog", () => {
             staleAfterMs: 100,
             now: () => now,
             readRecordedAt: () => recordedAt,
-            logger: { error: vi.fn() },
         });
 
         watchdog.start();

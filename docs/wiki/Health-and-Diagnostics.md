@@ -82,10 +82,10 @@ docker compose logs -f app
 Useful structured event families include:
 
 - `health_database_probe_failed` for database readiness or migration failure while serving the probe;
-- `worker_pass_error`, `worker_heartbeat_persistence_failed`, and `worker_engine_import_failed` for scheduled/maintenance work;
+- `worker_job_started`, `worker_job_completed`, and `worker_job_failed` for job ID/type lifecycle tracing, plus `worker_pass_error`, `worker_heartbeat_persistence_failed`, and `worker_engine_import_failed` for scheduled/maintenance failures;
 - `download_engine_*` for runner and engine-heartbeat persistence failures;
-- `supervisor_*` and `worker_supervisor_*` for child startup, recycling, and shutdown; and
-- `[storage-probe]` or `[worker-watchdog]` helper output, plus Next.js startup output, for process-boundary failures that occur outside the application logger.
+- `supervisor_*` and `worker_supervisor_*` for child startup, stale-heartbeat warnings, actual-exit restarts, and shutdown; and
+- `[storage-probe]` helper output, plus Next.js startup output, for process-boundary failures that occur outside the application logger.
 
 Stop following logs with `Ctrl+C`; this does not stop the container.
 
@@ -128,7 +128,7 @@ For a responsive but degraded worker:
 
 Restart only after checking the error. A restart clears the in-memory health summary, but it does not correct an unreachable service, bad credential, full staging drive, or invalid path mapping.
 
-The supervisors also watch the persisted worker heartbeat. If it has not advanced for 120 seconds (configurable with `NOOKLET_WORKER_STALE_AFTER_MS`, minimum 60 seconds), they terminate and restart only the worker child. Normal `SIGINT`/`SIGTERM` shutdown stops new passes and waits for the active pass to drain before the worker exits; a ten-second supervisor ceiling still prevents shutdown from hanging forever.
+The supervisors also watch the persisted worker heartbeat. If it has not advanced for 120 seconds (configurable with `NOOKLET_WORKER_STALE_AFTER_MS`, minimum 60 seconds), they log one warning while `/health` remains unhealthy. Heartbeat staleness is diagnostic only: it does not send a signal to the worker or restart running work. A worker that actually exits is restarted with backoff. Normal `SIGINT`/`SIGTERM` shutdown stops new passes and waits for the active pass to drain before the worker exits; only that explicit shutdown path retains a ten-second force-kill ceiling so shutdown cannot hang forever.
 
 The **Built-in download engine** card distinguishes idle, active, and degraded operation. It shows the persisted stage and progress time, unresolved infrastructure failures, and any unexpected detached-loop failure. Bad individual releases classified as content failures remain in Activity rather than degrading the engine as a whole.
 

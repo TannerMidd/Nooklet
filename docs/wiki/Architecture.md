@@ -204,9 +204,9 @@ The shipped Compose configuration persists `/app/data` in a named volume, publis
 
 - One supervised application container and its internal provider sidecar are the supported Compose topology. The web and worker are separate OS processes, not horizontally scalable replicas.
 - SQLite and durable control rows coordinate the two children. Process-local import locks remain worker-only implementation details and are not distributed coordination primitives.
-- A process restart reclaims persisted jobs through leases, but an interrupted native download restarts from its stored NZB rather than resuming individual segments.
+- A process restart reclaims persisted jobs through leases, but an interrupted native download is parked. Explicit Resume restarts it from its stored NZB rather than resuming individual segments.
 - Season recovery schedules and renewable per-plan work leases survive restart in SQLite. The maintenance loop is serialized inside the single supported worker process.
-- The worker drains an active pass during normal termination; the supervisor recycles it if its persisted heartbeat stops advancing beyond the watchdog threshold.
+- The worker drains an active pass during normal termination. A stale persisted heartbeat degrades health and is logged once, but does not terminate the worker; only an actual exit is restarted. Explicit shutdown retains a bounded force-kill ceiling.
 - Shared service, indexer, library, and path configuration resolves through one persisted instance owner and does not change merely because that user's role or enabled state changes.
 - Media-mount failures are contained from ordinary web navigation, but Nooklet cannot repair a damaged host disk or cancel a filesystem syscall already in uninterruptible kernel sleep.
 - A single Usenet service connection is currently resolved. Multi-server priority and block-account scheduling described in ADR-0002 are not implemented.

@@ -238,8 +238,12 @@ export async function claimQueuedEngineDownload(id: string): Promise<EngineDownl
         .update(engineDownloads)
         .set({
             state: "fetching",
+            downloadedBytes: 0,
+            completedSegments: 0,
+            failedSegments: 0,
             bytesPerSecond: null,
             errorMessage: null,
+            failureKind: null,
             updatedAt: new Date(),
         })
         .where(
@@ -450,6 +454,9 @@ export async function resumePausedEngineDownload(userId: string, id: string) {
         .set({
             state: "queued",
             controlIntent: null,
+            downloadedBytes: 0,
+            completedSegments: 0,
+            failedSegments: 0,
             bytesPerSecond: null,
             errorMessage: null,
             // Clears the marker that distinguishes an engine-parked download from a
@@ -649,8 +656,8 @@ export async function hasQueuedEngineDownloads() {
     );
 }
 
-/** Recovers downloads stranded mid-flight by a process restart. */
-export async function requeueStrandedEngineDownloads() {
+/** Parks downloads stranded mid-flight by a process restart for explicit recovery. */
+export async function recoverStrandedEngineDownloads() {
     const database = ensureDatabaseReady();
 
     database
@@ -671,7 +678,15 @@ export async function requeueStrandedEngineDownloads() {
 
     database
         .update(engineDownloads)
-        .set({ state: "queued", bytesPerSecond: null, updatedAt: new Date() })
+        .set({
+            state: "paused",
+            controlIntent: null,
+            bytesPerSecond: null,
+            failureKind: "infrastructure",
+            errorMessage:
+                "The background worker stopped while this download was active. Resume to restart the transfer from the beginning.",
+            updatedAt: new Date(),
+        })
         .where(
             and(
                 inArray(engineDownloads.state, ["fetching", "repairing", "extracting"]),

@@ -8,11 +8,11 @@ Accepted
 
 2026-07-20; current-alignment update 2026-08-06.
 
-> Current alignment: the supervisors now monitor the persisted worker
-> heartbeat and recycle a stale worker after 120 seconds by default when the
-> operating system can terminate it. A child blocked in uninterruptible kernel
-> sleep may still be impossible to reap; in that case the web process remains
-> available and health stays stale until the host filesystem recovers.
+> Current alignment: the supervisors monitor the persisted worker heartbeat
+> and report staleness after 120 seconds by default. Staleness degrades health
+> and is logged once, but never terminates the worker. The supervisor restarts a
+> worker only after it actually exits, while explicit application shutdown keeps
+> a bounded force-kill ceiling.
 
 ## Context
 
@@ -87,7 +87,7 @@ navigation, static assets, or SQLite-backed views from responding.
 - Successful lease heartbeats prove progress for legitimately long network/AI
   jobs. Filesystem lanes run serially and only completion advances worker
   progress, so another lane cannot mask a wedged mount. Missing, corrupt, or
-  stale heartbeat state fails closed.
+  stale heartbeat state fails health closed without terminating the worker.
 - Storage freshness and probe failures remain separate from the last known
   capacity so operators can distinguish stale telemetry from an empty drive.
 

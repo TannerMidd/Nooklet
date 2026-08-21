@@ -59,8 +59,24 @@ function discoveryError(error: unknown) {
             return "That YouTube item is not publicly available.";
         }
 
-        if (error.kind === "rate_limited" || error.kind === "network" || error.kind === "timeout") {
-            return "YouTube could not be reached right now. Try again in a few minutes, or paste the exact public URL.";
+        if (error.kind === "rate_limited") {
+            return "YouTube temporarily limited this server. Try again later.";
+        }
+
+        if (error.kind === "network") {
+            return "Nooklet could not connect to YouTube. Check the server connection, then try again.";
+        }
+
+        if (error.kind === "timeout") {
+            return "YouTube did not respond before the request timed out. Large channels can take longer; try again later.";
+        }
+
+        if (
+            error.kind === "tool_failure" ||
+            error.kind === "malformed_output" ||
+            error.kind === "output_too_large"
+        ) {
+            return "YouTube discovery failed on the server. An administrator should check Health and recent logs.";
         }
 
         if (error.kind === "tool_missing") {

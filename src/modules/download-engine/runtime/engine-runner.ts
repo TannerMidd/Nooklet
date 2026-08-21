@@ -22,7 +22,7 @@ import {
     markEngineDownloadWaitingForCapacity,
     peekNextQueuedEngineDownload,
     readEngineDownloadRuntimeState,
-    requeueStrandedEngineDownloads,
+    recoverStrandedEngineDownloads,
     resolveEngineDownloadPayload,
     setEngineDownloadState,
     transitionEngineDownloadState,
@@ -625,18 +625,23 @@ async function runEngineLoop() {
 }
 
 /**
- * Called from the isolated worker tick. It recovers stranded durable state,
- * reconciles cancellation intent, and starts one drain loop per worker.
+ * Parks interrupted work once per worker process. The worker entrypoint calls
+ * this before accepting filesystem jobs so a slow scan cannot leave an old
+ * transfer looking active or eligible for an automatic restart.
  */
-export async function ensureEngineRunnerStarted() {
-    await reconcilePendingEngineCancellations();
-
+export async function recoverInterruptedEngineDownloads() {
     if (!runtime.recovered) {
-        await requeueStrandedEngineDownloads();
+        await recoverStrandedEngineDownloads();
         // Only latch recovery after the durable transition succeeds. A transient
         // SQLite failure must be retried on the next worker tick.
         runtime.recovered = true;
     }
+}
+
+/** Reconciles cancellation intent and starts one drain loop per worker. */
+export async function ensureEngineRunnerStarted() {
+    await reconcilePendingEngineCancellations();
+    await recoverInterruptedEngineDownloads();
 
     if (runtime.running) {
         return;

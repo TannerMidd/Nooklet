@@ -52,7 +52,6 @@ const storageRefreshTimeoutMs = positiveDuration(
 let workerProcess;
 let migrationProcess;
 let workerRestartTimer;
-let workerForceKillTimer;
 let workerHeartbeatWatchdog;
 let workerReloadTimer;
 let workerEntryWatcher;
@@ -129,10 +128,6 @@ function beginShutdown(exitCode = 0) {
 
     if (workerRestartTimer) {
         clearTimeout(workerRestartTimer);
-    }
-
-    if (workerForceKillTimer) {
-        clearTimeout(workerForceKillTimer);
     }
 
     workerHeartbeatWatchdog?.stop();
@@ -252,21 +247,18 @@ function startWorker() {
     workerHeartbeatWatchdog = createWorkerHeartbeatWatchdog({
         heartbeatPath: resolveHeartbeatPath(),
         staleAfterMs: workerStaleAfterMs,
-        onStale: () => {
+        onStale: ({ ageMs, recordedAt }) => {
             if (shuttingDown || workerProcess !== child) {
                 return;
             }
 
             operationalLog.warn("worker_supervisor_worker_stale", {
+                message:
+                    "background worker heartbeat is stale; health is degraded but the worker remains running.",
+                ageMs,
+                recordedAt,
                 staleAfterMs: workerStaleAfterMs,
             });
-            stopChild(child);
-            workerForceKillTimer = setTimeout(() => {
-                if (workerProcess === child) {
-                    stopChild(child, "SIGKILL");
-                }
-            }, 10_000);
-            workerForceKillTimer.unref();
         },
     });
     workerHeartbeatWatchdog.start();
@@ -277,12 +269,6 @@ function startWorker() {
     child.once("close", (code, signal) => {
         workerHeartbeatWatchdog?.stop();
         workerHeartbeatWatchdog = undefined;
-
-        if (workerForceKillTimer) {
-            clearTimeout(workerForceKillTimer);
-        }
-
-        workerForceKillTimer = undefined;
 
         if (workerProcess === child) {
             workerProcess = undefined;
