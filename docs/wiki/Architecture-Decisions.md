@@ -48,7 +48,7 @@ Accepted current constraints:
 - One Usenet service connection is resolved; multiple priority/block servers are not implemented.
 - `importing` is not an engine state. It belongs to the outer download-request/import workflow.
 - Assembly happens in place during `fetching`; there is no separate persisted `assembling` state.
-- A restart requeues and starts the download from the stored NZB; segment-level resume is not implemented.
+- A restart parks an interrupted download. Explicit Resume clears its progress counters and starts it from the stored NZB; segment-level resume is not implemented.
 - The runner drains one engine download at a time, using concurrent NNTP connections within that transfer.
 
 See [Downloads and Import](Downloads-and-Import) for the observed state model.

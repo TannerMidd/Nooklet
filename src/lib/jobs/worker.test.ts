@@ -47,6 +47,13 @@ vi.mock("@/lib/jobs/worker-heartbeat", async (importOriginal) => {
 
     return { ...original, writeBackgroundWorkerHeartbeat: vi.fn() };
 });
+vi.mock("@/lib/observability/logger", () => ({
+    logger: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+    },
+}));
 
 import { listUsersWithActiveDownloadRequestsForImport } from "@/modules/downloads/queries/list-users-with-active-download-requests";
 import { importCompletedEngineDownloadsWorkflow } from "@/modules/downloads/workflows/import-completed-engine-downloads";
@@ -70,6 +77,7 @@ import {
 } from "@/modules/youtube/public";
 
 import { backgroundWorkerStaleAfterMs } from "@/lib/jobs/worker-readiness";
+import { logger } from "@/lib/observability/logger";
 
 import {
     createWorkerFilesystemProgressHeartbeat,
@@ -94,12 +102,16 @@ const searchMissingContentMock = vi.mocked(searchMissingMonitoredContentWorkflow
 const ensureYouTubeRunnerMock = vi.mocked(ensureYouTubeRunnerStarted);
 const syncAllYouTubeSourcesMock = vi.mocked(syncAllActiveYouTubeSources);
 const syncYouTubeSourceMock = vi.mocked(syncYouTubeSourceNow);
+const loggerInfoMock = vi.mocked(logger.info);
+const loggerErrorMock = vi.mocked(logger.error);
 
 beforeEach(() => {
     vi.clearAllMocks();
     listActiveUsersMock.mockResolvedValue([]);
     importCompletedEngineDownloadsMock.mockResolvedValue(null);
     claimDueJobsMock.mockResolvedValue([]);
+    completeJobRunMock.mockResolvedValue(true);
+    failJobRunMock.mockResolvedValue(true);
     scanMediaLibraryMock.mockResolvedValue({
         discoveredFileCount: 0,
         matchedTitleCount: 0,
@@ -326,6 +338,16 @@ describe("runDueJobs", () => {
             { onFilesystemProgress: expect.any(Function) },
         );
         expect(completeJobRunMock).toHaveBeenCalledWith("job-import", "run-import");
+        expect(loggerInfoMock).toHaveBeenCalledWith("worker_job_started", {
+            jobId: "job-import",
+            jobType: "download-import",
+        });
+        expect(loggerInfoMock).toHaveBeenCalledWith("worker_job_completed", {
+            jobId: "job-import",
+            jobType: "download-import",
+            durationMs: expect.any(Number),
+            resultPersisted: true,
+        });
         expect(failJobRunMock).not.toHaveBeenCalledWith(
             "job-import",
             "run-import",
@@ -378,6 +400,13 @@ describe("runDueJobs", () => {
             "run-import-empty",
             "The requested download was not found in completed downloader history.",
         );
+        expect(loggerErrorMock).toHaveBeenCalledWith("worker_job_failed", {
+            jobId: "job-import-empty",
+            jobType: "download-import",
+            durationMs: expect.any(Number),
+            resultPersisted: true,
+            errorMessage: "The requested download was not found in completed downloader history.",
+        });
     });
 
     it("runs media title deletion in the worker and surfaces failed file outcomes", async () => {

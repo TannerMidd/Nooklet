@@ -11,7 +11,10 @@ const childProcesses: ReturnType<typeof spawn>[] = [];
 afterEach(async () => {
     for (const child of childProcesses.splice(0)) {
         if (child.exitCode === null && child.signalCode === null) {
+            const closed = new Promise<void>((resolve) => child.once("close", () => resolve()));
+
             child.kill("SIGTERM");
+            await closed;
         }
     }
 
@@ -89,4 +92,62 @@ describe("container supervisor", () => {
         supervisor.kill("SIGTERM");
         await new Promise<void>((resolve) => supervisor.once("close", () => resolve()));
     });
+
+    it("reports a stale heartbeat without terminating a working child", async () => {
+        const directory = mkdtempSync(path.join(tmpdir(), "nooklet-supervisor-stale-"));
+
+        temporaryDirectories.push(directory);
+        const webEntry = path.join(directory, "web.mjs");
+        const workerEntry = path.join(directory, "worker.mjs");
+        const heartbeatPath = path.join(directory, "worker-heartbeat.json");
+
+        writeFileSync(webEntry, "setInterval(() => {}, 1000);\n", "utf8");
+        writeFileSync(
+            workerEntry,
+            [
+                "import { writeFileSync } from 'node:fs';",
+                "if (process.argv.includes('--migrate-only') || process.argv.includes('--refresh-storage-snapshots')) process.exit(0);",
+                "writeFileSync(process.env.NOOKLET_WORKER_HEARTBEAT_PATH, JSON.stringify({ version: 1, recordedAt: new Date(Date.now() - 120000).toISOString() }));",
+                "console.log(`fixture-stale-worker-started-${process.pid}`);",
+                "setInterval(() => {}, 1000);",
+            ].join("\n"),
+            "utf8",
+        );
+
+        const supervisorPath = path.resolve(process.cwd(), "scripts", "container-supervisor.mjs");
+        const supervisor = spawn(process.execPath, [supervisorPath], {
+            cwd: directory,
+            env: {
+                ...process.env,
+                NOOKLET_WEB_ENTRY: webEntry,
+                NOOKLET_WORKER_ENTRY: workerEntry,
+                NOOKLET_WORKER_HEARTBEAT_PATH: heartbeatPath,
+                NOOKLET_WORKER_STALE_AFTER_MS: "60000",
+            },
+            stdio: ["ignore", "pipe", "pipe"],
+        });
+
+        childProcesses.push(supervisor);
+        let output = "";
+
+        supervisor.stdout?.on("data", (chunk) => {
+            output += chunk.toString();
+        });
+        supervisor.stderr?.on("data", (chunk) => {
+            output += chunk.toString();
+        });
+
+        await vi.waitFor(() => expect(output).toContain('"event":"supervisor_worker_stale"'), {
+            timeout: 8_000,
+            interval: 50,
+        });
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+
+        expect(output.match(/fixture-stale-worker-started-/g)).toHaveLength(1);
+        expect(output).not.toContain("background worker exited");
+        expect(supervisor.exitCode).toBeNull();
+
+        supervisor.kill("SIGTERM");
+        await new Promise<void>((resolve) => supervisor.once("close", () => resolve()));
+    }, 10_000);
 });

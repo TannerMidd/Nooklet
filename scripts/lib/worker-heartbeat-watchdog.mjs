@@ -26,7 +26,6 @@ export function createWorkerHeartbeatWatchdog({
     intervalMs = defaultWorkerWatchIntervalMs,
     now = Date.now,
     readRecordedAt = readWorkerHeartbeatRecordedAt,
-    logger = console,
 }) {
     let timer;
     let startedAt;
@@ -46,9 +45,6 @@ export function createWorkerHeartbeatWatchdog({
         }
 
         staleReported = true;
-        logger.error(
-            `[worker-watchdog] heartbeat has not advanced for ${ageMs}ms; recycling the worker.`,
-        );
         onStale({ ageMs, recordedAt });
     }
 

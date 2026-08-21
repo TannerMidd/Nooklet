@@ -1225,7 +1225,7 @@ export const downloadImportedFiles = sqliteTable(
  * Built-in usenet download engine state (ADR-0002). One row per accepted NZB.
  * The engine owns this state directly — no external queue to reconcile.
  * Per-segment progress is held in memory while a download is active; a
- * restart mid-fetch restarts that download from its NZB.
+ * restart mid-fetch parks that download until explicit Resume restarts its NZB.
  */
 export const engineDownloads = sqliteTable(
     "engine_downloads",

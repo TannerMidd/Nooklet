@@ -48,9 +48,11 @@ vi.mock("@/modules/youtube/public", () => {
 import {
     discoverPublicYouTubeChannel,
     enumeratePublicYouTubeSource,
+    probePublicYouTubeVideo,
     resolvePublicYouTubeUrl,
     searchPublicYouTube,
     YouTubeDomainError,
+    YtDlpAdapterError,
 } from "@/modules/youtube/public";
 
 import { discoverYouTube } from "./page";
@@ -58,6 +60,7 @@ import { discoverYouTube } from "./page";
 const resolveUrlMock = vi.mocked(resolvePublicYouTubeUrl);
 const discoverChannelMock = vi.mocked(discoverPublicYouTubeChannel);
 const enumerateMock = vi.mocked(enumeratePublicYouTubeSource);
+const probeVideoMock = vi.mocked(probePublicYouTubeVideo);
 const searchMock = vi.mocked(searchPublicYouTube);
 
 const channelEnumeration: import("@/modules/youtube/public").YouTubeEnumerationDTO = {
@@ -197,6 +200,46 @@ describe("YouTube page discovery", () => {
         await expect(discoverYouTube("Nooklet", "user-1")).resolves.toEqual({
             kind: "error",
             message: "Too many YouTube discovery requests. Try again in 1 minute.",
+        });
+    });
+
+    it.each([
+        ["rate_limited", "YouTube temporarily limited this server. Try again later."],
+        [
+            "network",
+            "Nooklet could not connect to YouTube. Check the server connection, then try again.",
+        ],
+        [
+            "timeout",
+            "YouTube did not respond before the request timed out. Large channels can take longer; try again later.",
+        ],
+        [
+            "tool_failure",
+            "YouTube discovery failed on the server. An administrator should check Health and recent logs.",
+        ],
+    ] as const)("maps an extractor %s failure to an actionable message", async (kind, message) => {
+        searchMock.mockRejectedValue(new YtDlpAdapterError("raw extractor detail", kind));
+
+        await expect(discoverYouTube("Nooklet", "user-1")).resolves.toEqual({
+            kind: "error",
+            message,
+        });
+    });
+
+    it("does not ask users to paste an exact URL after a recognized URL fails", async () => {
+        resolveUrlMock.mockReturnValue({
+            kind: "video",
+            videoId: "abc12345678",
+            canonicalUrl: "https://www.youtube.com/watch?v=abc12345678",
+        });
+        probeVideoMock.mockRejectedValue(new YtDlpAdapterError("raw extractor detail", "network"));
+
+        await expect(
+            discoverYouTube("https://www.youtube.com/watch?v=abc12345678", "user-1"),
+        ).resolves.toEqual({
+            kind: "error",
+            message:
+                "Nooklet could not connect to YouTube. Check the server connection, then try again.",
         });
     });
 });

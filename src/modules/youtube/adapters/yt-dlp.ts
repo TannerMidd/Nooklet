@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { env } from "@/lib/env";
 import type { YoutubeQualityProfile } from "@/lib/database/schema";
+import { logger } from "@/lib/observability/logger";
 import { YtDlpAdapterError } from "@/modules/youtube/errors";
 import type {
     YouTubeClassifiedUrl,
@@ -21,6 +22,8 @@ const sourceIdPattern = /^[A-Za-z0-9_@.-]{2,160}$/;
 const playlistIdPattern = /^[A-Za-z0-9_-]{10,160}$/;
 const defaultDiscoveryDeadlineMs = 45_000;
 const defaultInactivityDeadlineMs = 20_000;
+const defaultChannelEnumerationDeadlineMs = 120_000;
+const defaultChannelEnumerationInactivityDeadlineMs = 45_000;
 const discoveryOutputLimit = 8 * 1024 * 1024;
 const stderrOutputLimit = 512 * 1024;
 
@@ -79,23 +82,54 @@ export type YtDlpCookieLease = {
     release: () => Promise<void>;
 };
 
+const schemeUrlPattern = /\b[a-z][a-z\d+.-]*:\/\/[^\s"'<>]+/gi;
+const bareYouTubeUrlPattern =
+    /\b(?:www\.|m\.)?(?:youtube\.com|youtu\.be)(?::\d+)?(?:[\/?#][^\s"'<>]*)?/gi;
+const windowsPathStartPattern = /(?:[a-z]:[\\/]|\\\\)/i;
+const posixPathStartPattern = /(?<![a-z\d])\/{1,2}(?=[^\/\s"'<>|])/i;
+
+function redactDiagnosticLine(value: string) {
+    const redactedUrls = value
+        .replace(schemeUrlPattern, "[REDACTED_URL]")
+        .replace(bareYouTubeUrlPattern, "[REDACTED_URL]");
+    const windowsPathIndex = redactedUrls.search(windowsPathStartPattern);
+    const posixPathIndex = redactedUrls.search(posixPathStartPattern);
+    const pathIndex =
+        windowsPathIndex < 0
+            ? posixPathIndex
+            : posixPathIndex < 0
+              ? windowsPathIndex
+              : Math.min(windowsPathIndex, posixPathIndex);
+
+    return pathIndex < 0 ? redactedUrls : `${redactedUrls.slice(0, pathIndex)}[REDACTED_PATH]`;
+}
+
 function shortSafeText(value: string, maximumLength = 360) {
     return value
-        .replace(/https?:\/\/[^\s"'<>]+/gi, "[REDACTED_URL]")
+        .split(/\r?\n/)
+        .map(redactDiagnosticLine)
+        .join(" ")
         .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ")
         .replace(/\s+/g, " ")
         .trim()
         .slice(0, maximumLength);
 }
 
+const authenticationRequiredPattern =
+    /\blogin[_\s]+required\b|sign in to confirm (?:you(?:'|’)?re|that you(?:'|’)?re) not a bot|automated traffic|unusual traffic|human verification|verify (?:that )?(?:you(?:'|’)?re|you are) human|confirm (?:that )?(?:you(?:'|’)?re|you are) human|security check|captcha|bot check|additional verification/i;
+const providerFailurePattern =
+    /(?:\b(?:plugin|provider|remote component|po token|youtubepot)\b[\s\S]{0,160}\b(?:not available|error|failure|failed|unavailable|offline|refused|reset|timeout|timed out|could not|unable|not found|missing|connection)\b|\b(?:not available|error|failure|failed|unavailable|offline|refused|reset|timeout|timed out|could not|unable|not found|missing|connection)\b[\s\S]{0,160}\b(?:plugin|provider|remote component|po token|youtubepot)\b)/i;
+const javascriptRuntimeFailurePattern =
+    /\b(?:javascript|java\s*script|js)\s+(?:runtime|interpreter|engine)\b|\b(?:node(?:\.js)?|deno|bun)\b[\s\S]{0,120}\b(?:not found|not installed|missing|unavailable|failed|error|could not|unable|unsupported)\b|\b(?:ejs|n-function|signature extraction)\b[\s\S]{0,120}\b(?:error|failure|failed|not found|missing|unavailable|could not|unable)\b/i;
+const removedItemPattern =
+    /\b(?:video|content|item|source)\s+(?:(?:is|was|has been)\s+)?(?:not available|unavailable|no longer available|removed|deleted)\b|\b(?:deleted|removed)\s+video\b|\b(?:has been|was|is)\s+(?:removed|deleted)\b[\s\S]{0,40}\bvideo\b/i;
+const networkFailurePattern =
+    /\b(?:econnreset|econnrefused|econnaborted|enetunreach|ehostunreach|eai_again|etimedout)\b|\bconnection\s+(?:reset|refused|aborted|timed out|closed|failed)\b|\bsocket hang up\b|\bnetwork\s+(?:is\s+)?(?:unreachable|down|timed out|timeout|failure)\b|\b(?:request|read|write|connect|connection)\s+(?:timed out|timeout)\b|\btemporary failure (?:in name resolution|resolving host)\b|\b(?:could not|unable to|failed to)\s+(?:resolve|connect to|establish (?:a )?connection)\b|\bhttp error 5\d\d\b/i;
+
 export function classifyYtDlpProcessFailure(stderr: string, exitCode: number | null) {
     const value = stderr.toLowerCase();
 
-    if (
-        /sign in to confirm (?:you(?:'|’)?re|that you(?:'|’)?re) not a bot|automated traffic|unusual traffic/.test(
-            value,
-        )
-    ) {
+    if (authenticationRequiredPattern.test(value)) {
         return new YtDlpAdapterError(
             "YouTube requires a signed-in session for this server. An administrator must verify YouTube access in Settings → Connections.",
             "authentication_required",
@@ -103,11 +137,21 @@ export function classifyYtDlpProcessFailure(stderr: string, exitCode: number | n
         );
     }
 
-    if (/private video|members-only|sign in to confirm your age|login required/.test(value)) {
+    if (/private video|members-only|sign in to confirm your age/.test(value)) {
         return new YtDlpAdapterError("That video is not publicly available.", "private", exitCode);
     }
 
-    if (/video unavailable|has been removed|deleted video|not available/.test(value)) {
+    // A configured plugin/provider or JavaScript runtime problem is local tool
+    // failure, even when its message also contains availability terminology.
+    if (providerFailurePattern.test(value) || javascriptRuntimeFailurePattern.test(value)) {
+        return new YtDlpAdapterError(
+            "The configured yt-dlp provider or JavaScript runtime could not complete the request.",
+            "tool_failure",
+            exitCode,
+        );
+    }
+
+    if (removedItemPattern.test(value)) {
         return new YtDlpAdapterError(
             "That YouTube item is no longer available.",
             "removed",
@@ -131,7 +175,7 @@ export function classifyYtDlpProcessFailure(stderr: string, exitCode: number | n
         );
     }
 
-    if (/timed? out|temporary failure|connection|network|http error 5\d\d/.test(value)) {
+    if (networkFailurePattern.test(value)) {
         return new YtDlpAdapterError(
             "YouTube could not be reached right now.",
             "network",
@@ -187,39 +231,72 @@ function killChildProcessTree(child: ChildProcess) {
 
 export const executeYtDlpProcess: YtDlpProcessExecutor = (executable, args, options) =>
     new Promise((resolve, reject) => {
-        const child = spawn(executable, [...args], {
-            detached: process.platform !== "win32",
-            shell: false,
-            windowsHide: true,
-            stdio: ["ignore", "pipe", "pipe"],
-        });
         const stdoutChunks: Buffer[] = [];
         const stderrChunks: Buffer[] = [];
+        const startedAt = Date.now();
         let stdoutBytes = 0;
         let stderrBytes = 0;
         let lineRemainder = "";
         let settled = false;
-        let inactivityTimer: NodeJS.Timeout;
+        let child: ChildProcess | null = null;
+        let inactivityTimer: NodeJS.Timeout | undefined;
 
         const cleanUp = () => {
             clearTimeout(deadlineTimer);
-            clearTimeout(inactivityTimer);
+
+            if (inactivityTimer) {
+                clearTimeout(inactivityTimer);
+            }
+
             options.signal?.removeEventListener("abort", abort);
         };
 
-        const fail = (error: Error) => {
+        const logFailure = (error: Error, exitCodeOverride: number | null = null) => {
+            const stderr = Buffer.concat(stderrChunks).toString("utf8");
+            const adapterError = error instanceof YtDlpAdapterError ? error : null;
+
+            try {
+                logger.error("youtube_ytdlp_process_failed", {
+                    kind: adapterError?.kind ?? "tool_failure",
+                    exitCode: exitCodeOverride ?? adapterError?.exitCode ?? null,
+                    durationMs: Math.max(0, Date.now() - startedAt),
+                    stdoutBytes,
+                    stderrBytes,
+                    stdoutTruncated: stdoutBytes > options.maxStdoutBytes,
+                    stderrTruncated: stderrBytes > options.maxStderrBytes,
+                    stderrExcerpt: shortSafeText(stderr),
+                    message: shortSafeText(error.message, 240),
+                });
+            } catch {
+                // Diagnostics must never change the process result.
+            }
+        };
+
+        const fail = (error: Error, terminate = true, exitCodeOverride: number | null = null) => {
             if (settled) {
                 return;
             }
 
             settled = true;
             cleanUp();
-            killChildProcessTree(child);
+            logFailure(error, exitCodeOverride);
+
+            if (terminate && child) {
+                killChildProcessTree(child);
+            }
+
             reject(error);
         };
 
         const resetInactivity = () => {
-            clearTimeout(inactivityTimer);
+            if (settled) {
+                return;
+            }
+
+            if (inactivityTimer) {
+                clearTimeout(inactivityTimer);
+            }
+
             inactivityTimer = setTimeout(
                 () => fail(new YtDlpAdapterError("yt-dlp stopped responding.", "timeout")),
                 options.inactivityDeadlineMs,
@@ -227,10 +304,35 @@ export const executeYtDlpProcess: YtDlpProcessExecutor = (executable, args, opti
         };
 
         const abort = () => fail(new YtDlpAdapterError("YouTube download cancelled.", "cancelled"));
+
         const deadlineTimer = setTimeout(
             () => fail(new YtDlpAdapterError("The YouTube request timed out.", "timeout")),
             options.deadlineMs,
         );
+
+        try {
+            child = spawn(executable, [...args], {
+                detached: process.platform !== "win32",
+                shell: false,
+                windowsHide: true,
+                stdio: ["ignore", "pipe", "pipe"],
+            });
+        } catch {
+            fail(
+                new YtDlpAdapterError("yt-dlp could not be started.", "tool_failure", null),
+                false,
+            );
+
+            return;
+        }
+
+        const spawnedChild = child;
+
+        if (!spawnedChild) {
+            fail(new YtDlpAdapterError("yt-dlp could not be started.", "tool_failure"), false);
+
+            return;
+        }
 
         resetInactivity();
         options.signal?.addEventListener("abort", abort, { once: true });
@@ -239,14 +341,27 @@ export const executeYtDlpProcess: YtDlpProcessExecutor = (executable, args, opti
             abort();
         }
 
-        child.once("error", (error: NodeJS.ErrnoException) => {
+        const stdout = spawnedChild.stdout;
+        const stderr = spawnedChild.stderr;
+
+        if (!stdout || !stderr) {
+            fail(new YtDlpAdapterError("yt-dlp could not be started.", "tool_failure"));
+
+            return;
+        }
+
+        spawnedChild.once("error", (error: NodeJS.ErrnoException) => {
             fail(
                 error.code === "ENOENT"
                     ? new YtDlpAdapterError("yt-dlp is not installed.", "tool_missing")
                     : new YtDlpAdapterError("yt-dlp could not be started.", "tool_failure"),
             );
         });
-        child.stdout.on("data", (chunk: Buffer) => {
+        stdout.on("data", (chunk: Buffer) => {
+            if (settled) {
+                return;
+            }
+
             resetInactivity();
             stdoutBytes += chunk.length;
 
@@ -265,11 +380,19 @@ export const executeYtDlpProcess: YtDlpProcessExecutor = (executable, args, opti
                 lineRemainder = lines.pop() ?? "";
 
                 for (const line of lines) {
+                    if (settled) {
+                        break;
+                    }
+
                     options.onStdoutLine(line);
                 }
             }
         });
-        child.stderr.on("data", (chunk: Buffer) => {
+        stderr.on("data", (chunk: Buffer) => {
+            if (settled) {
+                return;
+            }
+
             resetInactivity();
             stderrBytes += chunk.length;
 
@@ -286,13 +409,10 @@ export const executeYtDlpProcess: YtDlpProcessExecutor = (executable, args, opti
 
             stderrChunks.push(chunk);
         });
-        child.once("close", (exitCode) => {
+        spawnedChild.once("close", (exitCode) => {
             if (settled) {
                 return;
             }
-
-            settled = true;
-            cleanUp();
 
             if (lineRemainder && options.onStdoutLine) {
                 options.onStdoutLine(lineRemainder);
@@ -302,11 +422,13 @@ export const executeYtDlpProcess: YtDlpProcessExecutor = (executable, args, opti
             const stderr = Buffer.concat(stderrChunks).toString("utf8");
 
             if (exitCode !== 0) {
-                reject(classifyYtDlpProcessFailure(stderr, exitCode));
+                fail(classifyYtDlpProcessFailure(stderr, exitCode), false, exitCode);
 
                 return;
             }
 
+            settled = true;
+            cleanUp();
             resolve({ exitCode: exitCode ?? 0, stdout, stderr });
         });
     });
@@ -722,6 +844,10 @@ export function createYtDlpAdapter(
     const ffmpegPath = input.ffmpegPath ?? env.FFMPEG_PATH;
     const discoveryDeadlineMs = input.discoveryDeadlineMs ?? defaultDiscoveryDeadlineMs;
     const inactivityDeadlineMs = input.inactivityDeadlineMs ?? defaultInactivityDeadlineMs;
+    const channelEnumerationDeadlineMs =
+        input.discoveryDeadlineMs ?? defaultChannelEnumerationDeadlineMs;
+    const channelEnumerationInactivityDeadlineMs =
+        input.inactivityDeadlineMs ?? defaultChannelEnumerationInactivityDeadlineMs;
 
     const runExtraction = async (args: readonly string[], options: ProcessRunOptions) => {
         const cookieLease = (await input.cookieLeaseProvider?.()) ?? null;
@@ -741,10 +867,13 @@ export function createYtDlpAdapter(
         }
     };
 
-    const runDiscovery = (args: readonly string[]) =>
+    const runDiscovery = (
+        args: readonly string[],
+        timing: { deadlineMs?: number; inactivityDeadlineMs?: number } = {},
+    ) =>
         runExtraction(args, {
-            deadlineMs: discoveryDeadlineMs,
-            inactivityDeadlineMs,
+            deadlineMs: timing.deadlineMs ?? discoveryDeadlineMs,
+            inactivityDeadlineMs: timing.inactivityDeadlineMs ?? inactivityDeadlineMs,
             maxStdoutBytes: discoveryOutputLimit,
             maxStderrBytes: stderrOutputLimit,
         });
@@ -754,13 +883,7 @@ export function createYtDlpAdapter(
         signal?: AbortSignal,
     ) => {
         const result = await runExtraction(
-            [
-                "--dump-single-json",
-                "--skip-download",
-                "--no-warnings",
-                "--no-playlist",
-                classified.canonicalUrl,
-            ],
+            ["--dump-single-json", "--skip-download", "--no-playlist", classified.canonicalUrl],
             {
                 deadlineMs: discoveryDeadlineMs,
                 inactivityDeadlineMs,
@@ -797,7 +920,6 @@ export function createYtDlpAdapter(
                 "--dump-single-json",
                 "--flat-playlist",
                 "--skip-download",
-                "--no-warnings",
                 `ytsearch${boundedLimit}:${normalizedQuery}`,
             ]);
             const root = parseJsonObject(result.stdout);
@@ -841,13 +963,20 @@ export function createYtDlpAdapter(
                 );
             }
 
-            const result = await runDiscovery([
-                "--dump-single-json",
-                "--flat-playlist",
-                "--skip-download",
-                "--no-warnings",
-                classified.canonicalUrl,
-            ]);
+            const result = await runDiscovery(
+                [
+                    "--dump-single-json",
+                    "--flat-playlist",
+                    "--skip-download",
+                    classified.canonicalUrl,
+                ],
+                classified.kind === "channel_videos"
+                    ? {
+                          deadlineMs: channelEnumerationDeadlineMs,
+                          inactivityDeadlineMs: channelEnumerationInactivityDeadlineMs,
+                      }
+                    : undefined,
+            );
             const root = parseJsonObject(result.stdout);
             const rawEntries = completeSourceEntries(root);
             const videos = rawEntries.map(mapYtDlpVideo);
@@ -886,7 +1015,6 @@ export function createYtDlpAdapter(
                 "--dump-single-json",
                 "--flat-playlist",
                 "--skip-download",
-                "--no-warnings",
                 "--playlist-end",
                 String(boundedLimit),
                 playlistsUrl,

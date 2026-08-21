@@ -151,7 +151,7 @@ stateDiagram-v2
 
 Assembly happens in place during `fetching`; there is no separate persisted `assembling` state. There is also no engine-level `importing` state: importing is represented by the outer `download_requests` workflow and the engine row's `importedAt` timestamp.
 
-On process startup, rows stranded in `fetching`, `repairing`, or `extracting` are returned to `queued`. The runner then removes the old incomplete directory and starts the transfer again from the encrypted stored NZB. Per-segment restart resume is not implemented.
+On process startup, rows stranded in `fetching`, `repairing`, or `extracting` are parked as `paused` with an interruption explanation. They cannot be claimed automatically. **Resume** explicitly starts the transfer again from the encrypted stored NZB, resets its byte and segment counters to zero, and removes the old incomplete directory before downloading. Per-segment restart resume is not implemented.
 
 ## Queue behavior
 
@@ -197,7 +197,7 @@ The import source must resolve inside the finalized directory recorded for the e
 | Symptom                                           | Likely boundary                                                    | Recovery                                                                                                                                            |
 | ------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | "Not enough disk space" despite free media drives | Engine work or completed-output filesystem                         | Inspect both engine locations in Settings > Storage; move the constrained location to suitable storage and recreate the container                   |
-| Download restarts after app restart               | Current engine recovery semantics                                  | Expected: per-segment resume is not implemented                                                                                                     |
+| Download is paused after an app interruption      | Safe engine recovery semantics                                     | Review the interruption message, then choose **Resume** to restart from zero; per-segment resume is not implemented                                 |
 | RAR/7z extraction fails on native install         | Missing executable                                                 | Install `unrar` or `7zz` with the exact command name on `PATH`                                                                                      |
 | Import cannot reach destination                   | Bind mount, approved root, or permissions                          | Verify the container path, `APPROVED_MEDIA_ROOTS`, and write access                                                                                 |
 | Completed engine output is not imported           | Worker, finalized staging path, or destination path is unavailable | Inspect Activity, `/health`, both engine paths, and destination permissions; retry the import after the path is healthy                             |

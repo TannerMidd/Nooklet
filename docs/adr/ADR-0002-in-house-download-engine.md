@@ -19,8 +19,9 @@ delivery design:
 - Per-segment scheduling and byte-range coverage are process-local. SQLite
   persists aggregate byte and segment counters on `engine_downloads`, but
   there is no `engine_segments` table. After a restart, an interrupted transfer
-  is safely requeued, its incomplete directory is cleared, and its stored NZB
-  is fetched again from the beginning.
+  is safely parked as paused. Explicit Resume resets its progress counters,
+  clears its incomplete directory, and fetches its stored NZB again from the
+  beginning.
 - yEnc parts are written directly into their final byte ranges while the row is
   `fetching`. There is no separate persisted `assembling` state. A compatibility
   migration maps any historical `assembling` row back to a resumable state.
@@ -108,8 +109,9 @@ admission.
 - The separately supervised worker owns transfer, finalization, import, and
   cancellation. The web process never performs media-filesystem work.
 - Process shutdown stops new passes and drains the active pass to a durable
-  boundary. A supervisor watchdog recycles a worker whose persisted heartbeat
-  stops advancing.
+  boundary, with a bounded force-kill ceiling. A stale persisted heartbeat is
+  diagnostic-only and does not terminate running work; an actually exited
+  worker is restarted.
 - Imports trigger a scan limited to the affected active library path IDs.
 
 ### Security
@@ -141,8 +143,9 @@ admission.
 - Transfer code requires strict streaming and disk-space discipline.
 - The supported topology is one web process and one worker process against one
   SQLite database; this ADR does not claim horizontal scaling.
-- A worker restart discards partial transfer bytes and fetches the stored NZB
-  again; byte-level resume is not implemented.
+- A worker restart parks the interrupted transfer. Explicit Resume discards
+  partial transfer bytes and fetches the stored NZB again; byte-level resume is
+  not implemented.
 - One Usenet server is resolved, so primary/block-account failover is not
   implemented.
 - Windows and Linux path semantics require dedicated containment tests.

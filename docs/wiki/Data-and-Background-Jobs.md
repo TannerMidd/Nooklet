@@ -154,11 +154,11 @@ Key timing values:
 | Season work lease                       | 15 minutes, renewed during work | [fulfillment work lease](https://github.com/TannerMidd/Nooklet/blob/main/src/modules/downloads/workflows/season-fulfillment-work-lease.ts) |
 | Health stale threshold                  |                      60 seconds | [worker readiness](https://github.com/TannerMidd/Nooklet/blob/main/src/lib/jobs/worker-readiness.ts)                                       |
 | Storage snapshot refresh / kill ceiling |         60 seconds / 30 seconds | [probe coordinator](https://github.com/TannerMidd/Nooklet/blob/main/scripts/lib/storage-probe-coordinator.mjs)                             |
-| Worker supervisor stale threshold       |          120 seconds by default | [heartbeat watchdog](https://github.com/TannerMidd/Nooklet/blob/main/scripts/lib/worker-heartbeat-watchdog.mjs)                            |
+| Worker heartbeat warning threshold      |          120 seconds by default | [heartbeat watchdog](https://github.com/TannerMidd/Nooklet/blob/main/scripts/lib/worker-heartbeat-watchdog.mjs)                            |
 
 After filesystem work and maintenance finish, unrelated network/AI job types may run concurrently while only one job of a given type is claimed by this process at a time. The persisted run token prevents a stale claimant from completing a row it no longer owns. The overall pass is serialized: a timer tick that arrives while the previous pass is unresolved cannot update success or freshness.
 
-On `SIGINT` or `SIGTERM`, the worker stops accepting new passes and waits for its active pass to reach a durable boundary. The supervisor retains a ten-second termination ceiling for a genuinely wedged child. Separately, the supervisor recycles a child whose persisted heartbeat has not advanced within the configured stale window.
+Each claimed background job emits structured start and terminal-result events containing its job ID and type. On `SIGINT` or `SIGTERM`, the worker stops accepting new passes and waits for its active pass to reach a durable boundary. The supervisor retains a ten-second termination ceiling for a genuinely wedged child during this explicit shutdown only. A heartbeat that has not advanced within the configured stale window is logged once and keeps health unhealthy, but does not terminate running work. A worker that actually exits is still restarted with backoff.
 
 ## Operational retention
 

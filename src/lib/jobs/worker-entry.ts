@@ -73,6 +73,11 @@ async function main() {
         void shutdown("SIGTERM");
     });
 
+    const { recoverInterruptedEngineDownloads } =
+        await import("@/modules/download-engine/runtime/engine-runner");
+
+    await recoverInterruptedEngineDownloads();
+
     const { startBackgroundWorker, stopBackgroundWorker } = await import("@/lib/jobs/worker");
 
     stopWorker = stopBackgroundWorker;

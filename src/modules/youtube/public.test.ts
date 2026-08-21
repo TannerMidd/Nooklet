@@ -21,6 +21,7 @@ import {
     type YtDlpAdapter,
     type YtDlpProcessExecutor,
 } from "@/modules/youtube/adapters/yt-dlp";
+import type { YouTubeEnumerationDTO } from "@/modules/youtube/types";
 
 import {
     createYouTubeSource,
@@ -35,6 +36,33 @@ import {
 beforeEach(() => {
     vi.clearAllMocks();
 });
+
+function createDeferred<T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+        resolve = resolvePromise;
+        reject = rejectPromise;
+    });
+
+    return { promise, resolve, reject };
+}
+
+function channelEnumeration(): YouTubeEnumerationDTO {
+    return {
+        complete: true,
+        source: {
+            kind: "channel_videos",
+            youtubeSourceId: "@nooklet",
+            canonicalUrl: "https://www.youtube.com/@nooklet/videos",
+            title: "Nooklet",
+            channelId: "UC1234567890123456789012",
+            channelTitle: "Nooklet",
+            thumbnailUrl: null,
+        },
+        videos: [],
+    };
+}
 
 describe("public YouTube search", () => {
     it("enforces a durable caller rate limit before invoking yt-dlp", async () => {
@@ -91,7 +119,7 @@ describe("public YouTube URL discovery", () => {
         expect(executor).toHaveBeenCalledTimes(20);
     });
 
-    it("charges a channel's parallel Videos and playlists lookup as one discovery", async () => {
+    it("charges a channel's Videos and playlists lookup as one discovery", async () => {
         const executor = vi.fn<YtDlpProcessExecutor>().mockImplementation(async (_path, args) => ({
             exitCode: 0,
             stderr: "",
@@ -121,6 +149,72 @@ describe("public YouTube URL discovery", () => {
             code: "rate_limited",
         } satisfies Partial<YouTubeDomainError>);
         expect(executor).toHaveBeenCalledTimes(40);
+    });
+
+    it("waits for Videos enumeration before listing public playlists", async () => {
+        const pendingEnumeration = createDeferred<YouTubeEnumerationDTO>();
+        const enumerate = vi.fn(() => pendingEnumeration.promise);
+        const listChannelPlaylists = vi.fn(async () => []);
+        const adapter = { enumerate, listChannelPlaylists } as unknown as YtDlpAdapter;
+        const discovery = discoverPublicYouTubeChannel(
+            `channel-sequence-test-${Date.now()}`,
+            "https://www.youtube.com/@nooklet/videos",
+            { adapter },
+        );
+
+        expect(enumerate).toHaveBeenCalledWith("https://www.youtube.com/@nooklet/videos");
+        expect(listChannelPlaylists).not.toHaveBeenCalled();
+
+        pendingEnumeration.resolve(channelEnumeration());
+
+        await expect(discovery).resolves.toMatchObject({
+            enumeration: { complete: true },
+            publicPlaylists: [],
+            playlistDiscoveryError: null,
+        });
+        expect(listChannelPlaylists).toHaveBeenCalledWith(
+            "https://www.youtube.com/@nooklet/videos",
+            50,
+        );
+    });
+
+    it("returns graceful playlist degradation after successful enumeration", async () => {
+        const playlistError = new Error("playlist listing unavailable");
+        const enumerate = vi.fn(async () => channelEnumeration());
+        const listChannelPlaylists = vi.fn(async () => {
+            throw playlistError;
+        });
+        const adapter = { enumerate, listChannelPlaylists } as unknown as YtDlpAdapter;
+
+        await expect(
+            discoverPublicYouTubeChannel(
+                `playlist-degradation-test-${Date.now()}`,
+                "https://www.youtube.com/@nooklet/videos",
+                { adapter },
+            ),
+        ).resolves.toMatchObject({
+            enumeration: { complete: true },
+            publicPlaylists: [],
+            playlistDiscoveryError: playlistError,
+        });
+    });
+
+    it("does not start playlist discovery when Videos enumeration fails", async () => {
+        const enumerationError = new Error("Videos enumeration unavailable");
+        const enumerate = vi.fn(async () => {
+            throw enumerationError;
+        });
+        const listChannelPlaylists = vi.fn(async () => []);
+        const adapter = { enumerate, listChannelPlaylists } as unknown as YtDlpAdapter;
+
+        await expect(
+            discoverPublicYouTubeChannel(
+                `channel-enumeration-failure-test-${Date.now()}`,
+                "https://www.youtube.com/@nooklet/videos",
+                { adapter },
+            ),
+        ).rejects.toBe(enumerationError);
+        expect(listChannelPlaylists).not.toHaveBeenCalled();
     });
 });
 

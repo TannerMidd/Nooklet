@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
     recordDownloadEngineLoopStarted: vi.fn(),
     recordDownloadEngineLoopSucceeded: vi.fn(),
     readEngineDownloadRuntimeState: vi.fn(),
-    requeueStrandedEngineDownloads: vi.fn(),
+    recoverStrandedEngineDownloads: vi.fn(),
     resolveEngineDownloadPayload: vi.fn(),
     resolveUsenetServer: vi.fn(),
     rm: vi.fn(),
@@ -50,7 +50,7 @@ vi.mock("@/modules/download-engine/queue/engine-repository", () => ({
     markEngineDownloadWaitingForCapacity: mocks.markEngineDownloadWaitingForCapacity,
     peekNextQueuedEngineDownload: mocks.peekNextQueuedEngineDownload,
     readEngineDownloadRuntimeState: mocks.readEngineDownloadRuntimeState,
-    requeueStrandedEngineDownloads: mocks.requeueStrandedEngineDownloads,
+    recoverStrandedEngineDownloads: mocks.recoverStrandedEngineDownloads,
     resolveEngineDownloadPayload: mocks.resolveEngineDownloadPayload,
     setEngineDownloadState: mocks.setEngineDownloadState,
     transitionEngineDownloadState: mocks.transitionEngineDownloadState,
@@ -68,7 +68,12 @@ vi.mock("@/modules/download-engine/scheduler/download-nzb", () => ({
     downloadNzb: mocks.downloadNzb,
 }));
 
-import { engineCompleteDir, engineIncompleteDir, ensureEngineRunnerStarted } from "./engine-runner";
+import {
+    engineCompleteDir,
+    engineIncompleteDir,
+    ensureEngineRunnerStarted,
+    recoverInterruptedEngineDownloads,
+} from "./engine-runner";
 
 const download = {
     id: "11111111-1111-4111-8111-111111111111",
@@ -80,7 +85,7 @@ const download = {
 beforeEach(() => {
     vi.clearAllMocks();
     mocks.listEngineDownloadsWithControlIntent.mockResolvedValue([]);
-    mocks.requeueStrandedEngineDownloads.mockResolvedValue(undefined);
+    mocks.recoverStrandedEngineDownloads.mockResolvedValue(undefined);
     mocks.inspectLiveEngineCapacity.mockResolvedValue({ sufficient: true });
     mocks.markEngineDownloadWaitingForCapacity.mockResolvedValue(true);
     mocks.claimQueuedEngineDownload.mockImplementation(async (id: string) =>
@@ -98,6 +103,13 @@ beforeEach(() => {
 });
 
 describe("engine runner durable cancellation fencing", () => {
+    it("parks interrupted downloads before starting the drain loop", async () => {
+        await recoverInterruptedEngineDownloads();
+
+        expect(mocks.recoverStrandedEngineDownloads).toHaveBeenCalledOnce();
+        expect(mocks.peekNextQueuedEngineDownload).not.toHaveBeenCalled();
+    });
+
     it("polls persisted cancellation between segments and owns deterministic cleanup", async () => {
         mocks.peekNextQueuedEngineDownload
             .mockResolvedValueOnce(download)

@@ -1,8 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
 
 vi.mock("server-only", () => ({}));
 
 import { YtDlpAdapterError } from "@/modules/youtube/errors";
+import { logger } from "@/lib/observability/logger";
 
 import {
     buildWindowsProcessTreeKillArguments,
@@ -17,6 +19,10 @@ import {
 } from "./yt-dlp";
 
 describe("yt-dlp adapter", () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
     it("leases cookies per extraction and releases them after success or failure", async () => {
         const release = vi.fn().mockResolvedValue(undefined);
         const cookieLeaseProvider = vi.fn().mockResolvedValue({
@@ -108,6 +114,204 @@ describe("yt-dlp adapter", () => {
         });
     });
 
+    it.each([
+        "ERROR: plugin provider failed: connection reset by peer",
+        "ERROR: JavaScript runtime node was not found",
+        "ERROR: [jsc] signature extraction failed",
+    ])("classifies configured tool failures before network matching: %s", (stderr) => {
+        expect(classifyYtDlpProcessFailure(stderr, 1)).toMatchObject({
+            kind: "tool_failure",
+            exitCode: 1,
+        });
+    });
+
+    it.each([
+        "ERROR: JavaScript runtime is not available",
+        "ERROR: remote component is not available",
+        "ERROR: Requested format is not available",
+    ])("does not misclassify tool availability failures as removed content: %s", (stderr) => {
+        expect(classifyYtDlpProcessFailure(stderr, 1)).toMatchObject({
+            kind: "tool_failure",
+            exitCode: 1,
+        });
+    });
+
+    it("classifies a real connection reset as a retryable network failure", () => {
+        expect(
+            classifyYtDlpProcessFailure(
+                "ERROR: unable to download webpage: [Errno 104] Connection reset by peer",
+                1,
+            ),
+        ).toMatchObject({ kind: "network", exitCode: 1 });
+    });
+
+    it.each([
+        "ERROR: Please complete the human verification challenge.",
+        "ERROR: YouTube security check required.",
+        "ERROR: CAPTCHA required before continuing.",
+        "ERROR: Please verify you are human before continuing.",
+    ])("classifies anti-bot verification variants as authentication requirements: %s", (stderr) => {
+        expect(classifyYtDlpProcessFailure(stderr, 1)).toMatchObject({
+            kind: "authentication_required",
+            exitCode: 1,
+        });
+    });
+
+    it.each([
+        "ERROR: LOGIN_REQUIRED",
+        "ERROR: playability status: LOGIN_REQUIRED",
+        "ERROR: login required",
+    ])("classifies explicit login-required forms as authentication requirements: %s", (stderr) => {
+        expect(classifyYtDlpProcessFailure(stderr, 1)).toMatchObject({
+            kind: "authentication_required",
+            exitCode: 1,
+            message: expect.stringContaining("Settings"),
+        });
+    });
+
+    it("logs one bounded failure diagnostic without raw URLs or absolute paths", async () => {
+        const errorLog = vi.spyOn(logger, "error").mockImplementation(() => undefined);
+        const stderr = [
+            "ERROR: failed to fetch https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "www.youtube.com/watch?v=bare-host-query youtu.be/dQw4w9WgXcQ",
+            "youtu.be?token=secret www.youtube.com:443?secret=x youtube.com#fragment-secret",
+            "from C:\\Users\\Alice Smith\\cookies.txt",
+            "WARNING: fallback at /home/alice smith/cookies.txt?secret=1",
+        ].join("\n");
+
+        await expect(
+            executeYtDlpProcess(
+                process.execPath,
+                ["-e", `process.stderr.write(${JSON.stringify(stderr)}); process.exit(1)`],
+                {
+                    deadlineMs: 5_000,
+                    inactivityDeadlineMs: 2_000,
+                    maxStdoutBytes: 128,
+                    maxStderrBytes: 4_096,
+                },
+            ),
+        ).rejects.toMatchObject({ kind: "tool_failure", exitCode: 1 });
+
+        expect(errorLog).toHaveBeenCalledTimes(1);
+        const fields = errorLog.mock.calls[0]?.[1] as Record<string, unknown>;
+        const serialized = JSON.stringify(fields);
+
+        expect(fields).toMatchObject({
+            kind: "tool_failure",
+            exitCode: 1,
+            stdoutBytes: 0,
+            stderrBytes: Buffer.byteLength(stderr),
+        });
+        expect(serialized).not.toContain("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+        expect(serialized).not.toContain("www.youtube.com/watch?v=bare-host-query");
+        expect(serialized).not.toContain("youtu.be/dQw4w9WgXcQ");
+        expect(serialized).not.toContain("token=secret");
+        expect(serialized).not.toContain("secret=x");
+        expect(serialized).not.toContain("fragment-secret");
+        expect(serialized).not.toContain("Alice Smith");
+        expect(serialized).not.toContain("alice smith");
+        expect(serialized).not.toContain("cookies.txt");
+        expect(serialized).not.toContain("?secret=1");
+        expect(serialized).toContain("[REDACTED_URL]");
+        expect(serialized).toContain("[REDACTED_PATH]");
+    });
+
+    it("logs exactly one diagnostic when a process times out", async () => {
+        const errorLog = vi.spyOn(logger, "error").mockImplementation(() => undefined);
+
+        await expect(
+            executeYtDlpProcess(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+                deadlineMs: 40,
+                inactivityDeadlineMs: 40,
+                maxStdoutBytes: 128,
+                maxStderrBytes: 128,
+            }),
+        ).rejects.toMatchObject({ kind: "timeout", exitCode: null });
+
+        expect(errorLog).toHaveBeenCalledTimes(1);
+        expect(errorLog.mock.calls[0]?.[1]).toMatchObject({
+            kind: "timeout",
+            exitCode: null,
+        });
+    });
+
+    it("ignores late stdout and stderr events after settlement", async () => {
+        const stdout = new EventEmitter();
+        const stderr = new EventEmitter();
+        const handlers = new Map<string, (...args: unknown[]) => void>();
+        const fakeChild = {
+            pid: undefined,
+            stdout,
+            stderr,
+            once(event: string, handler: (...args: unknown[]) => void) {
+                handlers.set(event, handler);
+
+                return fakeChild;
+            },
+            kill: vi.fn(),
+        };
+        const spawnMock = vi.fn(() => fakeChild);
+
+        vi.doMock("node:child_process", async () => {
+            const actual =
+                await vi.importActual<typeof import("node:child_process")>("node:child_process");
+
+            return { ...actual, spawn: spawnMock };
+        });
+        vi.resetModules();
+
+        try {
+            const { executeYtDlpProcess: isolatedExecuteYtDlpProcess } = await import("./yt-dlp");
+            const onStdoutLine = vi.fn();
+            const result = isolatedExecuteYtDlpProcess("fake-yt-dlp", [], {
+                deadlineMs: 5_000,
+                inactivityDeadlineMs: 5_000,
+                maxStdoutBytes: 128,
+                maxStderrBytes: 1,
+                onStdoutLine,
+            });
+
+            stdout.emit("data", Buffer.from("first\n"));
+            stderr.emit("data", Buffer.from("too large"));
+
+            await expect(result).rejects.toMatchObject({ kind: "output_too_large" });
+            stdout.emit("data", Buffer.from("late\n"));
+            stderr.emit("data", Buffer.from("late stderr"));
+
+            expect(onStdoutLine).toHaveBeenCalledTimes(1);
+            expect(fakeChild.kill).toHaveBeenCalledTimes(1);
+            expect(handlers.has("close")).toBe(true);
+        } finally {
+            vi.doUnmock("node:child_process");
+            vi.resetModules();
+        }
+    });
+
+    it("logs exactly one diagnostic for a missing executable without raw arguments", async () => {
+        const errorLog = vi.spyOn(logger, "error").mockImplementation(() => undefined);
+        const missingExecutable = "C:\\nooklet\\missing yt-dlp.exe";
+
+        await expect(
+            executeYtDlpProcess(missingExecutable, ["--cookies", "C:\\private\\cookies.txt"], {
+                deadlineMs: 1_000,
+                inactivityDeadlineMs: 500,
+                maxStdoutBytes: 128,
+                maxStderrBytes: 128,
+            }),
+        ).rejects.toMatchObject({ kind: "tool_missing", exitCode: null });
+
+        expect(errorLog).toHaveBeenCalledTimes(1);
+        const serialized = JSON.stringify(errorLog.mock.calls[0]);
+
+        expect(errorLog.mock.calls[0]?.[1]).toMatchObject({
+            kind: "tool_missing",
+            exitCode: null,
+        });
+        expect(serialized).not.toContain(missingExecutable);
+        expect(serialized).not.toContain("C:\\private\\cookies.txt");
+        expect(serialized).not.toContain("--cookies");
+    });
+
     it("constructs Windows descendant termination without a shell", () => {
         expect(buildWindowsProcessTreeKillArguments(4242)).toEqual(["/PID", "4242", "/T", "/F"]);
         expect(() => buildWindowsProcessTreeKillArguments(-1)).toThrow(/process ID/i);
@@ -181,6 +385,7 @@ describe("yt-dlp adapter", () => {
             args.slice(args.indexOf("--js-runtimes"), args.indexOf("--js-runtimes") + 2),
         ).toEqual(["--js-runtimes", "node"]);
         expect(args).toContain("--flat-playlist");
+        expect(args).not.toContain("--no-warnings");
         expect(args.at(-1)).toBe("https://www.youtube.com/@nooklet/videos");
         expect(args).not.toContain("--remote-components");
         expect(enumeration.complete).toBe(true);
@@ -188,6 +393,57 @@ describe("yt-dlp adapter", () => {
             ["regular", true],
             ["short", false],
         ]);
+    });
+
+    it("gives channel enumeration a longer default window while preserving explicit overrides", async () => {
+        const executor = vi.fn<YtDlpProcessExecutor>().mockResolvedValue({
+            exitCode: 0,
+            stderr: "",
+            stdout: JSON.stringify({ entries: [] }),
+        });
+        const adapter = createYtDlpAdapter({ executor, ytDlpPath: "fake-yt-dlp" });
+
+        await adapter.enumerate("https://youtube.com/@nooklet");
+        expect(executor.mock.calls[0]?.[2]).toMatchObject({
+            deadlineMs: 120_000,
+            inactivityDeadlineMs: 45_000,
+        });
+
+        await adapter.enumerate("https://youtube.com/playlist?list=PL1234567890abc");
+        expect(executor.mock.calls[1]?.[2]).toMatchObject({
+            deadlineMs: 45_000,
+            inactivityDeadlineMs: 20_000,
+        });
+
+        const overrideExecutor = vi.fn<YtDlpProcessExecutor>().mockResolvedValue({
+            exitCode: 0,
+            stderr: "",
+            stdout: JSON.stringify({ entries: [] }),
+        });
+        const overrideAdapter = createYtDlpAdapter({
+            executor: overrideExecutor,
+            discoveryDeadlineMs: 1_234,
+            inactivityDeadlineMs: 567,
+        });
+
+        await overrideAdapter.enumerate("https://youtube.com/@nooklet");
+        expect(overrideExecutor.mock.calls[0]?.[2]).toMatchObject({
+            deadlineMs: 1_234,
+            inactivityDeadlineMs: 567,
+        });
+    });
+
+    it("keeps diagnostic warnings available for search discovery", async () => {
+        const executor = vi.fn<YtDlpProcessExecutor>().mockResolvedValue({
+            exitCode: 0,
+            stderr: "WARNING: search result metadata was incomplete",
+            stdout: JSON.stringify({ entries: [] }),
+        });
+        const adapter = createYtDlpAdapter({ executor, ytDlpPath: "fake-yt-dlp" });
+
+        await adapter.search("nooklet", 5);
+
+        expect(executor.mock.calls[0]?.[1]).not.toContain("--no-warnings");
     });
 
     it("lists bounded, deduplicated public playlists for a channel", async () => {
@@ -247,6 +503,7 @@ describe("yt-dlp adapter", () => {
             args.slice(args.indexOf("--js-runtimes"), args.indexOf("--js-runtimes") + 2),
         ).toEqual(["--js-runtimes", "node"]);
         expect(args).toContain("--flat-playlist");
+        expect(args).not.toContain("--no-warnings");
         expect(
             args.slice(args.indexOf("--playlist-end"), args.indexOf("--playlist-end") + 2),
         ).toEqual(["--playlist-end", "100"]);
@@ -452,10 +709,12 @@ describe("yt-dlp adapter", () => {
         expect(executor.mock.calls[0]?.[1]).toContain("--dump-single-json");
         expect(executor.mock.calls[0]?.[1]).toContain("--no-update");
         expect(executor.mock.calls[0]?.[1]).toContain("--js-runtimes");
+        expect(executor.mock.calls[0]?.[1]).not.toContain("--no-warnings");
         expect(executor.mock.calls[0]?.[2].signal).toBe(controller.signal);
         expect(executor.mock.calls[1]?.[1]).toContain("--output");
         expect(executor.mock.calls[1]?.[1]).toContain("--no-update");
         expect(executor.mock.calls[1]?.[1]).toContain("--js-runtimes");
+        expect(executor.mock.calls[1]?.[1]).not.toContain("--no-warnings");
         expect(executor.mock.calls[1]?.[1]).toEqual(
             expect.arrayContaining(["--progress", "--progress-delta", "1"]),
         );
