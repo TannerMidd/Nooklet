@@ -21,6 +21,7 @@ import {
     requestEngineDownloadControl,
     resumePausedEngineDownload,
     resolveEngineDownloadPayload,
+    reorderEngineDownloadQueue,
     setEngineDownloadPriority,
     setEngineDownloadState,
     transitionEngineDownloadState,
@@ -382,6 +383,71 @@ describe("engine repository", () => {
         const active = await listActiveEngineDownloads(userId);
 
         expect(active.map((record) => record.name)).toEqual(["b", "a"]);
+    });
+
+    it("applies a complete reorder atomically for the expected user-owned snapshot", async () => {
+        const first = await createEngineDownload(baseInput({ name: "a" }));
+        const second = await createEngineDownload(baseInput({ name: "b" }));
+        const third = await createEngineDownload(baseInput({ name: "c" }));
+        const snapshot = await listActiveEngineDownloads(userId);
+
+        expect(
+            await reorderEngineDownloadQueue(userId, snapshot, [third.id, first.id, second.id]),
+        ).toBe(true);
+
+        const active = await listActiveEngineDownloads(userId);
+
+        expect(active.map((record) => [record.id, record.priority])).toEqual([
+            [third.id, 0],
+            [first.id, 1],
+            [second.id, 2],
+        ]);
+    });
+
+    it("rejects a stale reorder snapshot without changing priorities", async () => {
+        const first = await createEngineDownload(baseInput({ name: "a" }));
+        const second = await createEngineDownload(baseInput({ name: "b" }));
+        const snapshot = await listActiveEngineDownloads(userId);
+
+        await setEngineDownloadPriority(userId, first.id, 10);
+
+        expect(await reorderEngineDownloadQueue(userId, snapshot, [second.id, first.id])).toBe(
+            false,
+        );
+        expect((await listActiveEngineDownloads(userId)).map((record) => record.id)).toEqual([
+            second.id,
+            first.id,
+        ]);
+    });
+
+    it("rejects ids outside the user-owned snapshot", async () => {
+        const own = await createEngineDownload(baseInput({ name: "own" }));
+        const otherUserId = randomUUID();
+        const database = ensureDatabaseReady();
+
+        database
+            .insert(users)
+            .values({
+                id: otherUserId,
+                email: `${otherUserId}@test.local`,
+                passwordHash: "hash",
+                displayName: "Other User",
+            })
+            .run();
+
+        const foreign = await createEngineDownload({
+            ...baseInput({ userId: otherUserId }),
+            name: "foreign",
+        });
+        const snapshot = await listActiveEngineDownloads(userId);
+
+        expect(await reorderEngineDownloadQueue(userId, snapshot, [foreign.id])).toBe(false);
+        expect((await listActiveEngineDownloads(userId)).map((record) => record.id)).toEqual([
+            own.id,
+        ]);
+        expect((await listActiveEngineDownloads(otherUserId)).map((record) => record.id)).toEqual([
+            foreign.id,
+        ]);
     });
 
     it("deletes downloads", async () => {

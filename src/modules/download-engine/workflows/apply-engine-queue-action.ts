@@ -2,13 +2,14 @@ import {
     checkpointDownloadRequestCancellation,
     listActiveRequestsForExternalQueueId,
 } from "@/modules/downloads/public";
+
 import {
     findEngineDownloadById,
     isEngineDownloadPostProcessing,
     listActiveEngineDownloads,
+    reorderEngineDownloadQueue,
     requestEngineDownloadControl,
     resumePausedEngineDownload,
-    setEngineDownloadPriority,
     setEngineDownloadState,
 } from "@/modules/download-engine/queue/engine-repository";
 import { type DownloadQueueActionInput } from "@/modules/download-engine/queue/download-queue-actions";
@@ -265,27 +266,24 @@ async function moveItem(userId: string, itemId: string, direction: "up" | "down"
         return;
     }
 
-    await reorderToIndex(
-        userId,
-        active.map((record) => record.id),
-        index,
-        targetIndex,
-    );
+    await reorderToIndex(userId, active, index, targetIndex);
 }
 
 async function reorderToIndex(
     userId: string,
-    orderedIds: string[],
+    snapshot: Awaited<ReturnType<typeof listActiveEngineDownloads>>,
     fromIndex: number,
     toIndex: number,
 ) {
-    const ids = [...orderedIds];
+    const ids = snapshot.map((record) => record.id);
     const [moved] = ids.splice(fromIndex, 1);
 
     ids.splice(toIndex, 0, moved);
 
-    for (let index = 0; index < ids.length; index += 1) {
-        await setEngineDownloadPriority(userId, ids[index], index);
+    const applied = await reorderEngineDownloadQueue(userId, snapshot, ids);
+
+    if (!applied) {
+        throw new EngineQueueActionError("The queue changed before it could be reordered.");
     }
 }
 
@@ -342,7 +340,7 @@ export async function applyEngineQueueAction(
 
             await reorderToIndex(
                 userId,
-                active.map((record) => record.id),
+                active,
                 index,
                 Math.min(action.targetIndex, active.length - 1),
             );
