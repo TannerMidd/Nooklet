@@ -136,6 +136,16 @@ const envShape = {
     // Retain operational/audit records long enough for incident review while
     // preventing maintenance tables from growing without bound.
     OPERATIONAL_RETENTION_DAYS: z.coerce.number().int().min(30).max(3650).default(365),
+    // Hard wall-clock budget for one built-in download's fetching stage. The
+    // runner normally derives the budget from payload size; this override
+    // replaces that derivation entirely and exists mainly for tests and
+    // unusually slow or unusually fast links.
+    DOWNLOAD_STAGE_BUDGET_MS: z.coerce
+        .number()
+        .int()
+        .positive()
+        .max(7 * 24 * 60 * 60_000, "DOWNLOAD_STAGE_BUDGET_MS cannot exceed 7 days.")
+        .optional(),
 } satisfies z.ZodRawShape;
 
 export const runtimeEnvKeys = Object.keys(envShape) as Array<keyof typeof envShape>;

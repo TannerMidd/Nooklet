@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { FinalizeDownloadError } from "@/modules/download-engine/finalize/finalize-download";
 import { NntpError } from "@/modules/download-engine/nntp/nntp-client";
@@ -6,17 +6,21 @@ import { NntpError } from "@/modules/download-engine/nntp/nntp-client";
 import { classifyEngineNntpFailureKinds, classifyEngineRuntimeError } from "./engine-runner";
 
 describe("engine failure classification", () => {
-    it.each(["connect-failed", "auth-failed", "timeout", "connection-closed"] as const)(
-        "classifies %s as infrastructure",
-        (kind) => {
-            expect(classifyEngineNntpFailureKinds([kind])).toBe("infrastructure");
-            expect(classifyEngineRuntimeError(new NntpError(kind, "NNTP failed."))).toBe(
-                "infrastructure",
-            );
-        },
-    );
+    it.each([
+        "connect-failed",
+        "auth-failed",
+        "protocol-error",
+        "server-unavailable",
+        "timeout",
+        "connection-closed",
+    ] as const)("classifies %s as infrastructure", (kind) => {
+        expect(classifyEngineNntpFailureKinds([kind])).toBe("infrastructure");
+        expect(classifyEngineRuntimeError(new NntpError(kind, "NNTP failed."))).toBe(
+            "infrastructure",
+        );
+    });
 
-    it.each(["article-not-found", "article-unusable", "protocol-error"] as const)(
+    it.each(["article-not-found", "article-unusable"] as const)(
         "classifies %s as release content",
         (kind) => {
             expect(classifyEngineNntpFailureKinds([kind])).toBe("content");
@@ -48,5 +52,38 @@ describe("engine failure classification", () => {
                 }),
             ),
         ).toBe("infrastructure");
+    });
+});
+
+describe("fetching stage budget", () => {
+    it("falls back to the fixed floor for small and invalid payload sizes", async () => {
+        const { fetchingStageBudgetMs } = await import("./engine-runner");
+
+        expect(fetchingStageBudgetMs(0)).toBe(30 * 60_000);
+        expect(fetchingStageBudgetMs(-1)).toBe(30 * 60_000);
+        expect(fetchingStageBudgetMs(Number.NaN)).toBe(30 * 60_000);
+    });
+
+    it("scales with payload size on top of the floor", async () => {
+        const { fetchingStageBudgetMs } = await import("./engine-runner");
+
+        // One gigabyte at the assumed 512 KB/s adds 2048 seconds.
+        const gigabyte = 1024 * 1024 * 1024;
+
+        expect(fetchingStageBudgetMs(gigabyte)).toBe(30 * 60_000 + 2_048_000);
+    });
+
+    it("honors DOWNLOAD_STAGE_BUDGET_MS as a hard replacement", async () => {
+        vi.resetModules();
+        vi.stubEnv("DOWNLOAD_STAGE_BUDGET_MS", "45000");
+
+        try {
+            const { fetchingStageBudgetMs } = await import("./engine-runner");
+
+            expect(fetchingStageBudgetMs(10_000_000_000)).toBe(45_000);
+        } finally {
+            vi.unstubAllEnvs();
+            vi.resetModules();
+        }
     });
 });

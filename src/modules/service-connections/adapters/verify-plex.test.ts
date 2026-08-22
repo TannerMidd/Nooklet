@@ -50,6 +50,7 @@ describe("verifyPlex", () => {
             baseUrl: "https://plex.test:32400",
             apiKey: "plex-token",
             timeoutMs: SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
+            retryAttempts: 1,
         });
     });
 

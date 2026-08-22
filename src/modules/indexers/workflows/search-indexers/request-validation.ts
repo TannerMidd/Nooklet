@@ -19,10 +19,20 @@ export type ValidatedIndexerSearchRequest = z.infer<typeof searchIndexersInputSc
     normalizedKey: string;
 };
 
+/**
+ * Normalizes release titles and search queries onto one comparable form.
+ *
+ * Unicode-aware on purpose (`\p{L}\p{N}`, NFKC): stripping non-ASCII turned
+ * every CJK title into an empty key, which made those searches unable to
+ * boost anything. Both sides of the comparison — query key and stored
+ * `normalizedTitle` — run through this same function, so the transformation
+ * stays consistent.
+ */
 export function normalizeIndexerSearchQuery(value: string) {
     return value
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, " ")
+        .normalize("NFKC")
+        .toLocaleLowerCase("und")
+        .replace(/[^\p{L}\p{N}]+/gu, " ")
         .trim();
 }
 

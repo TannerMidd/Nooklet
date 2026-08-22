@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, asc, count, eq, gt, inArray, isNull, lte, ne, notExists, or, sql } from "drizzle-orm";
 
-import { ensureDatabaseReady } from "@/lib/database/client";
+import { ensureDatabaseReady, type AppDatabase } from "@/lib/database/client";
 import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
     activeDownloadRequestStatuses,
@@ -365,24 +365,27 @@ export async function setDefaultDownloadPath(input: {
     );
 }
 
-export async function upsertMediaTitle(input: {
-    userId: string;
-    libraryId?: string | null;
-    mediaType: RecommendationMediaType;
-    title: string;
-    sortTitle: string;
-    year?: number | null;
-    normalizedKey: string;
-    status?: MediaTitleStatus;
-    monitored?: boolean;
-    qualityProfile?: MediaQualityProfile;
-    overview?: string | null;
-    posterUrl?: string | null;
-    backdropUrl?: string | null;
-    runtimeMinutes?: number | null;
-    originalLanguage?: string | null;
-}) {
-    const database = ensureDatabaseReady();
+export async function upsertMediaTitle(
+    input: {
+        userId: string;
+        libraryId?: string | null;
+        mediaType: RecommendationMediaType;
+        title: string;
+        sortTitle: string;
+        year?: number | null;
+        normalizedKey: string;
+        status?: MediaTitleStatus;
+        monitored?: boolean;
+        qualityProfile?: MediaQualityProfile;
+        overview?: string | null;
+        posterUrl?: string | null;
+        backdropUrl?: string | null;
+        runtimeMinutes?: number | null;
+        originalLanguage?: string | null;
+    },
+    executor?: AppDatabase,
+) {
+    const database = executor ?? ensureDatabaseReady();
     const id = randomUUID();
     const values = {
         id,
@@ -490,8 +493,12 @@ export async function findMediaTitleByNormalizedKey(
     );
 }
 
-export async function findMediaTitleByIdForUser(userId: string, titleId: string) {
-    const database = ensureDatabaseReady();
+export async function findMediaTitleByIdForUser(
+    userId: string,
+    titleId: string,
+    executor?: AppDatabase,
+) {
+    const database = executor ?? ensureDatabaseReady();
 
     return (
         database
@@ -502,8 +509,12 @@ export async function findMediaTitleByIdForUser(userId: string, titleId: string)
     );
 }
 
-export async function deleteMediaTitleByIdForUser(userId: string, titleId: string) {
-    const database = ensureDatabaseReady();
+export async function deleteMediaTitleByIdForUser(
+    userId: string,
+    titleId: string,
+    executor?: AppDatabase,
+) {
+    const database = executor ?? ensureDatabaseReady();
     const existingTitle = await findMediaTitleByIdForUser(userId, titleId);
 
     if (!existingTitle) {
@@ -518,8 +529,8 @@ export async function deleteMediaTitleByIdForUser(userId: string, titleId: strin
     return existingTitle;
 }
 
-export async function countMediaFilesForTitle(titleId: string) {
-    const database = ensureDatabaseReady();
+export async function countMediaFilesForTitle(titleId: string, executor?: AppDatabase) {
+    const database = executor ?? ensureDatabaseReady();
 
     return (
         database
@@ -530,8 +541,8 @@ export async function countMediaFilesForTitle(titleId: string) {
     );
 }
 
-export async function countMediaTitleExternalIds(titleId: string) {
-    const database = ensureDatabaseReady();
+export async function countMediaTitleExternalIds(titleId: string, executor?: AppDatabase) {
+    const database = executor ?? ensureDatabaseReady();
 
     return (
         database
@@ -598,12 +609,16 @@ export async function deleteMediaFilesByLibraryPath(userId: string, libraryPathI
         .run();
 }
 
-export async function deleteMediaFilesByIds(userId: string, fileIds: string[]) {
+export async function deleteMediaFilesByIds(
+    userId: string,
+    fileIds: string[],
+    executor?: AppDatabase,
+) {
     if (fileIds.length === 0) {
         return;
     }
 
-    const database = ensureDatabaseReady();
+    const database = executor ?? ensureDatabaseReady();
 
     // Stay below SQLite's parameter limit even for very large libraries.
     for (let offset = 0; offset < fileIds.length; offset += 500) {
@@ -620,9 +635,13 @@ export async function deleteMediaFilesByIds(userId: string, fileIds: string[]) {
 }
 
 /** Rebuild denormalized availability flags from the authoritative file rows. */
-export async function reconcileMediaTitleFileAvailability(userId: string, titleId: string) {
-    const database = ensureDatabaseReady();
-    const title = await findMediaTitleByIdForUser(userId, titleId);
+export async function reconcileMediaTitleFileAvailability(
+    userId: string,
+    titleId: string,
+    executor?: AppDatabase,
+) {
+    const database = executor ?? ensureDatabaseReady();
+    const title = await findMediaTitleByIdForUser(userId, titleId, executor);
 
     if (!title) {
         return null;
@@ -669,7 +688,7 @@ export async function reconcileMediaTitleFileAvailability(userId: string, titleI
         }
     });
 
-    return findMediaTitleByIdForUser(userId, titleId);
+    return findMediaTitleByIdForUser(userId, titleId, executor);
 }
 
 export async function updateMediaTitlePreferences(input: {
@@ -750,28 +769,34 @@ export async function updateMediaLibraryMonitoring(input: {
 export async function setMediaTitleExternalIds(
     titleId: string,
     externalIds: Array<{ source: MediaTitleExternalIdSource; value: string }>,
+    executor?: AppDatabase,
 ) {
-    const database = ensureDatabaseReady();
+    const database = executor ?? ensureDatabaseReady();
     const uniqueExternalIds = Array.from(
         new Map(externalIds.map((entry) => [entry.source, entry])).values(),
     );
 
-    database.delete(mediaTitleExternalIds).where(eq(mediaTitleExternalIds.titleId, titleId)).run();
+    database.transaction((transaction) => {
+        transaction
+            .delete(mediaTitleExternalIds)
+            .where(eq(mediaTitleExternalIds.titleId, titleId))
+            .run();
 
-    if (uniqueExternalIds.length === 0) {
-        return [];
-    }
+        if (uniqueExternalIds.length === 0) {
+            return;
+        }
 
-    database
-        .insert(mediaTitleExternalIds)
-        .values(
-            uniqueExternalIds.map((entry) => ({
-                titleId,
-                source: entry.source,
-                value: entry.value,
-            })),
-        )
-        .run();
+        transaction
+            .insert(mediaTitleExternalIds)
+            .values(
+                uniqueExternalIds.map((entry) => ({
+                    titleId,
+                    source: entry.source,
+                    value: entry.value,
+                })),
+            )
+            .run();
+    });
 
     return database
         .select()
@@ -805,14 +830,17 @@ export async function createTvSeason(input: {
     return database.select().from(tvSeasons).where(eq(tvSeasons.id, id)).get()!;
 }
 
-export async function upsertTvSeason(input: {
-    titleId: string;
-    seasonNumber: number;
-    title?: string | null;
-    episodeCount?: number;
-    monitored?: boolean;
-}) {
-    const database = ensureDatabaseReady();
+export async function upsertTvSeason(
+    input: {
+        titleId: string;
+        seasonNumber: number;
+        title?: string | null;
+        episodeCount?: number;
+        monitored?: boolean;
+    },
+    executor?: AppDatabase,
+) {
+    const database = executor ?? ensureDatabaseReady();
     const id = randomUUID();
     const values = {
         id,
@@ -894,17 +922,20 @@ export async function createTvEpisode(input: {
     return database.select().from(tvEpisodes).where(eq(tvEpisodes.id, id)).get()!;
 }
 
-export async function upsertTvEpisode(input: {
-    titleId: string;
-    seasonId: string;
-    seasonNumber: number;
-    episodeNumber: number;
-    title?: string | null;
-    airDate?: string | null;
-    monitored?: boolean;
-    hasFile?: boolean;
-}) {
-    const database = ensureDatabaseReady();
+export async function upsertTvEpisode(
+    input: {
+        titleId: string;
+        seasonId: string;
+        seasonNumber: number;
+        episodeNumber: number;
+        title?: string | null;
+        airDate?: string | null;
+        monitored?: boolean;
+        hasFile?: boolean;
+    },
+    executor?: AppDatabase,
+) {
+    const database = executor ?? ensureDatabaseReady();
     const id = randomUUID();
     const values = {
         id,
@@ -1217,22 +1248,25 @@ export async function recordMediaFile(input: {
     return database.select().from(mediaFiles).where(eq(mediaFiles.id, id)).get()!;
 }
 
-export async function upsertMediaFile(input: {
-    userId: string;
-    titleId: string;
-    libraryPathId?: string | null;
-    seasonId?: string | null;
-    episodeId?: string | null;
-    mediaType: RecommendationMediaType;
-    fileKind: MediaFileKind;
-    filePath: string;
-    relativePath: string;
-    sizeBytes?: number | null;
-    modifiedAt?: Date | null;
-    qualityLabel?: string | null;
-    releaseGroup?: string | null;
-}) {
-    const database = ensureDatabaseReady();
+export async function upsertMediaFile(
+    input: {
+        userId: string;
+        titleId: string;
+        libraryPathId?: string | null;
+        seasonId?: string | null;
+        episodeId?: string | null;
+        mediaType: RecommendationMediaType;
+        fileKind: MediaFileKind;
+        filePath: string;
+        relativePath: string;
+        sizeBytes?: number | null;
+        modifiedAt?: Date | null;
+        qualityLabel?: string | null;
+        releaseGroup?: string | null;
+    },
+    executor?: AppDatabase,
+) {
+    const database = executor ?? ensureDatabaseReady();
     const id = randomUUID();
     const values = {
         id,
@@ -1281,8 +1315,12 @@ export async function upsertMediaFile(input: {
         .get()!;
 }
 
-export async function findMediaFileByUserPath(userId: string, filePath: string) {
-    const database = ensureDatabaseReady();
+export async function findMediaFileByUserPath(
+    userId: string,
+    filePath: string,
+    executor?: AppDatabase,
+) {
+    const database = executor ?? ensureDatabaseReady();
 
     return (
         database

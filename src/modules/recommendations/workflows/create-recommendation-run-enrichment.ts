@@ -1,4 +1,5 @@
 import { type RecommendationMediaType } from "@/lib/database/schema";
+import { mapWithConcurrency } from "@/lib/concurrency/map-with-concurrency";
 import {
     formatLanguagePreference,
     languagePreferenceAny,
@@ -81,11 +82,37 @@ export function buildMissingTmdbLanguageMessage(languagePreference: LanguagePref
     return `Verify TMDB before requesting ${formatLanguagePreference(languagePreference)} recommendations. TMDB is required to strictly confirm each title's original language.`;
 }
 
+/**
+ * Bounded fan-out for per-title TMDB lookups. Each lookup is a search plus a
+ * details fetch, so unbounded concurrency would hammer the API; four keeps a
+ * full batch quick while staying polite to a free-tier rate limit.
+ */
+const tmdbEnrichmentConcurrency = 4;
+
+export type TmdbEnrichmentCache = Map<
+    string,
+    Promise<Awaited<ReturnType<typeof lookupTmdbTitleDetails>>>
+>;
+
+function tmdbEnrichmentCacheKey(
+    mediaType: RecommendationMediaType,
+    title: string,
+    year: number | null,
+) {
+    return `${mediaType}|${title.trim().toLocaleLowerCase()}|${year ?? ""}`;
+}
+
 export async function enrichGeneratedItemsWithTmdbMetadata(input: {
     tmdbConnection: VerifiedTmdbConnection | null;
     mediaType: RecommendationMediaType;
     languagePreference: LanguagePreferenceCode;
     items: GeneratedRecommendationItem[];
+    /**
+     * Optional per-run memo shared across backfill attempts. Backfill
+     * regenerates overlapping titles, so without it one run could issue the
+     * same search-plus-details pair once per attempt.
+     */
+    cache?: TmdbEnrichmentCache;
 }): Promise<TmdbEnrichmentResult> {
     if (input.items.length === 0) {
         return {
@@ -110,38 +137,77 @@ export async function enrichGeneratedItemsWithTmdbMetadata(input: {
         };
     }
 
-    const enrichedItems: GeneratedRecommendationItem[] = [];
-    let excludedLanguageItemCount = 0;
+    const cache: TmdbEnrichmentCache = input.cache ?? new Map();
 
-    for (const item of input.items) {
-        const detailsResult = await lookupTmdbTitleDetails({
-            ...input.tmdbConnection,
+    // "No TMDB match" is a stable verdict about the title; anything else
+    // (rate limits, 5xx, timeouts) is transient and must not poison the cache,
+    // or a regenerated title after TMDB recovers would reuse the failure and
+    // burn another backfill attempt.
+    const isDefinitiveFailure = (message: string) => message.startsWith("No TMDB match was found");
+
+    const lookupDetails = (item: GeneratedRecommendationItem) => {
+        const key = tmdbEnrichmentCacheKey(input.mediaType, item.title, item.year);
+        const cached = cache.get(key);
+
+        if (cached) {
+            return cached;
+        }
+
+        const lookup = lookupTmdbTitleDetails({
+            ...input.tmdbConnection!,
             mediaType: input.mediaType,
             title: item.title,
             year: item.year,
         });
 
-        if (!detailsResult.ok) {
-            if (hasStrictLanguagePreference(input.languagePreference)) {
-                excludedLanguageItemCount += 1;
-                continue;
+        // Transient failures evict themselves so later backfill attempts can
+        // retry the same title against a recovered API.
+        void lookup.then(
+            (result) => {
+                if (!result.ok && !isDefinitiveFailure(result.message)) {
+                    cache.delete(key);
+                }
+            },
+            () => {
+                cache.delete(key);
+            },
+        );
+
+        cache.set(key, lookup);
+
+        return lookup;
+    };
+
+    type EnrichmentOutcome =
+        { excluded: true } | { excluded: false; item: GeneratedRecommendationItem };
+
+    const outcomes = await mapWithConcurrency(
+        input.items,
+        tmdbEnrichmentConcurrency,
+        async (item): Promise<EnrichmentOutcome> => {
+            const detailsResult = await lookupDetails(item);
+
+            if (!detailsResult.ok) {
+                if (hasStrictLanguagePreference(input.languagePreference)) {
+                    return { excluded: true };
+                }
+
+                return { excluded: false, item };
             }
 
-            enrichedItems.push(item);
-            continue;
-        }
+            if (!languageMatchesPreference(detailsResult.details, input.languagePreference)) {
+                return { excluded: true };
+            }
 
-        if (!languageMatchesPreference(detailsResult.details, input.languagePreference)) {
-            excludedLanguageItemCount += 1;
-            continue;
-        }
+            return { excluded: false, item: mergeTmdbDetailsIntoItem(item, detailsResult.details) };
+        },
+    );
 
-        enrichedItems.push(mergeTmdbDetailsIntoItem(item, detailsResult.details));
-    }
+    const enrichedItems = outcomes.flatMap((outcome) => (outcome.excluded ? [] : [outcome.item]));
 
     return {
         ok: true,
         items: enrichedItems,
-        excludedLanguageItemCount,
+        excludedLanguageItemCount: outcomes.length - enrichedItems.length,
     };
 }

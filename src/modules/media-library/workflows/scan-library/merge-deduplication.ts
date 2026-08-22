@@ -1,17 +1,22 @@
+import { randomUUID } from "node:crypto";
+
+import { and, eq, inArray } from "drizzle-orm";
+
+import { ensureDatabaseReady } from "@/lib/database/client";
 import {
-    countMediaFilesForTitle,
-    countMediaTitleExternalIds,
+    mediaFiles,
+    mediaTitleExternalIds,
+    mediaTitles,
+    tvEpisodes,
+    tvSeasons,
+} from "@/lib/database/schema";
+import {
     deleteMediaFilesByIds,
     deleteMediaTitleByIdForUser,
-    findMediaFileByUserPath,
     findMediaTitleByIdForUser,
     listMediaFilesByLibraryPath,
     reconcileMediaTitleFileAvailability,
     type MediaTitleRecord,
-    upsertMediaFile,
-    upsertMediaTitle,
-    upsertTvEpisode,
-    upsertTvSeason,
 } from "@/modules/media-library/repositories/media-library-repository";
 
 import { type NormalizedLibraryScan } from "./normalization";
@@ -72,8 +77,18 @@ async function deleteOrphanedScannerTitle(userId: string, titleId: string) {
         return;
     }
 
-    const fileCount = await countMediaFilesForTitle(titleId);
-    const externalIdCount = await countMediaTitleExternalIds(titleId);
+    const fileCount =
+        ensureDatabaseReady()
+            .select({ count: mediaFiles.id })
+            .from(mediaFiles)
+            .where(eq(mediaFiles.titleId, titleId))
+            .get()?.count ?? 0;
+    const externalIdCount =
+        ensureDatabaseReady()
+            .select({ count: mediaTitleExternalIds.titleId })
+            .from(mediaTitleExternalIds)
+            .where(eq(mediaTitleExternalIds.titleId, titleId))
+            .get()?.count ?? 0;
 
     if (fileCount === 0 && externalIdCount === 0) {
         await deleteMediaTitleByIdForUser(userId, titleId);
@@ -123,71 +138,301 @@ export async function mergeLibraryScanFiles(
             continue;
         }
 
-        const title = await upsertMediaTitle({
-            userId,
-            libraryId: file.source.library.id,
-            mediaType: file.source.library.mediaType,
-            title: file.title,
-            sortTitle: file.sortTitle,
-            year: file.year,
-            normalizedKey: file.normalizedKey,
-            status: "available",
+        // Per-file DB mutation transaction: ensures upsert + reparent +
+        // orphan-title cleanup are all-or-nothing for this file.
+        const mediaType = file.source.library.mediaType as "tv" | "movie";
+
+        ensureDatabaseReady().transaction((tx) => {
+            // Upsert media title
+            const titleId = randomUUID();
+
+            tx.insert(mediaTitles)
+                .values({
+                    id: titleId,
+                    userId,
+                    libraryId: file.source.library.id ?? null,
+                    mediaType,
+                    title: file.title,
+                    sortTitle: file.sortTitle,
+                    year: file.year ?? null,
+                    normalizedKey: file.normalizedKey,
+                    status: "available",
+                    monitored: true,
+                    qualityProfile: "hd-1080p",
+                    updatedAt: new Date(),
+                } satisfies typeof mediaTitles.$inferInsert)
+                // Mirrors upsertMediaTitle's conflict set for the scan call
+                // shape: omitted fields (monitored, quality profile, enriched
+                // metadata) keep their existing values so a rescan never
+                // clobbers user choices or TMDB enrichment.
+                .onConflictDoUpdate({
+                    target: [mediaTitles.userId, mediaTitles.mediaType, mediaTitles.normalizedKey],
+                    set: {
+                        title: file.title,
+                        sortTitle: file.sortTitle,
+                        libraryId: file.source.library.id ?? null,
+                        year: file.year ?? null,
+                        status: "available",
+                        updatedAt: new Date(),
+                    },
+                })
+                .run();
+
+            const resolvedTitleId = tx
+                .select({ id: mediaTitles.id })
+                .from(mediaTitles)
+                .where(
+                    and(
+                        eq(mediaTitles.userId, userId),
+                        eq(mediaTitles.mediaType, mediaType as "tv" | "movie"),
+                        eq(mediaTitles.normalizedKey, file.normalizedKey),
+                    ),
+                )
+                .get()?.id;
+
+            if (!resolvedTitleId) {
+                return;
+            }
+
+            const existingFile = tx
+                .select({ titleId: mediaFiles.titleId })
+                .from(mediaFiles)
+                .where(and(eq(mediaFiles.userId, userId), eq(mediaFiles.filePath, file.filePath)))
+                .get();
+
+            const observedPaths =
+                observedPathsByLibraryPath.get(file.source.path.id) ?? new Set<string>();
+
+            observedPaths.add(file.filePath);
+            observedPathsByLibraryPath.set(file.source.path.id, observedPaths);
+
+            // Upsert TV season
+            let seasonId: string | null = null;
+
+            if (file.source.library.mediaType === "tv" && file.seasonNumber !== null) {
+                const seasonInsertId = randomUUID();
+
+                tx.insert(tvSeasons)
+                    .values({
+                        id: seasonInsertId,
+                        titleId: resolvedTitleId,
+                        seasonNumber: file.seasonNumber,
+                        monitored: true,
+                        updatedAt: new Date(),
+                    })
+                    .onConflictDoUpdate({
+                        target: [tvSeasons.titleId, tvSeasons.seasonNumber],
+                        set: { updatedAt: new Date() },
+                    })
+                    .run();
+
+                seasonId =
+                    tx
+                        .select({ id: tvSeasons.id })
+                        .from(tvSeasons)
+                        .where(
+                            and(
+                                eq(tvSeasons.titleId, resolvedTitleId),
+                                eq(tvSeasons.seasonNumber, file.seasonNumber),
+                            ),
+                        )
+                        .get()?.id ?? null;
+            }
+
+            // Upsert TV episode
+            let episodeId: string | null = null;
+
+            if (seasonId && file.episodeNumber !== null) {
+                const episodeInsertId = randomUUID();
+
+                tx.insert(tvEpisodes)
+                    .values({
+                        id: episodeInsertId,
+                        titleId: resolvedTitleId,
+                        seasonId,
+                        seasonNumber: file.seasonNumber!,
+                        episodeNumber: file.episodeNumber,
+                        hasFile: true,
+                        monitored: true,
+                        updatedAt: new Date(),
+                    })
+                    .onConflictDoUpdate({
+                        target: [
+                            tvEpisodes.titleId,
+                            tvEpisodes.seasonNumber,
+                            tvEpisodes.episodeNumber,
+                        ],
+                        set: {
+                            seasonId,
+                            hasFile: true,
+                            updatedAt: new Date(),
+                        },
+                    })
+                    .run();
+
+                episodeId =
+                    tx
+                        .select({ id: tvEpisodes.id })
+                        .from(tvEpisodes)
+                        .where(
+                            and(
+                                eq(tvEpisodes.titleId, resolvedTitleId),
+                                eq(tvEpisodes.seasonNumber, file.seasonNumber!),
+                                eq(tvEpisodes.episodeNumber, file.episodeNumber),
+                            ),
+                        )
+                        .get()?.id ?? null;
+            }
+
+            // Upsert media file
+            tx.insert(mediaFiles)
+                .values({
+                    id: randomUUID(),
+                    userId,
+                    titleId: resolvedTitleId,
+                    libraryPathId: file.source.path.id ?? null,
+                    seasonId: seasonId ?? null,
+                    episodeId: episodeId ?? null,
+                    mediaType,
+                    fileKind: file.fileKind,
+                    filePath: file.filePath,
+                    relativePath: file.relativePath,
+                    sizeBytes: file.sizeBytes ?? null,
+                    modifiedAt: file.modifiedAt ?? null,
+                    qualityLabel: file.qualityLabel ?? null,
+                    updatedAt: new Date(),
+                } satisfies typeof mediaFiles.$inferInsert)
+                .onConflictDoUpdate({
+                    target: [mediaFiles.userId, mediaFiles.filePath],
+                    set: {
+                        titleId: resolvedTitleId,
+                        libraryPathId: file.source.path.id ?? null,
+                        seasonId: seasonId ?? null,
+                        episodeId: episodeId ?? null,
+                        mediaType,
+                        fileKind: file.fileKind,
+                        relativePath: file.relativePath,
+                        sizeBytes: file.sizeBytes ?? null,
+                        modifiedAt: file.modifiedAt ?? null,
+                        qualityLabel: file.qualityLabel ?? null,
+                        // upsertMediaFile resets this on scan conflicts; kept
+                        // identical so scans behave exactly as before.
+                        releaseGroup: null,
+                        updatedAt: new Date(),
+                    },
+                })
+                .run();
+
+            // Reparent: delete stale scanner-only title and reconcile availability
+            if (existingFile?.titleId && existingFile.titleId !== resolvedTitleId) {
+                const staleTitle = tx
+                    .select()
+                    .from(mediaTitles)
+                    .where(
+                        and(
+                            eq(mediaTitles.userId, userId),
+                            eq(mediaTitles.id, existingFile.titleId),
+                        ),
+                    )
+                    .get();
+
+                if (staleTitle && titleHasScannerOnlyMetadata(staleTitle)) {
+                    const staleFileCount =
+                        tx
+                            .select({ count: mediaFiles.id })
+                            .from(mediaFiles)
+                            .where(eq(mediaFiles.titleId, existingFile.titleId))
+                            .get()?.count ?? 0;
+                    const staleExternalCount =
+                        tx
+                            .select({ count: mediaTitleExternalIds.titleId })
+                            .from(mediaTitleExternalIds)
+                            .where(eq(mediaTitleExternalIds.titleId, existingFile.titleId))
+                            .get()?.count ?? 0;
+
+                    if (staleFileCount === 0 && staleExternalCount === 0) {
+                        tx.delete(mediaTitles)
+                            .where(
+                                and(
+                                    eq(mediaTitles.userId, userId),
+                                    eq(mediaTitles.id, existingFile.titleId),
+                                ),
+                            )
+                            .run();
+                    }
+                }
+
+                // Reconcile availability for the old title within the transaction
+                const reconcileTitle = tx
+                    .select()
+                    .from(mediaTitles)
+                    .where(
+                        and(
+                            eq(mediaTitles.userId, userId),
+                            eq(mediaTitles.id, existingFile.titleId),
+                        ),
+                    )
+                    .get();
+
+                if (reconcileTitle) {
+                    const filesForTitle = tx
+                        .select({ episodeId: mediaFiles.episodeId })
+                        .from(mediaFiles)
+                        .where(
+                            and(
+                                eq(mediaFiles.userId, userId),
+                                eq(mediaFiles.titleId, existingFile.titleId),
+                            ),
+                        )
+                        .all();
+                    const reconcileEpisodeIds = Array.from(
+                        new Set(filesForTitle.flatMap((f) => (f.episodeId ? [f.episodeId] : []))),
+                    );
+                    const availUpdatedAt = new Date();
+
+                    tx.update(mediaTitles)
+                        .set({
+                            status: filesForTitle.length > 0 ? "available" : "missing",
+                            updatedAt: availUpdatedAt,
+                        })
+                        .where(
+                            and(
+                                eq(mediaTitles.userId, userId),
+                                eq(mediaTitles.id, existingFile.titleId),
+                            ),
+                        )
+                        .run();
+
+                    if (reconcileTitle.mediaType === "tv") {
+                        tx.update(tvEpisodes)
+                            .set({ hasFile: false, updatedAt: availUpdatedAt })
+                            .where(eq(tvEpisodes.titleId, existingFile.titleId))
+                            .run();
+
+                        for (let offset = 0; offset < reconcileEpisodeIds.length; offset += 500) {
+                            tx.update(tvEpisodes)
+                                .set({ hasFile: true, updatedAt: availUpdatedAt })
+                                .where(
+                                    and(
+                                        eq(tvEpisodes.titleId, existingFile.titleId),
+                                        inArray(
+                                            tvEpisodes.id,
+                                            reconcileEpisodeIds.slice(offset, offset + 500),
+                                        ),
+                                    ),
+                                )
+                                .run();
+                        }
+                    }
+                }
+            }
+
+            const stats = ensurePathStats(pathStats, file.source);
+
+            stats.fileCount += 1;
+            stats.titleIds.add(resolvedTitleId);
+            matchedTitleIds.add(resolvedTitleId);
         });
-
-        if (!title) {
-            continue;
-        }
-
-        const existingFile = await findMediaFileByUserPath(userId, file.filePath);
-        const observedPaths =
-            observedPathsByLibraryPath.get(file.source.path.id) ?? new Set<string>();
-
-        observedPaths.add(file.filePath);
-        observedPathsByLibraryPath.set(file.source.path.id, observedPaths);
-
-        const season =
-            file.source.library.mediaType === "tv" && file.seasonNumber !== null
-                ? await upsertTvSeason({
-                      titleId: title.id,
-                      seasonNumber: file.seasonNumber,
-                  })
-                : null;
-        const episode =
-            season && file.episodeNumber !== null
-                ? await upsertTvEpisode({
-                      titleId: title.id,
-                      seasonId: season.id,
-                      seasonNumber: file.seasonNumber!,
-                      episodeNumber: file.episodeNumber,
-                      hasFile: true,
-                  })
-                : null;
-
-        await upsertMediaFile({
-            userId,
-            titleId: title.id,
-            libraryPathId: file.source.path.id,
-            seasonId: season?.id ?? null,
-            episodeId: episode?.id ?? null,
-            mediaType: file.source.library.mediaType,
-            fileKind: file.fileKind,
-            filePath: file.filePath,
-            relativePath: file.relativePath,
-            sizeBytes: file.sizeBytes,
-            modifiedAt: file.modifiedAt,
-            qualityLabel: file.qualityLabel,
-        });
-
-        if (existingFile?.titleId && existingFile.titleId !== title.id) {
-            await deleteOrphanedScannerTitle(userId, existingFile.titleId);
-            await reconcileMediaTitleFileAvailability(userId, existingFile.titleId);
-        }
-
-        const stats = ensurePathStats(pathStats, file.source);
-
-        stats.fileCount += 1;
-        stats.titleIds.add(title.id);
-        matchedTitleIds.add(title.id);
     }
 
     // Remove stale rows only after every newly observed file has been persisted.

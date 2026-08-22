@@ -2,13 +2,16 @@ import {
     checkpointDownloadRequestCancellation,
     listActiveRequestsForExternalQueueId,
 } from "@/modules/downloads/public";
+import { ensureDatabaseReady } from "@/lib/database/client";
+import { engineDownloads } from "@/lib/database/schema";
+import { and, eq } from "drizzle-orm";
+
 import {
     findEngineDownloadById,
     isEngineDownloadPostProcessing,
     listActiveEngineDownloads,
     requestEngineDownloadControl,
     resumePausedEngineDownload,
-    setEngineDownloadPriority,
     setEngineDownloadState,
 } from "@/modules/download-engine/queue/engine-repository";
 import { type DownloadQueueActionInput } from "@/modules/download-engine/queue/download-queue-actions";
@@ -284,9 +287,16 @@ async function reorderToIndex(
 
     ids.splice(toIndex, 0, moved);
 
-    for (let index = 0; index < ids.length; index += 1) {
-        await setEngineDownloadPriority(userId, ids[index], index);
-    }
+    // Atomically apply the full priority reorder in a single SQLite
+    // transaction so a crash cannot leave a partially reordered queue.
+    ensureDatabaseReady().transaction((tx) => {
+        for (let index = 0; index < ids.length; index += 1) {
+            tx.update(engineDownloads)
+                .set({ priority: index, updatedAt: new Date() })
+                .where(and(eq(engineDownloads.id, ids[index]), eq(engineDownloads.userId, userId)))
+                .run();
+        }
+    });
 }
 
 export async function applyEngineQueueAction(

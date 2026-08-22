@@ -20,7 +20,16 @@ export function filterAndScoreIndexerSearchResults(
         ...execution,
         results: execution.results.map((result) => ({
             ...result,
-            score: result.normalizedTitle.includes(request.normalizedKey) ? 100 : 50,
+            // An empty key would make `includes` true for every title, so a
+            // query that normalizes to nothing must score uniformly instead of
+            // uniformly "matching". Ranking itself happens downstream in
+            // selectReleaseCandidates (seeders/grabs/recency); this score is
+            // only a relevance hint recorded with the result.
+            score:
+                request.normalizedKey.length > 0 &&
+                result.normalizedTitle.includes(request.normalizedKey)
+                    ? 100
+                    : 50,
         })),
     }));
 }

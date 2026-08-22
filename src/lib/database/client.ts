@@ -9,7 +9,7 @@ import { env } from "@/lib/env";
 import * as schema from "@/lib/database/schema";
 import { assertNoActiveLegacyDownloadWork } from "@/lib/database/legacy-download-preflight";
 
-type AppDatabase = BetterSQLite3Database<typeof schema>;
+export type AppDatabase = BetterSQLite3Database<typeof schema>;
 
 type SqliteTableInfoRow = {
     cid: number;

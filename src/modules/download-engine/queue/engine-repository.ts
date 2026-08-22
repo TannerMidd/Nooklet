@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { and, asc, eq, inArray, isNull, ne, notInArray, or } from "drizzle-orm";
 
-import { ensureDatabaseReady } from "@/lib/database/client";
+import { ensureDatabaseReady, type AppDatabase } from "@/lib/database/client";
 import { decryptSecret, encryptSecret } from "@/lib/security/secret-box";
 import {
     engineDownloads,
@@ -587,8 +587,13 @@ export async function deleteEngineDownload(userId: string, id: string) {
     return result.changes > 0;
 }
 
-export async function setEngineDownloadPriority(userId: string, id: string, priority: number) {
-    const database = ensureDatabaseReady();
+export async function setEngineDownloadPriority(
+    userId: string,
+    id: string,
+    priority: number,
+    executor?: AppDatabase,
+) {
+    const database = executor ?? ensureDatabaseReady();
 
     database
         .update(engineDownloads)
@@ -654,6 +659,23 @@ export async function hasQueuedEngineDownloads() {
             .limit(1)
             .get(),
     );
+}
+
+/**
+ * Minimal per-row state the startup artifact sweep needs to decide which
+ * on-disk directories are still owned by a live download. The queue table
+ * stays small, so an unfiltered read is fine.
+ */
+export async function listEngineDownloadArtifactStates() {
+    return ensureDatabaseReady()
+        .select({
+            id: engineDownloads.id,
+            state: engineDownloads.state,
+            outputPath: engineDownloads.outputPath,
+            importedAt: engineDownloads.importedAt,
+        })
+        .from(engineDownloads)
+        .all();
 }
 
 /** Parks downloads stranded mid-flight by a process restart for explicit recovery. */

@@ -67,6 +67,12 @@ export type DownloadNzbResult = {
      * the caller must not blocklist it and move to another candidate.
      */
     transportExhausted: boolean;
+    /**
+     * True when the run stopped because the caller-supplied wall-clock deadline
+     * elapsed. It says nothing about the release or the server state beyond
+     * slowness, so the caller must park rather than fail the download.
+     */
+    deadlineExceeded: boolean;
     failureKinds: NntpErrorKind[];
     /** True when every file completed with zero failed segments. */
     ok: boolean;
@@ -82,6 +88,14 @@ export type DownloadNzbInput = {
     onProgress?: (progress: DownloadNzbProgress) => void;
     /** Checked between segments; return true to stop the run. */
     shouldAbort?: () => boolean;
+    /**
+     * Epoch ms after which the run stops itself and reports
+     * `deadlineExceeded`. The engine is serial, so without a wall-clock bound
+     * one trickle-slow server could hold the whole queue indefinitely even
+     * though every individual socket operation keeps resetting its own
+     * per-read timeout.
+     */
+    deadlineAt?: number;
     /** Transient-failure retries per segment (permanent failures never retry). */
     maxRetriesPerSegment?: number;
     /** Test seam — swap the socket client for a scripted fake. */
@@ -140,6 +154,45 @@ const probeMinPresentArticles = 3;
 const probeConfirmationArticles = 3;
 /** Transport-failed segments tolerated before the run stops blaming the release. */
 const maxTransportFailures = 50;
+/** Best-effort QUIT must never hold a completed stage indefinitely. */
+const quitCleanupFallbackMs = 1_000;
+/** Node clamps setTimeout delays above 2^31-1 ms to approximately 1 ms. */
+const maxNodeTimerDelayMs = 2_147_000_000;
+
+/** Schedules a callback at an absolute time without overflowing Node timers. */
+function scheduleAt(deadlineAt: number, callback: () => void): () => void {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let canceled = false;
+
+    const tick = () => {
+        timer = null;
+
+        if (canceled) {
+            return;
+        }
+
+        const remaining = deadlineAt - Date.now();
+
+        if (remaining > 0) {
+            timer = setTimeout(tick, Math.min(maxNodeTimerDelayMs, remaining));
+
+            return;
+        }
+
+        callback();
+    };
+
+    timer = setTimeout(tick, Math.min(maxNodeTimerDelayMs, Math.max(0, deadlineAt - Date.now())));
+
+    return () => {
+        canceled = true;
+
+        if (timer) {
+            clearTimeout(timer);
+            timer = null;
+        }
+    };
+}
 
 export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbResult> {
     const clientFactory = input.clientFactory ?? defaultClientFactory;
@@ -205,9 +258,249 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
     let nextTaskIndex = 0;
     let aborted = false;
+    let deadlineExceeded = false;
+    let callerAborted = false;
+    let stageTerminal = false;
+    let cleanupInProgress = false;
+    let probeWorkConcluded = false;
+    let expectedWorkers = 0;
+    let concludedWorkers = 0;
     let fatalError: Error | null = null;
     const failureKinds = new Set<NntpErrorKind>();
     const reservedOutputNames = new Set<string>();
+
+    const deadlinePassed = () => input.deadlineAt !== undefined && Date.now() >= input.deadlineAt;
+
+    function rememberFatalError(error: unknown) {
+        fatalError ??=
+            error instanceof Error
+                ? error
+                : new Error("The download stage encountered an unexpected failure.");
+    }
+
+    function callerRequestedAbort() {
+        let requested = false;
+
+        try {
+            requested = input.shouldAbort?.() ?? false;
+        } catch (error) {
+            // Worker polling historically surfaced callback failures as fatal
+            // stage errors. Latch that same outcome here, but do not let a
+            // watchdog timer turn the callback exception into an unhandled
+            // rejection.
+            rememberFatalError(error);
+            requested = true;
+        }
+
+        if (!requested) {
+            return false;
+        }
+
+        callerAborted = true;
+        aborted = true;
+
+        return true;
+    }
+
+    function markWorkerConcluded() {
+        concludedWorkers += 1;
+
+        if (expectedWorkers > 0 && concludedWorkers >= expectedWorkers) {
+            stageTerminal = true;
+        }
+
+        return stageTerminal;
+    }
+
+    // Between-segment deadline checks cannot stop an article that is already
+    // in flight: a peer trickling bytes keeps resetting each read timeout, so
+    // without active cancellation one transfer could hold the serial engine
+    // queue past its advertised budget indefinitely. Live clients are
+    // registered here so the watchdog can destroy their sockets, surfacing a
+    // connection error inside whatever body()/stat() is running.
+    const liveClients = new Set<NntpClientLike>();
+    let deadlineWatchdog: (() => void) | null = null;
+
+    function registerLiveClient<T extends NntpClientLike>(client: T): T {
+        liveClients.add(client);
+
+        return client;
+    }
+
+    function unregisterLiveClient(client: NntpClientLike) {
+        liveClients.delete(client);
+    }
+
+    function destroyLiveClients() {
+        for (const client of liveClients) {
+            try {
+                client.destroy();
+            } catch {
+                // Destroying an already-dead socket must never mask the
+                // deadline verdict.
+            }
+        }
+    }
+
+    function armDeadlineWatchdog() {
+        if (input.deadlineAt === undefined || deadlineWatchdog) {
+            return;
+        }
+
+        const tick = () => {
+            try {
+                if (!deadlinePassed()) {
+                    deadlineWatchdog = scheduleAt(input.deadlineAt!, tick);
+
+                    return;
+                }
+
+                deadlineWatchdog = null;
+
+                // The caller may cancel while connect/STAT/BODY is stalled,
+                // before any worker reaches its next polling boundary. Sample
+                // that fence at the deadline so explicit cancellation is never
+                // relabeled as an overrun.
+                const callerCanceled = callerAborted || callerRequestedAbort();
+
+                destroyLiveClients();
+
+                // Explicit caller cancellation and work that has already reached
+                // its terminal/cleanup phase must never be relabeled as a deadline
+                // overrun merely because QUIT cleanup is still pending.
+                if (
+                    !callerCanceled &&
+                    !stageTerminal &&
+                    !probeWorkConcluded &&
+                    !cleanupInProgress
+                ) {
+                    deadlineExceeded = true;
+                    aborted = true;
+                }
+            } catch (error) {
+                // A timer callback must not escape as an unhandled exception. A
+                // caller-fence failure remains fatal after normal cleanup, while
+                // the stage fails closed as an explicit abort for deadline
+                // classification purposes.
+                rememberFatalError(error);
+                callerAborted = true;
+                aborted = true;
+                deadlineWatchdog = null;
+                destroyLiveClients();
+            }
+        };
+
+        deadlineWatchdog = scheduleAt(input.deadlineAt, tick);
+    }
+
+    function disarmDeadlineWatchdog() {
+        if (deadlineWatchdog) {
+            deadlineWatchdog();
+            deadlineWatchdog = null;
+        }
+    }
+
+    function destroyClient(client: NntpClientLike) {
+        try {
+            client.destroy();
+        } catch {
+            // Cleanup must never mask the result of a completed or aborted run.
+        }
+    }
+
+    /**
+     * Races an NNTP operation against the absolute stage deadline. The client
+     * watchdog normally rejects the underlying operation by destroying its
+     * socket; this race also protects the stage from a test seam or transport
+     * implementation that does not promptly propagate destroy().
+     */
+    async function awaitBeforeDeadline<T>(start: () => Promise<T>): Promise<T> {
+        if (input.deadlineAt === undefined) {
+            return start();
+        }
+
+        const remainingBeforeStart = input.deadlineAt - Date.now();
+
+        if (remainingBeforeStart <= 0) {
+            throw new NntpError("timeout", "The download deadline elapsed.");
+        }
+
+        const operation = Promise.resolve(start());
+
+        // A detached operation still needs an observed rejection. Its result is
+        // deliberately ignored if the deadline wins.
+        void operation.catch(() => undefined);
+
+        const remaining = input.deadlineAt - Date.now();
+
+        if (remaining <= 0) {
+            throw new NntpError("timeout", "The download deadline elapsed.");
+        }
+
+        let cancelDeadline: () => void = () => undefined;
+        const deadline = new Promise<never>((_resolve, reject) => {
+            cancelDeadline = scheduleAt(input.deadlineAt!, () =>
+                reject(new NntpError("timeout", "The download deadline elapsed.")),
+            );
+        });
+
+        try {
+            return await Promise.race([operation, deadline]);
+        } finally {
+            cancelDeadline();
+        }
+    }
+
+    /**
+     * QUIT is best-effort. It gets at most the remaining hard budget (and a
+     * small fallback when no budget was supplied), after which destroy() forces
+     * cleanup and the quit promise remains observed in the background.
+     */
+    async function disposeClient(client: NntpClientLike, protectsStage = false) {
+        if (protectsStage) {
+            cleanupInProgress = true;
+        }
+
+        try {
+            const quitAttempt = Promise.resolve().then(() => client.quit());
+
+            void quitAttempt.catch(() => undefined);
+
+            const remaining =
+                input.deadlineAt === undefined
+                    ? quitCleanupFallbackMs
+                    : Math.max(0, input.deadlineAt - Date.now());
+            const cleanupBudget = Math.min(quitCleanupFallbackMs, remaining);
+
+            if (cleanupBudget <= 0) {
+                destroyClient(client);
+
+                return;
+            }
+
+            let cancelTimeout: () => void = () => undefined;
+            const timeout = new Promise<"deadline">((resolve) => {
+                cancelTimeout = scheduleAt(Date.now() + cleanupBudget, () => resolve("deadline"));
+            });
+            const result = await Promise.race([
+                quitAttempt.then(
+                    () => "completed" as const,
+                    () => "failed" as const,
+                ),
+                timeout,
+            ]);
+
+            cancelTimeout();
+
+            if (result !== "completed") {
+                destroyClient(client);
+            }
+        } finally {
+            if (protectsStage) {
+                cleanupInProgress = false;
+            }
+        }
+    }
 
     const reportProgress = () => {
         input.onProgress?.({
@@ -262,7 +555,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     }
 
     async function fetchSegment(client: NntpClientLike, task: SegmentTask) {
-        const body = await client.body(task.messageId);
+        const body = await awaitBeforeDeadline(() => client.body(task.messageId));
         const declaredFileBytes = input.nzb.files[task.fileIndex].declaredBytes;
         let decoded: ReturnType<typeof decodeYencArticle>;
 
@@ -401,20 +694,52 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
         const getClient = async () => {
             if (!client) {
-                client = clientFactory(input.server);
-                await client.connect();
+                client = registerLiveClient(clientFactory(input.server));
+
+                try {
+                    await awaitBeforeDeadline(() => client!.connect());
+                } catch (error) {
+                    unregisterLiveClient(client);
+                    destroyClient(client);
+                    client = null;
+
+                    throw error;
+                }
             }
 
             return client;
         };
 
         const dropClient = () => {
-            client?.destroy();
+            if (client) {
+                unregisterLiveClient(client);
+                client.destroy();
+            }
+
             client = null;
         };
 
         for (;;) {
-            if (aborted || input.shouldAbort?.()) {
+            // Work exhaustion is checked before the deadline so a transfer
+            // whose final segment lands as the budget expires completes
+            // normally instead of being reported as an overrun and restarted
+            // from scratch.
+            const taskIndex = nextTaskIndex;
+
+            if (taskIndex >= tasks.length) {
+                break;
+            }
+
+            if (aborted) {
+                break;
+            }
+
+            if (callerRequestedAbort()) {
+                break;
+            }
+
+            if (deadlinePassed()) {
+                deadlineExceeded = true;
                 aborted = true;
                 break;
             }
@@ -423,24 +748,85 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
                 break;
             }
 
-            const taskIndex = nextTaskIndex;
-
-            if (taskIndex >= tasks.length) {
-                break;
-            }
-
             nextTaskIndex += 1;
             const task = tasks[taskIndex];
             const state = fileStates[task.fileIndex];
             let failed = true;
+            let abandonTask = false;
             let terminalFailureKind: NntpErrorKind | null = null;
 
             for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+                // A retry is another segment attempt: poll every stop fence
+                // before reconnecting so a cancellation between a transient
+                // response and the next attempt cannot issue another connect
+                // or BODY command.
+                if (aborted) {
+                    abandonTask = true;
+                    break;
+                }
+
+                if (callerRequestedAbort()) {
+                    abandonTask = true;
+                    break;
+                }
+
+                if (deadlinePassed()) {
+                    deadlineExceeded = true;
+                    aborted = true;
+                    abandonTask = true;
+
+                    break;
+                }
+
                 try {
-                    await fetchSegment(await getClient(), task);
+                    const connectedClient = await getClient();
+
+                    // A connection may finish just as the caller callback or
+                    // absolute deadline asks the stage to stop. Do not issue a
+                    // BODY after that boundary.
+                    if (aborted) {
+                        abandonTask = true;
+                        break;
+                    }
+
+                    if (callerRequestedAbort()) {
+                        abandonTask = true;
+                        break;
+                    }
+
+                    if (deadlinePassed()) {
+                        deadlineExceeded = true;
+                        aborted = true;
+                        abandonTask = true;
+                        break;
+                    }
+
+                    await fetchSegment(connectedClient, task);
                     failed = false;
                     break;
                 } catch (error) {
+                    // The deadline watchdog destroys live clients when the
+                    // budget expires, which surfaces here as a connection
+                    // error mid-article. Abandon the whole task without
+                    // spending failure accounting on a segment the run is
+                    // leaving behind anyway.
+                    // Sample the caller fence before the deadline fence: a
+                    // cancellation can become true as a transient operation
+                    // rejects at the exact deadline, and must not be relabeled
+                    // as a timeout before the next retry-loop poll.
+                    if (callerAborted || callerRequestedAbort()) {
+                        aborted = true;
+                        abandonTask = true;
+                        break;
+                    }
+
+                    if (deadlinePassed()) {
+                        deadlineExceeded = true;
+                        aborted = true;
+                        abandonTask = true;
+                        break;
+                    }
+
                     if (!(error instanceof NntpError)) {
                         aborted = true;
                         fatalError ??=
@@ -479,6 +865,10 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
                         break;
                     }
                 }
+            }
+
+            if (abandonTask) {
+                break;
             }
 
             if (failed) {
@@ -529,8 +919,11 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
             reportProgress();
         }
 
+        const finalWorker = markWorkerConcluded();
+
         if (client) {
-            await (client as NntpClientLike).quit();
+            await disposeClient(client, finalWorker);
+            unregisterLiveClient(client);
         }
     }
 
@@ -553,7 +946,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
         const sample = sampleWithoutReplacement(dataTasks, probeSampleSize);
         const dataDeclaredBytes = dataTasks.reduce((total, task) => total + task.declaredBytes, 0);
-        const client = clientFactory(input.server);
+        const client = registerLiveClient(clientFactory(input.server));
         let sampledBytes = 0;
         let missingBytes = 0;
         let missingCount = 0;
@@ -561,16 +954,42 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
         let confirmedFullyMissing = false;
 
         try {
-            await client.connect();
+            await awaitBeforeDeadline(() => client.connect());
+
+            if (aborted) {
+                return false;
+            }
+
+            if (callerRequestedAbort()) {
+                return false;
+            }
+
+            if (deadlinePassed()) {
+                deadlineExceeded = true;
+                aborted = true;
+
+                return false;
+            }
 
             for (const task of sample) {
-                if (aborted || input.shouldAbort?.()) {
+                if (aborted) {
+                    return false;
+                }
+
+                if (callerRequestedAbort()) {
+                    return false;
+                }
+
+                if (deadlinePassed()) {
+                    deadlineExceeded = true;
+                    aborted = true;
+
                     return false;
                 }
 
                 sampledBytes += task.declaredBytes;
 
-                if (await client.stat(task.messageId)) {
+                if (await awaitBeforeDeadline(() => client.stat(task.messageId))) {
                     presentCount += 1;
                 } else {
                     missingBytes += task.declaredBytes;
@@ -589,12 +1008,23 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
                 confirmedFullyMissing = true;
 
                 for (const task of sample.slice(0, probeConfirmationArticles)) {
-                    if (aborted || input.shouldAbort?.()) {
+                    if (aborted) {
+                        return false;
+                    }
+
+                    if (callerRequestedAbort()) {
+                        return false;
+                    }
+
+                    if (deadlinePassed()) {
+                        deadlineExceeded = true;
+                        aborted = true;
+
                         return false;
                     }
 
                     try {
-                        await client.body(task.messageId);
+                        await awaitBeforeDeadline(() => client.body(task.messageId));
 
                         // Fetchable after all: STAT is not to be trusted for this release.
                         return false;
@@ -611,11 +1041,18 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
                 throw error;
             }
 
+            if (!callerAborted && deadlinePassed()) {
+                deadlineExceeded = true;
+                aborted = true;
+            }
+
             // Probe trouble must never fail a downloadable release; the transfer
             // path re-encounters and classifies any real problem.
             return false;
         } finally {
-            await client.quit().catch(() => client.destroy());
+            probeWorkConcluded = true;
+            await disposeClient(client, true);
+            unregisterLiveClient(client);
         }
 
         if (sampledBytes === 0) {
@@ -645,14 +1082,22 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
     const workerCount = Math.max(1, Math.min(input.server.connections, tasks.length));
 
+    expectedWorkers = workerCount;
+
+    armDeadlineWatchdog();
+
     try {
         if (await probeShowsUnrecoverable()) {
             unrecoverable = true;
             failureKinds.add("article-not-found");
+            stageTerminal = true;
         } else {
+            probeWorkConcluded = false;
             await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
         }
     } finally {
+        disarmDeadlineWatchdog();
+
         for (const state of fileStates) {
             await state.handle?.close().catch(() => undefined);
         }
@@ -703,6 +1148,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
         failedSegments: totals.failedSegments,
         totalSegments: tasks.length,
         aborted,
+        deadlineExceeded,
         unrecoverable,
         transportExhausted,
         failureKinds: [...failureKinds],

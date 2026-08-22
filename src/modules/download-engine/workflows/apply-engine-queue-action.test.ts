@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ensureDatabaseReady } from "@/lib/database/client";
+import { engineDownloads, users } from "@/lib/database/schema";
+import { eq } from "drizzle-orm";
+
 vi.mock("@/modules/downloads/repositories/download-repository", () => ({
     checkpointDownloadRequestCancellation: vi.fn(),
     listActiveRequestsForExternalQueueId: vi.fn(),
@@ -266,5 +270,76 @@ describe("applyEngineQueueAction", () => {
             }),
         ).rejects.toBeInstanceOf(EngineQueueActionError);
         expect(controlMock).not.toHaveBeenCalled();
+    });
+
+    it("applies a full reorder atomically via moveToIndex", async () => {
+        const db = ensureDatabaseReady();
+        const userId = "reorder-test-user";
+
+        // Seed a user row to satisfy the foreign key.
+        db.insert(users)
+            .values({
+                id: userId,
+                email: "reorder-test@local",
+                displayName: "Reorder Test",
+                passwordHash: "x",
+                role: "user",
+            })
+            .run();
+
+        // Seed the database with 3 engine downloads at priority 0, 1, 2.
+        const ids: string[] = [];
+
+        for (let i = 0; i < 3; i += 1) {
+            const id = crypto.randomUUID();
+
+            db.insert(engineDownloads)
+                .values({
+                    id,
+                    userId,
+                    name: `Download ${i}`,
+                    category: "movies",
+                    nzbXml: "",
+                    totalBytes: 100,
+                    totalSegments: 1,
+                    priority: i,
+                    state: "queued",
+                })
+                .run();
+            ids.push(id);
+        }
+
+        // Make listActiveEngineDownloads return the seeded rows.
+        const activeRows = db
+            .select()
+            .from(engineDownloads)
+            .where(eq(engineDownloads.userId, userId))
+            .orderBy(engineDownloads.priority)
+            .all();
+
+        listActiveMock.mockResolvedValue(activeRows as never);
+
+        // Move item at index 2 (priority 2) to index 0.
+        await applyEngineQueueAction(userId, {
+            type: "moveToIndex",
+            itemId: ids[2],
+            targetIndex: 0,
+        });
+
+        // Verify all priorities were applied atomically in the transaction.
+        const after = db
+            .select()
+            .from(engineDownloads)
+            .where(eq(engineDownloads.userId, userId))
+            .orderBy(engineDownloads.priority, engineDownloads.createdAt)
+            .all();
+
+        expect(after).toHaveLength(3);
+        expect(after[0]?.id).toBe(ids[2]); // moved from index 2 to 0
+        expect(after[0]?.priority).toBe(0);
+        expect(after[1]?.id).toBe(ids[0]);
+        expect(after[1]?.priority).toBe(1);
+        expect(after[2]?.id).toBe(ids[1]);
+        expect(after[2]?.priority).toBe(2);
     });
 });

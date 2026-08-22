@@ -8,12 +8,14 @@ const mocks = vi.hoisted(() => ({
     downloadNzb: vi.fn(),
     finalizeDownload: vi.fn(),
     inspectLiveEngineCapacity: vi.fn(),
+    listEngineDownloadArtifactStates: vi.fn(),
     listEngineDownloadsWithControlIntent: vi.fn(),
     parseNzb: vi.fn(),
     recordDownloadEngineLoopFailed: vi.fn(),
     recordDownloadEngineLoopStarted: vi.fn(),
     recordDownloadEngineLoopSucceeded: vi.fn(),
     readEngineDownloadRuntimeState: vi.fn(),
+    readdir: vi.fn(),
     recoverStrandedEngineDownloads: vi.fn(),
     resolveEngineDownloadPayload: vi.fn(),
     resolveUsenetServer: vi.fn(),
@@ -23,7 +25,7 @@ const mocks = vi.hoisted(() => ({
     updateEngineDownloadProgress: vi.fn(),
 }));
 
-vi.mock("node:fs/promises", () => ({ rm: mocks.rm }));
+vi.mock("node:fs/promises", () => ({ readdir: mocks.readdir, rm: mocks.rm }));
 vi.mock("@/lib/env", () => ({
     env: {
         DOWNLOAD_ENGINE_DIR: "C:\\nooklet-engine-test",
@@ -46,6 +48,7 @@ vi.mock("@/modules/download-engine/nzb/parse-nzb", () => ({ parseNzb: mocks.pars
 vi.mock("@/modules/download-engine/queue/engine-repository", () => ({
     claimQueuedEngineDownload: mocks.claimQueuedEngineDownload,
     deleteCancelledEngineDownload: mocks.deleteCancelledEngineDownload,
+    listEngineDownloadArtifactStates: mocks.listEngineDownloadArtifactStates,
     listEngineDownloadsWithControlIntent: mocks.listEngineDownloadsWithControlIntent,
     markEngineDownloadWaitingForCapacity: mocks.markEngineDownloadWaitingForCapacity,
     peekNextQueuedEngineDownload: mocks.peekNextQueuedEngineDownload,
@@ -73,6 +76,7 @@ import {
     engineIncompleteDir,
     ensureEngineRunnerStarted,
     recoverInterruptedEngineDownloads,
+    sweepOrphanedEngineArtifacts,
 } from "./engine-runner";
 
 const download = {
@@ -85,6 +89,8 @@ const download = {
 beforeEach(() => {
     vi.clearAllMocks();
     mocks.listEngineDownloadsWithControlIntent.mockResolvedValue([]);
+    mocks.listEngineDownloadArtifactStates.mockResolvedValue([]);
+    mocks.readdir.mockResolvedValue([]);
     mocks.recoverStrandedEngineDownloads.mockResolvedValue(undefined);
     mocks.inspectLiveEngineCapacity.mockResolvedValue({ sufficient: true });
     mocks.markEngineDownloadWaitingForCapacity.mockResolvedValue(true);
@@ -291,6 +297,42 @@ describe("engine runner durable cancellation fencing", () => {
         );
     });
 
+    it("parks a deterministic NNTP protocol response without blocklisting the release", async () => {
+        mocks.peekNextQueuedEngineDownload
+            .mockResolvedValueOnce(download)
+            .mockResolvedValueOnce(null);
+        mocks.readEngineDownloadRuntimeState.mockReturnValue({
+            state: "fetching",
+            controlIntent: null,
+        });
+        mocks.downloadNzb.mockResolvedValue({
+            ok: false,
+            aborted: false,
+            deadlineExceeded: false,
+            unrecoverable: false,
+            transportExhausted: false,
+            downloadedBytes: 1024,
+            completedSegments: 1,
+            failedSegments: 1,
+            failureKinds: ["protocol-error"],
+            files: [],
+        });
+
+        await ensureEngineRunnerStarted();
+        await vi.waitFor(() => expect(mocks.peekNextQueuedEngineDownload).toHaveBeenCalledTimes(2));
+
+        expect(mocks.finalizeDownload).not.toHaveBeenCalled();
+        expect(mocks.setEngineDownloadState).toHaveBeenCalledWith(
+            download.id,
+            "paused",
+            expect.objectContaining({
+                failureKind: "infrastructure",
+                errorMessage: expect.stringContaining("news server"),
+            }),
+            expect.objectContaining({ expectedStates: ["fetching"] }),
+        );
+    });
+
     it("still fails a release whose articles are genuinely gone", async () => {
         mocks.peekNextQueuedEngineDownload
             .mockResolvedValueOnce(download)
@@ -336,5 +378,169 @@ describe("engine runner durable cancellation fencing", () => {
         expect(mocks.recordDownloadEngineLoopStarted).toHaveBeenCalledOnce();
         expect(mocks.recordDownloadEngineLoopSucceeded).not.toHaveBeenCalled();
         consoleSpy.mockRestore();
+    });
+
+    it("parks a budget overrun with its infrastructure message even though it also aborts", async () => {
+        mocks.peekNextQueuedEngineDownload
+            .mockResolvedValueOnce(download)
+            .mockResolvedValueOnce(null);
+        mocks.readEngineDownloadRuntimeState.mockReturnValue({
+            state: "fetching",
+            controlIntent: null,
+        });
+        mocks.downloadNzb.mockResolvedValue({
+            ok: false,
+            // An overrun sets both flags; parking must win over generic abort.
+            aborted: true,
+            deadlineExceeded: true,
+            unrecoverable: false,
+            transportExhausted: false,
+            downloadedBytes: 4096,
+            completedSegments: 3,
+            failedSegments: 0,
+            failureKinds: [],
+            files: [],
+        });
+
+        await ensureEngineRunnerStarted();
+        await vi.waitFor(() => expect(mocks.peekNextQueuedEngineDownload).toHaveBeenCalledTimes(2));
+
+        expect(mocks.setEngineDownloadState).toHaveBeenCalledWith(
+            download.id,
+            "paused",
+            expect.objectContaining({
+                failureKind: "infrastructure",
+                errorMessage: expect.stringContaining("time budget"),
+            }),
+            expect.objectContaining({ expectedStates: ["fetching"] }),
+        );
+    });
+});
+
+describe("engine artifact sweep", () => {
+    function dirent(name: string) {
+        return { name, isDirectory: () => true, isFile: () => false };
+    }
+
+    function row(state: string, overrides: Record<string, unknown> = {}) {
+        return { id: "row", state, outputPath: null, importedAt: null, ...overrides };
+    }
+
+    function removedNames() {
+        return mocks.rm.mock.calls.map((call) => {
+            const target = call[0] as string;
+
+            return target.split(/[\\/]/).at(-1);
+        });
+    }
+
+    it("removes orphaned directories by ownership, not progress", async () => {
+        mocks.listEngineDownloadArtifactStates.mockResolvedValue([
+            { id: "active-fetch", state: "fetching", outputPath: null, importedAt: null },
+            {
+                id: "pending-import",
+                state: "completed",
+                outputPath: "C:\\c\\pending-import",
+                importedAt: null,
+            },
+            {
+                id: "consumed",
+                state: "completed",
+                outputPath: "C:\\c\\consumed",
+                importedAt: new Date(),
+            },
+            { id: "failed-row", state: "failed", outputPath: null, importedAt: null },
+            { id: "parked-no-output", state: "paused", outputPath: null, importedAt: null },
+        ]);
+        mocks.readdir.mockImplementation(async (dir: string) =>
+            dir.endsWith("incomplete")
+                ? [dirent("active-fetch"), dirent("stranded-crash")]
+                : [
+                      dirent("pending-import"),
+                      dirent("consumed"),
+                      dirent("failed-row"),
+                      dirent("parked-no-output"),
+                      dirent("unknown-id"),
+                  ],
+        );
+
+        await sweepOrphanedEngineArtifacts();
+
+        expect(removedNames().sort()).toEqual([
+            "consumed",
+            "failed-row",
+            "parked-no-output",
+            "stranded-crash",
+            "unknown-id",
+        ]);
+    });
+
+    it("sweeps nothing when every directory is owned", async () => {
+        mocks.listEngineDownloadArtifactStates.mockResolvedValue([row("fetching", { id: "kept" })]);
+        mocks.readdir.mockImplementation(async (dir: string) =>
+            dir.endsWith("incomplete") ? [] : [dirent("kept")],
+        );
+
+        await sweepOrphanedEngineArtifacts();
+
+        expect(mocks.rm).not.toHaveBeenCalled();
+    });
+
+    it("keeps the active download's directories even without a matching active row", async () => {
+        mocks.listEngineDownloadArtifactStates.mockResolvedValue([]);
+        mocks.readdir.mockResolvedValue([dirent("busy-id")]);
+
+        // Simulate the runner owning a download mid-loop. The runner captured
+        // its runtime object at import time, so mutate the property rather than
+        // replace the object.
+        const globals = globalThis as typeof globalThis & {
+            __nookletEngine?: { activeDownloadId?: string };
+        };
+
+        globals.__nookletEngine ??= {};
+        const previousActiveDownloadId = globals.__nookletEngine.activeDownloadId;
+
+        globals.__nookletEngine.activeDownloadId = "busy-id";
+
+        try {
+            await sweepOrphanedEngineArtifacts();
+
+            expect(mocks.rm).not.toHaveBeenCalled();
+        } finally {
+            globals.__nookletEngine!.activeDownloadId = previousActiveDownloadId;
+        }
+    });
+
+    it("retries failed artifact removal on the next recovery tick", async () => {
+        const globals = globalThis as typeof globalThis & {
+            __nookletEngine?: { recovered?: boolean };
+        };
+
+        globals.__nookletEngine ??= {};
+        const previousRecovered = globals.__nookletEngine.recovered;
+
+        globals.__nookletEngine.recovered = false;
+        mocks.readdir.mockImplementation(async (dir: string) =>
+            dir.endsWith("incomplete") ? [dirent("retry-id")] : [],
+        );
+        mocks.rm.mockRejectedValueOnce(new Error("artifact is temporarily busy"));
+
+        try {
+            await recoverInterruptedEngineDownloads();
+
+            expect(mocks.rm).toHaveBeenCalledTimes(1);
+            expect(mocks.recoverStrandedEngineDownloads).toHaveBeenCalledOnce();
+
+            await recoverInterruptedEngineDownloads();
+
+            expect(mocks.rm).toHaveBeenCalledTimes(2);
+            expect(mocks.recoverStrandedEngineDownloads).toHaveBeenCalledTimes(2);
+            expect(mocks.rm).toHaveBeenNthCalledWith(2, engineIncompleteDir("retry-id"), {
+                recursive: true,
+                force: true,
+            });
+        } finally {
+            globals.__nookletEngine!.recovered = previousRecovered;
+        }
     });
 });

@@ -1,9 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/integrations/http-helpers", () => ({
-    fetchWithTimeout: vi.fn(),
-    trimTrailingSlash: (value: string) => value.replace(/\/+$/, ""),
-}));
+vi.mock("@/lib/integrations/http-helpers", () => {
+    const fetchHttpMock = vi.fn();
+
+    return {
+        fetchWithTimeout: fetchHttpMock,
+        // Adapters read through the GET retry wrapper; tests assert on the
+        // single underlying call either way.
+        fetchWithRetry: fetchHttpMock,
+        DEFAULT_FETCH_RETRY_ATTEMPTS: 3,
+        trimTrailingSlash: (value: string) => value.replace(/\/+$/, ""),
+    };
+});
 
 import { fetchWithTimeout } from "@/lib/integrations/http-helpers";
 

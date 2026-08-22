@@ -2,7 +2,7 @@ import path from "node:path";
 import os from "node:os";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
     startFakeNntpServer,
@@ -386,7 +386,7 @@ describe("downloadNzb", () => {
     });
 
     it("blames the server, not the release, when transport keeps failing", async () => {
-        // Articles the server has, but every BODY draws an unexpected reply. The
+        // Articles the server has, but every BODY loses its connection. The
         // release must not be condemned: that verdict blocklists it and sends the
         // caller through every other candidate for the same episode.
         const nzb = parseNzb(
@@ -417,7 +417,7 @@ describe("downloadNzb", () => {
                 },
                 stat: async () => true,
                 body: async () => {
-                    throw new NntpError("protocol-error", "BODY failed: 502 too many connections");
+                    throw new NntpError("connection-closed", "BODY connection dropped.");
                 },
                 quit: async () => undefined,
                 destroy: () => undefined,
@@ -427,10 +427,182 @@ describe("downloadNzb", () => {
         expect(result.transportExhausted).toBe(true);
         expect(result.unrecoverable).toBe(false);
         expect(result.ok).toBe(false);
-        expect(result.failureKinds).toEqual(["protocol-error"]);
+        expect(result.failureKinds).toEqual(["connection-closed"]);
         // Every failure threw away its connection instead of reusing a stream that
         // may be desynced, so reconnects far outnumber the four workers.
         expect(connectCount).toBeGreaterThan(4);
+    });
+
+    it("does not retry a deterministic protocol error", async () => {
+        workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+        let connectCount = 0;
+        let bodyCount = 0;
+
+        const result = await downloadNzb({
+            nzb: parseNzb(nzbXml([{ subject: '"broken.bin"', segmentIds: ["broken@test"] }])),
+            server: {
+                host: "127.0.0.1",
+                port: 1,
+                connections: 1,
+                timeoutMs: 3_000,
+                resolvedAddresses: [{ address: "127.0.0.1", family: 4 }],
+            },
+            workDir,
+            maxRetriesPerSegment: 5,
+            clientFactory: () => ({
+                connect: async () => {
+                    connectCount += 1;
+                },
+                stat: async () => true,
+                body: async () => {
+                    bodyCount += 1;
+
+                    throw new NntpError("protocol-error", "Malformed BODY framing.");
+                },
+                quit: async () => undefined,
+                destroy: () => undefined,
+            }),
+        });
+
+        expect(connectCount).toBe(1);
+        expect(bodyCount).toBe(1);
+        expect(result.failedSegments).toBe(1);
+        expect(result.failureKinds).toEqual(["protocol-error"]);
+        expect(result.transportExhausted).toBe(false);
+        expect(result.unrecoverable).toBe(false);
+    });
+
+    it("retries a transient server response without condemning the release", async () => {
+        workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+        const article = buildSinglePartArticle(buildDeterministicPayload(1_000, 11), "retry.bin");
+        let connectCount = 0;
+        let bodyCount = 0;
+
+        const result = await downloadNzb({
+            nzb: parseNzb(nzbXml([{ subject: '"retry.bin"', segmentIds: ["retry@test"] }])),
+            server: {
+                host: "127.0.0.1",
+                port: 1,
+                connections: 1,
+                timeoutMs: 3_000,
+                resolvedAddresses: [{ address: "127.0.0.1", family: 4 }],
+            },
+            workDir,
+            maxRetriesPerSegment: 1,
+            clientFactory: () => ({
+                connect: async () => {
+                    connectCount += 1;
+                },
+                stat: async () => true,
+                body: async () => {
+                    bodyCount += 1;
+
+                    if (bodyCount === 1) {
+                        throw new NntpError("server-unavailable", "403 temporary fault");
+                    }
+
+                    return Buffer.from(article, "latin1");
+                },
+                quit: async () => undefined,
+                destroy: () => undefined,
+            }),
+        });
+
+        expect(connectCount).toBe(2);
+        expect(bodyCount).toBe(2);
+        expect(result.completedSegments).toBe(1);
+        expect(result.failedSegments).toBe(0);
+        expect(result.transportExhausted).toBe(false);
+        expect(result.ok).toBe(true);
+    });
+
+    it("does not reconnect after cancellation between a transient failure and retry", async () => {
+        workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+        let callerCanceled = false;
+        let connectCount = 0;
+        let bodyCount = 0;
+
+        const result = await downloadNzb({
+            nzb: parseNzb(nzbXml([{ subject: '"cancel.bin"', segmentIds: ["cancel@test"] }])),
+            server: {
+                host: "127.0.0.1",
+                port: 1,
+                connections: 1,
+                timeoutMs: 3_000,
+                resolvedAddresses: [{ address: "127.0.0.1", family: 4 }],
+            },
+            workDir,
+            maxRetriesPerSegment: 3,
+            shouldAbort: () => callerCanceled,
+            clientFactory: () => ({
+                connect: async () => {
+                    connectCount += 1;
+                },
+                stat: async () => true,
+                body: async () => {
+                    bodyCount += 1;
+                    callerCanceled = true;
+
+                    throw new NntpError("server-unavailable", "400 service closing");
+                },
+                quit: async () => undefined,
+                destroy: () => undefined,
+            }),
+        });
+
+        expect(connectCount).toBe(1);
+        expect(bodyCount).toBe(1);
+        expect(result.aborted).toBe(true);
+        expect(result.deadlineExceeded).toBe(false);
+        expect(result.transportExhausted).toBe(false);
+        expect(result.completedSegments).toBe(0);
+    });
+
+    it("prefers caller cancellation when a transient failure lands at the deadline", async () => {
+        vi.useFakeTimers();
+
+        try {
+            workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+            let callerCanceled = false;
+            let connectCount = 0;
+            let bodyCount = 0;
+            const deadlineAt = Date.now() + 100;
+
+            const resultPromise = downloadNzb({
+                nzb: parseNzb(
+                    nzbXml([{ subject: '"boundary.bin"', segmentIds: ["boundary@test"] }]),
+                ),
+                server: { host: "news.invalid", port: 563, connections: 1 },
+                workDir,
+                deadlineAt,
+                shouldAbort: () => callerCanceled,
+                clientFactory: () => ({
+                    connect: async () => {
+                        connectCount += 1;
+                    },
+                    stat: async () => true,
+                    body: async () => {
+                        bodyCount += 1;
+                        callerCanceled = true;
+                        vi.setSystemTime(deadlineAt);
+
+                        throw new NntpError("server-unavailable", "403 temporary fault");
+                    },
+                    quit: async () => undefined,
+                    destroy: () => undefined,
+                }),
+            });
+
+            const result = await resultPromise;
+
+            expect(connectCount).toBe(1);
+            expect(bodyCount).toBe(1);
+            expect(result.aborted).toBe(true);
+            expect(result.deadlineExceeded).toBe(false);
+            expect(result.transportExhausted).toBe(false);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("lets a fully available release pass the probe and download normally", async () => {
@@ -676,6 +848,404 @@ describe("downloadNzb", () => {
         expect(result.aborted).toBe(true);
         expect(result.ok).toBe(false);
         expect(result.completedSegments).toBeLessThan(24);
+    });
+
+    it("stops and reports deadlineExceeded once the wall-clock deadline passes", async () => {
+        const payload = buildDeterministicPayload(1_000, 5);
+        const articles = new Map<string, string>();
+        const segmentIds: string[] = [];
+
+        for (let index = 0; index < 12; index += 1) {
+            const id = `seg-${index}@test`;
+
+            segmentIds.push(id);
+            articles.set(id, buildSinglePartArticle(payload, `file-${index}.bin`));
+        }
+
+        server = await startFakeNntpServer({ articles });
+        workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+        const nzb = parseNzb(
+            nzbXml(
+                segmentIds.map((id, index) => ({
+                    subject: `"file-${index}.bin"`,
+                    segmentIds: [id],
+                })),
+            ),
+        );
+
+        const result = await downloadNzb({
+            nzb,
+            server: {
+                host: "127.0.0.1",
+                port: server.port,
+                trustedRootCertificates: [tlsTestCertificate],
+                connections: 1,
+                timeoutMs: 3_000,
+                resolvedAddresses: [{ address: "127.0.0.1", family: 4 }],
+            },
+            workDir,
+            deadlineAt: Date.now() - 1,
+        });
+
+        expect(result.deadlineExceeded).toBe(true);
+        expect(result.aborted).toBe(true);
+        expect(result.ok).toBe(false);
+        expect(result.completedSegments).toBeLessThan(12);
+    });
+
+    it("completes normally when work is exhausted even if the deadline passes mid-run", async () => {
+        const payload = buildDeterministicPayload(1_000, 5);
+
+        server = await startFakeNntpServer({
+            articles: new Map([["only@test", buildSinglePartArticle(payload, "only.bin")]]),
+        });
+        workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+        const result = await downloadNzb({
+            nzb: parseNzb(nzbXml([{ subject: '"only.bin"', segmentIds: ["only@test"] }])),
+            server: {
+                host: "127.0.0.1",
+                port: server.port,
+                trustedRootCertificates: [tlsTestCertificate],
+                connections: 1,
+                timeoutMs: 3_000,
+                resolvedAddresses: [{ address: "127.0.0.1", family: 4 }],
+            },
+            workDir,
+            // The single local fetch settles well inside this budget; the
+            // watchdog must then disarm instead of flagging an overrun.
+            deadlineAt: Date.now() + 80,
+        });
+
+        expect(result.deadlineExceeded).toBe(false);
+        expect(result.aborted).toBe(false);
+        expect(result.ok).toBe(true);
+    });
+
+    it("destroys in-flight clients when the watchdog fires mid-article", async () => {
+        const payload = buildDeterministicPayload(1_000, 5);
+        const articles = new Map<string, string>();
+
+        for (let index = 0; index < 6; index += 1) {
+            articles.set(`seg-${index}@test`, buildSinglePartArticle(payload, `f-${index}.bin`));
+        }
+
+        server = await startFakeNntpServer({ articles });
+        workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+
+        const destroyed: number[] = [];
+        let releaseBody: ((error: NntpError) => void) | null = null;
+
+        const nzb = parseNzb(
+            nzbXml(
+                Array.from(articles.keys()).map((id, index) => ({
+                    subject: `"f-${index}.bin"`,
+                    segmentIds: [id],
+                })),
+            ),
+        );
+
+        const result = await downloadNzb({
+            nzb,
+            server: {
+                host: "127.0.0.1",
+                port: server.port,
+                trustedRootCertificates: [tlsTestCertificate],
+                connections: 1,
+                timeoutMs: 3_000,
+                resolvedAddresses: [{ address: "127.0.0.1", family: 4 }],
+            },
+            workDir,
+            deadlineAt: Date.now() + 150,
+            clientFactory: () => ({
+                connect: async () => undefined,
+                stat: async () => true,
+                quit: async () => undefined,
+                destroy: () => {
+                    destroyed.push(Date.now());
+                    releaseBody?.(new NntpError("connection-closed", "destroyed by watchdog"));
+                },
+                body: () =>
+                    new Promise<Buffer>((_resolve, reject) => {
+                        releaseBody = reject;
+                    }),
+            }),
+        });
+
+        expect(result.deadlineExceeded).toBe(true);
+        expect(result.aborted).toBe(true);
+        expect(result.ok).toBe(false);
+        expect(destroyed.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("does not fire a deadline timer immediately for budgets beyond Node's timer limit", async () => {
+        vi.useFakeTimers();
+
+        try {
+            workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+            const nzb = parseNzb(
+                nzbXml([{ subject: '"pending.bin"', segmentIds: ["pending@test"] }]),
+            );
+            let releaseConnect!: () => void;
+            let connectStartedResolve!: () => void;
+            const connectStarted = new Promise<void>((resolve) => {
+                connectStartedResolve = resolve;
+            });
+            let abortRequested = false;
+            let destroyed = 0;
+
+            const resultPromise = downloadNzb({
+                nzb,
+                server: {
+                    host: "127.0.0.1",
+                    port: 0,
+                    connections: 1,
+                    timeoutMs: 3_000,
+                },
+                workDir,
+                deadlineAt: Date.now() + 2_147_483_648,
+                shouldAbort: () => abortRequested,
+                clientFactory: () => ({
+                    connect: () => {
+                        connectStartedResolve();
+
+                        return new Promise<void>((resolve) => {
+                            releaseConnect = resolve;
+                        });
+                    },
+                    stat: async () => true,
+                    body: async () => Buffer.alloc(0),
+                    quit: async () => undefined,
+                    destroy: () => {
+                        destroyed += 1;
+                    },
+                }),
+            });
+
+            await connectStarted;
+
+            await vi.advanceTimersByTimeAsync(1);
+            expect(destroyed).toBe(0);
+
+            abortRequested = true;
+            releaseConnect();
+
+            const result = await resultPromise;
+
+            expect(result.aborted).toBe(true);
+            expect(result.deadlineExceeded).toBe(false);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("keeps explicit cancellation distinct while QUIT cleanup is stalled", async () => {
+        workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+        let abortRequested = false;
+        let destroyed = 0;
+
+        const result = await downloadNzb({
+            nzb: parseNzb(
+                nzbXml([
+                    { subject: '"first.bin"', segmentIds: ["first@test"] },
+                    { subject: '"second.bin"', segmentIds: ["second@test"] },
+                ]),
+            ),
+            server: {
+                host: "127.0.0.1",
+                port: 0,
+                connections: 1,
+                timeoutMs: 3_000,
+            },
+            workDir,
+            deadlineAt: Date.now() + 150,
+            onProgress: () => {
+                abortRequested = true;
+            },
+            shouldAbort: () => abortRequested,
+            clientFactory: () => ({
+                connect: async () => undefined,
+                stat: async () => true,
+                body: async (messageId: string) =>
+                    Buffer.from(
+                        buildSinglePartArticle(
+                            buildDeterministicPayload(1_000, messageId === "first@test" ? 1 : 2),
+                            messageId === "first@test" ? "first.bin" : "second.bin",
+                        ),
+                        "latin1",
+                    ),
+                quit: () => new Promise<void>(() => undefined),
+                destroy: () => {
+                    destroyed += 1;
+                },
+            }),
+        });
+
+        expect(result.aborted).toBe(true);
+        expect(result.deadlineExceeded).toBe(false);
+        expect(result.completedSegments).toBe(1);
+        expect(destroyed).toBeGreaterThanOrEqual(1);
+    });
+
+    it("reports a deadline during a stalled availability STAT and destroys the client", async () => {
+        workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+        const nzb = parseNzb(
+            nzbXml(
+                Array.from({ length: 40 }, (_, index) => ({
+                    subject: `"file-${index}.bin"`,
+                    segmentIds: [`segment-${index}@test`],
+                })),
+            ),
+        );
+        let destroyed = 0;
+
+        const result = await downloadNzb({
+            nzb,
+            server: {
+                host: "127.0.0.1",
+                port: 0,
+                connections: 1,
+                timeoutMs: 3_000,
+            },
+            workDir,
+            deadlineAt: Date.now() + 150,
+            clientFactory: () => ({
+                connect: async () => undefined,
+                stat: () => new Promise<boolean>(() => undefined),
+                body: async () => Buffer.alloc(0),
+                quit: async () => undefined,
+                destroy: () => {
+                    destroyed += 1;
+                },
+            }),
+        });
+
+        expect(result.deadlineExceeded).toBe(true);
+        expect(result.aborted).toBe(true);
+        expect(result.completedSegments).toBe(0);
+        expect(destroyed).toBeGreaterThanOrEqual(1);
+    });
+
+    it("keeps a caller cancellation distinct when BODY is stalled until the deadline", async () => {
+        vi.useFakeTimers();
+
+        try {
+            workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+            const nzb = parseNzb(
+                nzbXml([{ subject: '"pending.bin"', segmentIds: ["pending@test"] }]),
+            );
+            let bodyStartedResolve!: () => void;
+            const bodyStarted = new Promise<void>((resolve) => {
+                bodyStartedResolve = resolve;
+            });
+            let callerCanceled = false;
+            let destroyed = 0;
+
+            const resultPromise = downloadNzb({
+                nzb,
+                server: {
+                    host: "127.0.0.1",
+                    port: 0,
+                    connections: 1,
+                    timeoutMs: 3_000,
+                },
+                workDir,
+                deadlineAt: Date.now() + 200,
+                shouldAbort: () => callerCanceled,
+                clientFactory: () => ({
+                    connect: async () => undefined,
+                    stat: async () => true,
+                    body: () => {
+                        bodyStartedResolve();
+
+                        return new Promise<Buffer>(() => undefined);
+                    },
+                    quit: async () => undefined,
+                    destroy: () => {
+                        destroyed += 1;
+                    },
+                }),
+            });
+
+            await bodyStarted;
+            await vi.advanceTimersByTimeAsync(100);
+            callerCanceled = true;
+            await vi.advanceTimersByTimeAsync(100);
+
+            const result = await resultPromise;
+
+            expect(result.aborted).toBe(true);
+            expect(result.deadlineExceeded).toBe(false);
+            expect(destroyed).toBeGreaterThanOrEqual(1);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("cancels a client that is still connecting when the deadline expires", async () => {
+        workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+        const nzb = parseNzb(nzbXml([{ subject: '"pending.bin"', segmentIds: ["pending@test"] }]));
+        let destroyed = 0;
+
+        const result = await downloadNzb({
+            nzb,
+            server: {
+                host: "127.0.0.1",
+                port: 0,
+                connections: 1,
+                timeoutMs: 3_000,
+            },
+            workDir,
+            deadlineAt: Date.now() + 50,
+            clientFactory: () => ({
+                connect: () => new Promise<void>(() => undefined),
+                stat: async () => true,
+                body: async () => Buffer.alloc(0),
+                quit: async () => undefined,
+                destroy: () => {
+                    destroyed += 1;
+                },
+            }),
+        });
+
+        expect(result.deadlineExceeded).toBe(true);
+        expect(result.aborted).toBe(true);
+        expect(result.ok).toBe(false);
+        expect(destroyed).toBeGreaterThanOrEqual(1);
+    });
+
+    it("forces stalled QUIT cleanup without relabeling completed work as a deadline overrun", async () => {
+        workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+        const payload = buildDeterministicPayload(1_000, 5);
+        const article = buildSinglePartArticle(payload, "complete.bin");
+        let destroyed = 0;
+
+        const result = await downloadNzb({
+            nzb: parseNzb(nzbXml([{ subject: '"complete.bin"', segmentIds: ["complete@test"] }])),
+            server: {
+                host: "127.0.0.1",
+                port: 0,
+                connections: 1,
+                timeoutMs: 3_000,
+            },
+            workDir,
+            deadlineAt: Date.now() + 150,
+            clientFactory: () => ({
+                connect: async () => undefined,
+                stat: async () => true,
+                body: async () => Buffer.from(article, "latin1"),
+                quit: () => new Promise<void>(() => undefined),
+                destroy: () => {
+                    destroyed += 1;
+                },
+            }),
+        });
+
+        expect(result.deadlineExceeded).toBe(false);
+        expect(result.aborted).toBe(false);
+        expect(result.ok).toBe(true);
+        expect(destroyed).toBeGreaterThanOrEqual(1);
     });
 
     it("keeps distinct NZB files separate when yEnc names sanitize to the same path", async () => {

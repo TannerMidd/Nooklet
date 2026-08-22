@@ -19,7 +19,7 @@ import {
 } from "drizzle-orm";
 import { unionAll } from "drizzle-orm/sqlite-core";
 
-import { ensureDatabaseReady } from "@/lib/database/client";
+import { ensureDatabaseReady, type AppDatabase } from "@/lib/database/client";
 import { isBudgetFreeDownloadAttempt } from "@/modules/downloads/attempt-cost";
 import {
     activeDownloadRequestStatuses,
@@ -268,15 +268,18 @@ export async function expireStalePendingDownloadReservations(
     return result.changes;
 }
 
-export async function updateDownloadRequestStatus(input: {
-    userId: string;
-    requestId: string;
-    status: DownloadRequestStatus;
-    externalJobId?: string | null;
-    statusMessage?: string | null;
-    completedAt?: Date | null;
-}) {
-    const database = ensureDatabaseReady();
+export async function updateDownloadRequestStatus(
+    input: {
+        userId: string;
+        requestId: string;
+        status: DownloadRequestStatus;
+        externalJobId?: string | null;
+        statusMessage?: string | null;
+        completedAt?: Date | null;
+    },
+    executor?: AppDatabase,
+) {
+    const database = executor ?? ensureDatabaseReady();
 
     database
         .update(downloadRequests)
@@ -489,16 +492,19 @@ export async function recordSubmittedDownload(input: {
     };
 }
 
-export async function updateDownloadQueueItemStatus(input: {
-    userId: string;
-    queueItemId: string;
-    status: DownloadQueueItemStatus;
-    progressPercent?: number;
-    remainingBytes?: number | null;
-    etaSeconds?: number | null;
-    completedAt?: Date | null;
-}) {
-    const database = ensureDatabaseReady();
+export async function updateDownloadQueueItemStatus(
+    input: {
+        userId: string;
+        queueItemId: string;
+        status: DownloadQueueItemStatus;
+        progressPercent?: number;
+        remainingBytes?: number | null;
+        etaSeconds?: number | null;
+        completedAt?: Date | null;
+    },
+    executor?: AppDatabase,
+) {
+    const database = executor ?? ensureDatabaseReady();
 
     database
         .update(downloadQueueItems)
@@ -1457,8 +1463,24 @@ export async function listUsersWithActiveDownloadRequests() {
             ),
         )
         .all();
+    const pendingEngineCleanupRows = database
+        .select({ userId: engineDownloads.userId })
+        .from(engineDownloads)
+        .where(
+            and(
+                inArray(engineDownloads.state, ["completed", "failed"]),
+                isNull(engineDownloads.importedAt),
+            ),
+        )
+        .all();
 
-    return Array.from(new Set([...activeRows, ...localImportRetryRows].map((row) => row.userId)));
+    return Array.from(
+        new Set(
+            [...activeRows, ...localImportRetryRows, ...pendingEngineCleanupRows].map(
+                (row) => row.userId,
+            ),
+        ),
+    );
 }
 
 export async function listDownloadRequestReleaseExclusionsForItem(input: {
@@ -1590,15 +1612,18 @@ export async function countBudgetConsumingReleaseAttemptsForItem(input: {
     return consumed;
 }
 
-export async function createDownloadImportRun(input: {
-    requestId: string;
-    userId: string;
-    libraryPathId?: string | null;
-    status?: DownloadImportRunStatus;
-    sourceRootPath: string;
-    destinationRootPath?: string | null;
-}) {
-    const database = ensureDatabaseReady();
+export async function createDownloadImportRun(
+    input: {
+        requestId: string;
+        userId: string;
+        libraryPathId?: string | null;
+        status?: DownloadImportRunStatus;
+        sourceRootPath: string;
+        destinationRootPath?: string | null;
+    },
+    executor?: AppDatabase,
+) {
+    const database = executor ?? ensureDatabaseReady();
     const id = randomUUID();
 
     database
@@ -1617,15 +1642,18 @@ export async function createDownloadImportRun(input: {
     return database.select().from(downloadImportRuns).where(eq(downloadImportRuns.id, id)).get()!;
 }
 
-export async function completeDownloadImportRun(input: {
-    userId: string;
-    importRunId: string;
-    status: Extract<DownloadImportRunStatus, "succeeded" | "failed" | "skipped">;
-    destinationRootPath?: string | null;
-    errorMessage?: string | null;
-    completedAt?: Date;
-}) {
-    const database = ensureDatabaseReady();
+export async function completeDownloadImportRun(
+    input: {
+        userId: string;
+        importRunId: string;
+        status: Extract<DownloadImportRunStatus, "succeeded" | "failed" | "skipped">;
+        destinationRootPath?: string | null;
+        errorMessage?: string | null;
+        completedAt?: Date;
+    },
+    executor?: AppDatabase,
+) {
+    const database = executor ?? ensureDatabaseReady();
     const completedAt = input.completedAt ?? new Date();
 
     database
@@ -1658,14 +1686,17 @@ export async function completeDownloadImportRun(input: {
     );
 }
 
-export async function recordDownloadImportedFile(input: {
-    importRunId: string;
-    userId: string;
-    mediaFileId?: string | null;
-    sourcePath: string;
-    destinationPath: string;
-}) {
-    const database = ensureDatabaseReady();
+export async function recordDownloadImportedFile(
+    input: {
+        importRunId: string;
+        userId: string;
+        mediaFileId?: string | null;
+        sourcePath: string;
+        destinationPath: string;
+    },
+    executor?: AppDatabase,
+) {
+    const database = executor ?? ensureDatabaseReady();
     const id = randomUUID();
 
     database

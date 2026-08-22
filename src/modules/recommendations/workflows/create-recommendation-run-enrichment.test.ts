@@ -202,4 +202,163 @@ describe("enrichGeneratedItemsWithTmdbMetadata", () => {
             },
         });
     });
+
+    it("memoizes duplicate titles within a call and across calls sharing a cache", async () => {
+        lookupTmdbMock.mockResolvedValue({ ok: false, message: "No TMDB match was found." });
+
+        const first = buildItem({ title: "Dune", year: 2021 });
+        const duplicate = buildItem({ title: "dune ", year: 2021 });
+
+        await enrichGeneratedItemsWithTmdbMetadata({
+            tmdbConnection,
+            mediaType: "movie",
+            languagePreference: "any",
+            items: [first, duplicate],
+        });
+
+        expect(lookupTmdbMock).toHaveBeenCalledTimes(1);
+
+        const sharedCache = new Map();
+
+        await enrichGeneratedItemsWithTmdbMetadata({
+            tmdbConnection,
+            mediaType: "movie",
+            languagePreference: "any",
+            items: [first],
+            cache: sharedCache,
+        });
+        await enrichGeneratedItemsWithTmdbMetadata({
+            tmdbConnection,
+            mediaType: "movie",
+            languagePreference: "any",
+            items: [duplicate],
+            cache: sharedCache,
+        });
+
+        // The second call reused the first call's cached lookup.
+        expect(lookupTmdbMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("evicts transient failures from a shared cache but keeps definitive misses", async () => {
+        const sharedCache = new Map();
+
+        lookupTmdbMock.mockResolvedValueOnce({
+            ok: false,
+            message: "TMDB search failed with status 503.",
+        });
+        lookupTmdbMock.mockResolvedValueOnce({
+            ok: false,
+            message: "No TMDB match was found for Ghost (1990).",
+        });
+
+        const item = buildItem({ title: "Ghost", year: 1990 });
+
+        await enrichGeneratedItemsWithTmdbMetadata({
+            tmdbConnection,
+            mediaType: "movie",
+            languagePreference: "any",
+            items: [item],
+            cache: sharedCache,
+        });
+        await enrichGeneratedItemsWithTmdbMetadata({
+            tmdbConnection,
+            mediaType: "movie",
+            languagePreference: "any",
+            items: [item],
+            cache: sharedCache,
+        });
+
+        // The 503 evicted itself and was retried on the second pass.
+        expect(lookupTmdbMock).toHaveBeenCalledTimes(2);
+
+        await enrichGeneratedItemsWithTmdbMetadata({
+            tmdbConnection,
+            mediaType: "movie",
+            languagePreference: "any",
+            items: [item],
+            cache: sharedCache,
+        });
+
+        // The definitive no-match verdict stays cached.
+        expect(lookupTmdbMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("evicts rejected lookups so a shared cache can retry them", async () => {
+        const sharedCache = new Map();
+        const item = buildItem({ title: "Retry me", year: 2022 });
+
+        lookupTmdbMock.mockRejectedValueOnce(new Error("TMDB request timed out."));
+        lookupTmdbMock.mockResolvedValueOnce({
+            ok: false,
+            message: "No TMDB match was found for Retry me (2022).",
+        });
+
+        await expect(
+            enrichGeneratedItemsWithTmdbMetadata({
+                tmdbConnection,
+                mediaType: "movie",
+                languagePreference: "any",
+                items: [item],
+                cache: sharedCache,
+            }),
+        ).rejects.toThrow("TMDB request timed out.");
+
+        expect(sharedCache).toHaveLength(0);
+
+        const retryResult = await enrichGeneratedItemsWithTmdbMetadata({
+            tmdbConnection,
+            mediaType: "movie",
+            languagePreference: "any",
+            items: [item],
+            cache: sharedCache,
+        });
+
+        expect(retryResult).toEqual({
+            ok: true,
+            items: [item],
+            excludedLanguageItemCount: 0,
+        });
+        expect(lookupTmdbMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("preserves input order under concurrent enrichment regardless of lookup timing", async () => {
+        lookupTmdbMock.mockImplementation(async (input) => {
+            const delay = input.title === "slow-a" || input.title === "slow-b" ? 20 : 1;
+
+            await new Promise((resolve) => setTimeout(resolve, delay));
+
+            return { ok: false, message: `no match for ${input.title}` };
+        });
+
+        const items = [
+            buildItem({ title: "slow-a" }),
+            buildItem({ title: "fast-1" }),
+            buildItem({ title: "fast-2" }),
+            buildItem({ title: "fast-3" }),
+            buildItem({ title: "fast-4" }),
+            buildItem({ title: "slow-b" }),
+        ];
+
+        const result = await enrichGeneratedItemsWithTmdbMetadata({
+            tmdbConnection,
+            mediaType: "tv",
+            languagePreference: "any",
+            items,
+        });
+
+        expect(result.ok).toBe(true);
+
+        if (!result.ok) {
+            throw new Error("Expected TMDB enrichment to succeed.");
+        }
+
+        expect(result.items.map((item) => item.title)).toEqual([
+            "slow-a",
+            "fast-1",
+            "fast-2",
+            "fast-3",
+            "fast-4",
+            "slow-b",
+        ]);
+    });
 });

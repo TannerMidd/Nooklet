@@ -27,6 +27,7 @@ import {
     buildMissingTmdbLanguageMessage,
     buildStoredRecommendationItems,
     enrichGeneratedItemsWithTmdbMetadata,
+    type TmdbEnrichmentCache,
 } from "./create-recommendation-run-enrichment";
 import { getVerifiedTmdbConnection } from "@/modules/service-connections/queries/get-verified-tmdb-connection";
 import {
@@ -249,6 +250,9 @@ async function executeRecommendationRunGeneration(
             );
         }
 
+        // Shared across backfill attempts so regenerated titles reuse their
+        // TMDB lookups instead of re-issuing them once per attempt.
+        const tmdbEnrichmentCache: TmdbEnrichmentCache = new Map();
         const generatedItems = await generateBackfilledRecommendationItems({
             requestPrompt: trimmedRequestPrompt,
             requestedCount: input.requestedCount,
@@ -280,6 +284,7 @@ async function executeRecommendationRunGeneration(
                     mediaType: input.mediaType,
                     languagePreference: preferences.languagePreference,
                     items: batch,
+                    cache: tmdbEnrichmentCache,
                 });
 
                 if (!tmdbResult.ok) {

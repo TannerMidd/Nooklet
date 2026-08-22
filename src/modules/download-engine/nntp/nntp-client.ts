@@ -50,19 +50,21 @@ export type NntpErrorKind =
     | "article-unusable"
     /** The server broke the protocol itself: unexpected status codes, bad framing. */
     | "protocol-error"
+    /** A documented transient server-side failure response (400 or 403). */
+    | "server-unavailable"
     | "timeout"
     | "connection-closed";
 
 export class NntpError extends Error {
     readonly kind: NntpErrorKind;
-    /** Permanent errors (e.g. 430) must not be retried on the same server. */
+    /** Permanent errors (e.g. protocol failures or 430) must not be retried. */
     readonly permanent: boolean;
 
     constructor(kind: NntpErrorKind, message: string, permanent = false) {
         super(message);
         this.name = "NntpError";
         this.kind = kind;
-        this.permanent = permanent;
+        this.permanent = permanent || kind === "protocol-error";
     }
 }
 
@@ -75,10 +77,44 @@ const maxStatusLineBytes = 8 * 1024;
 const maxCommandBytes = 4 * 1024;
 const initialReadBufferBytes = 8 * 1024;
 const retainedReadBufferBytes = 256 * 1024;
+/** RFC 3977 generic responses that explicitly describe a temporary server fault. */
+const transientServerResponseCodes = new Set([400, 403]);
+/** RFC 3977/RFC 4643 responses that require authentication or privacy setup. */
+const authenticationResponseCodes = new Set([480, 481, 482]);
 
 type StatusLine = {
     code: number;
     text: string;
+};
+
+function responseError(command: string, response: StatusLine): NntpError {
+    if (transientServerResponseCodes.has(response.code)) {
+        return new NntpError(
+            "server-unavailable",
+            `${command} failed because the NNTP server is temporarily unavailable: ${response.code} ${response.text}`,
+        );
+    }
+
+    if (authenticationResponseCodes.has(response.code)) {
+        return new NntpError(
+            "auth-failed",
+            `${command} requires authentication: ${response.code} ${response.text}`,
+            true,
+        );
+    }
+
+    return new NntpError(
+        "protocol-error",
+        `${command} failed: ${response.code} ${response.text}`,
+        true,
+    );
+}
+
+type ConnectAttempt = {
+    candidate: tls.TLSSocket | null;
+    canceled: boolean;
+    controller: AbortController;
+    cancel: (error: Error) => void;
 };
 
 export class NntpClient {
@@ -93,6 +129,7 @@ export class NntpClient {
         resolve: () => void;
         reject: (error: Error) => void;
     } | null = null;
+    private connectAttempt: ConnectAttempt | null = null;
     private closed = false;
 
     constructor(options: NntpServerOptions) {
@@ -221,17 +258,27 @@ export class NntpClient {
 
                 const line = buffered.subarray(0, lineEnd).toString("latin1");
 
-                this.consumeBuffer(lineEnd + 2);
-                const code = Number.parseInt(line.slice(0, 3), 10);
+                // RFC 3977 permits a bare three-digit response as well as an
+                // optional space and trailing comment. Do not parse a prefix
+                // such as `430garbage` or `222x` as a valid response: the
+                // stream is no longer trustworthy after malformed framing.
+                const status = /^(\d{3})(?: (.*))?$/.exec(line);
 
-                if (!Number.isInteger(code)) {
+                if (!status) {
+                    this.destroy();
+
                     throw new NntpError(
                         "protocol-error",
                         `Malformed NNTP status line: ${line.slice(0, 80)}`,
+                        true,
                     );
                 }
 
-                return { code, text: line.slice(4) };
+                this.consumeBuffer(lineEnd + 2);
+
+                const code = Number.parseInt(status[1], 10);
+
+                return { code, text: status[2] ?? "" };
             }
 
             if (this.bufferedLength > maxStatusLineBytes) {
@@ -317,84 +364,181 @@ export class NntpClient {
     }
 
     async connect(): Promise<void> {
-        if (this.socket) {
+        if (this.socket || this.connectAttempt) {
             throw new NntpError("protocol-error", "The NNTP client is already connected.");
         }
 
-        // Resolve under the SSRF policy once, then force the socket to use only
-        // those addresses. Keeping the original host below preserves TLS SNI and
-        // certificate validation while closing the DNS-rebinding window.
-        const resolvedAddresses =
-            this.options.resolvedAddresses ?? (await assertOutboundHostAllowed(this.options.host));
-        const pinnedLookup = createPinnedLookup(resolvedAddresses);
-
-        const socket = await new Promise<tls.TLSSocket>((resolve, reject) => {
-            const timer = setTimeout(() => {
-                candidate.destroy();
-                reject(
-                    new NntpError(
-                        "timeout",
-                        `Timed out connecting to ${this.options.host}:${this.options.port}.`,
-                    ),
-                );
-            }, this.timeoutMs());
-
-            const onError = (error: Error) => {
-                clearTimeout(timer);
-                reject(
-                    new NntpError(
-                        "connect-failed",
-                        `Could not connect to ${this.options.host}:${this.options.port}: ${error.message}`,
-                    ),
-                );
-            };
-
-            const candidate = tls.connect(
-                {
-                    host: this.options.host,
-                    port: this.options.port,
-                    // RFC 6066 forbids IP literals in SNI; for IP hosts the certificate
-                    // is still verified against its IP subjectAltName entries.
-                    servername: net.isIP(this.options.host) === 0 ? this.options.host : undefined,
-                    rejectUnauthorized: true,
-                    ca: this.options.trustedRootCertificates
-                        ? [...this.options.trustedRootCertificates]
-                        : undefined,
-                    lookup: pinnedLookup,
-                },
-                () => {
-                    clearTimeout(timer);
-                    candidate.off("error", onError);
-                    resolve(candidate);
-                },
-            );
-
-            candidate.once("error", onError);
+        let rejectCancellation!: (error: Error) => void;
+        const cancellation = new Promise<never>((_resolve, reject) => {
+            rejectCancellation = reject;
         });
+        const attempt: ConnectAttempt = {
+            candidate: null,
+            canceled: false,
+            controller: new AbortController(),
+            cancel: (error) => {
+                if (attempt.canceled) {
+                    return;
+                }
 
-        socket.on("data", this.handleData);
-        socket.on("error", (error) =>
-            this.handleCloseOrError(
-                new NntpError("connection-closed", `NNTP connection error: ${error.message}`),
-            ),
-        );
-        socket.on("close", () => this.handleCloseOrError());
-        this.socket = socket;
-        this.closed = false;
+                attempt.canceled = true;
+                attempt.controller.abort();
+                rejectCancellation(error);
+                attempt.candidate?.destroy();
+            },
+        };
 
-        const greeting = await this.readStatusLine();
+        this.connectAttempt = attempt;
 
-        if (greeting.code !== 200 && greeting.code !== 201) {
-            this.destroy();
+        try {
+            // Resolve under the SSRF policy once, then force the socket to use only
+            // those addresses. Keeping the original host below preserves TLS SNI and
+            // certificate validation while closing the DNS-rebinding window. Racing
+            // resolution against cancellation makes destroy() effective before a TLS
+            // candidate exists.
+            const resolvedAddresses = await Promise.race([
+                this.options.resolvedAddresses ??
+                    assertOutboundHostAllowed(this.options.host, undefined, {
+                        signal: attempt.controller.signal,
+                    }),
+                cancellation,
+            ]);
 
-            throw new NntpError(
-                "protocol-error",
-                `Unexpected NNTP greeting: ${greeting.code} ${greeting.text}`,
+            if (attempt.canceled) {
+                throw new NntpError("connection-closed", "The NNTP connection was canceled.");
+            }
+
+            const pinnedLookup = createPinnedLookup(resolvedAddresses);
+
+            const socket = await Promise.race([
+                new Promise<tls.TLSSocket>((resolve, reject) => {
+                    let settled = false;
+                    let timer: ReturnType<typeof setTimeout> | null = null;
+
+                    const onError = (error: Error) => {
+                        if (settled) {
+                            return;
+                        }
+
+                        settled = true;
+
+                        if (timer) {
+                            clearTimeout(timer);
+                        }
+
+                        candidate.destroy();
+                        reject(
+                            new NntpError(
+                                "connect-failed",
+                                `Could not connect to ${this.options.host}:${this.options.port}: ${error.message}`,
+                            ),
+                        );
+                    };
+
+                    const candidate = tls.connect(
+                        {
+                            host: this.options.host,
+                            port: this.options.port,
+                            // RFC 6066 forbids IP literals in SNI; for IP hosts the certificate
+                            // is still verified against its IP subjectAltName entries.
+                            servername:
+                                net.isIP(this.options.host) === 0 ? this.options.host : undefined,
+                            rejectUnauthorized: true,
+                            ca: this.options.trustedRootCertificates
+                                ? [...this.options.trustedRootCertificates]
+                                : undefined,
+                            lookup: pinnedLookup,
+                        },
+                        () => {
+                            if (attempt.canceled) {
+                                candidate.destroy();
+
+                                return;
+                            }
+
+                            settled = true;
+
+                            if (timer) {
+                                clearTimeout(timer);
+                            }
+
+                            candidate.off("error", onError);
+                            resolve(candidate);
+                        },
+                    );
+
+                    attempt.candidate = candidate;
+
+                    candidate.once("error", onError);
+                    timer = setTimeout(() => {
+                        if (settled) {
+                            return;
+                        }
+
+                        settled = true;
+                        candidate.destroy();
+                        reject(
+                            new NntpError(
+                                "timeout",
+                                `Timed out connecting to ${this.options.host}:${this.options.port}.`,
+                            ),
+                        );
+                    }, this.timeoutMs());
+                }),
+                cancellation,
+            ]);
+
+            if (attempt.canceled) {
+                socket.destroy();
+
+                throw new NntpError("connection-closed", "The NNTP connection was canceled.");
+            }
+
+            socket.on("data", this.handleData);
+            socket.on("error", (error) =>
+                this.handleCloseOrError(
+                    new NntpError("connection-closed", `NNTP connection error: ${error.message}`),
+                ),
             );
-        }
+            socket.on("close", () => this.handleCloseOrError());
+            // The JS-level read timeout only fires around an active waitForData
+            // round trip. A peer that vanishes behind a silent NAT drop otherwise
+            // lingers as ESTABLISHED forever, so ask the OS to probe the connection.
+            socket.setKeepAlive(true, 30_000);
+            this.socket = socket;
+            this.closed = false;
+            this.connectAttempt = null;
 
-        if (this.options.username) {
-            await this.authenticate();
+            try {
+                const greeting = await this.readStatusLine();
+
+                if (greeting.code === 400) {
+                    throw new NntpError(
+                        "server-unavailable",
+                        `NNTP service is temporarily unavailable: ${greeting.code} ${greeting.text}`,
+                    );
+                }
+
+                if (greeting.code !== 200 && greeting.code !== 201) {
+                    throw new NntpError(
+                        "protocol-error",
+                        `Unexpected NNTP greeting: ${greeting.code} ${greeting.text}`,
+                        true,
+                    );
+                }
+
+                if (this.options.username) {
+                    await this.authenticate();
+                }
+            } catch (error) {
+                this.destroy();
+
+                throw error;
+            }
+        } finally {
+            if (this.connectAttempt === attempt) {
+                this.connectAttempt = null;
+            }
         }
     }
 
@@ -407,15 +551,21 @@ export class NntpClient {
             response = await this.readStatusLine();
         }
 
-        if (response.code !== 281) {
-            this.destroy();
-
-            throw new NntpError(
-                "auth-failed",
-                `NNTP authentication failed: ${response.code} ${response.text}`,
-                true,
-            );
+        if (response.code === 281) {
+            return;
         }
+
+        this.destroy();
+
+        if (transientServerResponseCodes.has(response.code)) {
+            throw responseError("AUTHINFO", response);
+        }
+
+        throw new NntpError(
+            authenticationResponseCodes.has(response.code) ? "auth-failed" : "protocol-error",
+            `AUTHINFO failed: ${response.code} ${response.text}`,
+            true,
+        );
     }
 
     /**
@@ -446,10 +596,7 @@ export class NntpClient {
             );
         }
 
-        throw new NntpError(
-            "protocol-error",
-            `BODY <${messageId}> failed: ${response.code} ${response.text}`,
-        );
+        throw responseError(`BODY <${messageId}>`, response);
     }
 
     /**
@@ -476,10 +623,7 @@ export class NntpClient {
             return false;
         }
 
-        throw new NntpError(
-            "protocol-error",
-            `STAT <${messageId}> failed: ${response.code} ${response.text}`,
-        );
+        throw responseError(`STAT <${messageId}>`, response);
     }
 
     /** Round-trip probe used by connection verification. */
@@ -488,7 +632,7 @@ export class NntpClient {
         const response = await this.readStatusLine();
 
         if (response.code !== 111) {
-            throw new NntpError("protocol-error", `DATE failed: ${response.code} ${response.text}`);
+            throw responseError("DATE", response);
         }
 
         return response.text.trim();
@@ -499,20 +643,54 @@ export class NntpClient {
             return;
         }
 
-        try {
+        const quitAttempt = (async () => {
             await this.sendCommand("QUIT");
-            await this.readStatusLine();
+            const response = await this.readStatusLine();
+
+            if (response.code !== 205) {
+                throw responseError("QUIT", response);
+            }
+        })();
+        // A timeout or external destroy may leave the protocol attempt running
+        // until the socket emits close. It is intentionally detached, but its
+        // rejection must still be observed.
+
+        void quitAttempt.catch(() => undefined);
+
+        let timer: ReturnType<typeof setTimeout> | null = null;
+
+        try {
+            await Promise.race([
+                quitAttempt,
+                new Promise<void>((resolve) => {
+                    timer = setTimeout(resolve, this.timeoutMs());
+                }),
+            ]);
         } catch {
             // The goodbye is best-effort; the socket is being torn down regardless.
         } finally {
+            if (timer) {
+                clearTimeout(timer);
+            }
+
             this.destroy();
         }
     }
 
     destroy() {
+        const cancellationError = new NntpError(
+            "connection-closed",
+            "The NNTP connection was destroyed.",
+        );
+
+        this.connectAttempt?.cancel(cancellationError);
+        this.pendingRead?.reject(cancellationError);
         this.closed = true;
-        this.socket?.destroy();
+
+        const socket = this.socket;
+
         this.socket = null;
+        socket?.destroy();
         this.buffer = Buffer.allocUnsafe(initialReadBufferBytes);
         this.bufferStart = 0;
         this.bufferEnd = 0;
