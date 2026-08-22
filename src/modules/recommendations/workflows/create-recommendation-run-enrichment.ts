@@ -81,11 +81,84 @@ export function buildMissingTmdbLanguageMessage(languagePreference: LanguagePref
     return `Verify TMDB before requesting ${formatLanguagePreference(languagePreference)} recommendations. TMDB is required to strictly confirm each title's original language.`;
 }
 
+const tmdbEnrichmentConcurrency = 4;
+
+type TmdbLookupResult = Awaited<ReturnType<typeof lookupTmdbTitleDetails>>;
+type TmdbEnrichmentCache = Map<string, Promise<TmdbLookupResult>>;
+
+/**
+ * Runs the per-title TMDB lookups with a small, local bounded mapper. Keeping
+ * this next to the only caller makes the API-specific concurrency policy easy
+ * to see without adding a generic utility for one workflow.
+ */
+async function mapTmdbEnrichment<TItem, TResult>(
+    items: readonly TItem[],
+    worker: (item: TItem) => Promise<TResult>,
+): Promise<TResult[]> {
+    const results = new Array<TResult>(items.length);
+    let cursor = 0;
+    let stopped = false;
+    let hasError = false;
+    let firstError: unknown;
+
+    const runners = Array.from(
+        { length: Math.min(tmdbEnrichmentConcurrency, items.length) },
+        async () => {
+            while (!stopped && cursor < items.length) {
+                const index = cursor;
+
+                cursor += 1;
+
+                try {
+                    results[index] = await worker(items[index]);
+                } catch (error) {
+                    if (!hasError) {
+                        hasError = true;
+                        firstError = error;
+                    }
+
+                    stopped = true;
+                }
+            }
+        },
+    );
+
+    await Promise.all(runners);
+
+    if (hasError) {
+        throw firstError;
+    }
+
+    return results;
+}
+
+/**
+ * Creates the per-run lookup memo. The cache shape stays private to this
+ * workflow while the caller can keep one instance across backfill attempts.
+ */
+export function createTmdbEnrichmentCache() {
+    return new Map<string, Promise<TmdbLookupResult>>();
+}
+
+function tmdbEnrichmentCacheKey(
+    mediaType: RecommendationMediaType,
+    title: string,
+    year: number | null,
+) {
+    return `${mediaType}|${title.trim().toLocaleLowerCase()}|${year ?? ""}`;
+}
+
 export async function enrichGeneratedItemsWithTmdbMetadata(input: {
     tmdbConnection: VerifiedTmdbConnection | null;
     mediaType: RecommendationMediaType;
     languagePreference: LanguagePreferenceCode;
     items: GeneratedRecommendationItem[];
+    /**
+     * Optional per-run memo shared across backfill attempts. Backfill
+     * regenerates overlapping titles, so without it one run could issue the
+     * same search-plus-details pair once per attempt.
+     */
+    cache?: TmdbEnrichmentCache;
 }): Promise<TmdbEnrichmentResult> {
     if (input.items.length === 0) {
         return {
@@ -110,38 +183,88 @@ export async function enrichGeneratedItemsWithTmdbMetadata(input: {
         };
     }
 
-    const enrichedItems: GeneratedRecommendationItem[] = [];
-    let excludedLanguageItemCount = 0;
+    const cache: TmdbEnrichmentCache = input.cache ?? createTmdbEnrichmentCache();
+    const lookupsForCall = new Map<string, Promise<TmdbLookupResult>>();
 
-    for (const item of input.items) {
-        const detailsResult = await lookupTmdbTitleDetails({
-            ...input.tmdbConnection,
+    const lookupDetails = (item: GeneratedRecommendationItem) => {
+        const key = tmdbEnrichmentCacheKey(input.mediaType, item.title, item.year);
+        const cached = cache.get(key);
+
+        if (cached) {
+            lookupsForCall.set(key, cached);
+
+            return cached;
+        }
+
+        const lookup = lookupTmdbTitleDetails({
+            ...input.tmdbConnection!,
             mediaType: input.mediaType,
             title: item.title,
             year: item.year,
         });
 
-        if (!detailsResult.ok) {
-            if (hasStrictLanguagePreference(input.languagePreference)) {
-                excludedLanguageItemCount += 1;
-                continue;
+        cache.set(key, lookup);
+        lookupsForCall.set(key, lookup);
+
+        return lookup;
+    };
+
+    type EnrichmentOutcome =
+        { excluded: true } | { excluded: false; item: GeneratedRecommendationItem };
+
+    let outcomes: EnrichmentOutcome[];
+
+    try {
+        outcomes = await mapTmdbEnrichment(
+            input.items,
+            async (item): Promise<EnrichmentOutcome> => {
+                const detailsResult = await lookupDetails(item);
+
+                if (!detailsResult.ok) {
+                    if (hasStrictLanguagePreference(input.languagePreference)) {
+                        return { excluded: true };
+                    }
+
+                    return { excluded: false, item };
+                }
+
+                if (!languageMatchesPreference(detailsResult.details, input.languagePreference)) {
+                    return { excluded: true };
+                }
+
+                return {
+                    excluded: false,
+                    item: mergeTmdbDetailsIntoItem(item, detailsResult.details),
+                };
+            },
+        );
+    } finally {
+        const entries = Array.from(lookupsForCall.entries());
+        const settledLookups = await Promise.allSettled(entries.map(([, lookup]) => lookup));
+
+        settledLookups.forEach((settledLookup, index) => {
+            const entry = entries[index];
+
+            if (!entry) {
+                return;
             }
 
-            enrichedItems.push(item);
-            continue;
-        }
+            const [key, lookup] = entry;
+            const failed =
+                settledLookup.status === "rejected" ||
+                (settledLookup.status === "fulfilled" && !settledLookup.value.ok);
 
-        if (!languageMatchesPreference(detailsResult.details, input.languagePreference)) {
-            excludedLanguageItemCount += 1;
-            continue;
-        }
-
-        enrichedItems.push(mergeTmdbDetailsIntoItem(item, detailsResult.details));
+            if (failed && cache.get(key) === lookup) {
+                cache.delete(key);
+            }
+        });
     }
+
+    const enrichedItems = outcomes.flatMap((outcome) => (outcome.excluded ? [] : [outcome.item]));
 
     return {
         ok: true,
         items: enrichedItems,
-        excludedLanguageItemCount,
+        excludedLanguageItemCount: outcomes.length - enrichedItems.length,
     };
 }
