@@ -67,6 +67,23 @@ describe("safeFetch host classification", () => {
         ).rejects.toBeInstanceOf(SsrfBlockedError);
     });
 
+    it("rejects a blocked Request destination before calling fetch", async () => {
+        const fetchSpy = vi
+            .spyOn(globalThis, "fetch")
+            .mockResolvedValue(new Response("unexpected", { status: 200 }));
+
+        try {
+            await expect(
+                safeFetch(new Request("http://169.254.169.254/latest/meta-data"), {
+                    allowPrivateHosts: true,
+                }),
+            ).rejects.toBeInstanceOf(SsrfBlockedError);
+            expect(fetchSpy).not.toHaveBeenCalled();
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+
     it("validates resource limits before resolving the target", async () => {
         await expect(
             safeFetch("http://nonexistent.invalid/", { timeoutMs: 0 }),
@@ -247,7 +264,7 @@ describe("safeFetch abort translation", () => {
 });
 
 describe("safeFetch Request compatibility", () => {
-    it("preserves a Request as native fetch input and keeps its method and headers", async () => {
+    it("rebuilds a Request around its validated URL and keeps its method and headers", async () => {
         const request = new Request("http://127.0.0.1/", {
             method: "GET",
             headers: { "X-Request-Header": "from-request" },
@@ -262,7 +279,9 @@ describe("safeFetch Request compatibility", () => {
             expect(fetchSpy).toHaveBeenCalledTimes(1);
             const [calledInput, calledInit] = fetchSpy.mock.calls[0]!;
 
-            expect(calledInput).toBe(request);
+            expect(calledInput).toBeInstanceOf(Request);
+            expect(calledInput).not.toBe(request);
+            expect((calledInput as Request).url).toBe(request.url);
             expect((calledInput as Request).method).toBe("GET");
             expect((calledInput as Request).headers.get("X-Request-Header")).toBe("from-request");
             expect((calledInit as RequestInit).redirect).toBe("manual");
@@ -293,7 +312,9 @@ describe("safeFetch Request compatibility", () => {
             expect(fetchSpy).toHaveBeenCalledTimes(1);
             const [calledInput, calledInit] = fetchSpy.mock.calls[0]!;
 
-            expect(calledInput).toBe(request);
+            expect(calledInput).toBeInstanceOf(Request);
+            expect(calledInput).not.toBe(request);
+            expect((calledInput as Request).url).toBe(request.url);
             expect(calledInit).toMatchObject({
                 method: "POST",
                 headers: { "X-Init-Header": "from-init" },

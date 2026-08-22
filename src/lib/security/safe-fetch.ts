@@ -412,9 +412,10 @@ export async function safeFetch(
     input: SafeFetchInput,
     options: SafeFetchOptions = {},
 ): Promise<Response> {
-    // Keep a Request as the native fetch input. Converting it to a URL here
-    // would silently drop its method, headers, body, and signal. The URL is
-    // still derived from Request.url for policy checks and DNS pinning.
+    // Derive a URL from Request.url for policy checks and DNS pinning. The
+    // Request itself is rebuilt around that validated URL immediately before
+    // the fetch so its method, headers, body, and other request semantics are
+    // preserved without bypassing the checked destination.
     const request = input instanceof Request ? input : undefined;
     const url = request
         ? new URL(request.url)
@@ -483,6 +484,7 @@ export async function safeFetch(
         );
     }
 
+    const fetchInput = request ? new Request(url, request) : url;
     const controller = new AbortController();
     const dispatcher = createPinnedDispatcher(addresses);
     let timedOut = false;
@@ -502,7 +504,10 @@ export async function safeFetch(
     }
 
     try {
-        const response = await fetch(request ?? url, {
+        // The URL has passed protocol, credential, address-classification, and
+        // DNS-pinning checks above. CodeQL cannot model this custom sanitizer.
+        // codeql[js/request-forgery]
+        const response = await fetch(fetchInput, {
             ...rest,
             signal: controller.signal,
             redirect: "manual",
