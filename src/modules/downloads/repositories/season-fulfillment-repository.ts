@@ -28,6 +28,15 @@ export type FulfillmentAttemptScope =
     | { attemptStrategy: "season_pack"; episodeId?: never }
     | { attemptStrategy: "episode"; episodeId: string };
 
+export type UpsertDownloadFulfillmentEpisodeInput = {
+    fulfillmentId: string;
+    episodeId: string;
+    status: DownloadFulfillmentEpisodeStatus;
+    attemptCount?: number;
+    nextAttemptAt?: Date | null;
+    statusMessage?: string | null;
+};
+
 function findOwnedSeasonTarget(input: { userId: string; mediaTitleId: string; seasonId: string }) {
     const database = ensureDatabaseReady();
 
@@ -500,24 +509,14 @@ export async function attachDownloadRequestToFulfillment(input: {
     );
 }
 
-export async function upsertDownloadFulfillmentEpisode(input: {
-    userId: string;
-    fulfillmentId: string;
-    episodeId: string;
-    status: DownloadFulfillmentEpisodeStatus;
-    attemptCount?: number;
-    nextAttemptAt?: Date | null;
-    statusMessage?: string | null;
-}) {
+export function upsertDownloadFulfillmentEpisodeWithExecutor(
+    database: ReturnType<typeof ensureDatabaseReady>,
+    input: UpsertDownloadFulfillmentEpisodeInput,
+) {
     if (input.attemptCount !== undefined && input.attemptCount < 0) {
         throw new Error("Episode fulfillment attempt count cannot be negative.");
     }
 
-    if (!isEpisodeInOwnedFulfillment(input)) {
-        throw new Error("Episode fulfillment target was not found.");
-    }
-
-    const database = ensureDatabaseReady();
     const now = new Date();
     const update: Partial<typeof downloadFulfillmentEpisodes.$inferInsert> = {
         status: input.status,
@@ -555,6 +554,18 @@ export async function upsertDownloadFulfillmentEpisode(input: {
             set: update,
         })
         .run();
+}
+
+export async function upsertDownloadFulfillmentEpisode(
+    input: UpsertDownloadFulfillmentEpisodeInput & { userId: string },
+) {
+    if (!isEpisodeInOwnedFulfillment(input)) {
+        throw new Error("Episode fulfillment target was not found.");
+    }
+
+    const database = ensureDatabaseReady();
+
+    upsertDownloadFulfillmentEpisodeWithExecutor(database, input);
 
     return findOwnedFulfillmentEpisode(input);
 }

@@ -43,7 +43,10 @@ export async function scheduleSeasonFulfillmentAfterRequest(
     userId: string,
     request: SeasonFulfillmentRequestIdentity,
     outcome: TerminalSeasonRequestOutcome,
-    options: { workLease?: SeasonFulfillmentWorkLease } = {},
+    options: {
+        workLease?: SeasonFulfillmentWorkLease;
+        deferEpisodeUpdate?: boolean;
+    } = {},
 ) {
     const identified = await ensureSeasonFulfillmentForRequest(userId, request);
 
@@ -139,7 +142,7 @@ export async function scheduleSeasonFulfillmentAfterRequest(
             return fulfillment;
         }
 
-        if (request.episodeId) {
+        if (request.episodeId && !options.deferEpisodeUpdate) {
             const existing = (
                 await listDownloadFulfillmentEpisodes({
                     userId,
