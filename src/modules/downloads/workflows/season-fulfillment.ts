@@ -46,6 +46,54 @@ const maxTransientRetryDelayMs = 6 * 60 * 60 * 1000;
 const unavailableReleaseRecheckMs = 6 * 60 * 60 * 1000;
 const activeCoverageRecheckMs = 15 * 60 * 1000;
 const episodeSearchConcurrency = 3;
+const activeSeasonPackCoverageMessage =
+    "A season pack is active; Nooklet is waiting to verify episode coverage.";
+
+/**
+ * Runs a bounded number of episode searches at once. Recovery deliberately
+ * keeps this local because it is part of the season workflow's fail-fast
+ * behavior: once one search exposes an infrastructure failure, untouched
+ * episodes must not be fanned out into the same failing provider.
+ */
+async function mapWithConcurrency<TItem, TResult>(
+    items: readonly TItem[],
+    limit: number,
+    worker: (item: TItem) => Promise<TResult>,
+): Promise<TResult[]> {
+    if (!Number.isInteger(limit) || limit < 1) {
+        throw new RangeError("Concurrency limit must be a positive integer.");
+    }
+
+    const results = new Array<TResult>(items.length);
+    let cursor = 0;
+    let stopped = false;
+    const firstError: unknown[] = [];
+    const runners = Array.from({ length: Math.max(0, Math.min(limit, items.length)) }, async () => {
+        while (!stopped && cursor < items.length) {
+            const index = cursor;
+
+            cursor += 1;
+
+            try {
+                results[index] = await worker(items[index]);
+            } catch (error) {
+                if (firstError.length === 0) {
+                    firstError.push(error);
+                }
+
+                stopped = true;
+            }
+        }
+    });
+
+    await Promise.all(runners);
+
+    if (firstError.length > 0) {
+        throw firstError[0];
+    }
+
+    return results;
+}
 
 export const maxAutomaticReleaseAttempts = 3;
 const openFulfillmentStatuses = ["active", "retry_wait", "partial"] as const;
@@ -362,25 +410,6 @@ function nextDueAt(states: EpisodeState[]) {
     const dates = states.flatMap((state) => (state.nextAttemptAt ? [state.nextAttemptAt] : []));
 
     return dates.length > 0 ? new Date(Math.min(...dates.map((date) => date.getTime()))) : null;
-}
-
-async function mapWithConcurrency<T>(
-    items: T[],
-    limit: number,
-    worker: (item: T) => Promise<void>,
-) {
-    let cursor = 0;
-    const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-        while (cursor < items.length) {
-            const item = items[cursor++];
-
-            if (item !== undefined) {
-                await worker(item);
-            }
-        }
-    });
-
-    await Promise.all(runners);
 }
 
 function episodeStateMessage(input: {
@@ -835,6 +864,84 @@ function fallbackSummary(
     };
 }
 
+type ActiveSeasonPackCheck =
+    | { status: "lease_lost" }
+    | { status: "none"; fulfillment: Fulfillment }
+    | { status: "active"; fulfillment: Fulfillment };
+
+/**
+ * A pack request and episode requests use different request keys, so their
+ * uniqueness constraints cannot fence each other out. The fulfillment work
+ * lease is the serialization boundary: renew it immediately before checking
+ * for a live pack, then restore the durable pack checkpoint before any child
+ * episode state can be reserved.
+ */
+async function checkActiveSeasonPackBeforeEpisodeWork(input: {
+    userId: string;
+    fulfillment: Fulfillment;
+    workClaim: SeasonWorkClaim;
+}): Promise<ActiveSeasonPackCheck> {
+    const renewed = await renewSeasonFulfillmentWorkLease(input.workClaim.lease);
+
+    if (!renewed) {
+        return { status: "lease_lost" };
+    }
+
+    input.workClaim.lease = renewed;
+
+    const active = await findActiveDownloadRequestForFulfillment({
+        userId: input.userId,
+        fulfillmentId: input.fulfillment.id,
+        attemptStrategy: "season_pack",
+    });
+
+    if (!active) {
+        return { status: "none", fulfillment: input.fulfillment };
+    }
+
+    const nextAttemptAt = nowPlus(activeCoverageRecheckMs);
+    const restored = await updateDownloadFulfillment({
+        userId: input.userId,
+        fulfillmentId: input.fulfillment.id,
+        expectedStatuses: [...openFulfillmentStatuses],
+        strategy: "season_pack",
+        status: "active",
+        nextAttemptAt,
+        statusMessage: activeSeasonPackCoverageMessage,
+        completedAt: null,
+    });
+
+    return {
+        status: "active",
+        fulfillment: restored ?? {
+            ...input.fulfillment,
+            strategy: "season_pack",
+            status: "active",
+            nextAttemptAt,
+            statusMessage: activeSeasonPackCoverageMessage,
+            completedAt: null,
+        },
+    };
+}
+
+async function fallbackResultWithoutEpisodeWork(input: {
+    fulfillment: Fulfillment;
+    message: string;
+    completed?: boolean;
+}) {
+    const states = await listDownloadFulfillmentEpisodes({
+        userId: input.fulfillment.userId,
+        fulfillmentId: input.fulfillment.id,
+    });
+    const current = fallbackSummary(input.fulfillment.id, states, 0);
+
+    return {
+        ...current,
+        completed: input.completed ?? input.fulfillment.status === "succeeded",
+        message: input.message,
+    } satisfies SeasonEpisodeFallbackResult;
+}
+
 async function persistFallbackAggregate(
     userId: string,
     fulfillment: Fulfillment,
@@ -996,6 +1103,32 @@ export async function retryOpenSeasonFulfillmentEpisode(input: {
 
         ownedEpisode = currentEpisode;
         fulfillment = currentFulfillment;
+
+        const activePackCheck = await checkActiveSeasonPackBeforeEpisodeWork({
+            userId: input.userId,
+            fulfillment,
+            workClaim,
+        });
+
+        if (activePackCheck.status === "lease_lost") {
+            return {
+                handled: true,
+                status: "busy",
+                message:
+                    "This season plan is already working. Try this episode again after the current recovery pass finishes.",
+            };
+        }
+
+        fulfillment = activePackCheck.fulfillment;
+
+        if (activePackCheck.status === "active") {
+            return {
+                handled: true,
+                status: "busy",
+                message: activeSeasonPackCoverageMessage,
+            };
+        }
+
         const episode = currentEpisode.episode;
 
         if (!episode.monitored || !isAired(episode, today)) {
@@ -1206,6 +1339,29 @@ export async function queueMissingSeasonEpisodes(input: {
                         : current.blockedCount,
                 message: fulfillment.statusMessage ?? current.message,
             };
+        }
+
+        const activePackCheck = await checkActiveSeasonPackBeforeEpisodeWork({
+            userId: input.userId,
+            fulfillment,
+            workClaim,
+        });
+
+        if (activePackCheck.status === "lease_lost") {
+            return fallbackResultWithoutEpisodeWork({
+                fulfillment,
+                message: "Season recovery is already advancing in another request.",
+            });
+        }
+
+        fulfillment = activePackCheck.fulfillment;
+
+        if (activePackCheck.status === "active") {
+            return fallbackResultWithoutEpisodeWork({
+                fulfillment,
+                message: activeSeasonPackCoverageMessage,
+                completed: false,
+            });
         }
 
         const claimed = await updateDownloadFulfillment({
@@ -1728,8 +1884,7 @@ export async function attemptSeasonPack(
                 expectedStatuses: [...openFulfillmentStatuses],
                 status: "active",
                 nextAttemptAt: nowPlus(activeCoverageRecheckMs),
-                statusMessage:
-                    "A season pack is active; Nooklet is waiting to verify episode coverage.",
+                statusMessage: activeSeasonPackCoverageMessage,
             });
 
             return { fulfillment: updated ?? fulfillment, releaseSearch: null, fallback: null };
@@ -1934,7 +2089,7 @@ export async function markSeasonPackFailedAndRecover(input: {
     failureMessage: string;
     workLease?: SeasonFulfillmentWorkLease;
 }) {
-    const fulfillment = await findDownloadFulfillmentById(input.userId, input.fulfillmentId);
+    let fulfillment = await findDownloadFulfillmentById(input.userId, input.fulfillmentId);
 
     if (!fulfillment) {
         return null;
@@ -1951,6 +2106,26 @@ export async function markSeasonPackFailedAndRecover(input: {
     }
 
     try {
+        const activePackCheck = await checkActiveSeasonPackBeforeEpisodeWork({
+            userId: input.userId,
+            fulfillment,
+            workClaim,
+        });
+
+        if (activePackCheck.status === "lease_lost") {
+            return null;
+        }
+
+        fulfillment = activePackCheck.fulfillment;
+
+        if (activePackCheck.status === "active") {
+            return {
+                fulfillment,
+                releaseSearch: null,
+                fallback: null,
+            } satisfies SeasonPackAttemptResult;
+        }
+
         const attempts = await countDownloadFulfillmentAttempts({
             userId: input.userId,
             fulfillmentId: input.fulfillmentId,
@@ -2000,7 +2175,7 @@ export async function markFulfillmentEpisodeFailedAndRetry(input: {
     attemptWasFree?: boolean;
     workLease?: SeasonFulfillmentWorkLease;
 }) {
-    const fulfillment = await findDownloadFulfillmentById(input.userId, input.fulfillmentId);
+    let fulfillment = await findDownloadFulfillmentById(input.userId, input.fulfillmentId);
 
     if (!fulfillment) {
         return false;
@@ -2017,6 +2192,22 @@ export async function markFulfillmentEpisodeFailedAndRetry(input: {
     }
 
     try {
+        const activePackCheck = await checkActiveSeasonPackBeforeEpisodeWork({
+            userId: input.userId,
+            fulfillment,
+            workClaim,
+        });
+
+        if (activePackCheck.status === "lease_lost") {
+            return false;
+        }
+
+        fulfillment = activePackCheck.fulfillment;
+
+        if (activePackCheck.status === "active") {
+            return false;
+        }
+
         const stored =
             (
                 await listDownloadFulfillmentEpisodes({

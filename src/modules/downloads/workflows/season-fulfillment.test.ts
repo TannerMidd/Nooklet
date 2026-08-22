@@ -1976,6 +1976,146 @@ describe("season fulfillment recovery", () => {
         );
     });
 
+    it("restores an active pack checkpoint without reserving any episode", async () => {
+        fulfillment = makeFulfillment({
+            strategy: "episodes",
+            status: "partial",
+            nextAttemptAt: fixedNow,
+        });
+        findActivePackMock.mockResolvedValue({ id: "pack-request-active" } as never);
+        episodeStates.push({
+            fulfillmentId: fulfillment.id,
+            episodeId: "episode-missing",
+            status: "pending",
+            attemptCount: 0,
+            nextAttemptAt: fixedNow,
+            statusMessage: "A checkpointed episode search was pending.",
+            createdAt: fixedNow,
+            updatedAt: fixedNow,
+        });
+        listEpisodesMock.mockResolvedValue([makeEpisode("episode-missing", 1)] as never);
+
+        const result = await reconcileSeasonCoverage({
+            userId: "user-1",
+            fulfillmentId: "fulfillment-1",
+            reason: "Replaying a crashed season checkpoint.",
+        });
+
+        expect(result).toMatchObject({
+            queuedCount: 0,
+            activeCount: 0,
+            retryWaitCount: 1,
+            message: "A season pack is active; Nooklet is waiting to verify episode coverage.",
+        });
+        expect(searchMock).not.toHaveBeenCalled();
+        expect(upsertEpisodeMock).not.toHaveBeenCalled();
+        expect(listEpisodesMock).not.toHaveBeenCalled();
+        expect(updateFulfillmentMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                strategy: "season_pack",
+                status: "active",
+                nextAttemptAt: new Date("2026-07-15T18:15:00.000Z"),
+                statusMessage:
+                    "A season pack is active; Nooklet is waiting to verify episode coverage.",
+                completedAt: null,
+            }),
+        );
+        expect(fulfillment).toMatchObject({
+            strategy: "season_pack",
+            status: "active",
+            nextAttemptAt: new Date("2026-07-15T18:15:00.000Z"),
+            statusMessage:
+                "A season pack is active; Nooklet is waiting to verify episode coverage.",
+        });
+    });
+
+    it("replays episode coverage after the pack request becomes terminal", async () => {
+        fulfillment = makeFulfillment({
+            strategy: "episodes",
+            status: "partial",
+            nextAttemptAt: fixedNow,
+        });
+        const episode = makeEpisode("episode-after-pack", 1);
+
+        findActivePackMock
+            .mockResolvedValueOnce({ id: "pack-request-active" } as never)
+            .mockResolvedValueOnce(null);
+        listEpisodesMock.mockResolvedValue([episode] as never);
+
+        const checkpointReplay = await reconcileSeasonCoverage({
+            userId: "user-1",
+            fulfillmentId: "fulfillment-1",
+            reason: "Replaying a crashed season checkpoint.",
+        });
+
+        expect(checkpointReplay?.queuedCount).toBe(0);
+        expect(searchMock).not.toHaveBeenCalled();
+
+        vi.setSystemTime(new Date("2026-07-15T18:16:00.000Z"));
+        const terminalReplay = await reconcileSeasonCoverage({
+            userId: "user-1",
+            fulfillmentId: "fulfillment-1",
+            reason: "The pack request is terminal; reconciling missing episodes.",
+        });
+
+        expect(terminalReplay).toMatchObject({ queuedCount: 1, activeCount: 1 });
+        expect(searchMock).toHaveBeenCalledTimes(1);
+        expect(searchMock).toHaveBeenCalledWith(
+            "user-1",
+            expect.objectContaining({ episodeId: episode.id }),
+            expect.objectContaining({
+                fulfillmentId: "fulfillment-1",
+                attemptStrategy: "episode",
+            }),
+        );
+        expect(fulfillment.strategy).toBe("episodes");
+    });
+
+    it("keeps repeated active-pack replays idempotent", async () => {
+        fulfillment = makeFulfillment({ strategy: "episodes", status: "partial" });
+        findActivePackMock.mockResolvedValue({ id: "pack-request-active" } as never);
+        listEpisodesMock.mockResolvedValue([makeEpisode("episode-replay", 1)] as never);
+
+        const first = await queueMissingSeasonEpisodes({
+            userId: "user-1",
+            fulfillmentId: "fulfillment-1",
+            reason: "First replay.",
+        });
+        const second = await queueMissingSeasonEpisodes({
+            userId: "user-1",
+            fulfillmentId: "fulfillment-1",
+            reason: "Repeated replay.",
+        });
+
+        expect(first.queuedCount).toBe(0);
+        expect(second.queuedCount).toBe(0);
+        expect(searchMock).not.toHaveBeenCalled();
+        expect(upsertEpisodeMock).not.toHaveBeenCalled();
+        expect(findActivePackMock).toHaveBeenCalledTimes(2);
+        expect(fulfillment).toMatchObject({ strategy: "season_pack", status: "active" });
+    });
+
+    it("does not change episode or fulfillment state when another worker owns the lease", async () => {
+        fulfillment = makeFulfillment({ strategy: "episodes", status: "partial" });
+        const before = { ...fulfillment };
+
+        acquireMock.mockResolvedValueOnce(null);
+
+        const result = await reconcileSeasonCoverage({
+            userId: "user-1",
+            fulfillmentId: "fulfillment-1",
+            reason: "A competing worker is already reconciling this season.",
+        });
+
+        expect(result?.queuedCount).toBe(0);
+        expect(result?.message).toMatch(/already advancing/i);
+        expect(updateFulfillmentMock).not.toHaveBeenCalled();
+        expect(upsertEpisodeMock).not.toHaveBeenCalled();
+        expect(searchMock).not.toHaveBeenCalled();
+        expect(findActivePackMock).not.toHaveBeenCalled();
+        expect(fulfillment).toEqual(before);
+    });
+
     it("resumes a due episode plan without queueing the same episode twice", async () => {
         fulfillment = makeFulfillment({
             strategy: "episodes",
