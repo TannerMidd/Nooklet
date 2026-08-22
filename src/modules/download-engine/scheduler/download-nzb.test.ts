@@ -385,6 +385,58 @@ describe("downloadNzb", () => {
         expect(result.failedSegments).toBe(0);
     });
 
+    it("treats a transient authentication requirement during the probe as inconclusive", async () => {
+        const payload = buildDeterministicPayload(400, 13);
+        const articles = new Map(
+            Array.from({ length: 40 }, (_, index) => [
+                `reauth-probe-${index}@test`,
+                buildSinglePartArticle(payload, `reauth-probe-${index}.bin`),
+            ]),
+        );
+
+        workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+        let statCalls = 0;
+
+        const result = await downloadNzb({
+            nzb: parseNzb(
+                nzbXml(
+                    Array.from({ length: 40 }, (_, index) => ({
+                        subject: `"reauth-probe-${index}.bin"`,
+                        segmentIds: [`reauth-probe-${index}@test`],
+                    })),
+                ),
+            ),
+            server: {
+                host: "127.0.0.1",
+                port: 1,
+                connections: 2,
+                timeoutMs: 3_000,
+                resolvedAddresses: [{ address: "127.0.0.1", family: 4 }],
+            },
+            workDir,
+            clientFactory: () => ({
+                connect: async () => undefined,
+                stat: async () => {
+                    statCalls += 1;
+
+                    throw new NntpError(
+                        "auth-failed",
+                        "STAT requires authentication: 480 authentication required",
+                    );
+                },
+                body: async (id: string) => Buffer.from(articles.get(id)!, "latin1"),
+                quit: async () => undefined,
+                destroy: () => undefined,
+            }),
+        });
+
+        expect(statCalls).toBeGreaterThan(0);
+        expect(result.unrecoverable).toBe(false);
+        expect(result.completedSegments).toBe(40);
+        expect(result.failedSegments).toBe(0);
+        expect(result.ok).toBe(true);
+    });
+
     it("blames the server, not the release, when transport keeps failing", async () => {
         // Articles the server has, but every BODY loses its connection. The
         // release must not be condemned: that verdict blocklists it and sends the
@@ -513,6 +565,53 @@ describe("downloadNzb", () => {
         expect(result.completedSegments).toBe(1);
         expect(result.failedSegments).toBe(0);
         expect(result.transportExhausted).toBe(false);
+        expect(result.ok).toBe(true);
+    });
+
+    it("reconnects after BODY requires authentication again", async () => {
+        workDir = await mkdtemp(path.join(os.tmpdir(), "nooklet-engine-"));
+        const article = buildSinglePartArticle(buildDeterministicPayload(1_000, 19), "reauth.bin");
+        let connectCount = 0;
+        let bodyCount = 0;
+
+        const result = await downloadNzb({
+            nzb: parseNzb(nzbXml([{ subject: '"reauth.bin"', segmentIds: ["reauth@test"] }])),
+            server: {
+                host: "127.0.0.1",
+                port: 1,
+                connections: 1,
+                timeoutMs: 3_000,
+                resolvedAddresses: [{ address: "127.0.0.1", family: 4 }],
+            },
+            workDir,
+            maxRetriesPerSegment: 1,
+            clientFactory: () => ({
+                connect: async () => {
+                    connectCount += 1;
+                },
+                stat: async () => true,
+                body: async () => {
+                    bodyCount += 1;
+
+                    if (bodyCount === 1) {
+                        throw new NntpError(
+                            "auth-failed",
+                            "BODY requires authentication: 480 authentication required",
+                        );
+                    }
+
+                    return Buffer.from(article, "latin1");
+                },
+                quit: async () => undefined,
+                destroy: () => undefined,
+            }),
+        });
+
+        expect(connectCount).toBe(2);
+        expect(bodyCount).toBe(2);
+        expect(result.completedSegments).toBe(1);
+        expect(result.failedSegments).toBe(0);
+        expect(result.failureKinds).toEqual([]);
         expect(result.ok).toBe(true);
     });
 

@@ -131,6 +131,7 @@ describe("NntpClient", () => {
 
     it.each([
         ["403 temporary fault", "temporary@test", "server-unavailable", false],
+        ["480 authentication required", "reauthenticate@test", "auth-failed", false],
         ["502 command not permitted", "forbidden@test", "protocol-error", true],
     ] as const)("maps %s to %s", async (response, messageId, kind, permanent) => {
         const scripted = await startScriptedTlsServer("200 scripted ready", response);

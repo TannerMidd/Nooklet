@@ -714,7 +714,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
                 }
             }
         } catch (error) {
-            if (error instanceof NntpError && error.kind === "auth-failed") {
+            if (error instanceof NntpError && error.kind === "auth-failed" && error.permanent) {
                 throw error;
             }
 

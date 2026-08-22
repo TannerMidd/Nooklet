@@ -79,8 +79,10 @@ const initialReadBufferBytes = 8 * 1024;
 const retainedReadBufferBytes = 256 * 1024;
 /** RFC 3977 generic responses that explicitly describe a temporary server fault. */
 const transientServerResponseCodes = new Set([400, 403]);
-/** RFC 3977/RFC 4643 responses that require authentication or privacy setup. */
-const authenticationResponseCodes = new Set([480, 481, 482]);
+/** RFC 4643: authenticate before retrying the command on this connection. */
+const authenticationRequiredResponseCode = 480;
+/** RFC 4643 responses that reject or invalidate an authentication exchange. */
+const terminalAuthenticationResponseCodes = new Set([481, 482]);
 
 type StatusLine = {
     code: number;
@@ -95,10 +97,17 @@ function responseError(command: string, response: StatusLine): NntpError {
         );
     }
 
-    if (authenticationResponseCodes.has(response.code)) {
+    if (response.code === authenticationRequiredResponseCode) {
         return new NntpError(
             "auth-failed",
             `${command} requires authentication: ${response.code} ${response.text}`,
+        );
+    }
+
+    if (terminalAuthenticationResponseCodes.has(response.code)) {
+        return new NntpError(
+            "auth-failed",
+            `${command} authentication was rejected: ${response.code} ${response.text}`,
             true,
         );
     }
@@ -562,7 +571,9 @@ export class NntpClient {
         }
 
         throw new NntpError(
-            authenticationResponseCodes.has(response.code) ? "auth-failed" : "protocol-error",
+            terminalAuthenticationResponseCodes.has(response.code)
+                ? "auth-failed"
+                : "protocol-error",
             `AUTHINFO failed: ${response.code} ${response.text}`,
             true,
         );
