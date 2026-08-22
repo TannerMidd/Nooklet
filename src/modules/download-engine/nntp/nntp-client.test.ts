@@ -1,13 +1,18 @@
 import net from "node:net";
+import tls from "node:tls";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import * as safeFetch from "@/lib/security/safe-fetch";
 import {
     startFakeNntpServer,
     type FakeNntpServer,
 } from "@/modules/download-engine/nntp/fake-nntp-server";
 import { NntpClient, NntpError } from "@/modules/download-engine/nntp/nntp-client";
-import { tlsTestCertificate } from "@/modules/download-engine/testing/tls-test-certificate";
+import {
+    tlsTestCertificate,
+    tlsTestPrivateKey,
+} from "@/modules/download-engine/testing/tls-test-certificate";
 
 let server: FakeNntpServer | null = null;
 
@@ -30,7 +35,118 @@ function client(
     });
 }
 
+async function startScriptedTlsServer(greeting: string, commandResponse?: string) {
+    const scripted = tls.createServer(
+        { cert: tlsTestCertificate, key: tlsTestPrivateKey },
+        (socket) => {
+            if (commandResponse === undefined) {
+                socket.end(`${greeting}\r\n`, "latin1");
+
+                return;
+            }
+
+            socket.write(`${greeting}\r\n`, "latin1");
+            socket.once("data", () => socket.write(`${commandResponse}\r\n`, "latin1"));
+        },
+    );
+
+    await new Promise<void>((resolve) => scripted.listen(0, "127.0.0.1", resolve));
+    const address = scripted.address();
+
+    if (!address || typeof address === "string") {
+        throw new Error("Scripted NNTP server failed to bind a port.");
+    }
+
+    return {
+        port: address.port,
+        close: () =>
+            new Promise<void>((resolve) => {
+                scripted.close(() => resolve());
+            }),
+    };
+}
+
 describe("NntpClient", () => {
+    it("cancels while outbound host policy resolution is still pending", async () => {
+        const stalledResolution = new Promise<
+            Awaited<ReturnType<typeof safeFetch.assertOutboundHostAllowed>>
+        >(() => undefined);
+        const assertion = vi
+            .spyOn(safeFetch, "assertOutboundHostAllowed")
+            .mockReturnValue(stalledResolution);
+        const nntp = new NntpClient({ host: "slow-resolution.invalid", port: 563 });
+
+        try {
+            const connecting = nntp.connect();
+
+            nntp.destroy();
+
+            await expect(connecting).rejects.toMatchObject({
+                name: "NntpError",
+                kind: "connection-closed",
+            });
+            expect(assertion).toHaveBeenCalledWith("slow-resolution.invalid", undefined, {
+                signal: expect.any(AbortSignal),
+            });
+        } finally {
+            assertion.mockRestore();
+        }
+    });
+
+    it.each(["430garbage", "222x", "222\ttrailing comment", "20 ready"])(
+        "rejects malformed NNTP framing %s and destroys the connection",
+        async (response) => {
+            const scripted = await startScriptedTlsServer(response);
+
+            try {
+                const nntp = client(scripted.port);
+
+                await expect(nntp.connect()).rejects.toMatchObject({
+                    name: "NntpError",
+                    kind: "protocol-error",
+                    permanent: true,
+                });
+                expect(nntp.isConnected).toBe(false);
+            } finally {
+                await scripted.close();
+            }
+        },
+    );
+
+    it.each(["200", "200 ", "200 scripted ready"])(
+        "accepts RFC response framing %s",
+        async (response) => {
+            const scripted = await startScriptedTlsServer(response);
+
+            try {
+                const nntp = client(scripted.port);
+
+                await expect(nntp.connect()).resolves.toBeUndefined();
+                nntp.destroy();
+            } finally {
+                await scripted.close();
+            }
+        },
+    );
+
+    it.each([
+        ["403 temporary fault", "temporary@test", "server-unavailable", false],
+        ["502 command not permitted", "forbidden@test", "protocol-error", true],
+    ] as const)("maps %s to %s", async (response, messageId, kind, permanent) => {
+        const scripted = await startScriptedTlsServer("200 scripted ready", response);
+
+        try {
+            const nntp = client(scripted.port);
+
+            await nntp.connect();
+
+            await expect(nntp.body(messageId)).rejects.toMatchObject({ kind, permanent });
+            nntp.destroy();
+        } finally {
+            await scripted.close();
+        }
+    });
+
     it("connects only through the prevalidated address instead of resolving the host again", async () => {
         server = await startFakeNntpServer({ articles: new Map() });
         const nntp = new NntpClient({
