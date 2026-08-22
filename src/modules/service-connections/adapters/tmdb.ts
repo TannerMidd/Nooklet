@@ -1,4 +1,8 @@
-import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
+import {
+    DEFAULT_FETCH_RETRY_ATTEMPTS,
+    fetchWithRetry,
+    trimTrailingSlash,
+} from "@/lib/integrations/http-helpers";
 import { type RecommendationMediaType } from "@/lib/database/schema";
 import {
     readInteger,
@@ -25,6 +29,12 @@ type TmdbRequestInput = TmdbConnectionInput & {
     path: string;
     searchParams?: Record<string, string | number | boolean | null | undefined>;
     timeoutMs?: number;
+    /**
+     * Total attempts per request. Interactive verification passes 1 so an
+     * unreachable API fails within its advertised UI budget instead of
+     * tripling the wall time through retries.
+     */
+    retryAttempts?: number;
 };
 
 type TmdbConfigurationPayload = {
@@ -212,7 +222,9 @@ function buildTmdbRequest(input: TmdbRequestInput) {
 
 async function fetchTmdbJson<T>(input: TmdbRequestInput) {
     const request = buildTmdbRequest(input);
-    const response = await fetchWithTimeout(request.url, request.init, input.timeoutMs ?? 10_000);
+    const response = await fetchWithRetry(request.url, request.init, input.timeoutMs ?? 10_000, {
+        attempts: input.retryAttempts ?? DEFAULT_FETCH_RETRY_ATTEMPTS,
+    });
 
     if (!response.ok) {
         return {
@@ -720,6 +732,9 @@ export async function verifyTmdbConnection(input: TmdbConnectionInput) {
         ...input,
         path: "configuration",
         timeoutMs: SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
+        // Verification is user-facing: one attempt keeps an unreachable API
+        // inside the shared verification budget instead of retrying.
+        retryAttempts: 1,
     });
 
     if (!result.ok) {

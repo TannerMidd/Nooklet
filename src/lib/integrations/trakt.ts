@@ -1,4 +1,8 @@
-import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
+import {
+    DEFAULT_FETCH_RETRY_ATTEMPTS,
+    fetchWithRetry,
+    trimTrailingSlash,
+} from "@/lib/integrations/http-helpers";
 import { readString } from "@/modules/service-connections/adapters/arr-response-helpers";
 
 type TraktSecret =
@@ -9,6 +13,12 @@ type TraktCredentials = {
     clientId: string;
     accessToken: string;
     timeoutMs?: number;
+    /**
+     * Total attempts per request. Interactive verification passes 1 so an
+     * unreachable server fails within its advertised UI budget instead of
+     * tripling the wall time through retries.
+     */
+    retryAttempts?: number;
 };
 
 type RawTraktUserSettings = {
@@ -131,7 +141,7 @@ async function fetchTraktJson<T>(credentials: TraktCredentials, path: string) {
     // base URL. Never extend the operator's private-host allowances to it, or a
     // non-admin could aim requests at internal services (Trakt is public SaaS —
     // a private address is never a legitimate target).
-    const response = await fetchWithTimeout(
+    const response = await fetchWithRetry(
         buildTraktUrl(credentials.baseUrl, path),
         {
             headers: buildTraktHeaders(credentials),
@@ -139,6 +149,7 @@ async function fetchTraktJson<T>(credentials: TraktCredentials, path: string) {
             allowPrivateHosts: false,
         },
         credentials.timeoutMs ?? 10_000,
+        { attempts: credentials.retryAttempts ?? DEFAULT_FETCH_RETRY_ATTEMPTS },
     );
 
     if (!response.ok) {

@@ -23,6 +23,9 @@ export async function verifyTrakt(
         clientId: parsedSecret.clientId,
         accessToken: parsedSecret.accessToken,
         timeoutMs: SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
+        // Verification is user-facing: one attempt keeps an unreachable
+        // server inside the shared verification budget instead of retrying.
+        retryAttempts: 1,
     });
 
     return {

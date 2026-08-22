@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/integrations/http-helpers", () => ({
-    fetchWithTimeout: vi.fn(),
-    trimTrailingSlash: (value: string) => value.replace(/\/+$/, ""),
-}));
+vi.mock("@/lib/integrations/http-helpers", () => {
+    const fetchRetryMock = vi.fn();
 
-import { fetchWithTimeout } from "@/lib/integrations/http-helpers";
+    return {
+        fetchWithRetry: fetchRetryMock,
+        DEFAULT_FETCH_RETRY_ATTEMPTS: 3,
+        trimTrailingSlash: (value: string) => value.replace(/\/+$/, ""),
+    };
+});
+
+import { fetchWithRetry } from "@/lib/integrations/http-helpers";
 
 import {
     lookupTmdbTitleDetails,
@@ -16,7 +21,7 @@ import {
 } from "./tmdb";
 import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 
-const fetchWithTimeoutMock = vi.mocked(fetchWithTimeout);
+const fetchWithRetryMock = vi.mocked(fetchWithRetry);
 
 function jsonResponse(body: unknown, init: ResponseInit = { status: 200 }) {
     return new Response(JSON.stringify(body), {
@@ -31,7 +36,7 @@ describe("verifyTmdbConnection", () => {
     });
 
     it("loads /configuration with an API key query parameter", async () => {
-        fetchWithTimeoutMock.mockResolvedValue(
+        fetchWithRetryMock.mockResolvedValue(
             jsonResponse({ images: { secure_base_url: "https://image.tmdb.org/t/p/" } }),
         );
 
@@ -49,8 +54,9 @@ describe("verifyTmdbConnection", () => {
                 tmdbImageBaseUrl: "https://image.tmdb.org/t/p/",
             },
         });
-        expect(fetchWithTimeoutMock).toHaveBeenCalledTimes(1);
-        const [calledUrl, calledInit, calledTimeout] = fetchWithTimeoutMock.mock.calls[0]!;
+        expect(fetchWithRetryMock).toHaveBeenCalledTimes(1);
+        const [calledUrl, calledInit, calledTimeout, calledRetryOptions] =
+            fetchWithRetryMock.mock.calls[0]!;
 
         expect(calledUrl.toString()).toBe(
             "https://api.themoviedb.org/3/configuration?api_key=tmdb-key",
@@ -61,19 +67,20 @@ describe("verifyTmdbConnection", () => {
         });
         expect(calledInit?.headers).not.toHaveProperty("Authorization");
         expect(calledTimeout).toBe(SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS);
+        expect(calledRetryOptions).toEqual({ attempts: 1 });
     });
 
     it("uses bearer auth for TMDB read tokens", async () => {
         const readToken = "eyJhbGciOi.token.parts";
 
-        fetchWithTimeoutMock.mockResolvedValue(jsonResponse({ images: {} }));
+        fetchWithRetryMock.mockResolvedValue(jsonResponse({ images: {} }));
 
         await verifyTmdbConnection({
             baseUrl: "https://api.themoviedb.org/3",
             secret: readToken,
         });
 
-        const [calledUrl, calledInit] = fetchWithTimeoutMock.mock.calls[0]!;
+        const [calledUrl, calledInit] = fetchWithRetryMock.mock.calls[0]!;
 
         expect(calledUrl.toString()).toBe("https://api.themoviedb.org/3/configuration");
         expect(calledInit?.headers).toMatchObject({
@@ -82,7 +89,7 @@ describe("verifyTmdbConnection", () => {
     });
 
     it("returns a status failure without leaking the secret", async () => {
-        fetchWithTimeoutMock.mockResolvedValue(new Response("Unauthorized", { status: 401 }));
+        fetchWithRetryMock.mockResolvedValue(new Response("Unauthorized", { status: 401 }));
 
         const result = await verifyTmdbConnection({
             baseUrl: "https://api.themoviedb.org/3",
@@ -104,7 +111,7 @@ describe("lookupTmdbTitleDetails", () => {
     });
 
     it("searches, loads details, and normalizes movie metadata", async () => {
-        fetchWithTimeoutMock
+        fetchWithRetryMock
             .mockResolvedValueOnce(
                 jsonResponse({
                     results: [
@@ -159,10 +166,10 @@ describe("lookupTmdbTitleDetails", () => {
             throw new Error("Expected TMDB lookup to succeed.");
         }
 
-        expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toBe(
+        expect(fetchWithRetryMock.mock.calls[0]?.[0].toString()).toBe(
             "https://api.themoviedb.org/3/search/movie?api_key=tmdb-key&query=Arrival&include_adult=false&language=en-US&primary_release_year=2016",
         );
-        expect(fetchWithTimeoutMock.mock.calls[1]?.[0].toString()).toBe(
+        expect(fetchWithRetryMock.mock.calls[1]?.[0].toString()).toBe(
             "https://api.themoviedb.org/3/movie/1?api_key=tmdb-key&append_to_response=external_ids%2Cvideos%2Ccredits%2Cwatch%2Fproviders%2Crecommendations&language=en-US",
         );
         expect(result.details).toMatchObject({
@@ -191,7 +198,7 @@ describe("lookupTmdbTitleDetails", () => {
     });
 
     it("uses TV search and first-air-date year for series metadata", async () => {
-        fetchWithTimeoutMock
+        fetchWithRetryMock
             .mockResolvedValueOnce(
                 jsonResponse({
                     results: [{ id: 99, name: "Dark", first_air_date: "2017-12-01" }],
@@ -218,8 +225,8 @@ describe("lookupTmdbTitleDetails", () => {
             year: 2017,
         });
 
-        expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toContain("search/tv");
-        expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toContain(
+        expect(fetchWithRetryMock.mock.calls[0]?.[0].toString()).toContain("search/tv");
+        expect(fetchWithRetryMock.mock.calls[0]?.[0].toString()).toContain(
             "first_air_date_year=2017",
         );
         expect(result.ok && result.details).toMatchObject({
@@ -232,7 +239,7 @@ describe("lookupTmdbTitleDetails", () => {
     });
 
     it("normalizes TMDB videos to YouTube trailers/teasers ordered by official+type+date", async () => {
-        fetchWithTimeoutMock
+        fetchWithRetryMock
             .mockResolvedValueOnce(
                 jsonResponse({
                     results: [{ id: 1, title: "Arrival", release_date: "2016-11-11" }],
@@ -331,7 +338,7 @@ describe("lookupTmdbTitleDetails", () => {
     });
 
     it("normalizes cast, watch providers, and similar titles from append_to_response data", async () => {
-        fetchWithTimeoutMock
+        fetchWithRetryMock
             .mockResolvedValueOnce(
                 jsonResponse({
                     results: [{ id: 1, title: "Arrival", release_date: "2016-11-11" }],
@@ -494,7 +501,7 @@ describe("lookupTmdbTitleDetails", () => {
     });
 
     it("uses the configured tmdbWatchRegion when present", async () => {
-        fetchWithTimeoutMock
+        fetchWithRetryMock
             .mockResolvedValueOnce(
                 jsonResponse({
                     results: [{ id: 1, title: "Arrival", release_date: "2016-11-11" }],
@@ -533,7 +540,7 @@ describe("lookupTmdbTitleDetails", () => {
     });
 
     it("returns a typed failure when no scored TMDB candidate is found", async () => {
-        fetchWithTimeoutMock.mockResolvedValue(
+        fetchWithRetryMock.mockResolvedValue(
             jsonResponse({ results: [{ id: 1, title: "Unrelated", release_date: "2020-01-01" }] }),
         );
 
@@ -549,7 +556,7 @@ describe("lookupTmdbTitleDetails", () => {
             ok: false,
             message: "No TMDB match was found for Arrival (2016).",
         });
-        expect(fetchWithTimeoutMock).toHaveBeenCalledTimes(1);
+        expect(fetchWithRetryMock).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -559,7 +566,7 @@ describe("listTmdbDiscoverTitles", () => {
     });
 
     it("normalizes trending titles, dedupes ids, and respects the configured page size", async () => {
-        fetchWithTimeoutMock.mockResolvedValueOnce(
+        fetchWithRetryMock.mockResolvedValueOnce(
             jsonResponse({
                 results: [
                     {
@@ -597,10 +604,8 @@ describe("listTmdbDiscoverTitles", () => {
             throw new Error("expected ok result");
         }
 
-        expect(fetchWithTimeoutMock).toHaveBeenCalledTimes(1);
-        expect(fetchWithTimeoutMock.mock.calls[0]?.[0]?.toString()).toContain(
-            "/trending/movie/week",
-        );
+        expect(fetchWithRetryMock).toHaveBeenCalledTimes(1);
+        expect(fetchWithRetryMock.mock.calls[0]?.[0]?.toString()).toContain("/trending/movie/week");
         expect(result.titles).toEqual([
             {
                 tmdbId: 100,
@@ -622,7 +627,7 @@ describe("listTmdbDiscoverTitles", () => {
     });
 
     it("uses the on_the_air endpoint for upcoming TV", async () => {
-        fetchWithTimeoutMock.mockResolvedValueOnce(jsonResponse({ results: [] }));
+        fetchWithRetryMock.mockResolvedValueOnce(jsonResponse({ results: [] }));
 
         await listTmdbDiscoverTitles({
             baseUrl: "https://api.themoviedb.org/3",
@@ -631,11 +636,11 @@ describe("listTmdbDiscoverTitles", () => {
             mediaType: "tv",
         });
 
-        expect(fetchWithTimeoutMock.mock.calls[0]?.[0]?.toString()).toContain("/tv/on_the_air");
+        expect(fetchWithRetryMock.mock.calls[0]?.[0]?.toString()).toContain("/tv/on_the_air");
     });
 
     it("returns a typed failure when TMDB responds with a non-2xx status", async () => {
-        fetchWithTimeoutMock.mockResolvedValueOnce(jsonResponse({}, { status: 500 }));
+        fetchWithRetryMock.mockResolvedValueOnce(jsonResponse({}, { status: 500 }));
 
         const result = await listTmdbDiscoverTitles({
             baseUrl: "https://api.themoviedb.org/3",
@@ -657,7 +662,7 @@ describe("lookupTmdbTvSeasons", () => {
     });
 
     it("normalizes the season list and sorts by season number", async () => {
-        fetchWithTimeoutMock.mockResolvedValueOnce(
+        fetchWithRetryMock.mockResolvedValueOnce(
             jsonResponse({
                 seasons: [
                     {
@@ -695,7 +700,7 @@ describe("lookupTmdbTvSeasons", () => {
             metadata: { tmdbImageBaseUrl: "https://image.tmdb.org/t/p/" },
         });
 
-        expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toContain("tv/99");
+        expect(fetchWithRetryMock.mock.calls[0]?.[0].toString()).toContain("tv/99");
         expect(result.ok).toBe(true);
 
         if (!result.ok) {
@@ -713,7 +718,7 @@ describe("lookupTmdbTvSeasons", () => {
     });
 
     it("returns an error message on non-ok responses", async () => {
-        fetchWithTimeoutMock.mockResolvedValueOnce(new Response("not found", { status: 404 }));
+        fetchWithRetryMock.mockResolvedValueOnce(new Response("not found", { status: 404 }));
 
         const result = await lookupTmdbTvSeasons({
             baseUrl: "https://api.themoviedb.org/3",
@@ -734,7 +739,7 @@ describe("lookupTmdbTvSeasonEpisodes", () => {
     });
 
     it("returns episodes sorted by episode number with the resolved season number", async () => {
-        fetchWithTimeoutMock.mockResolvedValueOnce(
+        fetchWithRetryMock.mockResolvedValueOnce(
             jsonResponse({
                 season_number: 1,
                 episodes: [
@@ -765,7 +770,7 @@ describe("lookupTmdbTvSeasonEpisodes", () => {
             seasonNumber: 1,
         });
 
-        expect(fetchWithTimeoutMock.mock.calls[0]?.[0].toString()).toContain("tv/99/season/1");
+        expect(fetchWithRetryMock.mock.calls[0]?.[0].toString()).toContain("tv/99/season/1");
         expect(result.ok).toBe(true);
 
         if (!result.ok) {
@@ -784,7 +789,7 @@ describe("lookupTmdbTvSeasonEpisodes", () => {
     });
 
     it("returns an error message on non-ok responses", async () => {
-        fetchWithTimeoutMock.mockResolvedValueOnce(new Response("server error", { status: 500 }));
+        fetchWithRetryMock.mockResolvedValueOnce(new Response("server error", { status: 500 }));
 
         const result = await lookupTmdbTvSeasonEpisodes({
             baseUrl: "https://api.themoviedb.org/3",

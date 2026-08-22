@@ -35,6 +35,8 @@ export type SafeFetchOptions = RequestInit & {
     allowPrivateHosts?: boolean;
 };
 
+export type SafeFetchInput = RequestInfo | URL;
+
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024;
 const MAX_TIMEOUT_MS = 2_147_483_647;
@@ -407,10 +409,18 @@ async function enforceBodySizeLimit(response: Response, maxBytes: number): Promi
  * - Caps response body size and request duration.
  */
 export async function safeFetch(
-    input: string | URL,
+    input: SafeFetchInput,
     options: SafeFetchOptions = {},
 ): Promise<Response> {
-    const url = input instanceof URL ? input : new URL(input);
+    // Keep a Request as the native fetch input. Converting it to a URL here
+    // would silently drop its method, headers, body, and signal. The URL is
+    // still derived from Request.url for policy checks and DNS pinning.
+    const request = input instanceof Request ? input : undefined;
+    const url = request
+        ? new URL(request.url)
+        : input instanceof URL
+          ? input
+          : new URL(input as string);
 
     if (url.protocol !== "http:" && url.protocol !== "https:") {
         throw new SsrfBlockedError(`Unsupported protocol: ${url.protocol}`);
@@ -426,6 +436,9 @@ export async function safeFetch(
         signal: callerSignal,
         ...rest
     } = options;
+
+    const requestSignal = request?.signal;
+    const effectiveCallerSignal = callerSignal ?? requestSignal;
 
     delete (rest as { allowPrivateHosts?: boolean }).allowPrivateHosts;
 
@@ -444,7 +457,7 @@ export async function safeFetch(
             isPrivateServiceHostAllowlisted(url.hostname, env.PRIVATE_SERVICE_HOST_ALLOWLIST));
     const addresses = await assertOutboundHostAllowed(url.hostname, allowPrivate, {
         timeoutMs,
-        signal: callerSignal ?? undefined,
+        signal: effectiveCallerSignal ?? undefined,
     });
 
     if (url.protocol === "http:") {
@@ -480,16 +493,16 @@ export async function safeFetch(
 
     const handleCallerAbort = () => controller.abort();
 
-    if (callerSignal) {
-        if (callerSignal.aborted) {
+    if (effectiveCallerSignal) {
+        if (effectiveCallerSignal.aborted) {
             controller.abort();
         } else {
-            callerSignal.addEventListener("abort", handleCallerAbort, { once: true });
+            effectiveCallerSignal.addEventListener("abort", handleCallerAbort, { once: true });
         }
     }
 
     try {
-        const response = await fetch(url, {
+        const response = await fetch(request ?? url, {
             ...rest,
             signal: controller.signal,
             redirect: "manual",
@@ -528,7 +541,7 @@ export async function safeFetch(
         throw error;
     } finally {
         clearTimeout(timer);
-        callerSignal?.removeEventListener("abort", handleCallerAbort);
+        effectiveCallerSignal?.removeEventListener("abort", handleCallerAbort);
         await dispatcher.destroy().catch(() => undefined);
     }
 }

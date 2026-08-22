@@ -208,6 +208,104 @@ describe("safeFetch abort translation", () => {
             fetchSpy.mockRestore();
         }
     });
+
+    it("uses a Request signal as caller cancellation", async () => {
+        const controller = new AbortController();
+        const request = new Request("http://127.0.0.1/", {
+            signal: controller.signal,
+        });
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+            (_input, init) =>
+                new Promise<Response>((_resolve, reject) => {
+                    const signal = (init as RequestInit | undefined)?.signal;
+
+                    if (!signal) {
+                        return;
+                    }
+
+                    const onAbort = () => {
+                        const error = new Error("aborted");
+
+                        error.name = "AbortError";
+                        reject(error);
+                    };
+
+                    signal.addEventListener("abort", onAbort, { once: true });
+                    controller.abort();
+                }),
+        );
+
+        try {
+            await expect(safeFetch(request, { allowPrivateHosts: true })).rejects.toMatchObject({
+                name: "SafeFetchAbortError",
+                reason: "canceled",
+            });
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+});
+
+describe("safeFetch Request compatibility", () => {
+    it("preserves a Request as native fetch input and keeps its method and headers", async () => {
+        const request = new Request("http://127.0.0.1/", {
+            method: "GET",
+            headers: { "X-Request-Header": "from-request" },
+        });
+        const fetchSpy = vi
+            .spyOn(globalThis, "fetch")
+            .mockResolvedValue(new Response("ok", { status: 200 }));
+
+        try {
+            await safeFetch(request, { allowPrivateHosts: true });
+
+            expect(fetchSpy).toHaveBeenCalledTimes(1);
+            const [calledInput, calledInit] = fetchSpy.mock.calls[0]!;
+
+            expect(calledInput).toBe(request);
+            expect((calledInput as Request).method).toBe("GET");
+            expect((calledInput as Request).headers.get("X-Request-Header")).toBe("from-request");
+            expect((calledInit as RequestInit).redirect).toBe("manual");
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+
+    it("preserves a Request body and explicit init overrides", async () => {
+        const request = new Request("http://127.0.0.1/", {
+            method: "POST",
+            headers: { "X-Request-Header": "from-request" },
+            body: "request-body",
+        });
+        const fetchSpy = vi
+            .spyOn(globalThis, "fetch")
+            .mockResolvedValue(new Response("ok", { status: 200 }));
+
+        try {
+            await safeFetch(request, {
+                allowPrivateHosts: true,
+                method: "POST",
+                headers: { "X-Init-Header": "from-init" },
+                body: "init-body",
+                cache: "no-store",
+            });
+
+            expect(fetchSpy).toHaveBeenCalledTimes(1);
+            const [calledInput, calledInit] = fetchSpy.mock.calls[0]!;
+
+            expect(calledInput).toBe(request);
+            expect(calledInit).toMatchObject({
+                method: "POST",
+                headers: { "X-Init-Header": "from-init" },
+                body: "init-body",
+                cache: "no-store",
+                redirect: "manual",
+            });
+            await expect((calledInput as Request).clone().text()).resolves.toBe("request-body");
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
 });
 
 describe("safeFetch redirect refusal", () => {
