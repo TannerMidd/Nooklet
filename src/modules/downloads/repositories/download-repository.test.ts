@@ -498,6 +498,8 @@ describe("download-repository", () => {
     it("lists active and failed local-import requests for one download client", async () => {
         const userId = await seedUser();
         const otherUserId = await seedUser();
+        const cleanupOnlyUserId = await seedUser();
+        const consumedOnlyUserId = await seedUser();
         const serviceConnectionId = seedUsenetServerConnection(userId);
         const client = await createDownloadClient({
             userId,
@@ -598,6 +600,27 @@ describe("download-repository", () => {
             status: "queued",
         });
 
+        ensureDatabaseReady()
+            .insert(engineDownloads)
+            .values([
+                {
+                    id: randomUUID(),
+                    userId: cleanupOnlyUserId,
+                    name: "Pending cleanup",
+                    nzbXml: "<nzb />",
+                    state: "completed",
+                },
+                {
+                    id: randomUUID(),
+                    userId: consumedOnlyUserId,
+                    name: "Already consumed",
+                    nzbXml: "",
+                    state: "completed",
+                    importedAt: new Date(),
+                },
+            ])
+            .run();
+
         const activeRequests = await listActiveDownloadRequestsForImport(userId, client.id);
         const activeUserIds = await listUsersWithActiveDownloadRequests();
 
@@ -613,6 +636,8 @@ describe("download-repository", () => {
             recentFailedImportRequest.id,
         );
         expect(activeUserIds).toEqual(expect.arrayContaining([userId, otherUserId]));
+        expect(activeUserIds).not.toContain(cleanupOnlyUserId);
+        expect(activeUserIds).not.toContain(consumedOnlyUserId);
     });
 
     it("finds the active download request for one movie or episode", async () => {

@@ -55,6 +55,7 @@ vi.mock("./import-completed-downloads/season-import-fence", () => ({
     acquireSeasonImportFences: vi.fn(async (_userId, matches) => ({
         matches,
         workLeases: new Map(),
+        requestWorkLeases: new Map(),
         renew: vi.fn(),
         release: vi.fn(),
     })),
@@ -92,6 +93,7 @@ import { dispatchCompletedDownloadNotifications } from "./import-completed-downl
 import { persistCompletedDownloadImports } from "./import-completed-downloads/persistence";
 import { retryFailedCompletedDownloads } from "./import-completed-downloads/retry-handling";
 import { triggerCompletedDownloadDiscovery } from "./import-completed-downloads/scan-trigger";
+import { acquireSeasonImportFences } from "./import-completed-downloads/season-import-fence";
 import { importCompletedEngineDownloadsWorkflow } from "./import-completed-engine-downloads";
 
 const finishedMock = vi.mocked(listUnimportedFinishedEngineDownloads);
@@ -106,10 +108,18 @@ const dispatchMock = vi.mocked(safeDispatchNotificationWorkflow);
 const persistMock = vi.mocked(persistCompletedDownloadImports);
 const retryMock = vi.mocked(retryFailedCompletedDownloads);
 const scheduleSeasonMock = vi.mocked(scheduleSeasonFulfillmentAfterRequest);
+const fencesMock = vi.mocked(acquireSeasonImportFences);
 const rmMock = vi.mocked(rm);
 
 beforeEach(() => {
     vi.clearAllMocks();
+    fencesMock.mockImplementation(async (_userId, matches) => ({
+        matches,
+        workLeases: new Map(),
+        requestWorkLeases: new Map(),
+        renew: vi.fn(),
+        release: vi.fn(),
+    }));
     rmMock.mockResolvedValue(undefined);
     vi.mocked(findServiceConnectionByType).mockResolvedValue(null);
     vi.mocked(listDownloadRequestsForExternalQueueIds).mockResolvedValue([]);
@@ -347,20 +357,123 @@ describe("importCompletedEngineDownloadsWorkflow", () => {
 
         await importCompletedEngineDownloadsWorkflow("user-1");
 
-        expect(persistMock).toHaveBeenCalledWith("user-1", [
-            expect.objectContaining({
-                historyItem: expect.objectContaining({
-                    id: "engine-infrastructure",
-                    failureKind: "infrastructure",
+        expect(persistMock).toHaveBeenCalledWith(
+            "user-1",
+            [
+                expect.objectContaining({
+                    historyItem: expect.objectContaining({
+                        id: "engine-infrastructure",
+                        failureKind: "infrastructure",
+                    }),
                 }),
+            ],
+            expect.objectContaining({
+                workLeases: expect.any(Map),
+                requestWorkLeases: expect.any(Map),
             }),
-        ]);
+        );
         expect(retryMock).toHaveBeenCalledWith("user-1", [
             expect.objectContaining({
                 historyItem: expect.objectContaining({ failureKind: "infrastructure" }),
             }),
         ]);
         expect(markImportedMock).toHaveBeenCalledWith("engine-infrastructure");
+    });
+
+    it("retains a failed engine source when an active tracked request is skipped by the fence", async () => {
+        finishedMock.mockResolvedValue([
+            {
+                id: "engine-skipped-failure",
+                state: "failed",
+                name: "Arrival",
+                category: "movies",
+                outputPath: "/incomplete/engine-skipped-failure",
+                completedAt: new Date(),
+                errorMessage: "The download failed.",
+                totalBytes: 100,
+            },
+        ] as never);
+        const tracked = {
+            request: { id: "request-skipped-failure", status: "queued" },
+            queueItem: {
+                id: "queue-skipped-failure",
+                externalQueueId: "engine-skipped-failure",
+            },
+        };
+
+        requestsMock.mockResolvedValue([tracked] as never);
+        vi.mocked(listDownloadRequestsForExternalQueueIds).mockResolvedValue([tracked] as never);
+        findRequestMock.mockResolvedValue({
+            id: "request-skipped-failure",
+            status: "queued",
+        } as never);
+        fencesMock.mockResolvedValue({
+            matches: [],
+            workLeases: new Map(),
+            requestWorkLeases: new Map(),
+            renew: vi.fn(),
+            release: vi.fn(),
+        });
+
+        await importCompletedEngineDownloadsWorkflow("user-1");
+
+        expect(markImportedMock).not.toHaveBeenCalled();
+        expect(rmMock).not.toHaveBeenCalled();
+    });
+
+    it("retries successful output cleanup before consuming the engine row", async () => {
+        const record = {
+            id: "engine-cleanup-retry",
+            state: "completed",
+            name: "Arrival",
+            category: "movies",
+            outputPath: "/complete/engine-cleanup-retry",
+            completedAt: new Date(),
+            errorMessage: null,
+            totalBytes: 100,
+        };
+        const active = {
+            request: { id: "request-cleanup-retry", status: "downloading" },
+            queueItem: {
+                id: "queue-cleanup-retry",
+                externalQueueId: "engine-cleanup-retry",
+                status: "downloading",
+            },
+        };
+        const terminal = {
+            request: { id: "request-cleanup-retry", status: "succeeded" },
+            queueItem: {
+                id: "queue-cleanup-retry",
+                externalQueueId: "engine-cleanup-retry",
+                status: "completed",
+            },
+        };
+
+        finishedMock.mockResolvedValue([record] as never);
+        requestsMock.mockResolvedValueOnce([active] as never).mockResolvedValueOnce([]);
+        vi.mocked(listDownloadRequestsForExternalQueueIds).mockResolvedValue([terminal] as never);
+        findRequestMock.mockResolvedValue({
+            id: "request-cleanup-retry",
+            status: "succeeded",
+        } as never);
+        rmMock.mockRejectedValueOnce(new Error("The directory is temporarily locked."));
+
+        await importCompletedEngineDownloadsWorkflow("user-1");
+
+        expect(rmMock).toHaveBeenCalledWith("/complete/engine-cleanup-retry", {
+            recursive: true,
+            force: true,
+        });
+        expect(markImportedMock).not.toHaveBeenCalled();
+
+        await importCompletedEngineDownloadsWorkflow("user-1");
+
+        expect(rmMock).toHaveBeenCalledTimes(2);
+        expect(markImportedMock).toHaveBeenCalledTimes(1);
+        expect(markImportedMock).toHaveBeenCalledWith("engine-cleanup-retry");
+        expect(rmMock.mock.invocationCallOrder[1]).toBeLessThan(
+            markImportedMock.mock.invocationCallOrder[0]!,
+        );
     });
 
     it("limits a manual import retry to the selected request", async () => {
@@ -402,11 +515,18 @@ describe("importCompletedEngineDownloadsWorkflow", () => {
 
         expect(listQueueItemsMock).toHaveBeenCalledWith("user-1", "request-target");
         expect(requestsMock).not.toHaveBeenCalled();
-        expect(persistMock).toHaveBeenCalledWith("user-1", [
+        expect(persistMock).toHaveBeenCalledWith(
+            "user-1",
+            [
+                expect.objectContaining({
+                    historyItem: expect.objectContaining({ id: "engine-target" }),
+                }),
+            ],
             expect.objectContaining({
-                historyItem: expect.objectContaining({ id: "engine-target" }),
+                workLeases: expect.any(Map),
+                requestWorkLeases: expect.any(Map),
             }),
-        ]);
+        );
         expect(persistMock).not.toHaveBeenCalledWith(
             "user-1",
             expect.arrayContaining([

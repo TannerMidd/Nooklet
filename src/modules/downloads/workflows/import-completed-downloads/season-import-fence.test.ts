@@ -58,10 +58,13 @@ const seasonMatch = {
     request: {
         id: "request-1",
         fulfillmentId: "fulfillment-1",
+        status: "queued",
+        cancellationRequestedAt: null,
     },
     queueItem: {
         id: "queue-1",
         externalQueueId: "download-1",
+        status: "queued",
     },
     historyItem: {
         id: "download-1",
@@ -117,11 +120,46 @@ describe("acquireSeasonImportFences", () => {
         expect(releaseMock).toHaveBeenCalledWith(lease);
     });
 
+    it.each(["blocked", "failed"] as const)(
+        "keeps a %s fulfillment eligible when its completed engine row is retained for recovery",
+        async (status) => {
+            findFulfillmentMock.mockResolvedValue({
+                id: "fulfillment-1",
+                status,
+                cancellationRequestedAt: null,
+            } as never);
+
+            const fences = await acquireSeasonImportFences("user-1", [seasonMatch] as never);
+
+            expect(fences.matches).toEqual([seasonMatch]);
+            expect(fences.workLeases.get("fulfillment-1")).toEqual(lease);
+            await fences.release();
+            expect(releaseMock).toHaveBeenCalledWith(lease);
+        },
+    );
+
+    it.each(["cancelled", "succeeded"] as const)(
+        "excludes a %s fulfillment from completed engine recovery",
+        async (status) => {
+            findFulfillmentMock.mockResolvedValue({
+                id: "fulfillment-1",
+                status,
+                cancellationRequestedAt: null,
+            } as never);
+
+            const fences = await acquireSeasonImportFences("user-1", [seasonMatch] as never);
+
+            expect(fences.matches).toEqual([]);
+            await fences.release();
+            expect(releaseMock).toHaveBeenCalledWith(lease);
+        },
+    );
+
     it("skips a season whose lease is already owned without blocking unrelated imports", async () => {
         acquireMock.mockResolvedValue(null);
         const movieMatch = {
             ...seasonMatch,
-            request: { id: "movie-request", fulfillmentId: null },
+            request: { ...seasonMatch.request, id: "movie-request", fulfillmentId: null },
         };
 
         const fences = await acquireSeasonImportFences("user-1", [
@@ -139,7 +177,7 @@ describe("acquireSeasonImportFences", () => {
     it("excludes a non-season import after request cancellation intent is durable", async () => {
         const movieMatch = {
             ...seasonMatch,
-            request: { id: "movie-request", fulfillmentId: null },
+            request: { ...seasonMatch.request, id: "movie-request", fulfillmentId: null },
         };
 
         findRequestMock.mockResolvedValue({
@@ -153,6 +191,33 @@ describe("acquireSeasonImportFences", () => {
 
         expect(fences.matches).toEqual([]);
         expect(acquireRequestMock).toHaveBeenCalledWith("user-1", "movie-request");
+        await fences.release();
+        expect(releaseRequestMock).toHaveBeenCalledWith(requestLease);
+    });
+
+    it("keeps a failed request with a completed queue item eligible for replay", async () => {
+        const movieMatch = {
+            ...seasonMatch,
+            request: {
+                ...seasonMatch.request,
+                id: "movie-request",
+                fulfillmentId: null,
+                status: "failed",
+            },
+            queueItem: { ...seasonMatch.queueItem, status: "completed" },
+        };
+
+        findRequestMock.mockResolvedValue({
+            id: "movie-request",
+            status: "failed",
+            fulfillmentId: null,
+            cancellationRequestedAt: null,
+        } as never);
+
+        const fences = await acquireSeasonImportFences("user-1", [movieMatch] as never);
+
+        expect(fences.matches).toEqual([movieMatch]);
+        expect(fences.requestWorkLeases.get("movie-request")).toEqual(requestLease);
         await fences.release();
         expect(releaseRequestMock).toHaveBeenCalledWith(requestLease);
     });

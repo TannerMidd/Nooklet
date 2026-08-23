@@ -105,6 +105,26 @@ describe("scheduleSeasonFulfillmentAfterRequest", () => {
         );
     });
 
+    it("can defer an episode checkpoint for the import transaction", async () => {
+        await scheduleSeasonFulfillmentAfterRequest(
+            "user-1",
+            { ...request, episodeId: "episode-1" },
+            {
+                status: "succeeded",
+                message: "Imported one file; verifying season coverage.",
+            },
+            { deferEpisodeUpdate: true },
+        );
+
+        expect(updateMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                status: "partial",
+                nextAttemptAt: new Date("2026-07-15T18:05:00.000Z"),
+            }),
+        );
+        expect(upsertEpisodeMock).not.toHaveBeenCalled();
+    });
+
     it("persists a five-minute recovery checkpoint for a content-specific pack failure", async () => {
         await scheduleSeasonFulfillmentAfterRequest("user-1", request, {
             status: "failed",

@@ -23,13 +23,29 @@ const heartbeatIntervalMs = Math.max(
         Math.min(SEASON_FULFILLMENT_WORK_LEASE_TTL_MS, DOWNLOAD_REQUEST_WORK_LEASE_TTL_MS) / 3,
     ),
 );
+const openFulfillmentStatuses = ["active", "retry_wait", "partial", "blocked", "failed"];
 
 export type SeasonImportFences = {
     matches: MatchedCompletedDownload[];
     workLeases: ReadonlyMap<string, SeasonFulfillmentWorkLease>;
+    requestWorkLeases: ReadonlyMap<string, DownloadRequestWorkLease>;
     renew: () => Promise<void>;
     release: () => Promise<void>;
 };
+
+function isEligibleImportSnapshot(match: MatchedCompletedDownload) {
+    if (match.request.cancellationRequestedAt) {
+        return false;
+    }
+
+    const activePair =
+        ["queued", "downloading", "requeuing"].includes(match.request.status) &&
+        ["queued", "downloading"].includes(match.queueItem.status);
+    const retryableReplay =
+        match.request.status === "failed" && match.queueItem.status === "completed";
+
+    return activePair || retryableReplay;
+}
 
 /**
  * Holds the same renewable lease used by recovery and cancellation while
@@ -41,6 +57,7 @@ export async function acquireSeasonImportFences(
     userId: string,
     matches: MatchedCompletedDownload[],
 ): Promise<SeasonImportFences> {
+    const eligibleSnapshots = matches.filter(isEligibleImportSnapshot);
     const leases = new Map<string, SeasonFulfillmentWorkLease>();
     const requestLeases = new Map<string, DownloadRequestWorkLease>();
     const eligibleFulfillmentIds = new Set<string>();
@@ -49,14 +66,16 @@ export async function acquireSeasonImportFences(
     const blockedRequestIds = new Set<string>();
     const fulfillmentIds = Array.from(
         new Set(
-            matches.flatMap((match) =>
+            eligibleSnapshots.flatMap((match) =>
                 match.request.fulfillmentId ? [match.request.fulfillmentId] : [],
             ),
         ),
     );
     const requestIds = Array.from(
         new Set(
-            matches.flatMap((match) => (match.request.fulfillmentId ? [] : [match.request.id])),
+            eligibleSnapshots.flatMap((match) =>
+                match.request.fulfillmentId ? [] : [match.request.id],
+            ),
         ),
     );
     let released = false;
@@ -124,8 +143,7 @@ export async function acquireSeasonImportFences(
             if (
                 fulfillment &&
                 !fulfillment.cancellationRequestedAt &&
-                fulfillment.status !== "cancelled" &&
-                fulfillment.status !== "succeeded"
+                openFulfillmentStatuses.includes(fulfillment.status)
             ) {
                 eligibleFulfillmentIds.add(fulfillmentId);
             } else {
@@ -148,8 +166,13 @@ export async function acquireSeasonImportFences(
                 request &&
                 !request.fulfillmentId &&
                 !request.cancellationRequestedAt &&
-                request.status !== "cancelled" &&
-                request.status !== "succeeded"
+                (["queued", "downloading", "requeuing"].includes(request.status) ||
+                    (request.status === "failed" &&
+                        eligibleSnapshots.some(
+                            (match) =>
+                                match.request.id === requestId &&
+                                match.queueItem.status === "completed",
+                        )))
             ) {
                 eligibleRequestIds.add(requestId);
             } else {
@@ -168,7 +191,7 @@ export async function acquireSeasonImportFences(
         }
 
         return {
-            matches: matches.filter((match) => {
+            matches: eligibleSnapshots.filter((match) => {
                 const fulfillmentId = match.request.fulfillmentId;
 
                 return fulfillmentId
@@ -178,6 +201,7 @@ export async function acquireSeasonImportFences(
                           !blockedRequestIds.has(match.request.id);
             }),
             workLeases: leases,
+            requestWorkLeases: requestLeases,
             renew,
             release,
         };

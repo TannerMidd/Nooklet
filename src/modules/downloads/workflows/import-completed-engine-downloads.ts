@@ -46,6 +46,25 @@ export type ImportCompletedEngineDownloadsOptions = {
 };
 
 /**
+ * Removes the durable artifact before consuming its engine row. A transient
+ * filesystem failure deliberately leaves `importedAt` unset so the worker can
+ * retry cleanup in the same process on a later import pass.
+ */
+async function consumeFinishedEngineDownload(id: string, artifactPath: string | null) {
+    if (artifactPath) {
+        try {
+            await rm(artifactPath, { recursive: true, force: true });
+        } catch {
+            return false;
+        }
+    }
+
+    await markEngineDownloadImported(id);
+
+    return true;
+}
+
+/**
  * Import pass for the built-in download engine. The engine writes finished
  * downloads to a local output directory and records their terminal state, so
  * this workflow maps terminal engine rows into the shared import phase shape:
@@ -225,12 +244,10 @@ async function runImportCompletedEngineDownloadsWorkflow(
             onFilesystemProgress: options.onFilesystemProgress,
         });
         await fences.renew();
-        persisted =
-            fences.workLeases.size > 0
-                ? await persistCompletedDownloadImports(userId, organized, {
-                      workLeases: fences.workLeases,
-                  })
-                : await persistCompletedDownloadImports(userId, organized);
+        persisted = await persistCompletedDownloadImports(userId, organized, {
+            workLeases: fences.workLeases,
+            requestWorkLeases: fences.requestWorkLeases,
+        });
     } finally {
         await fences.release();
     }
@@ -243,11 +260,23 @@ async function runImportCompletedEngineDownloadsWorkflow(
     // persisted. Completed transfers are consumed only after a successful
     // import; retryable import failures deliberately remain unconsumed.
     for (const record of finished) {
+        const tracked = trackedRequests.find(
+            (entry) => entry.queueItem.externalQueueId === record.id,
+        );
+
         if (record.state === "failed") {
-            await markEngineDownloadImported(record.id);
-            await rm(engineIncompleteDir(record.id), { recursive: true, force: true }).catch(
-                () => undefined,
-            );
+            const requestAfterImport = tracked
+                ? await findDownloadRequestById(userId, tracked.request.id)
+                : null;
+            const terminalRequest =
+                !tracked ||
+                !requestAfterImport ||
+                ["failed", "succeeded", "cancelled"].includes(requestAfterImport.status);
+
+            if (terminalRequest) {
+                await consumeFinishedEngineDownload(record.id, engineIncompleteDir(record.id));
+            }
+
             continue;
         }
 
@@ -260,34 +289,18 @@ async function runImportCompletedEngineDownloadsWorkflow(
             );
 
             if (requestAfterImport?.status === "succeeded") {
-                await markEngineDownloadImported(record.id);
-
-                if (record.outputPath) {
-                    await rm(record.outputPath, { recursive: true, force: true }).catch(
-                        () => undefined,
-                    );
-                }
+                await consumeFinishedEngineDownload(record.id, record.outputPath);
             }
 
             continue;
         }
-
-        const tracked = trackedRequests.find(
-            (entry) => entry.queueItem.externalQueueId === record.id,
-        );
 
         // Failed imports deliberately fall out of the eligible query during the
         // retry cooldown. Preserve their source instead of mistaking that window
         // for an orphan. Only terminal success/cancellation or no tracking row is
         // safe to consume here.
         if (!tracked || ["succeeded", "cancelled"].includes(tracked.request.status)) {
-            await markEngineDownloadImported(record.id);
-
-            if (record.outputPath) {
-                await rm(record.outputPath, { recursive: true, force: true }).catch(
-                    () => undefined,
-                );
-            }
+            await consumeFinishedEngineDownload(record.id, record.outputPath);
         }
     }
 

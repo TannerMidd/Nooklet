@@ -1,11 +1,10 @@
+import { ensureDatabaseReady } from "@/lib/database/client";
 import {
-    completeDownloadImportRun,
-    createDownloadImportRun,
-    recordDownloadImportedFile,
-    updateDownloadQueueItemStatus,
-    updateDownloadRequestStatus,
-} from "@/modules/downloads/repositories/download-repository";
-import { setTvEpisodeHasFile } from "@/modules/media-library/public";
+    acquireDownloadRequestWorkLease,
+    isDownloadRequestWorkLease,
+    releaseDownloadRequestWorkLease,
+    type DownloadRequestWorkLease,
+} from "@/modules/downloads/workflows/download-request-work-lease";
 import { scheduleSeasonFulfillmentAfterRequest } from "@/modules/downloads/workflows/season-fulfillment-terminal-scheduling";
 import {
     acquireSeasonFulfillmentWorkLease,
@@ -16,6 +15,19 @@ import {
 
 import { type OrganizedCompletedDownload } from "./file-organization";
 import { isRetryableCompletedMediaFailure } from "./file-inspection";
+import {
+    assertEpisodeOwnership,
+    assertImportLifecycle,
+    assertImportOwnership,
+    assertImportTargetPath,
+    type ImportRequestOwnership,
+    type OwnedEpisodeMatch,
+} from "./persistence-validation";
+import {
+    persistFailedCompletedDownloadImport,
+    persistSuccessfulCompletedDownloadImport,
+    type FulfillmentEpisodeCheckpoint,
+} from "./persistence-writes";
 
 export type PersistedCompletedDownloadImports = {
     matchedCount: number;
@@ -24,6 +36,8 @@ export type PersistedCompletedDownloadImports = {
     importedFileCount: number;
     affectedLibraryPathIds: string[];
 };
+
+type ImportWorkLease = SeasonFulfillmentWorkLease | DownloadRequestWorkLease;
 
 function sourceRootPath(download: OrganizedCompletedDownload) {
     if (download.kind === "organized") {
@@ -42,11 +56,104 @@ function requestAndQueue(download: OrganizedCompletedDownload) {
     return download.source.source.match;
 }
 
+function uniqueEpisodeMatches(download: OrganizedCompletedDownload) {
+    if (download.kind !== "organized") {
+        return [];
+    }
+
+    const matches = new Map<string, OwnedEpisodeMatch>();
+
+    for (const file of download.files) {
+        const episodeMatch = file.episodeMatch;
+
+        if (!episodeMatch?.episodeId) {
+            continue;
+        }
+
+        const existing = matches.get(episodeMatch.episodeId);
+
+        if (
+            existing &&
+            (existing.seasonNumber !== episodeMatch.seasonNumber ||
+                existing.episodeNumber !== episodeMatch.episodeNumber)
+        ) {
+            throw new Error(
+                "The completed-download episode match has conflicting episode positions.",
+            );
+        }
+
+        matches.set(episodeMatch.episodeId, episodeMatch as OwnedEpisodeMatch);
+    }
+
+    return Array.from(matches.values());
+}
+
+function importOwnershipSnapshot(
+    match: ReturnType<typeof requestAndQueue>,
+): Parameters<typeof assertImportOwnership>[4] {
+    return {
+        requestMediaType: match.request.mediaType,
+        requestMediaTitleId: match.request.mediaTitleId,
+        requestEpisodeId: match.request.episodeId,
+        requestSeasonId: match.request.seasonId,
+        requestFulfillmentId: match.request.fulfillmentId,
+        requestTargetLibraryId: match.request.targetLibraryId,
+        requestTargetLibraryPathId: match.request.targetLibraryPathId,
+        requestStatus: match.request.status,
+        requestCancellationRequestedAt: match.request.cancellationRequestedAt,
+    };
+}
+
+function assertSuppliedLeaseOwnership(
+    suppliedLease: ImportWorkLease | null,
+    userId: string,
+    match: ReturnType<typeof requestAndQueue>,
+) {
+    if (!suppliedLease) {
+        return;
+    }
+
+    const fulfillmentId = match.request.fulfillmentId;
+    const ownsLease = fulfillmentId
+        ? isSeasonFulfillmentWorkLease(suppliedLease, userId, fulfillmentId)
+        : isDownloadRequestWorkLease(suppliedLease, userId, match.request.id);
+
+    if (!ownsLease) {
+        throw new Error("The completed-download import lease does not own this request.");
+    }
+}
+
+async function acquireImportLease(
+    userId: string,
+    match: ReturnType<typeof requestAndQueue>,
+    suppliedLease: ImportWorkLease | null,
+) {
+    if (suppliedLease) {
+        return suppliedLease;
+    }
+
+    return match.request.fulfillmentId
+        ? await acquireSeasonFulfillmentWorkLease(userId, match.request.fulfillmentId)
+        : await acquireDownloadRequestWorkLease(userId, match.request.id);
+}
+
+async function releaseImportLease(
+    lease: ImportWorkLease,
+    match: ReturnType<typeof requestAndQueue>,
+) {
+    if (match.request.fulfillmentId) {
+        await releaseSeasonFulfillmentWorkLease(lease);
+    } else {
+        await releaseDownloadRequestWorkLease(lease);
+    }
+}
+
 export async function persistCompletedDownloadImports(
     userId: string,
     downloads: OrganizedCompletedDownload[],
     options: {
         workLeases?: ReadonlyMap<string, SeasonFulfillmentWorkLease>;
+        requestWorkLeases?: ReadonlyMap<string, DownloadRequestWorkLease>;
     } = {},
 ): Promise<PersistedCompletedDownloadImports> {
     const affectedLibraryPathIds = new Set<string>();
@@ -56,30 +163,49 @@ export async function persistCompletedDownloadImports(
 
     for (const download of downloads) {
         const match = requestAndQueue(download);
+        const database = ensureDatabaseReady();
+        const requestOwnership: ImportRequestOwnership = assertImportOwnership(
+            database,
+            userId,
+            match.request.id,
+            match.queueItem.id,
+            importOwnershipSnapshot(match),
+            match.queueItem.status,
+        );
+        const lifecycle = assertImportLifecycle(requestOwnership);
+
+        if (lifecycle === "terminal-replay") {
+            continue;
+        }
+
+        const episodeMatches = uniqueEpisodeMatches(download);
+
+        // A failed transfer never writes to the destination, so its old path
+        // may be disabled or gone. Successful organized imports need both
+        // preflight and in-transaction destination ownership checks.
+        if (download.kind === "organized") {
+            assertImportTargetPath(database, userId, requestOwnership, download);
+            assertEpisodeOwnership(database, userId, requestOwnership, episodeMatches);
+        }
+
         const completedAt = match.historyItem.completedAt ?? new Date();
         const fulfillmentId = match.request.fulfillmentId;
         const suppliedLease = fulfillmentId
             ? (options.workLeases?.get(fulfillmentId) ?? null)
-            : null;
+            : (options.requestWorkLeases?.get(match.request.id) ?? null);
 
-        if (
-            suppliedLease &&
-            fulfillmentId &&
-            !isSeasonFulfillmentWorkLease(suppliedLease, userId, fulfillmentId)
-        ) {
-            throw new Error("The completed-download import lease does not own this season.");
-        }
+        assertSuppliedLeaseOwnership(suppliedLease, userId, match);
 
-        const workLease = fulfillmentId
-            ? (suppliedLease ?? (await acquireSeasonFulfillmentWorkLease(userId, fulfillmentId)))
-            : null;
+        const workLease = await acquireImportLease(userId, match, suppliedLease);
         const releaseWhenDone = Boolean(workLease && !suppliedLease);
 
-        if (match.request.fulfillmentId && !workLease) {
-            throw new Error("Season recovery is already advancing; import persistence will retry.");
+        if (!workLease) {
+            throw new Error("The completed-download import is already advancing; it will retry.");
         }
 
         try {
+            const schedulerWorkLease = fulfillmentId ? workLease : undefined;
+
             if (download.kind === "failed") {
                 await scheduleSeasonFulfillmentAfterRequest(
                     userId,
@@ -92,102 +218,58 @@ export async function persistCompletedDownloadImports(
                             match.historyItem.statusKind === "failed" ||
                             isRetryableCompletedMediaFailure(download.message),
                     },
-                    { workLease: workLease ?? undefined },
+                    { workLease: schedulerWorkLease },
                 );
-                const libraryPathId = match.request.targetLibraryPathId;
-                const importRun = await createDownloadImportRun({
-                    requestId: match.request.id,
+
+                persistFailedCompletedDownloadImport({
                     userId,
-                    libraryPathId,
-                    status: "running",
+                    download,
+                    match,
+                    ownership: requestOwnership,
+                    workLease,
+                    completedAt,
                     sourceRootPath: sourceRootPath(download),
                 });
 
-                await completeDownloadImportRun({
-                    userId,
-                    importRunId: importRun.id,
-                    status: match.historyItem.statusKind === "failed" ? "skipped" : "failed",
-                    errorMessage: download.message,
-                    completedAt,
-                });
-                await updateDownloadQueueItemStatus({
-                    userId,
-                    queueItemId: match.queueItem.id,
-                    status: match.historyItem.statusKind === "failed" ? "failed" : "completed",
-                    completedAt,
-                });
-                await updateDownloadRequestStatus({
-                    userId,
-                    requestId: match.request.id,
-                    status: "failed",
-                    externalJobId: match.historyItem.id,
-                    statusMessage: download.message,
-                    completedAt,
-                });
                 failedCount += 1;
                 continue;
             }
 
-            const importRun = await createDownloadImportRun({
-                requestId: match.request.id,
-                userId,
-                libraryPathId: download.source.source.target.path.id,
-                status: "running",
-                sourceRootPath: download.source.source.sourceRootPath,
-                destinationRootPath: download.destinationRootPath,
-            });
-
-            const importedEpisodeIds = new Set<string>();
-
-            for (const file of download.files) {
-                await recordDownloadImportedFile({
-                    importRunId: importRun.id,
-                    userId,
-                    sourcePath: file.sourcePath,
-                    destinationPath: file.destinationPath,
-                });
-
-                if (file.episodeMatch?.episodeId) {
-                    importedEpisodeIds.add(file.episodeMatch.episodeId);
-                }
-            }
-
-            // Mark matched episodes as owned immediately so monitoring automation
-            // does not re-grab them before the post-import scan runs.
-            for (const episodeId of importedEpisodeIds) {
-                await setTvEpisodeHasFile({ episodeId, hasFile: true });
-            }
-
-            await scheduleSeasonFulfillmentAfterRequest(
+            // The checkpoint is deliberately scheduled before the terminal write. If the
+            // process stops in this window, the still-open physical request is replayable;
+            // the committed season checkpoint is what makes recovery converge.
+            const checkpointMessage = `Imported ${download.files.length} file${download.files.length === 1 ? "" : "s"}; verifying season coverage.`;
+            const scheduledFulfillment = await scheduleSeasonFulfillmentAfterRequest(
                 userId,
                 match.request,
                 {
                     status: "succeeded",
-                    message: `Imported ${download.files.length} file${download.files.length === 1 ? "" : "s"}; verifying season coverage.`,
+                    message: checkpointMessage,
                 },
-                { workLease: workLease ?? undefined },
+                {
+                    workLease: schedulerWorkLease,
+                    deferEpisodeUpdate: Boolean(match.request.episodeId),
+                },
             );
 
-            await completeDownloadImportRun({
+            const fulfillmentEpisodeCheckpoint: FulfillmentEpisodeCheckpoint | undefined =
+                scheduledFulfillment && match.request.fulfillmentId && match.request.episodeId
+                    ? {
+                          fulfillmentId: match.request.fulfillmentId,
+                          episodeId: match.request.episodeId,
+                          nextAttemptAt: scheduledFulfillment.nextAttemptAt,
+                          statusMessage: checkpointMessage,
+                      }
+                    : undefined;
+
+            persistSuccessfulCompletedDownloadImport({
                 userId,
-                importRunId: importRun.id,
-                status: "succeeded",
-                destinationRootPath: download.destinationRootPath,
-                completedAt,
-            });
-            await updateDownloadQueueItemStatus({
-                userId,
-                queueItemId: match.queueItem.id,
-                status: "completed",
-                progressPercent: 100,
-                completedAt,
-            });
-            await updateDownloadRequestStatus({
-                userId,
-                requestId: match.request.id,
-                status: "succeeded",
-                externalJobId: match.historyItem.id,
-                statusMessage: `Imported ${download.files.length} file${download.files.length === 1 ? "" : "s"} into the library.`,
+                download,
+                match,
+                ownership: requestOwnership,
+                episodeMatches,
+                fulfillmentEpisodeCheckpoint,
+                workLease,
                 completedAt,
             });
 
@@ -196,7 +278,7 @@ export async function persistCompletedDownloadImports(
             affectedLibraryPathIds.add(download.source.source.target.path.id);
         } finally {
             if (workLease && releaseWhenDone) {
-                await releaseSeasonFulfillmentWorkLease(workLease);
+                await releaseImportLease(workLease, match);
             }
         }
     }
