@@ -1,9 +1,19 @@
-import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
+import {
+    DEFAULT_FETCH_RETRY_ATTEMPTS,
+    fetchWithRetry,
+    trimTrailingSlash,
+} from "@/lib/integrations/http-helpers";
 
 type TautulliCredentials = {
     baseUrl: string;
     apiKey: string;
     timeoutMs?: number;
+    /**
+     * Total attempts per request. Interactive verification passes 1 so an
+     * unreachable server fails within its advertised UI budget instead of
+     * tripling the wall time through retries.
+     */
+    retryAttempts?: number;
 };
 
 type RawTautulliEnvelope<T> = {
@@ -63,12 +73,13 @@ async function fetchTautulliCommand<T>(
         url.searchParams.set(key, value);
     }
 
-    const response = await fetchWithTimeout(
+    const response = await fetchWithRetry(
         url,
         {
             cache: "no-store",
         },
         credentials.timeoutMs,
+        { attempts: credentials.retryAttempts ?? DEFAULT_FETCH_RETRY_ATTEMPTS },
     );
 
     if (!response.ok) {

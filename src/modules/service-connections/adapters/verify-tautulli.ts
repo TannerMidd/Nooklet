@@ -15,6 +15,10 @@ export async function verifyTautulli(
             baseUrl: input.baseUrl,
             apiKey: input.secret,
             timeoutMs: SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
+            // Verification is user-facing: one attempt keeps an unreachable
+            // server inside the shared verification budget instead of
+            // retrying.
+            retryAttempts: 1,
         })) satisfies TautulliMetadata;
 
         if (metadata.availableUsers.length === 0) {

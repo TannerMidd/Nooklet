@@ -48,6 +48,7 @@ describe("verifyTautulli", () => {
             baseUrl: "https://tautulli.test",
             apiKey: "tautulli-api-key",
             timeoutMs: SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS,
+            retryAttempts: 1,
         });
     });
 
