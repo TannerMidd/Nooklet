@@ -493,6 +493,83 @@ export async function listActiveEngineDownloads(userId: string) {
         .all();
 }
 
+export type EngineDownloadQueueSnapshotRow = Pick<EngineDownloadRecord, "id" | "priority">;
+
+/**
+ * Applies a complete user-scoped queue order in one transaction.
+ *
+ * The caller supplies the rows it read and the desired order. The transaction
+ * re-reads the active set and compares both ownership/set membership and the
+ * priorities from that snapshot. A concurrent reorder, deletion, or state
+ * transition therefore returns false without writing a partial order.
+ */
+export async function reorderEngineDownloadQueue(
+    userId: string,
+    snapshot: readonly EngineDownloadQueueSnapshotRow[],
+    orderedIds: readonly string[],
+) {
+    const snapshotIds = snapshot.map((row) => row.id);
+    const snapshotIdSet = new Set(snapshotIds);
+    const requestedIds = [...orderedIds];
+
+    if (
+        snapshotIdSet.size !== snapshotIds.length ||
+        requestedIds.length !== snapshotIds.length ||
+        new Set(requestedIds).size !== requestedIds.length ||
+        requestedIds.some((id) => !snapshotIdSet.has(id))
+    ) {
+        return false;
+    }
+
+    const database = ensureDatabaseReady();
+
+    return database.transaction((transaction) => {
+        const current = transaction
+            .select({ id: engineDownloads.id, priority: engineDownloads.priority })
+            .from(engineDownloads)
+            .where(
+                and(
+                    eq(engineDownloads.userId, userId),
+                    inArray(engineDownloads.state, [...activeEngineDownloadStates]),
+                ),
+            )
+            .orderBy(asc(engineDownloads.priority), asc(engineDownloads.createdAt))
+            .all();
+
+        if (
+            current.length !== snapshot.length ||
+            current.some((row) => !snapshotIdSet.has(row.id)) ||
+            snapshot.some(
+                (row) =>
+                    current.find((candidate) => candidate.id === row.id)?.priority !== row.priority,
+            )
+        ) {
+            return false;
+        }
+
+        const updatedAt = new Date();
+        let changedRows = 0;
+
+        for (let index = 0; index < requestedIds.length; index += 1) {
+            const result = transaction
+                .update(engineDownloads)
+                .set({ priority: index, updatedAt })
+                .where(
+                    and(
+                        eq(engineDownloads.userId, userId),
+                        eq(engineDownloads.id, requestedIds[index]),
+                        inArray(engineDownloads.state, [...activeEngineDownloadStates]),
+                    ),
+                )
+                .run();
+
+            changedRows += result.changes;
+        }
+
+        return changedRows === requestedIds.length;
+    });
+}
+
 /** Estimated bytes still reserved by all active downloads, across users. */
 export async function getActiveEngineDownloadRemainingBytes() {
     return (await getActiveEngineDownloadCapacityUsage()).activeRemainingBytes;

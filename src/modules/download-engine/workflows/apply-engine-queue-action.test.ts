@@ -8,9 +8,9 @@ vi.mock("@/modules/download-engine/queue/engine-repository", () => ({
     findEngineDownloadById: vi.fn(),
     isEngineDownloadPostProcessing: vi.fn(),
     listActiveEngineDownloads: vi.fn(),
+    reorderEngineDownloadQueue: vi.fn(),
     requestEngineDownloadControl: vi.fn(),
     resumePausedEngineDownload: vi.fn(),
-    setEngineDownloadPriority: vi.fn(),
     setEngineDownloadState: vi.fn(),
 }));
 vi.mock("@/modules/downloads/workflows/season-fulfillment-cancellation", () => ({
@@ -34,6 +34,7 @@ import {
     findEngineDownloadById,
     isEngineDownloadPostProcessing,
     listActiveEngineDownloads,
+    reorderEngineDownloadQueue,
     requestEngineDownloadControl,
     resumePausedEngineDownload,
     setEngineDownloadState,
@@ -56,6 +57,7 @@ import { applyEngineQueueAction, EngineQueueActionError } from "./apply-engine-q
 const findMock = vi.mocked(findEngineDownloadById);
 const postProcessingMock = vi.mocked(isEngineDownloadPostProcessing);
 const listActiveMock = vi.mocked(listActiveEngineDownloads);
+const reorderMock = vi.mocked(reorderEngineDownloadQueue);
 const controlMock = vi.mocked(requestEngineDownloadControl);
 const resumeMock = vi.mocked(resumePausedEngineDownload);
 const stateMock = vi.mocked(setEngineDownloadState);
@@ -88,6 +90,7 @@ beforeEach(() => {
     listRequestsMock.mockResolvedValue([]);
     controlMock.mockResolvedValue({ id: "engine-1", controlIntent: "cancel" } as never);
     stateMock.mockResolvedValue(true);
+    reorderMock.mockResolvedValue(true);
     resumeMock.mockResolvedValue(true);
     checkpointRequestMock.mockResolvedValue(null);
     checkpointSeasonMock.mockResolvedValue(null);
@@ -266,5 +269,22 @@ describe("applyEngineQueueAction", () => {
             }),
         ).rejects.toBeInstanceOf(EngineQueueActionError);
         expect(controlMock).not.toHaveBeenCalled();
+    });
+
+    it("applies a full reorder atomically via moveToIndex", async () => {
+        const userId = "reorder-test-user";
+        const ids = ["engine-0", "engine-1", "engine-2"];
+        const activeRows = ids.map((id, priority) => ({ id, priority }));
+
+        listActiveMock.mockResolvedValue(activeRows as never);
+
+        // Move item at index 2 (priority 2) to index 0.
+        await applyEngineQueueAction(userId, {
+            type: "moveToIndex",
+            itemId: ids[2],
+            targetIndex: 0,
+        });
+
+        expect(reorderMock).toHaveBeenCalledWith(userId, activeRows, [ids[2], ids[0], ids[1]]);
     });
 });
