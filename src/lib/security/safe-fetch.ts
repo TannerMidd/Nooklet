@@ -344,6 +344,31 @@ function createPinnedDispatcher(addresses: readonly ResolvedAddress[]): Dispatch
     return new Agent({ connect: { lookup: createPinnedLookup(addresses) } });
 }
 
+type FetchRequestInit = RequestInit & {
+    dispatcher?: Dispatcher;
+    duplex?: "half";
+};
+
+function copyRequestInit(request: Request): FetchRequestInit {
+    const requestWithDuplex = request as Request & { readonly duplex?: "half" };
+
+    return {
+        body: request.body,
+        cache: request.cache,
+        credentials: request.credentials,
+        headers: request.headers,
+        integrity: request.integrity,
+        keepalive: request.keepalive,
+        method: request.method,
+        mode: request.mode,
+        redirect: request.redirect,
+        referrer: request.referrer,
+        referrerPolicy: request.referrerPolicy,
+        signal: request.signal,
+        duplex: requestWithDuplex.duplex,
+    };
+}
+
 async function enforceBodySizeLimit(response: Response, maxBytes: number): Promise<Response> {
     const contentLength = response.headers.get("content-length");
 
@@ -412,10 +437,9 @@ export async function safeFetch(
     input: SafeFetchInput,
     options: SafeFetchOptions = {},
 ): Promise<Response> {
-    // Derive a URL from Request.url for policy checks and DNS pinning. The
-    // Request itself is rebuilt around that validated URL immediately before
-    // the fetch so its method, headers, body, and other request semantics are
-    // preserved without bypassing the checked destination.
+    // Derive a URL from Request.url for policy checks and DNS pinning. Request
+    // fields are copied into RequestInit below, while the validated URL remains
+    // the transport target.
     const request = input instanceof Request ? input : undefined;
     const url = request
         ? new URL(request.url)
@@ -484,7 +508,7 @@ export async function safeFetch(
         );
     }
 
-    const fetchInput = request ? new Request(url, request) : url;
+    const requestDefaults = request ? copyRequestInit(request) : {};
     const controller = new AbortController();
     const dispatcher = createPinnedDispatcher(addresses);
     let timedOut = false;
@@ -504,15 +528,13 @@ export async function safeFetch(
     }
 
     try {
-        // The URL has passed protocol, credential, address-classification, and
-        // DNS-pinning checks above. CodeQL cannot model this custom sanitizer.
-        // codeql[js/request-forgery]
-        const response = await fetch(fetchInput, {
+        const response = await fetch(url, {
+            ...requestDefaults,
             ...rest,
             signal: controller.signal,
             redirect: "manual",
             dispatcher,
-        } as RequestInit & { dispatcher: Dispatcher });
+        } as FetchRequestInit);
 
         if (response.status >= 300 && response.status < 400) {
             throw new SsrfBlockedError(

@@ -264,7 +264,7 @@ describe("safeFetch abort translation", () => {
 });
 
 describe("safeFetch Request compatibility", () => {
-    it("rebuilds a Request around its validated URL and keeps its method and headers", async () => {
+    it("uses the validated URL and keeps a Request's method and headers", async () => {
         const request = new Request("http://127.0.0.1/", {
             method: "GET",
             headers: { "X-Request-Header": "from-request" },
@@ -279,11 +279,12 @@ describe("safeFetch Request compatibility", () => {
             expect(fetchSpy).toHaveBeenCalledTimes(1);
             const [calledInput, calledInit] = fetchSpy.mock.calls[0]!;
 
-            expect(calledInput).toBeInstanceOf(Request);
-            expect(calledInput).not.toBe(request);
-            expect((calledInput as Request).url).toBe(request.url);
-            expect((calledInput as Request).method).toBe("GET");
-            expect((calledInput as Request).headers.get("X-Request-Header")).toBe("from-request");
+            expect(calledInput).toBeInstanceOf(URL);
+            expect(calledInput.toString()).toBe(request.url);
+            expect((calledInit as RequestInit).method).toBe("GET");
+            expect(new Headers((calledInit as RequestInit).headers).get("X-Request-Header")).toBe(
+                "from-request",
+            );
             expect((calledInit as RequestInit).redirect).toBe("manual");
         } finally {
             fetchSpy.mockRestore();
@@ -303,26 +304,24 @@ describe("safeFetch Request compatibility", () => {
         try {
             await safeFetch(request, {
                 allowPrivateHosts: true,
-                method: "POST",
                 headers: { "X-Init-Header": "from-init" },
-                body: "init-body",
                 cache: "no-store",
             });
 
             expect(fetchSpy).toHaveBeenCalledTimes(1);
             const [calledInput, calledInit] = fetchSpy.mock.calls[0]!;
 
-            expect(calledInput).toBeInstanceOf(Request);
-            expect(calledInput).not.toBe(request);
-            expect((calledInput as Request).url).toBe(request.url);
+            expect(calledInput).toBeInstanceOf(URL);
+            expect(calledInput.toString()).toBe(request.url);
             expect(calledInit).toMatchObject({
                 method: "POST",
                 headers: { "X-Init-Header": "from-init" },
-                body: "init-body",
                 cache: "no-store",
                 redirect: "manual",
             });
-            await expect((calledInput as Request).clone().text()).resolves.toBe("request-body");
+            await expect(new Response((calledInit as RequestInit).body).text()).resolves.toBe(
+                "request-body",
+            );
         } finally {
             fetchSpy.mockRestore();
         }
