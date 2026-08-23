@@ -1,4 +1,4 @@
-import { rm } from "node:fs/promises";
+import { readdir, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { type EngineDownloadFailureKind, type EngineDownloadState } from "@/lib/database/schema";
@@ -29,12 +29,14 @@ import {
     type EngineDownloadRecord,
     updateEngineDownloadProgress,
 } from "@/modules/download-engine/queue/engine-repository";
+import { listEngineDownloadArtifactStates } from "@/modules/download-engine/runtime/engine-artifact-repository";
 import { inspectLiveEngineCapacity } from "@/modules/download-engine/runtime/live-capacity";
 import {
     recordDownloadEngineLoopFailed,
     recordDownloadEngineLoopStarted,
     recordDownloadEngineLoopSucceeded,
 } from "@/modules/download-engine/runtime/engine-heartbeat";
+import { fetchingStageBudgetForBytes } from "@/modules/download-engine/runtime/stage-budget";
 import { downloadNzb } from "@/modules/download-engine/scheduler/download-nzb";
 import { NntpError, type NntpErrorKind } from "@/modules/download-engine/nntp/nntp-client";
 
@@ -57,12 +59,17 @@ const runtime: EngineRuntimeState = engineGlobals.__nookletEngine ?? {};
 
 engineGlobals.__nookletEngine = runtime;
 
-const infrastructureNntpFailureKinds: NntpErrorKind[] = [
+// Keep this set string-compatible so the runtime slice can compile against
+// older NNTP unions while recognizing newer protocol classifications when the
+// NNTP slice supplies them.
+const infrastructureNntpFailureKinds = new Set<string>([
     "connect-failed",
     "auth-failed",
+    "protocol-error",
+    "server-unavailable",
     "timeout",
     "connection-closed",
-];
+]);
 
 const infrastructureSystemErrorCodes = new Set([
     "EAI_AGAIN",
@@ -84,23 +91,23 @@ const infrastructureSystemErrorCodes = new Set([
 ]);
 
 export function classifyEngineNntpFailureKinds(
-    failureKinds: readonly NntpErrorKind[],
+    failureKinds: readonly string[],
 ): EngineDownloadFailureKind {
-    return failureKinds.some((kind) => infrastructureNntpFailureKinds.includes(kind))
+    return failureKinds.some((kind) => infrastructureNntpFailureKinds.has(kind))
         ? "infrastructure"
         : "content";
 }
 
 export function classifyEngineRuntimeError(
     error: unknown,
-    transferFailureKinds: readonly NntpErrorKind[] = [],
+    transferFailureKinds: readonly string[] = [],
 ): EngineDownloadFailureKind {
     if (classifyEngineNntpFailureKinds(transferFailureKinds) === "infrastructure") {
         return "infrastructure";
     }
 
     if (error instanceof NntpError) {
-        return infrastructureNntpFailureKinds.includes(error.kind) ? "infrastructure" : "content";
+        return infrastructureNntpFailureKinds.has(error.kind) ? "infrastructure" : "content";
     }
 
     if (
@@ -302,6 +309,21 @@ const capacityWaitMessage =
 const capacityUncheckableMessage =
     "The download workspace could not be checked. Nooklet will try again automatically.";
 
+/**
+ * Wall-clock budget for one download's fetching stage.
+ *
+ * The engine is serial, so a server that responds just fast enough to reset
+ * every per-read timeout while never finishing an article could otherwise hold
+ * the entire queue indefinitely. The budget scales with payload size on top of
+ * a fixed floor, mirroring the health diagnostics' size-aware stall windows;
+ * `DOWNLOAD_STAGE_BUDGET_MS` replaces the derivation entirely for tests and
+ * unusual links. Exceeding it parks the download for resume — it is never
+ * treated as a release fault.
+ */
+export function fetchingStageBudgetMs(totalBytes: number): number {
+    return fetchingStageBudgetForBytes(totalBytes, env.DOWNLOAD_STAGE_BUDGET_MS);
+}
+
 async function processEngineDownload(download: EngineDownloadRecord): Promise<"continue" | "stop"> {
     const workDir = engineIncompleteDir(download.id);
     let transferFailureKinds: NntpErrorKind[] = [];
@@ -338,6 +360,7 @@ async function processEngineDownload(download: EngineDownloadRecord): Promise<"c
             nzb,
             server: resolvedServer.server,
             workDir,
+            deadlineAt: Date.now() + fetchingStageBudgetMs(download.totalBytes),
             onProgress: (progress) => {
                 const trackedSpeed = trackSpeed(speedSample, progress.downloadedBytes);
 
@@ -393,6 +416,19 @@ async function processEngineDownload(download: EngineDownloadRecord): Promise<"c
             return "continue";
         }
 
+        // Checked before the generic abort handling: an overrun sets both
+        // flags, and it must park with its infrastructure message rather than
+        // degrade into an unexplained pause. Explicit user controls never
+        // reach either branch — they are settled by settleEngineControl above.
+        if (result.deadlineExceeded) {
+            await parkEngineDownload(
+                download,
+                "The transfer exceeded its time budget without finishing, usually because the news server is very slow. Resume to restart this download.",
+            );
+
+            return "continue";
+        }
+
         if (result.aborted) {
             const paused = await setEngineDownloadState(
                 download.id,
@@ -408,14 +444,20 @@ async function processEngineDownload(download: EngineDownloadRecord): Promise<"c
             return "continue";
         }
 
+        const failureKind = classifyEngineNntpFailureKinds(result.failureKinds);
+
         // Checked before `unrecoverable` so a broken server is never reported as a
         // damaged release: that verdict blocklists the release and sends the
         // caller hunting through every other candidate for the same episode.
         //
-        // Only genuine transport kinds reach this counter — articles that arrive
-        // but will not decode are `article-unusable` and spend the release's own
-        // recovery budget instead — so this really is a server verdict.
-        if (result.transportExhausted) {
+        // Genuine transport kinds reach `transportExhausted`, while any explicit
+        // infrastructure kind reaches the second arm. Articles that arrive but
+        // will not decode are `article-unusable` and spend the release's own
+        // recovery budget instead. Keep this guard independent of
+        // `completedSegments`: a deterministic protocol response can arrive after
+        // earlier segments succeeded, but it still says nothing about the
+        // release's health.
+        if (result.transportExhausted || failureKind === "infrastructure") {
             await parkEngineDownload(
                 download,
                 "The news server kept failing on articles this release does have. Check the Usenet connection, then resume this download.",
@@ -425,17 +467,6 @@ async function processEngineDownload(download: EngineDownloadRecord): Promise<"c
         }
 
         if (result.unrecoverable) {
-            const failureKind = classifyEngineNntpFailureKinds(result.failureKinds);
-
-            if (failureKind === "infrastructure") {
-                await parkEngineDownload(
-                    download,
-                    "The transfer stopped early because the news server kept failing mid-download. Check the Usenet connection, then resume this download.",
-                );
-
-                return "continue";
-            }
-
             await failEngineDownload(
                 download,
                 ["fetching"],
@@ -447,17 +478,6 @@ async function processEngineDownload(download: EngineDownloadRecord): Promise<"c
         }
 
         if (result.completedSegments === 0) {
-            const failureKind = classifyEngineNntpFailureKinds(result.failureKinds);
-
-            if (failureKind === "infrastructure") {
-                await parkEngineDownload(
-                    download,
-                    "The built-in downloader could not reach or authenticate with the news server. Check the Usenet connection, then resume this download.",
-                );
-
-                return "continue";
-            }
-
             await failEngineDownload(
                 download,
                 ["fetching"],
@@ -632,10 +652,130 @@ async function runEngineLoop() {
 export async function recoverInterruptedEngineDownloads() {
     if (!runtime.recovered) {
         await recoverStrandedEngineDownloads();
-        // Only latch recovery after the durable transition succeeds. A transient
-        // SQLite failure must be retried on the next worker tick.
-        runtime.recovered = true;
+        // Runs after the state recovery so rows this pass just parked are
+        // already visible in their terminal-ish state when directories are
+        // judged orphaned.
+        const sweepCompleted = await sweepOrphanedEngineArtifacts();
+
+        // Only latch recovery after every eligible artifact was removed. A
+        // transient filesystem failure must be retried on the next worker tick.
+        if (sweepCompleted) {
+            runtime.recovered = true;
+        }
     }
+}
+
+const engineActiveArtifactStates = new Set<EngineDownloadState>([
+    "fetching",
+    "repairing",
+    "extracting",
+]);
+
+async function safeReadDir(dir: string) {
+    try {
+        return await readdir(dir, { withFileTypes: true });
+    } catch (error) {
+        if (
+            error &&
+            typeof error === "object" &&
+            "code" in error &&
+            (error as { code: unknown }).code === "ENOENT"
+        ) {
+            return [];
+        }
+
+        throw error;
+    }
+}
+
+/**
+ * Reclaims disk space from engine directories whose download can never use
+ * them again.
+ *
+ * Crash windows otherwise leak both ways: a stranded `fetching` row leaves its
+ * incomplete assembly behind forever unless the user resumes it, and a crash
+ * between finalize output and the `completed` CAS — or a failed download whose
+ * finalized output was never imported — leaves a complete directory no import
+ * pass will ever consume. The rules mirror ownership, not progress:
+ *
+ * - `incomplete/<id>` belongs to an active transfer; anything else is swept.
+ * - `complete/<id>` survives only for rows that still owe an import
+ *   (`completed && !importedAt`) or defensively hold declared output. A
+ *   missing row, an already-imported or failed row, or a queued/paused row
+ *   without output is swept.
+ */
+export async function sweepOrphanedEngineArtifacts() {
+    const rows = await listEngineDownloadArtifactStates();
+    const rowById = new Map(rows.map((row) => [row.id, row]));
+
+    const incompleteDir = path.join(env.DOWNLOAD_ENGINE_WORK_DIR, "incomplete");
+    const completeDir = path.join(env.DOWNLOAD_ENGINE_DIR, "complete");
+
+    let removedIncomplete = 0;
+    let removedComplete = 0;
+    let failedRemovals = 0;
+
+    const remove = async (target: string) => {
+        try {
+            await rm(target, { recursive: true, force: true });
+
+            return true;
+        } catch (error) {
+            logger.warn("download_engine_artifact_removal_failed", { path: target, error });
+
+            failedRemovals += 1;
+
+            return false;
+        }
+    };
+
+    for (const entry of await safeReadDir(incompleteDir)) {
+        const row = rowById.get(entry.name);
+
+        if (runtime.activeDownloadId === entry.name) {
+            continue;
+        }
+
+        if (row && engineActiveArtifactStates.has(row.state)) {
+            continue;
+        }
+
+        if (await remove(path.join(incompleteDir, entry.name))) {
+            removedIncomplete += 1;
+        }
+    }
+
+    for (const entry of await safeReadDir(completeDir)) {
+        if (runtime.activeDownloadId === entry.name) {
+            continue;
+        }
+
+        const row = rowById.get(entry.name);
+        const stillOwned = Boolean(
+            row &&
+            row.importedAt === null &&
+            (engineActiveArtifactStates.has(row.state) ||
+                row.state === "completed" ||
+                ((row.state === "queued" || row.state === "paused") && row.outputPath !== null)),
+        );
+
+        if (stillOwned) {
+            continue;
+        }
+
+        if (await remove(path.join(completeDir, entry.name))) {
+            removedComplete += 1;
+        }
+    }
+
+    if (removedIncomplete > 0 || removedComplete > 0) {
+        logger.info("download_engine_artifact_sweep_completed", {
+            removedIncomplete,
+            removedComplete,
+        });
+    }
+
+    return failedRemovals === 0;
 }
 
 /** Reconciles cancellation intent and starts one drain loop per worker. */

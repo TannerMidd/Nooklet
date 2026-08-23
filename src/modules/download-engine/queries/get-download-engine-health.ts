@@ -10,6 +10,12 @@ import {
     readDownloadEngineLoopHealth,
     type DownloadEngineLoopHealth,
 } from "@/modules/download-engine/runtime/engine-heartbeat";
+import {
+    engineExtractionAssumedBytesPerSecond,
+    enginePostProcessingFixedAllowanceMs,
+    engineRepairAssumedBytesPerSecond,
+    sizeAwareStageAllowanceMs,
+} from "@/modules/download-engine/runtime/stage-budget";
 
 export type DownloadEngineHealthStatus = "idle" | "ok" | "degraded";
 
@@ -68,10 +74,6 @@ export function downloadEngineStageStaleAfterMs(
     state: (typeof activeStates)[number],
     totalBytes: number,
 ) {
-    const safeBytes = Number.isSafeInteger(totalBytes) && totalBytes > 0 ? totalBytes : 0;
-    const scaledAllowance = (bytesPerSecond: number, fixedAllowanceMs: number) =>
-        Math.ceil(safeBytes / bytesPerSecond) * 1_000 + fixedAllowanceMs;
-
     switch (state) {
         case "queued":
             return 5 * minute;
@@ -80,9 +82,23 @@ export function downloadEngineStageStaleAfterMs(
             // minutes leaves ample room for the availability probe and reconnects.
             return 15 * minute;
         case "repairing":
-            return Math.max(2 * hour, scaledAllowance(512 * 1024, 30 * minute));
+            return Math.max(
+                2 * hour,
+                sizeAwareStageAllowanceMs(
+                    totalBytes,
+                    engineRepairAssumedBytesPerSecond,
+                    enginePostProcessingFixedAllowanceMs,
+                ),
+            );
         case "extracting":
-            return Math.max(2 * hour, scaledAllowance(1024 * 1024, 30 * minute));
+            return Math.max(
+                2 * hour,
+                sizeAwareStageAllowanceMs(
+                    totalBytes,
+                    engineExtractionAssumedBytesPerSecond,
+                    enginePostProcessingFixedAllowanceMs,
+                ),
+            );
     }
 }
 

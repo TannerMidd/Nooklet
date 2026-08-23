@@ -13,6 +13,10 @@ import {
     isPar2Subject,
     sampleWithoutReplacement,
 } from "@/modules/download-engine/scheduler/release-availability";
+import {
+    createDownloadStageControl,
+    DownloadStageStopError,
+} from "@/modules/download-engine/scheduler/stage-control";
 import { decodeYencArticle, YencDecodeError } from "@/modules/download-engine/yenc/decode-yenc";
 
 /**
@@ -67,6 +71,12 @@ export type DownloadNzbResult = {
      * the caller must not blocklist it and move to another candidate.
      */
     transportExhausted: boolean;
+    /**
+     * True when the run stopped because the caller-supplied wall-clock deadline
+     * elapsed. It says nothing about the release or the server state beyond
+     * slowness, so the caller must park rather than fail the download.
+     */
+    deadlineExceeded: boolean;
     failureKinds: NntpErrorKind[];
     /** True when every file completed with zero failed segments. */
     ok: boolean;
@@ -82,6 +92,14 @@ export type DownloadNzbInput = {
     onProgress?: (progress: DownloadNzbProgress) => void;
     /** Checked between segments; return true to stop the run. */
     shouldAbort?: () => boolean;
+    /**
+     * Epoch ms after which the run stops itself and reports
+     * `deadlineExceeded`. The engine is serial, so without a wall-clock bound
+     * one trickle-slow server could hold the whole queue indefinitely even
+     * though every individual socket operation keeps resetting its own
+     * per-read timeout.
+     */
+    deadlineAt?: number;
     /** Transient-failure retries per segment (permanent failures never retry). */
     maxRetriesPerSegment?: number;
     /** Test seam — swap the socket client for a scripted fake. */
@@ -204,10 +222,24 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     let transportExhausted = false;
 
     let nextTaskIndex = 0;
-    let aborted = false;
     let fatalError: Error | null = null;
     const failureKinds = new Set<NntpErrorKind>();
     const reservedOutputNames = new Set<string>();
+
+    function rememberFatalError(error: unknown) {
+        fatalError ??=
+            error instanceof Error
+                ? error
+                : new Error("The download stage encountered an unexpected failure.");
+    }
+
+    const workerCount = Math.max(1, Math.min(input.server.connections, tasks.length));
+    const stageControl = createDownloadStageControl({
+        deadlineAt: input.deadlineAt,
+        shouldAbort: input.shouldAbort,
+        onCallerError: rememberFatalError,
+        expectedWorkers: workerCount,
+    });
 
     const reportProgress = () => {
         input.onProgress?.({
@@ -262,7 +294,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
     }
 
     async function fetchSegment(client: NntpClientLike, task: SegmentTask) {
-        const body = await client.body(task.messageId);
+        const body = await stageControl.race(() => client.body(task.messageId));
         const declaredFileBytes = input.nzb.files[task.fileIndex].declaredBytes;
         let decoded: ReturnType<typeof decodeYencArticle>;
 
@@ -401,136 +433,207 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
         const getClient = async () => {
             if (!client) {
-                client = clientFactory(input.server);
-                await client.connect();
+                client = stageControl.registerClient(clientFactory(input.server));
+
+                try {
+                    await stageControl.race(() => client!.connect());
+                } catch (error) {
+                    stageControl.destroyClient(client);
+                    client = null;
+
+                    throw error;
+                }
             }
 
             return client;
         };
 
         const dropClient = () => {
-            client?.destroy();
+            if (client) {
+                stageControl.destroyClient(client);
+            }
+
             client = null;
         };
 
-        for (;;) {
-            if (aborted || input.shouldAbort?.()) {
-                aborted = true;
-                break;
-            }
+        try {
+            for (;;) {
+                // Work exhaustion is checked before the deadline so a transfer
+                // whose final segment lands as the budget expires completes
+                // normally instead of being reported as an overrun and restarted
+                // from scratch.
+                const taskIndex = nextTaskIndex;
 
-            if (unrecoverable || transportExhausted) {
-                break;
-            }
-
-            const taskIndex = nextTaskIndex;
-
-            if (taskIndex >= tasks.length) {
-                break;
-            }
-
-            nextTaskIndex += 1;
-            const task = tasks[taskIndex];
-            const state = fileStates[task.fileIndex];
-            let failed = true;
-            let terminalFailureKind: NntpErrorKind | null = null;
-
-            for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
-                try {
-                    await fetchSegment(await getClient(), task);
-                    failed = false;
+                if (taskIndex >= tasks.length) {
                     break;
-                } catch (error) {
-                    if (!(error instanceof NntpError)) {
-                        aborted = true;
-                        fatalError ??=
-                            error instanceof Error
-                                ? error
-                                : new Error("The segment worker failed unexpectedly.");
-                        break;
-                    }
-
-                    terminalFailureKind = error.kind;
-                    const permanent = error instanceof NntpError && error.permanent;
-
-                    // Only a "not on this server" reply leaves the stream in a known
-                    // state: its status line was consumed and no article body follows.
-                    // Anything else can desync the connection, and a desynced
-                    // connection fails every later segment this worker touches, so it
-                    // must be thrown away rather than reused.
-                    if (error.kind !== "article-not-found") {
-                        dropClient();
-                    }
-
-                    if (permanent && error instanceof NntpError && error.kind === "auth-failed") {
-                        // Credentials are wrong for every segment — stop the whole run.
-                        aborted = true;
-                        fatalError = error;
-                        break;
-                    }
-
-                    if (permanent || attempt === maxRetries) {
-                        break;
-                    }
-
-                    // Another worker may have proven the release unrepairable while
-                    // this attempt was in flight; further retries cannot change that.
-                    if (unrecoverable) {
-                        break;
-                    }
-                }
-            }
-
-            if (failed) {
-                if (terminalFailureKind) {
-                    failureKinds.add(terminalFailureKind);
                 }
 
-                state.failedSegments += 1;
-                totals.failedSegments += 1;
+                if (stageControl.poll() || unrecoverable || transportExhausted) {
+                    break;
+                }
 
-                // Only the article itself is evidence about the release: one the
-                // server does not have, or one it delivered that will not decode into
-                // this file. Both leave the same hole for PAR2 to repair. A transport
-                // failure says our connection broke, so spending the recovery budget
-                // on it condemns posts that are perfectly downloadable — and the
-                // caller then blocklists them and moves on.
-                if (
-                    terminalFailureKind === "article-not-found" ||
-                    terminalFailureKind === "article-unusable"
-                ) {
-                    if (par2FileIndexes.has(task.fileIndex)) {
-                        lostPar2Bytes += task.declaredBytes;
-                    } else {
-                        failedDataBytes += task.declaredBytes;
+                nextTaskIndex += 1;
+                const task = tasks[taskIndex];
+                const state = fileStates[task.fileIndex];
+                let failed = true;
+                let abandonTask = false;
+                let terminalFailureKind: NntpErrorKind | null = null;
+
+                for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+                    // A retry is another segment attempt: poll every stop fence
+                    // before reconnecting so a cancellation between a transient
+                    // response and the next attempt cannot issue another connect
+                    // or BODY command.
+                    if (stageControl.poll()) {
+                        abandonTask = true;
+                        break;
                     }
 
+                    try {
+                        const connectedClient = await getClient();
+
+                        // A connection may finish just as the caller callback or
+                        // absolute deadline asks the stage to stop. Do not issue a
+                        // BODY after that boundary.
+                        if (stageControl.poll()) {
+                            abandonTask = true;
+                            break;
+                        }
+
+                        await fetchSegment(connectedClient, task);
+                        failed = false;
+                        break;
+                    } catch (error) {
+                        // The deadline watchdog destroys live clients when the
+                        // budget expires, which surfaces here as a connection
+                        // error mid-article. Abandon the whole task without
+                        // spending failure accounting on a segment the run is
+                        // leaving behind anyway.
+                        // Sample the caller fence before the deadline fence: a
+                        // cancellation can become true as a transient operation
+                        // rejects at the exact deadline, and must not be relabeled
+                        // as a timeout before the next retry-loop poll.
+                        if (stageControl.poll()) {
+                            abandonTask = true;
+                            break;
+                        }
+
+                        if (error instanceof DownloadStageStopError) {
+                            abandonTask = true;
+                            break;
+                        }
+
+                        if (!(error instanceof NntpError)) {
+                            rememberFatalError(error);
+                            stageControl.requestStop("caller");
+                            abandonTask = true;
+                            break;
+                        }
+
+                        terminalFailureKind = error.kind;
+                        const permanent = error.permanent;
+
+                        // Only a "not on this server" reply leaves the stream in a known
+                        // state: its status line was consumed and no article body follows.
+                        // Anything else can desync the connection, and a desynced
+                        // connection fails every later segment this worker touches, so it
+                        // must be thrown away rather than reused.
+                        if (error.kind !== "article-not-found") {
+                            dropClient();
+                        }
+
+                        if (permanent && error.kind === "auth-failed") {
+                            // Credentials are wrong for every segment — stop the whole run.
+                            stageControl.requestStop("caller");
+                            fatalError = error;
+                            abandonTask = true;
+                            break;
+                        }
+
+                        if (permanent || attempt === maxRetries) {
+                            break;
+                        }
+
+                        // Another worker may have proven the release unrepairable while
+                        // this attempt was in flight; further retries cannot change that.
+                        if (unrecoverable) {
+                            break;
+                        }
+                    }
+                }
+
+                if (abandonTask) {
+                    break;
+                }
+
+                if (failed) {
+                    if (terminalFailureKind) {
+                        failureKinds.add(terminalFailureKind);
+                    }
+
+                    state.failedSegments += 1;
+                    totals.failedSegments += 1;
+
+                    // Only the article itself is evidence about the release: one the
+                    // server does not have, or one it delivered that will not decode into
+                    // this file. Both leave the same hole for PAR2 to repair. A transport
+                    // failure says our connection broke, so spending the recovery budget
+                    // on it condemns posts that are perfectly downloadable — and the
+                    // caller then blocklists them and moves on.
                     if (
-                        failedDataBytes >
-                        Math.max(0, par2DeclaredBytes - lostPar2Bytes) + hiddenRecoveryAllowance
+                        terminalFailureKind === "article-not-found" ||
+                        terminalFailureKind === "article-unusable"
                     ) {
-                        unrecoverable = true;
+                        if (par2FileIndexes.has(task.fileIndex)) {
+                            lostPar2Bytes += task.declaredBytes;
+                        } else {
+                            failedDataBytes += task.declaredBytes;
+                        }
+
+                        if (
+                            failedDataBytes >
+                            Math.max(0, par2DeclaredBytes - lostPar2Bytes) + hiddenRecoveryAllowance
+                        ) {
+                            unrecoverable = true;
+                        }
+                    } else {
+                        transportFailures += 1;
+
+                        // A server that keeps refusing mid-run will not improve by grinding
+                        // through the remaining segments. Stop, but report it as the
+                        // transport problem it is instead of a damaged release.
+                        if (transportFailures >= maxTransportFailures) {
+                            transportExhausted = true;
+                        }
                     }
                 } else {
-                    transportFailures += 1;
-
-                    // A server that keeps refusing mid-run will not improve by grinding
-                    // through the remaining segments. Stop, but report it as the
-                    // transport problem it is instead of a damaged release.
-                    if (transportFailures >= maxTransportFailures) {
-                        transportExhausted = true;
-                    }
+                    state.completedSegments += 1;
+                    totals.completedSegments += 1;
                 }
-            } else {
-                state.completedSegments += 1;
-                totals.completedSegments += 1;
+
+                reportProgress();
             }
+        } catch (error) {
+            // Unexpected worker exceptions must still release the live client;
+            // remember them so the stage can rethrow after all workers settle.
+            rememberFatalError(error);
+            stageControl.requestStop("caller");
+        } finally {
+            const finalWorker = stageControl.workerConcluded();
+            const workerClient = client;
 
-            reportProgress();
-        }
+            client = null;
 
-        if (client) {
-            await (client as NntpClientLike).quit();
+            if (workerClient) {
+                try {
+                    await stageControl.disposeClient(workerClient, finalWorker);
+                } catch (error) {
+                    rememberFatalError(error);
+                    stageControl.requestStop("caller");
+                } finally {
+                    stageControl.unregisterClient(workerClient);
+                }
+            }
         }
     }
 
@@ -553,7 +656,7 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
 
         const sample = sampleWithoutReplacement(dataTasks, probeSampleSize);
         const dataDeclaredBytes = dataTasks.reduce((total, task) => total + task.declaredBytes, 0);
-        const client = clientFactory(input.server);
+        const client = stageControl.registerClient(clientFactory(input.server));
         let sampledBytes = 0;
         let missingBytes = 0;
         let missingCount = 0;
@@ -561,16 +664,20 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
         let confirmedFullyMissing = false;
 
         try {
-            await client.connect();
+            await stageControl.race(() => client.connect());
+
+            if (stageControl.poll()) {
+                return false;
+            }
 
             for (const task of sample) {
-                if (aborted || input.shouldAbort?.()) {
+                if (stageControl.poll()) {
                     return false;
                 }
 
                 sampledBytes += task.declaredBytes;
 
-                if (await client.stat(task.messageId)) {
+                if (await stageControl.race(() => client.stat(task.messageId))) {
                     presentCount += 1;
                 } else {
                     missingBytes += task.declaredBytes;
@@ -589,12 +696,12 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
                 confirmedFullyMissing = true;
 
                 for (const task of sample.slice(0, probeConfirmationArticles)) {
-                    if (aborted || input.shouldAbort?.()) {
+                    if (stageControl.poll()) {
                         return false;
                     }
 
                     try {
-                        await client.body(task.messageId);
+                        await stageControl.race(() => client.body(task.messageId));
 
                         // Fetchable after all: STAT is not to be trusted for this release.
                         return false;
@@ -607,15 +714,17 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
                 }
             }
         } catch (error) {
-            if (error instanceof NntpError && error.kind === "auth-failed") {
+            if (error instanceof NntpError && error.kind === "auth-failed" && error.permanent) {
                 throw error;
             }
+
+            stageControl.poll();
 
             // Probe trouble must never fail a downloadable release; the transfer
             // path re-encounters and classifies any real problem.
             return false;
         } finally {
-            await client.quit().catch(() => client.destroy());
+            await stageControl.disposeClient(client, true);
         }
 
         if (sampledBytes === 0) {
@@ -643,16 +752,19 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
         return lowerBoundRatio * dataDeclaredBytes > par2DeclaredBytes + hiddenRecoveryAllowance;
     }
 
-    const workerCount = Math.max(1, Math.min(input.server.connections, tasks.length));
+    stageControl.start();
 
     try {
         if (await probeShowsUnrecoverable()) {
             unrecoverable = true;
             failureKinds.add("article-not-found");
+            stageControl.markTerminal();
         } else {
             await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
         }
     } finally {
+        stageControl.stop();
+
         for (const state of fileStates) {
             await state.handle?.close().catch(() => undefined);
         }
@@ -702,10 +814,11 @@ export async function downloadNzb(input: DownloadNzbInput): Promise<DownloadNzbR
         completedSegments: totals.completedSegments,
         failedSegments: totals.failedSegments,
         totalSegments: tasks.length,
-        aborted,
+        aborted: stageControl.stopped,
+        deadlineExceeded: stageControl.deadlineExceeded,
         unrecoverable,
         transportExhausted,
         failureKinds: [...failureKinds],
-        ok: !aborted && !transportExhausted && files.every((file) => file.ok),
+        ok: !stageControl.stopped && !transportExhausted && files.every((file) => file.ok),
     };
 }
