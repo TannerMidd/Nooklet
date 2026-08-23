@@ -8,7 +8,11 @@ export const searchIndexersInputSchema = z.object({
         .string()
         .trim()
         .min(1, "Enter a search query.")
-        .max(160, "Search query must be 160 characters or fewer."),
+        .max(160, "Search query must be 160 characters or fewer.")
+        .refine(
+            (value) => /[\p{L}\p{N}]/u.test(normalizeIndexerSearchQuery(value)),
+            "Search query must contain letters or numbers.",
+        ),
     tvdbId: z.number().int().positive().optional(),
     season: z.number().int().nonnegative().optional(),
     episode: z.number().int().positive().optional(),
@@ -19,10 +23,20 @@ export type ValidatedIndexerSearchRequest = z.infer<typeof searchIndexersInputSc
     normalizedKey: string;
 };
 
+/**
+ * Normalizes release titles and search queries onto one comparable form.
+ *
+ * Unicode-aware on purpose (`\p{L}\p{M}\p{N}`, NFKC): stripping non-ASCII
+ * turned every CJK title into an empty key, while dropping combining marks
+ * damaged scripts such as Devanagari and Arabic. Both sides of the comparison
+ * — query key and stored `normalizedTitle` — run through this same function,
+ * so the transformation stays consistent.
+ */
 export function normalizeIndexerSearchQuery(value: string) {
     return value
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, " ")
+        .normalize("NFKC")
+        .toLocaleLowerCase("und")
+        .replace(/[^\p{L}\p{M}\p{N}]+/gu, " ")
         .trim();
 }
 
