@@ -3,15 +3,11 @@ import {
     countMediaTitleExternalIds,
     deleteMediaFilesByIds,
     deleteMediaTitleByIdForUser,
-    findMediaFileByUserPath,
     findMediaTitleByIdForUser,
     listMediaFilesByLibraryPath,
+    mergeScannedMediaFile,
     reconcileMediaTitleFileAvailability,
     type MediaTitleRecord,
-    upsertMediaFile,
-    upsertMediaTitle,
-    upsertTvEpisode,
-    upsertTvSeason,
 } from "@/modules/media-library/repositories/media-library-repository";
 
 import { type NormalizedLibraryScan } from "./normalization";
@@ -123,53 +119,17 @@ export async function mergeLibraryScanFiles(
             continue;
         }
 
-        const title = await upsertMediaTitle({
+        const merged = mergeScannedMediaFile({
             userId,
             libraryId: file.source.library.id,
-            mediaType: file.source.library.mediaType,
+            libraryPathId: file.source.path.id,
+            mediaType: file.source.library.mediaType as "tv" | "movie",
             title: file.title,
             sortTitle: file.sortTitle,
             year: file.year,
             normalizedKey: file.normalizedKey,
-            status: "available",
-        });
-
-        if (!title) {
-            continue;
-        }
-
-        const existingFile = await findMediaFileByUserPath(userId, file.filePath);
-        const observedPaths =
-            observedPathsByLibraryPath.get(file.source.path.id) ?? new Set<string>();
-
-        observedPaths.add(file.filePath);
-        observedPathsByLibraryPath.set(file.source.path.id, observedPaths);
-
-        const season =
-            file.source.library.mediaType === "tv" && file.seasonNumber !== null
-                ? await upsertTvSeason({
-                      titleId: title.id,
-                      seasonNumber: file.seasonNumber,
-                  })
-                : null;
-        const episode =
-            season && file.episodeNumber !== null
-                ? await upsertTvEpisode({
-                      titleId: title.id,
-                      seasonId: season.id,
-                      seasonNumber: file.seasonNumber!,
-                      episodeNumber: file.episodeNumber,
-                      hasFile: true,
-                  })
-                : null;
-
-        await upsertMediaFile({
-            userId,
-            titleId: title.id,
-            libraryPathId: file.source.path.id,
-            seasonId: season?.id ?? null,
-            episodeId: episode?.id ?? null,
-            mediaType: file.source.library.mediaType,
+            seasonNumber: file.seasonNumber,
+            episodeNumber: file.episodeNumber,
             fileKind: file.fileKind,
             filePath: file.filePath,
             relativePath: file.relativePath,
@@ -177,17 +137,17 @@ export async function mergeLibraryScanFiles(
             modifiedAt: file.modifiedAt,
             qualityLabel: file.qualityLabel,
         });
+        const observedPaths =
+            observedPathsByLibraryPath.get(file.source.path.id) ?? new Set<string>();
 
-        if (existingFile?.titleId && existingFile.titleId !== title.id) {
-            await deleteOrphanedScannerTitle(userId, existingFile.titleId);
-            await reconcileMediaTitleFileAvailability(userId, existingFile.titleId);
-        }
+        observedPaths.add(file.filePath);
+        observedPathsByLibraryPath.set(file.source.path.id, observedPaths);
 
         const stats = ensurePathStats(pathStats, file.source);
 
         stats.fileCount += 1;
-        stats.titleIds.add(title.id);
-        matchedTitleIds.add(title.id);
+        stats.titleIds.add(merged.titleId);
+        matchedTitleIds.add(merged.titleId);
     }
 
     // Remove stale rows only after every newly observed file has been persisted.

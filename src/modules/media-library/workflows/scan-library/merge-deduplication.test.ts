@@ -43,7 +43,7 @@ beforeEach(() => {
 });
 
 describe("mergeLibraryScanFiles", () => {
-    it("persists TV scans as one show title with seasons and episodes", async () => {
+    it("uses transaction-local reads to link TV title, season, episode, and file writes", async () => {
         const userId = await seedUser();
         const library = await createMediaLibrary({
             userId,
@@ -120,6 +120,74 @@ describe("mergeLibraryScanFiles", () => {
         expect(seasons).toHaveLength(1);
         expect(episodes.map((episode) => episode.episodeNumber).sort()).toEqual([1, 2]);
         expect(files.every((file) => file.episodeId)).toBe(true);
+    });
+
+    it("rolls back title, season, episode, and file writes after a mid-file failure", async () => {
+        const userId = await seedUser();
+        const library = await createMediaLibrary({
+            userId,
+            mediaType: "tv",
+            name: "TV Shows",
+        });
+        const libraryPath = await addMediaLibraryPath({
+            userId,
+            libraryId: library.id,
+            path: "E:/Plex Media/TV Shows",
+            label: "TV",
+        });
+        const source = {
+            library,
+            path: { ...libraryPath, id: `${libraryPath.id}-missing` },
+        };
+
+        await expect(
+            mergeLibraryScanFiles(userId, {
+                sources: [source],
+                failedPaths: [],
+                files: [
+                    {
+                        source,
+                        filePath: "E:/Plex Media/TV Shows/Severance/Season 01/E01.mkv",
+                        relativePath: "Severance/Season 01/E01.mkv",
+                        sizeBytes: 100,
+                        modifiedAt: new Date("2026-05-06T13:00:00Z"),
+                        title: "Severance",
+                        sortTitle: "severance",
+                        normalizedKey: "severance::unknown",
+                        year: null,
+                        seasonNumber: 1,
+                        episodeNumber: 1,
+                        fileKind: "episode",
+                        qualityLabel: "1080P",
+                    },
+                ],
+            }),
+        ).rejects.toThrow();
+
+        const database = ensureDatabaseReady();
+        const titles = database
+            .select()
+            .from(mediaTitles)
+            .where(eq(mediaTitles.userId, userId))
+            .all();
+        const seasons = database
+            .select({ id: tvSeasons.id })
+            .from(tvSeasons)
+            .innerJoin(mediaTitles, eq(mediaTitles.id, tvSeasons.titleId))
+            .where(eq(mediaTitles.userId, userId))
+            .all();
+        const episodes = database
+            .select({ id: tvEpisodes.id })
+            .from(tvEpisodes)
+            .innerJoin(mediaTitles, eq(mediaTitles.id, tvEpisodes.titleId))
+            .where(eq(mediaTitles.userId, userId))
+            .all();
+        const files = database.select().from(mediaFiles).where(eq(mediaFiles.userId, userId)).all();
+
+        expect(titles).toHaveLength(0);
+        expect(seasons).toHaveLength(0);
+        expect(episodes).toHaveLength(0);
+        expect(files).toHaveLength(0);
     });
 
     it("removes stale scanner-created movie episode titles when a path is corrected to TV", async () => {
@@ -553,6 +621,118 @@ describe("mergeLibraryScanFiles", () => {
 
         expect(oldTitleAfter?.status).toBe("missing");
         expect(oldEpisodeAfter?.hasFile).toBe(false);
+        expect(newTitle?.status).toBe("available");
+    });
+
+    it("keeps a scanner-only old title available when another file remains during reparent", async () => {
+        const userId = await seedUser();
+        const library = await createMediaLibrary({ userId, mediaType: "tv", name: "TV" });
+        const scannedPath = await addMediaLibraryPath({
+            userId,
+            libraryId: library.id,
+            path: "E:/TV/Scanned",
+            label: "Scanned",
+        });
+        const untouchedPath = await addMediaLibraryPath({
+            userId,
+            libraryId: library.id,
+            path: "E:/TV/Untouched",
+            label: "Untouched",
+        });
+        const oldTitle = await upsertMediaTitle({
+            userId,
+            libraryId: library.id,
+            mediaType: "tv",
+            title: "Old Parsed Name",
+            sortTitle: "old parsed name",
+            normalizedKey: "old parsed name::2022",
+            year: 2022,
+            status: "available",
+        });
+
+        if (!oldTitle) {
+            throw new Error("old title missing");
+        }
+
+        const oldSeason = await createTvSeason({ titleId: oldTitle.id, seasonNumber: 1 });
+        const movedEpisode = await createTvEpisode({
+            titleId: oldTitle.id,
+            seasonId: oldSeason.id,
+            seasonNumber: 1,
+            episodeNumber: 1,
+            hasFile: true,
+        });
+        const untouchedEpisode = await createTvEpisode({
+            titleId: oldTitle.id,
+            seasonId: oldSeason.id,
+            seasonNumber: 1,
+            episodeNumber: 2,
+            hasFile: true,
+        });
+        const movedFilePath = "E:/TV/Scanned/Old Name/Season 01/E01.mkv";
+
+        await recordMediaFile({
+            userId,
+            titleId: oldTitle.id,
+            libraryPathId: scannedPath.id,
+            seasonId: oldSeason.id,
+            episodeId: movedEpisode.id,
+            mediaType: "tv",
+            fileKind: "episode",
+            filePath: movedFilePath,
+            relativePath: "Old Name/Season 01/E01.mkv",
+        });
+        await recordMediaFile({
+            userId,
+            titleId: oldTitle.id,
+            libraryPathId: untouchedPath.id,
+            seasonId: oldSeason.id,
+            episodeId: untouchedEpisode.id,
+            mediaType: "tv",
+            fileKind: "episode",
+            filePath: "E:/TV/Untouched/Old Name/Season 01/E02.mkv",
+            relativePath: "Old Name/Season 01/E02.mkv",
+        });
+
+        const source = { library, path: scannedPath };
+
+        await mergeLibraryScanFiles(userId, {
+            sources: [source],
+            failedPaths: [],
+            files: [
+                {
+                    source,
+                    filePath: movedFilePath,
+                    relativePath: "Old Name/Season 01/E01.mkv",
+                    sizeBytes: 100,
+                    modifiedAt: new Date("2026-05-06T13:00:00Z"),
+                    title: "Correct Name",
+                    sortTitle: "correct name",
+                    normalizedKey: "correct name::2022",
+                    year: 2022,
+                    seasonNumber: 1,
+                    episodeNumber: 1,
+                    fileKind: "episode",
+                    qualityLabel: "1080P",
+                },
+            ],
+        });
+
+        const oldTitleAfter = await findMediaTitleByNormalizedKey(
+            userId,
+            "tv",
+            "old parsed name::2022",
+        );
+        const oldEpisodeAfter = ensureDatabaseReady()
+            .select()
+            .from(tvEpisodes)
+            .where(eq(tvEpisodes.id, untouchedEpisode.id))
+            .get();
+        const newTitle = await findMediaTitleByNormalizedKey(userId, "tv", "correct name::2022");
+
+        expect(oldTitleAfter?.id).toBe(oldTitle.id);
+        expect(oldTitleAfter?.status).toBe("available");
+        expect(oldEpisodeAfter?.hasFile).toBe(true);
         expect(newTitle?.status).toBe("available");
     });
 });

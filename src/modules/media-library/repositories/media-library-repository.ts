@@ -53,6 +53,10 @@ export type ActiveRecommendationMediaLibraryPathRecord = {
     path: MediaLibraryPathRecord;
 };
 
+type AppDatabase = ReturnType<typeof ensureDatabaseReady>;
+type MediaLibraryTransaction = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
+type MediaLibraryExecutor = AppDatabase | MediaLibraryTransaction;
+
 export async function createMediaLibrary(input: {
     userId: string;
     mediaType: LibraryMediaType;
@@ -365,7 +369,7 @@ export async function setDefaultDownloadPath(input: {
     );
 }
 
-export async function upsertMediaTitle(input: {
+type UpsertMediaTitleInput = {
     userId: string;
     libraryId?: string | null;
     mediaType: RecommendationMediaType;
@@ -381,8 +385,33 @@ export async function upsertMediaTitle(input: {
     backdropUrl?: string | null;
     runtimeMinutes?: number | null;
     originalLanguage?: string | null;
-}) {
-    const database = ensureDatabaseReady();
+};
+
+function findMediaTitleByNormalizedKeyWithExecutor(
+    database: MediaLibraryExecutor,
+    userId: string,
+    mediaType: RecommendationMediaType,
+    normalizedKey: string,
+) {
+    return (
+        database
+            .select()
+            .from(mediaTitles)
+            .where(
+                and(
+                    eq(mediaTitles.userId, userId),
+                    eq(mediaTitles.mediaType, mediaType),
+                    eq(mediaTitles.normalizedKey, normalizedKey),
+                ),
+            )
+            .get() ?? null
+    );
+}
+
+function upsertMediaTitleWithExecutor(
+    database: MediaLibraryExecutor,
+    input: UpsertMediaTitleInput,
+) {
     const id = randomUUID();
     const values = {
         id,
@@ -465,7 +494,16 @@ export async function upsertMediaTitle(input: {
         })
         .run();
 
-    return findMediaTitleByNormalizedKey(input.userId, input.mediaType, input.normalizedKey);
+    return findMediaTitleByNormalizedKeyWithExecutor(
+        database,
+        input.userId,
+        input.mediaType,
+        input.normalizedKey,
+    );
+}
+
+export async function upsertMediaTitle(input: UpsertMediaTitleInput) {
+    return upsertMediaTitleWithExecutor(ensureDatabaseReady(), input);
 }
 
 export async function findMediaTitleByNormalizedKey(
@@ -473,26 +511,19 @@ export async function findMediaTitleByNormalizedKey(
     mediaType: RecommendationMediaType,
     normalizedKey: string,
 ) {
-    const database = ensureDatabaseReady();
-
-    return (
-        database
-            .select()
-            .from(mediaTitles)
-            .where(
-                and(
-                    eq(mediaTitles.userId, userId),
-                    eq(mediaTitles.mediaType, mediaType),
-                    eq(mediaTitles.normalizedKey, normalizedKey),
-                ),
-            )
-            .get() ?? null
+    return findMediaTitleByNormalizedKeyWithExecutor(
+        ensureDatabaseReady(),
+        userId,
+        mediaType,
+        normalizedKey,
     );
 }
 
-export async function findMediaTitleByIdForUser(userId: string, titleId: string) {
-    const database = ensureDatabaseReady();
-
+function findMediaTitleByIdForUserWithExecutor(
+    database: MediaLibraryExecutor,
+    userId: string,
+    titleId: string,
+) {
     return (
         database
             .select()
@@ -502,9 +533,16 @@ export async function findMediaTitleByIdForUser(userId: string, titleId: string)
     );
 }
 
-export async function deleteMediaTitleByIdForUser(userId: string, titleId: string) {
-    const database = ensureDatabaseReady();
-    const existingTitle = await findMediaTitleByIdForUser(userId, titleId);
+export async function findMediaTitleByIdForUser(userId: string, titleId: string) {
+    return findMediaTitleByIdForUserWithExecutor(ensureDatabaseReady(), userId, titleId);
+}
+
+function deleteMediaTitleByIdForUserWithExecutor(
+    database: MediaLibraryExecutor,
+    userId: string,
+    titleId: string,
+) {
+    const existingTitle = findMediaTitleByIdForUserWithExecutor(database, userId, titleId);
 
     if (!existingTitle) {
         return null;
@@ -516,6 +554,10 @@ export async function deleteMediaTitleByIdForUser(userId: string, titleId: strin
         .run();
 
     return existingTitle;
+}
+
+export async function deleteMediaTitleByIdForUser(userId: string, titleId: string) {
+    return deleteMediaTitleByIdForUserWithExecutor(ensureDatabaseReady(), userId, titleId);
 }
 
 export async function countMediaFilesForTitle(titleId: string) {
@@ -620,9 +662,12 @@ export async function deleteMediaFilesByIds(userId: string, fileIds: string[]) {
 }
 
 /** Rebuild denormalized availability flags from the authoritative file rows. */
-export async function reconcileMediaTitleFileAvailability(userId: string, titleId: string) {
-    const database = ensureDatabaseReady();
-    const title = await findMediaTitleByIdForUser(userId, titleId);
+function reconcileMediaTitleFileAvailabilityWithExecutor(
+    database: MediaLibraryExecutor,
+    userId: string,
+    titleId: string,
+) {
+    const title = findMediaTitleByIdForUserWithExecutor(database, userId, titleId);
 
     if (!title) {
         return null;
@@ -638,38 +683,44 @@ export async function reconcileMediaTitleFileAvailability(userId: string, titleI
     );
     const updatedAt = new Date();
 
-    database.transaction((transaction) => {
-        transaction
-            .update(mediaTitles)
-            .set({ status: files.length > 0 ? "available" : "missing", updatedAt })
-            .where(and(eq(mediaTitles.userId, userId), eq(mediaTitles.id, titleId)))
-            .run();
+    database
+        .update(mediaTitles)
+        .set({ status: files.length > 0 ? "available" : "missing", updatedAt })
+        .where(and(eq(mediaTitles.userId, userId), eq(mediaTitles.id, titleId)))
+        .run();
 
-        if (title.mediaType !== "tv") {
-            return;
-        }
+    if (title.mediaType !== "tv") {
+        return findMediaTitleByIdForUserWithExecutor(database, userId, titleId);
+    }
 
-        transaction
+    database
+        .update(tvEpisodes)
+        .set({ hasFile: false, updatedAt })
+        .where(eq(tvEpisodes.titleId, titleId))
+        .run();
+
+    for (let offset = 0; offset < episodeIds.length; offset += 500) {
+        database
             .update(tvEpisodes)
-            .set({ hasFile: false, updatedAt })
-            .where(eq(tvEpisodes.titleId, titleId))
+            .set({ hasFile: true, updatedAt })
+            .where(
+                and(
+                    eq(tvEpisodes.titleId, titleId),
+                    inArray(tvEpisodes.id, episodeIds.slice(offset, offset + 500)),
+                ),
+            )
             .run();
+    }
 
-        for (let offset = 0; offset < episodeIds.length; offset += 500) {
-            transaction
-                .update(tvEpisodes)
-                .set({ hasFile: true, updatedAt })
-                .where(
-                    and(
-                        eq(tvEpisodes.titleId, titleId),
-                        inArray(tvEpisodes.id, episodeIds.slice(offset, offset + 500)),
-                    ),
-                )
-                .run();
-        }
-    });
+    return findMediaTitleByIdForUserWithExecutor(database, userId, titleId);
+}
 
-    return findMediaTitleByIdForUser(userId, titleId);
+export async function reconcileMediaTitleFileAvailability(userId: string, titleId: string) {
+    const database = ensureDatabaseReady();
+
+    return database.transaction((transaction) =>
+        reconcileMediaTitleFileAvailabilityWithExecutor(transaction, userId, titleId),
+    );
 }
 
 export async function updateMediaTitlePreferences(input: {
@@ -756,22 +807,27 @@ export async function setMediaTitleExternalIds(
         new Map(externalIds.map((entry) => [entry.source, entry])).values(),
     );
 
-    database.delete(mediaTitleExternalIds).where(eq(mediaTitleExternalIds.titleId, titleId)).run();
+    database.transaction((transaction) => {
+        transaction
+            .delete(mediaTitleExternalIds)
+            .where(eq(mediaTitleExternalIds.titleId, titleId))
+            .run();
 
-    if (uniqueExternalIds.length === 0) {
-        return [];
-    }
+        if (uniqueExternalIds.length === 0) {
+            return;
+        }
 
-    database
-        .insert(mediaTitleExternalIds)
-        .values(
-            uniqueExternalIds.map((entry) => ({
-                titleId,
-                source: entry.source,
-                value: entry.value,
-            })),
-        )
-        .run();
+        transaction
+            .insert(mediaTitleExternalIds)
+            .values(
+                uniqueExternalIds.map((entry) => ({
+                    titleId,
+                    source: entry.source,
+                    value: entry.value,
+                })),
+            )
+            .run();
+    });
 
     return database
         .select()
@@ -805,14 +861,15 @@ export async function createTvSeason(input: {
     return database.select().from(tvSeasons).where(eq(tvSeasons.id, id)).get()!;
 }
 
-export async function upsertTvSeason(input: {
+type UpsertTvSeasonInput = {
     titleId: string;
     seasonNumber: number;
     title?: string | null;
     episodeCount?: number;
     monitored?: boolean;
-}) {
-    const database = ensureDatabaseReady();
+};
+
+function upsertTvSeasonWithExecutor(database: MediaLibraryExecutor, input: UpsertTvSeasonInput) {
     const id = randomUUID();
     const values = {
         id,
@@ -863,6 +920,10 @@ export async function upsertTvSeason(input: {
         .get()!;
 }
 
+export async function upsertTvSeason(input: UpsertTvSeasonInput) {
+    return upsertTvSeasonWithExecutor(ensureDatabaseReady(), input);
+}
+
 export async function createTvEpisode(input: {
     titleId: string;
     seasonId: string;
@@ -894,7 +955,7 @@ export async function createTvEpisode(input: {
     return database.select().from(tvEpisodes).where(eq(tvEpisodes.id, id)).get()!;
 }
 
-export async function upsertTvEpisode(input: {
+type UpsertTvEpisodeInput = {
     titleId: string;
     seasonId: string;
     seasonNumber: number;
@@ -903,8 +964,9 @@ export async function upsertTvEpisode(input: {
     airDate?: string | null;
     monitored?: boolean;
     hasFile?: boolean;
-}) {
-    const database = ensureDatabaseReady();
+};
+
+function upsertTvEpisodeWithExecutor(database: MediaLibraryExecutor, input: UpsertTvEpisodeInput) {
     const id = randomUUID();
     const values = {
         id,
@@ -963,6 +1025,10 @@ export async function upsertTvEpisode(input: {
             ),
         )
         .get()!;
+}
+
+export async function upsertTvEpisode(input: UpsertTvEpisodeInput) {
+    return upsertTvEpisodeWithExecutor(ensureDatabaseReady(), input);
 }
 
 export async function findTvEpisodeByIdForUser(
@@ -1217,7 +1283,7 @@ export async function recordMediaFile(input: {
     return database.select().from(mediaFiles).where(eq(mediaFiles.id, id)).get()!;
 }
 
-export async function upsertMediaFile(input: {
+type UpsertMediaFileInput = {
     userId: string;
     titleId: string;
     libraryPathId?: string | null;
@@ -1231,8 +1297,9 @@ export async function upsertMediaFile(input: {
     modifiedAt?: Date | null;
     qualityLabel?: string | null;
     releaseGroup?: string | null;
-}) {
-    const database = ensureDatabaseReady();
+};
+
+function upsertMediaFileWithExecutor(database: MediaLibraryExecutor, input: UpsertMediaFileInput) {
     const id = randomUUID();
     const values = {
         id,
@@ -1281,9 +1348,15 @@ export async function upsertMediaFile(input: {
         .get()!;
 }
 
-export async function findMediaFileByUserPath(userId: string, filePath: string) {
-    const database = ensureDatabaseReady();
+export async function upsertMediaFile(input: UpsertMediaFileInput) {
+    return upsertMediaFileWithExecutor(ensureDatabaseReady(), input);
+}
 
+function findMediaFileByUserPathWithExecutor(
+    database: MediaLibraryExecutor,
+    userId: string,
+    filePath: string,
+) {
     return (
         database
             .select()
@@ -1291,6 +1364,155 @@ export async function findMediaFileByUserPath(userId: string, filePath: string) 
             .where(and(eq(mediaFiles.userId, userId), eq(mediaFiles.filePath, filePath)))
             .get() ?? null
     );
+}
+
+export async function findMediaFileByUserPath(userId: string, filePath: string) {
+    return findMediaFileByUserPathWithExecutor(ensureDatabaseReady(), userId, filePath);
+}
+
+function titleHasScannerOnlyMetadata(title: MediaTitleRecord) {
+    return (
+        title.status === "available" &&
+        title.overview === null &&
+        title.posterUrl === null &&
+        title.backdropUrl === null &&
+        title.runtimeMinutes === null &&
+        title.originalLanguage === null
+    );
+}
+
+function countMediaFilesForTitleWithExecutor(database: MediaLibraryExecutor, titleId: string) {
+    return (
+        database
+            .select({ count: count(mediaFiles.id) })
+            .from(mediaFiles)
+            .where(eq(mediaFiles.titleId, titleId))
+            .get()?.count ?? 0
+    );
+}
+
+function countMediaTitleExternalIdsWithExecutor(database: MediaLibraryExecutor, titleId: string) {
+    return (
+        database
+            .select({ count: count(mediaTitleExternalIds.titleId) })
+            .from(mediaTitleExternalIds)
+            .where(eq(mediaTitleExternalIds.titleId, titleId))
+            .get()?.count ?? 0
+    );
+}
+
+export type MergeScannedMediaFileInput = {
+    userId: string;
+    libraryId: string | null;
+    libraryPathId: string | null;
+    mediaType: RecommendationMediaType;
+    title: string;
+    sortTitle: string;
+    year: number | null;
+    normalizedKey: string;
+    seasonNumber: number | null;
+    episodeNumber: number | null;
+    fileKind: MediaFileKind;
+    filePath: string;
+    relativePath: string;
+    sizeBytes: number | null;
+    modifiedAt: Date | null;
+    qualityLabel: string | null;
+};
+
+/**
+ * Persist one scanned file atomically. The transaction deliberately covers one
+ * file only; scans do not acquire a cross-process or whole-scan lock.
+ */
+export function mergeScannedMediaFile(input: MergeScannedMediaFileInput) {
+    const database = ensureDatabaseReady();
+
+    return database.transaction((transaction) => {
+        const title = upsertMediaTitleWithExecutor(transaction, {
+            userId: input.userId,
+            libraryId: input.libraryId,
+            mediaType: input.mediaType,
+            title: input.title,
+            sortTitle: input.sortTitle,
+            year: input.year,
+            normalizedKey: input.normalizedKey,
+            status: "available",
+        });
+
+        if (!title) {
+            throw new Error("Scanned media title could not be resolved inside its transaction.");
+        }
+
+        const existingFile = findMediaFileByUserPathWithExecutor(
+            transaction,
+            input.userId,
+            input.filePath,
+        );
+        const season =
+            input.mediaType === "tv" && input.seasonNumber !== null
+                ? upsertTvSeasonWithExecutor(transaction, {
+                      titleId: title.id,
+                      seasonNumber: input.seasonNumber,
+                  })
+                : null;
+        const episode =
+            season && input.episodeNumber !== null
+                ? upsertTvEpisodeWithExecutor(transaction, {
+                      titleId: title.id,
+                      seasonId: season.id,
+                      seasonNumber: input.seasonNumber!,
+                      episodeNumber: input.episodeNumber,
+                      hasFile: true,
+                  })
+                : null;
+
+        upsertMediaFileWithExecutor(transaction, {
+            userId: input.userId,
+            titleId: title.id,
+            libraryPathId: input.libraryPathId,
+            seasonId: season?.id ?? null,
+            episodeId: episode?.id ?? null,
+            mediaType: input.mediaType,
+            fileKind: input.fileKind,
+            filePath: input.filePath,
+            relativePath: input.relativePath,
+            sizeBytes: input.sizeBytes,
+            modifiedAt: input.modifiedAt,
+            qualityLabel: input.qualityLabel,
+        });
+
+        if (existingFile?.titleId && existingFile.titleId !== title.id) {
+            const staleTitle = findMediaTitleByIdForUserWithExecutor(
+                transaction,
+                input.userId,
+                existingFile.titleId,
+            );
+
+            if (
+                staleTitle &&
+                titleHasScannerOnlyMetadata(staleTitle) &&
+                countMediaFilesForTitleWithExecutor(transaction, existingFile.titleId) === 0 &&
+                countMediaTitleExternalIdsWithExecutor(transaction, existingFile.titleId) === 0
+            ) {
+                deleteMediaTitleByIdForUserWithExecutor(
+                    transaction,
+                    input.userId,
+                    existingFile.titleId,
+                );
+            }
+
+            // This read follows the file upsert and possible title deletion on
+            // the same executor, so availability reflects the transaction-local
+            // state before commit.
+            reconcileMediaTitleFileAvailabilityWithExecutor(
+                transaction,
+                input.userId,
+                existingFile.titleId,
+            );
+        }
+
+        return { titleId: title.id };
+    });
 }
 
 export async function createMediaScanRun(input: {
