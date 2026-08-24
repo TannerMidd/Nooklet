@@ -62,10 +62,23 @@ export function RecommendationTitleOverviewDialog({
         ? `${details.voteAverage.toFixed(1)} from ${details.voteCount ?? 0} votes`
         : null;
     const titleId = `recommendation-overview-${item.itemId}`;
+    const displayTitle = details?.title ?? item.title;
 
     return (
-        <RecommendationOverviewModalShell titleId={titleId} closeHref={closeHref}>
-            <div className="space-y-6 p-5 md:p-8">
+        <RecommendationOverviewModalShell
+            titleId={titleId}
+            closeHref={closeHref}
+            eyebrow={[item.mediaType === "tv" ? "TV" : "Movie", titleYear]
+                .filter(Boolean)
+                .join(" · ")}
+            title={displayTitle}
+            subtitle={
+                item.existingInLibrary
+                    ? "Existing in your library"
+                    : "In the public catalog · not yet in your library"
+            }
+        >
+            <div className="space-y-6">
                 <header className="relative overflow-hidden rounded-lg border border-cream/[0.08] bg-cream/[0.04]">
                     {details?.backdropUrl ? (
                         <Image
@@ -81,25 +94,11 @@ export function RecommendationTitleOverviewDialog({
                     <div className="relative flex flex-col gap-5 p-5 md:flex-row md:items-start md:p-7">
                         <RecommendationPoster title={item.title} posterUrl={posterUrl} />
                         <div className="min-w-0 flex-1 space-y-4">
-                            <div className="space-y-2">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">
-                                    {item.mediaType === "tv"
-                                        ? "TV recommendation"
-                                        : "Movie recommendation"}
+                            {details?.tagline ? (
+                                <p className="max-w-4xl text-base leading-7 text-muted text-pretty">
+                                    {details.tagline}
                                 </p>
-                                <h2
-                                    id={titleId}
-                                    className="font-heading text-2xl leading-tight text-foreground md:text-3xl"
-                                >
-                                    {details?.title ?? item.title}
-                                    {titleYear ? ` (${titleYear})` : ""}
-                                </h2>
-                                {details?.tagline ? (
-                                    <p className="max-w-4xl text-base leading-7 text-muted">
-                                        {details.tagline}
-                                    </p>
-                                ) : null}
-                            </div>
+                            ) : null}
                             <div className="flex flex-wrap gap-3 text-xs text-muted">
                                 {item.confidenceLabel ? <span>{item.confidenceLabel}</span> : null}
                                 {genresLabel ? <span>{genresLabel}</span> : null}

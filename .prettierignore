@@ -15,3 +15,6 @@ tsconfig.tsbuildinfo
 
 *.png
 *.webp
+
+# Generated single-file design artifacts — reformatting breaks the bundle.
+docs/Nooklet Dialog Prototype.html
