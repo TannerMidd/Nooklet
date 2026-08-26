@@ -45,10 +45,19 @@ export function DiscoverTitleOverviewDialog({
     const voteLabel = details.voteAverage
         ? `${details.voteAverage.toFixed(1)} from ${details.voteCount ?? 0} votes`
         : null;
+    const headerEyebrow = [details.mediaType === "tv" ? "TV" : "Movie", details.year]
+        .filter(Boolean)
+        .join(" · ");
 
     return (
-        <RecommendationOverviewModalShell titleId={titleId} closeHref={closeHref}>
-            <div className="space-y-6 p-5 md:p-8">
+        <RecommendationOverviewModalShell
+            titleId={titleId}
+            closeHref={closeHref}
+            eyebrow={headerEyebrow}
+            title={details.title}
+            subtitle="In the public catalog · not yet in your library"
+        >
+            <div className="space-y-6">
                 <header className="relative overflow-hidden rounded-xl border border-cream/[0.08] bg-cream/[0.04]">
                     {details.backdropUrl ? (
                         <Image
@@ -64,23 +73,11 @@ export function DiscoverTitleOverviewDialog({
                     <div className="relative flex flex-col gap-5 p-5 md:flex-row md:items-start md:p-7">
                         <RecommendationPoster title={details.title} posterUrl={details.posterUrl} />
                         <div className="min-w-0 flex-1 space-y-4">
-                            <div className="space-y-2">
-                                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent/85">
-                                    {details.mediaType === "tv" ? "TV title" : "Movie title"}
+                            {details.tagline ? (
+                                <p className="max-w-4xl text-base leading-7 text-muted text-pretty">
+                                    {details.tagline}
                                 </p>
-                                <h2
-                                    id={titleId}
-                                    className="font-heading text-2xl leading-tight text-foreground md:text-3xl"
-                                >
-                                    {details.title}
-                                    {details.year ? ` (${details.year})` : ""}
-                                </h2>
-                                {details.tagline ? (
-                                    <p className="max-w-4xl text-base leading-7 text-muted">
-                                        {details.tagline}
-                                    </p>
-                                ) : null}
-                            </div>
+                            ) : null}
                             <div className="flex flex-wrap gap-3 text-xs font-medium text-muted">
                                 {genresLabel ? <span>{genresLabel}</span> : null}
                                 {details.originalLanguage ? (

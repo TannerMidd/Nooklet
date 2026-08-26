@@ -235,14 +235,40 @@ ol {
 }
 
 /* Modal scrim: one warm near-black wash with a soft blur behind every dialog,
-   drawer, and palette. */
+   drawer, and palette. Closes on pointer-up only (see dialog-shell.tsx) so a
+   drag that leaves the panel never dismisses it accidentally. */
 .nk-scrim {
-    background: rgba(10, 9, 8, 0.76);
-    backdrop-filter: blur(7px);
+    background: rgba(10, 9, 8, 0.72);
+    backdrop-filter: blur(8px);
 }
 
 .nk-pop {
-    animation: nk-pop 260ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: nk-pop 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Bottom sheet entrance (dialogs below 640px): rises from the bottom edge. */
+@keyframes nk-sheet {
+    from {
+        transform: translateY(100%);
+    }
+
+    to {
+        transform: translateY(0);
+    }
+}
+
+.nk-sheet {
+    animation: nk-sheet 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nk-enter,
+    .nk-fade,
+    .nk-pop,
+    .nk-rise,
+    .nk-sheet {
+        animation-duration: 0.01ms;
+    }
 }
 
 @keyframes recommendation-card-enter {
