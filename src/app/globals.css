@@ -129,6 +129,22 @@ ol {
     color: rgb(var(--placeholder));
 }
 
+/* Native select popups are painted from the control's own background, and our
+   selects carry a translucent cream fill (see control-surface.ts) that the
+   browser composites over the popup's white base — leaving cream text on a
+   white sheet. Options and groups get an opaque panel fill of their own so
+   every native dropdown (drive/destination pickers, media type, quality
+   profile, schedules) stays readable when it is open. */
+select option,
+select optgroup {
+    background-color: rgb(var(--panel-strong));
+    color: rgb(var(--foreground));
+}
+
+select option:disabled {
+    color: rgb(var(--muted));
+}
+
 :focus-visible {
     outline: 2px solid rgb(var(--focus));
     outline-offset: 2px;
