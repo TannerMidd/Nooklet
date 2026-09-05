@@ -1,4 +1,6 @@
 import os from "node:os";
+import { randomUUID } from "node:crypto";
+import { env } from "@/lib/env";
 import path from "node:path";
 import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 
@@ -13,6 +15,7 @@ async function tempRoot(label: string) {
     const root = await mkdtemp(path.join(os.tmpdir(), `nooklet-organize-${label}-`));
 
     roots.push(root);
+    env.DOWNLOAD_ENGINE_DIR = root;
 
     return root;
 }
@@ -59,7 +62,10 @@ function readyDownload(input: {
             titleEpisodes: input.titleEpisodes ?? [],
             target: { path: { path: input.targetRoot } },
             match: {
+                historyItem: { id: randomUUID() },
                 request: {
+                    id: randomUUID(),
+                    userId: "test-user",
                     mediaType: input.mediaType,
                     requestedTitle: input.title,
                     episodeId: input.episode?.id ?? null,

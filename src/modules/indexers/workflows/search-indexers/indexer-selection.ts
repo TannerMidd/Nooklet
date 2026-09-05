@@ -3,6 +3,7 @@ import {
     listIndexerMediaCategories,
     type IndexerRecord,
 } from "@/modules/indexers/repositories/indexer-repository";
+import { isSupportedIndexerProtocol } from "@/modules/indexers/capabilities";
 import { type ValidatedIndexerSearchRequest } from "./request-validation";
 
 export type SelectedIndexerSearchSource = {
@@ -15,7 +16,9 @@ export async function selectIndexerSearchSources(
     request: ValidatedIndexerSearchRequest,
 ): Promise<SelectedIndexerSearchSource[]> {
     const indexers = await listEnabledIndexersForMedia(userId, request.mediaType);
-    const supportedIndexers = indexers.filter((indexer) => indexer.protocol === "newznab");
+    const supportedIndexers = indexers.filter((indexer) =>
+        isSupportedIndexerProtocol(indexer.protocol),
+    );
 
     return Promise.all(
         supportedIndexers.map(async (indexer) => ({

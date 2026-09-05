@@ -2,6 +2,7 @@ import {
     searchNewznabIndexer,
     type NewznabSearchResult,
 } from "@/modules/indexers/adapters/newznab";
+import { sanitizeExternalErrorMessage } from "@/lib/security/credential-url";
 import { type ValidatedIndexerSearchRequest } from "./request-validation";
 import { type ResolvedIndexerSearchSource } from "./credential-resolution";
 
@@ -48,7 +49,7 @@ export async function executeIndexerSearches(
                 return {
                     source,
                     results: [],
-                    errorMessage: error instanceof Error ? error.message : "Indexer search failed.",
+                    errorMessage: sanitizeExternalErrorMessage(error, "Indexer search failed."),
                 };
             }
         }),

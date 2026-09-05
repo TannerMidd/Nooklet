@@ -16,6 +16,6 @@ describe("safeCallbackUrl", () => {
         "/login?callbackUrl=/admin",
         "/bootstrap",
     ])("falls back for unsafe callback value %s", (value) => {
-        expect(safeCallbackUrl(value)).toBe("/tv");
+        expect(safeCallbackUrl(value)).toBe("/home");
     });
 });

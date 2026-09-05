@@ -1,3 +1,4 @@
+import { logger } from "@/lib/observability/logger";
 import { parseRecommendationProviderMetadata } from "@/modules/recommendations/provider-metadata";
 import { type AddRecommendationToLibraryInput } from "@/modules/recommendations/schemas/add-to-library";
 import { RequestMediaTitleCommandError } from "@/modules/media-library/commands/request-media-title";
@@ -42,6 +43,41 @@ function fieldForRequestMediaTitleError(error: RequestMediaTitleCommandError) {
     }
 
     return undefined;
+}
+
+function describeFollowUpError(error: unknown) {
+    if (!(error instanceof Error)) {
+        return { name: "UnknownError" };
+    }
+
+    const code =
+        "code" in error && typeof error.code === "string" ? error.code.slice(0, 64) : undefined;
+
+    return code ? { name: error.name, code } : { name: error.name };
+}
+
+async function safelyMarkRecommendationItemExistingInLibrary(itemId: string) {
+    try {
+        await markRecommendationItemExistingInLibrary(itemId, true);
+    } catch (error) {
+        logger.warn("recommendation_library_add_state_update_failed", {
+            itemId,
+            error: describeFollowUpError(error),
+        });
+    }
+}
+
+async function safelyCreateRecommendationItemTimelineEvent(
+    input: Parameters<typeof createRecommendationItemTimelineEvent>[0],
+) {
+    try {
+        await createRecommendationItemTimelineEvent(input);
+    } catch (error) {
+        logger.warn("recommendation_library_add_timeline_failed", {
+            itemId: input.itemId,
+            error: describeFollowUpError(error),
+        });
+    }
 }
 
 export async function addRecommendationToLibrary(
@@ -99,12 +135,13 @@ export async function addRecommendationToLibrary(
         });
         const { outcome, message } = summary;
         const ok = outcome === "catalog_added" || outcome === "queued";
+        const catalogAdded = Boolean(requested.title?.id);
 
-        if (ok) {
-            await markRecommendationItemExistingInLibrary(item.itemId, true);
+        if (catalogAdded) {
+            await safelyMarkRecommendationItemExistingInLibrary(item.itemId);
         }
 
-        await createRecommendationItemTimelineEvent({
+        await safelyCreateRecommendationItemTimelineEvent({
             userId,
             itemId: item.itemId,
             eventType: "library-add",
@@ -118,7 +155,7 @@ export async function addRecommendationToLibrary(
             message,
             metadata: {
                 outcome,
-                catalogAdded: true,
+                catalogAdded,
                 mediaTitleId: requested.title.id,
                 libraryId: requested.title.libraryId,
                 targetLibraryPathId: input.targetLibraryPathId ?? null,
@@ -144,12 +181,12 @@ export async function addRecommendationToLibrary(
         return {
             ok: false,
             outcome,
-            catalogAdded: true,
+            catalogAdded,
             message,
         };
     } catch (error) {
         if (error instanceof RequestTitleAlreadyInFlightError) {
-            await createRecommendationItemTimelineEvent({
+            await safelyCreateRecommendationItemTimelineEvent({
                 userId,
                 itemId: item.itemId,
                 eventType: "library-add",
@@ -179,7 +216,7 @@ export async function addRecommendationToLibrary(
                 ? fieldForRequestMediaTitleError(error)
                 : undefined;
 
-        await createRecommendationItemTimelineEvent({
+        await safelyCreateRecommendationItemTimelineEvent({
             userId,
             itemId: item.itemId,
             eventType: "library-add",

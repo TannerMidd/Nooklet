@@ -1,4 +1,5 @@
 import { searchNewznabIndexer } from "@/modules/indexers/adapters/newznab";
+import { sanitizeExternalErrorMessage } from "@/lib/security/credential-url";
 
 import { type ResolvedTestIndexerConnection } from "./credential-resolution";
 
@@ -29,7 +30,7 @@ export async function executeTestIndexerConnection(
     } catch (error) {
         return {
             ok: false,
-            message: error instanceof Error ? error.message : "Indexer test failed.",
+            message: sanitizeExternalErrorMessage(error, "Indexer test failed."),
             resultCount: 0,
         };
     }

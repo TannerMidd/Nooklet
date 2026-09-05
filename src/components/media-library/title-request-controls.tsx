@@ -2,6 +2,7 @@
 
 import { ListChecks } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { DownloadNowToggle } from "@/components/media-library/download-now-toggle";
@@ -36,6 +37,19 @@ type TitleRequestControlsProps = {
     onDownloadNowChange?: (downloadNow: boolean) => void;
 };
 
+export function buildStorageSettingsHref(
+    mediaType: RecommendationMediaType,
+    returnTo?: string,
+): string {
+    const params = new URLSearchParams({ mediaType });
+
+    if (returnTo?.startsWith("/") && !returnTo.startsWith("//")) {
+        params.set("returnTo", returnTo);
+    }
+
+    return `/settings/storage?${params.toString()}`;
+}
+
 function pathOptionLabel(option: MediaLibraryPathOption) {
     return `${option.label} - ${option.path}${option.isDownloadDefault ? " (default)" : ""}`;
 }
@@ -62,6 +76,7 @@ export function TitleRequestControls({
     defaultDownloadNow = true,
     onDownloadNowChange,
 }: TitleRequestControlsProps) {
+    const router = useRouter();
     const matchingLibraries = libraries.filter((library) => library.mediaType === mediaType);
     const matchingPathOptions = pathOptions.filter((option) => option.mediaType === mediaType);
     const defaultPathOption = matchingPathOptions.find((option) => option.isDownloadDefault);
@@ -90,7 +105,9 @@ export function TitleRequestControls({
     const selectedQuality = qualityProfiles.find((profile) => profile.value === qualityProfile);
     const destinationLabel = selectedPath
         ? `${selectedLibrary?.name ?? "Library"} / ${selectedPath.label} — ${selectedPath.path}`
-        : "No active destination folder selected";
+        : downloadNow
+          ? "No active destination folder selected"
+          : "No destination selected (catalog only)";
 
     function handleDownloadNowChange(nextDownloadNow: boolean) {
         setDownloadNow(nextDownloadNow);
@@ -104,6 +121,28 @@ export function TitleRequestControls({
             : [];
 
         setSelectedTargetPathId(preferredPathId(nextPathOptions));
+    }
+
+    function handleStorageSettingsClick(event: React.MouseEvent<HTMLAnchorElement>) {
+        if (
+            event.defaultPrevented ||
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey ||
+            typeof window === "undefined"
+        ) {
+            return;
+        }
+
+        event.preventDefault();
+        router.push(
+            buildStorageSettingsHref(
+                mediaType,
+                `${window.location.pathname}${window.location.search}`,
+            ),
+        );
     }
 
     return (
@@ -229,6 +268,7 @@ export function TitleRequestControls({
                     <div>
                         <dt className="text-xs text-muted">Title and scope</dt>
                         <dd className="mt-0.5 font-medium text-foreground">
+                            {titleLabel} ·{" "}
                             {mediaType === "tv"
                                 ? `TV / ${describeTvSelection(selection)}`
                                 : "Movie"}
@@ -238,7 +278,7 @@ export function TitleRequestControls({
                         <dt className="text-xs text-muted">Destination</dt>
                         <dd
                             className={
-                                selectedPath
+                                selectedPath || !downloadNow
                                     ? "mt-0.5 break-all font-medium text-foreground"
                                     : "mt-0.5 font-medium text-accent-wine"
                             }
@@ -258,6 +298,12 @@ export function TitleRequestControls({
                             {monitored ? "Monitor for missing content" : "Do not monitor"}
                         </dd>
                     </div>
+                    <div>
+                        <dt className="text-xs text-muted">Request behavior</dt>
+                        <dd className="mt-0.5 font-medium text-foreground">
+                            {downloadNow ? "Add to catalog + download now" : "Add to catalog only"}
+                        </dd>
+                    </div>
                 </dl>
                 <p className="mt-3 border-t border-cream/[0.08] pt-2.5 text-xs leading-5 text-muted">
                     {downloadNow
@@ -271,7 +317,8 @@ export function TitleRequestControls({
                             destination.
                         </span>
                         <Link
-                            href="/settings/storage"
+                            href={buildStorageSettingsHref(mediaType)}
+                            onClick={handleStorageSettingsClick}
                             className="font-semibold text-accent underline underline-offset-2"
                         >
                             Open Storage settings

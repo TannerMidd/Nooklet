@@ -1,4 +1,12 @@
-import { CalendarDays, ExternalLink, ListVideo, Radio, Video } from "lucide-react";
+import {
+    CalendarDays,
+    ChevronLeft,
+    ChevronRight,
+    ExternalLink,
+    ListVideo,
+    Radio,
+    Video,
+} from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -19,6 +27,7 @@ import type {
     YouTubeSearchResultDTO,
     YouTubeSourceDTO,
     YouTubeSourceSummaryDTO,
+    YouTubeVideoPage,
     YouTubeVideoDTO,
     YouTubeVideoPageItemDTO,
 } from "@/modules/youtube/public";
@@ -435,7 +444,67 @@ const downloadLabel = {
     cancelled: "Cancelled",
 };
 
-export function YouTubeVideosContent({ videos }: { videos: YouTubeVideoPageItemDTO[] }) {
+function VideosPagination({
+    sourceId,
+    pagination,
+}: {
+    sourceId?: string;
+    pagination: YouTubeVideoPage["pagination"];
+}) {
+    if (pagination.pageCount <= 1) {
+        return null;
+    }
+
+    return (
+        <nav
+            aria-label="YouTube video pages"
+            className="flex flex-wrap items-center justify-between gap-3 border-t border-cream/[0.08] pt-4"
+        >
+            <p className="text-sm text-muted">
+                Showing {pagination.firstItem}–{pagination.lastItem} of {pagination.total}
+            </p>
+            <div className="flex items-center gap-2">
+                {pagination.hasPreviousPage ? (
+                    <Link
+                        href={youtubeLibraryHref("videos", undefined, {
+                            sourceId,
+                            page: pagination.page - 1,
+                        })}
+                        prefetch={false}
+                        className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-cream/[0.14] px-3 text-sm font-semibold text-foreground hover:bg-cream/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                    >
+                        <ChevronLeft aria-hidden="true" className="h-4 w-4" /> Previous
+                    </Link>
+                ) : null}
+                <span className="px-2 text-sm text-muted">
+                    Page {pagination.page} of {pagination.pageCount}
+                </span>
+                {pagination.hasNextPage ? (
+                    <Link
+                        href={youtubeLibraryHref("videos", undefined, {
+                            sourceId,
+                            page: pagination.page + 1,
+                        })}
+                        prefetch={false}
+                        className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-cream/[0.14] px-3 text-sm font-semibold text-foreground hover:bg-cream/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                    >
+                        Next <ChevronRight aria-hidden="true" className="h-4 w-4" />
+                    </Link>
+                ) : null}
+            </div>
+        </nav>
+    );
+}
+
+export function YouTubeVideosContent({
+    videos,
+    sourceId,
+    pagination,
+}: {
+    videos: YouTubeVideoPageItemDTO[];
+    sourceId?: string;
+    pagination?: YouTubeVideoPage["pagination"];
+}) {
     if (videos.length === 0) {
         return (
             <EmptyState
@@ -453,60 +522,63 @@ export function YouTubeVideosContent({ videos }: { videos: YouTubeVideoPageItemD
     }
 
     return (
-        <div className="space-y-3">
-            {videos.map((video) => (
-                <article
-                    key={video.id}
-                    className="grid gap-4 rounded-2xl border border-cream/[0.08] bg-cream/[0.025] p-4 sm:grid-cols-[160px_minmax(0,1fr)]"
-                >
-                    <div className="overflow-hidden rounded-xl">
-                        <Thumbnail url={video.thumbnailUrl} alt="" />
-                    </div>
-                    <div className="min-w-0 space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                            {video.downloadStatus ? (
-                                <Badge
-                                    variant={
-                                        video.downloadStatus === "completed"
-                                            ? "accent-cool"
-                                            : video.downloadStatus === "failed"
-                                              ? "wine"
-                                              : "accent"
-                                    }
-                                >
-                                    {downloadLabel[video.downloadStatus]}
-                                </Badge>
-                            ) : (
-                                <Badge>Discovered</Badge>
-                            )}
-                            {video.remotePresent === false ? (
-                                <Badge variant="wine">Removed remotely</Badge>
-                            ) : null}
-                            {video.sourceId ? (
-                                <Badge>Monitored source</Badge>
-                            ) : (
-                                <Badge>Individual video</Badge>
-                            )}
+        <>
+            <div className="space-y-3">
+                {videos.map((video) => (
+                    <article
+                        key={video.id}
+                        className="grid gap-4 rounded-2xl border border-cream/[0.08] bg-cream/[0.025] p-4 sm:grid-cols-[160px_minmax(0,1fr)]"
+                    >
+                        <div className="overflow-hidden rounded-xl">
+                            <Thumbnail url={video.thumbnailUrl} alt="" />
                         </div>
-                        <h3 className="font-heading text-lg text-foreground">{video.title}</h3>
-                        <p className="text-sm text-muted">{video.channelTitle ?? "YouTube"}</p>
-                        {video.publishedAt ? (
-                            <p className="flex items-center gap-2 text-xs text-muted">
-                                <CalendarDays aria-hidden="true" className="h-4 w-4" />
-                                {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(
-                                    video.publishedAt,
+                        <div className="min-w-0 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                                {video.downloadStatus ? (
+                                    <Badge
+                                        variant={
+                                            video.downloadStatus === "completed"
+                                                ? "accent-cool"
+                                                : video.downloadStatus === "failed"
+                                                  ? "wine"
+                                                  : "accent"
+                                        }
+                                    >
+                                        {downloadLabel[video.downloadStatus]}
+                                    </Badge>
+                                ) : (
+                                    <Badge>Discovered</Badge>
                                 )}
-                            </p>
-                        ) : null}
-                        {video.finalPath ? (
-                            <p className="text-xs text-accent-cool">
-                                Imported to the selected YouTube library.
-                            </p>
-                        ) : null}
-                    </div>
-                </article>
-            ))}
-        </div>
+                                {video.remotePresent === false ? (
+                                    <Badge variant="wine">Removed remotely</Badge>
+                                ) : null}
+                                {video.sourceId ? (
+                                    <Badge>Monitored source</Badge>
+                                ) : (
+                                    <Badge>Individual video</Badge>
+                                )}
+                            </div>
+                            <h3 className="font-heading text-lg text-foreground">{video.title}</h3>
+                            <p className="text-sm text-muted">{video.channelTitle ?? "YouTube"}</p>
+                            {video.publishedAt ? (
+                                <p className="flex items-center gap-2 text-xs text-muted">
+                                    <CalendarDays aria-hidden="true" className="h-4 w-4" />
+                                    {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(
+                                        video.publishedAt,
+                                    )}
+                                </p>
+                            ) : null}
+                            {video.finalPath ? (
+                                <p className="text-xs text-accent-cool">
+                                    Imported to the selected YouTube library.
+                                </p>
+                            ) : null}
+                        </div>
+                    </article>
+                ))}
+            </div>
+            {pagination ? <VideosPagination sourceId={sourceId} pagination={pagination} /> : null}
+        </>
     );
 }
 

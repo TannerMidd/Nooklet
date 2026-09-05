@@ -9,7 +9,9 @@ import {
     listYouTubeRequestOptions,
     listYouTubeSources as listSources,
     listYouTubeVideos as listVideos,
+    getYouTubeVideosPage as getVideosPage,
     queueYouTubeVideo,
+    queueYouTubeVideos as queueVideos,
     removeYouTubeSource as removeSource,
     requestYouTubeDownloadCancellation,
     retryAllYouTubeDownloads as retryAllDownloads,
@@ -19,7 +21,9 @@ import {
 } from "@/modules/youtube/repositories/youtube-repository";
 export {
     hasYouTubeAssociationForLibraryPath,
+    summarizeYouTubeQueueResults,
     type YouTubeActivityView,
+    type YouTubeQueueItemResult,
 } from "@/modules/youtube/repositories/youtube-repository";
 export {
     inspectActiveYouTubeCapacityForUsenet,
@@ -31,6 +35,7 @@ import { consumeRateLimit, formatRetryAfter } from "@/lib/security/rate-limit";
 import { YouTubeDomainError } from "@/modules/youtube/errors";
 import {
     createYouTubeSourceWorkflow,
+    retryYouTubeSourceInitializationWorkflow,
     syncAllActiveYouTubeSourcesWorkflow,
     syncYouTubeSourceWorkflow,
 } from "@/modules/youtube/workflows/source-sync";
@@ -59,6 +64,8 @@ export type {
     YouTubeDownloadActivityDTO,
     YouTubeEnumerationDTO,
     YouTubeHealthDTO,
+    YouTubeQueueOutcome,
+    YouTubeQueueSummary,
     YouTubeRequestOptionsDTO,
     YouTubeRunnerProgress,
     YouTubeSearchResultDTO,
@@ -66,6 +73,7 @@ export type {
     YouTubeSourceSummaryDTO,
     YouTubeToolDiagnosticsDTO,
     YouTubeVideoDTO,
+    YouTubeVideoPage,
     YouTubeVideoPageItemDTO,
 } from "@/modules/youtube/types";
 
@@ -213,11 +221,14 @@ export async function getYouTubeSourcesPage(userId: string) {
 }
 
 export async function listYouTubeVideos(userId: string, options: { sourceId?: string } = {}) {
-    return listVideos(userId, options.sourceId);
+    return listVideos(userId, options);
 }
 
-export async function getYouTubeVideosPage(userId: string, options: { sourceId?: string } = {}) {
-    return { videos: await listVideos(userId, options.sourceId) };
+export async function getYouTubeVideosPage(
+    userId: string,
+    options: { sourceId?: string; page?: number; pageSize?: number } = {},
+) {
+    return getVideosPage(userId, options);
 }
 
 export async function listYouTubeDownloadActivity(userId: string) {
@@ -256,20 +267,7 @@ export async function queueYouTubeVideos(
         qualityProfile: YoutubeQualityProfile;
     },
 ) {
-    const queued = [];
-
-    for (const video of input.videos) {
-        queued.push(
-            await queueYouTubeVideo({
-                userId,
-                video,
-                libraryPathId: input.libraryPathId,
-                qualityProfile: input.qualityProfile,
-            }),
-        );
-    }
-
-    return queued;
+    return queueVideos({ userId, ...input });
 }
 
 export async function queueYouTubeVideoUrl(
@@ -323,7 +321,7 @@ export async function syncYouTubeSourceNow(userId: string, sourceId: string) {
 
 export async function retryYouTubeSourceInitialization(userId: string, sourceId: string) {
     return runYouTubeDiscovery(userId, () =>
-        syncYouTubeSourceWorkflow(userId, sourceId, { allowPaused: true }),
+        retryYouTubeSourceInitializationWorkflow(userId, sourceId),
     );
 }
 

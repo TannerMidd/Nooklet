@@ -20,6 +20,7 @@ import {
     serializeRecommendationGenres,
     type RecommendationGenre,
 } from "@/modules/recommendations/recommendation-genres";
+import { createImmediateJobInTransaction } from "@/modules/jobs/public";
 
 type CreateRecommendationRunInput = {
     userId: string;
@@ -89,10 +90,51 @@ export async function createRecommendationRun(input: CreateRecommendationRunInpu
     return database.select().from(recommendationRuns).where(eq(recommendationRuns.id, runId)).get();
 }
 
+export async function createQueuedRecommendationRun(input: CreateRecommendationRunInput) {
+    const database = ensureDatabaseReady();
+    const runId = randomUUID();
+
+    return database.transaction((transaction) => {
+        transaction
+            .insert(recommendationRuns)
+            .values({
+                id: runId,
+                userId: input.userId,
+                mediaType: input.mediaType,
+                requestPrompt: input.requestPrompt,
+                selectedGenresJson: serializeRecommendationGenres(input.selectedGenres),
+                requestedCount: input.requestedCount,
+                aiModel: input.aiModel,
+                aiTemperature: input.aiTemperature,
+                watchHistoryOnly: input.watchHistoryOnly,
+            })
+            .run();
+
+        createImmediateJobInTransaction(transaction, {
+            userId: input.userId,
+            jobType: "recommendation-run",
+            targetType: "recommendation-run",
+            targetKey: runId,
+        });
+
+        const run = transaction
+            .select()
+            .from(recommendationRuns)
+            .where(eq(recommendationRuns.id, runId))
+            .get();
+
+        if (!run) {
+            throw new Error("Recommendation run was not created.");
+        }
+
+        return run;
+    });
+}
+
 export async function markRecommendationRunFailed(runId: string, errorMessage: string) {
     const database = ensureDatabaseReady();
 
-    database
+    const result = database
         .update(recommendationRuns)
         .set({
             status: "failed",
@@ -100,8 +142,10 @@ export async function markRecommendationRunFailed(runId: string, errorMessage: s
             completedAt: new Date(),
             updatedAt: new Date(),
         })
-        .where(eq(recommendationRuns.id, runId))
+        .where(and(eq(recommendationRuns.id, runId), eq(recommendationRuns.status, "pending")))
         .run();
+
+    return result.changes > 0;
 }
 
 export async function completeRecommendationRun(
@@ -109,12 +153,6 @@ export async function completeRecommendationRun(
     items: CreateRecommendationItemInput[],
 ) {
     const database = ensureDatabaseReady();
-    const run = database
-        .select({ userId: recommendationRuns.userId })
-        .from(recommendationRuns)
-        .where(eq(recommendationRuns.id, runId))
-        .get();
-
     const values = items.map((item) => ({
         id: randomUUID(),
         runId,
@@ -127,30 +165,20 @@ export async function completeRecommendationRun(
         providerMetadataJson: item.providerMetadataJson,
     }));
 
-    database.transaction(() => {
-        if (values.length > 0) {
-            database.insert(recommendationItems).values(values).run();
+    let completionApplied = false;
 
-            if (run) {
-                const timelineValues: RecommendationTimelineEventInsert[] = values.map((item) => ({
-                    id: randomUUID(),
-                    userId: run.userId,
-                    itemId: item.id,
-                    eventType: "generated",
-                    status: "succeeded",
-                    title: "Recommendation generated",
-                    message: `${item.title}${item.year ? ` (${item.year})` : ""} was generated in this recommendation run.`,
-                    metadataJson: JSON.stringify({
-                        runId,
-                        position: item.position,
-                    }),
-                }));
+    database.transaction((transaction) => {
+        const run = transaction
+            .select({ userId: recommendationRuns.userId })
+            .from(recommendationRuns)
+            .where(and(eq(recommendationRuns.id, runId), eq(recommendationRuns.status, "pending")))
+            .get();
 
-                database.insert(recommendationItemTimelineEvents).values(timelineValues).run();
-            }
+        if (!run) {
+            return;
         }
 
-        database
+        const result = transaction
             .update(recommendationRuns)
             .set({
                 status: "succeeded",
@@ -158,9 +186,37 @@ export async function completeRecommendationRun(
                 completedAt: new Date(),
                 updatedAt: new Date(),
             })
-            .where(eq(recommendationRuns.id, runId))
+            .where(and(eq(recommendationRuns.id, runId), eq(recommendationRuns.status, "pending")))
             .run();
+
+        if (result.changes === 0) {
+            return;
+        }
+
+        completionApplied = true;
+
+        if (values.length > 0) {
+            transaction.insert(recommendationItems).values(values).run();
+
+            const timelineValues: RecommendationTimelineEventInsert[] = values.map((item) => ({
+                id: randomUUID(),
+                userId: run.userId,
+                itemId: item.id,
+                eventType: "generated",
+                status: "succeeded",
+                title: "Recommendation generated",
+                message: `${item.title}${item.year ? ` (${item.year})` : ""} was generated in this recommendation run.`,
+                metadataJson: JSON.stringify({
+                    runId,
+                    position: item.position,
+                }),
+            }));
+
+            transaction.insert(recommendationItemTimelineEvents).values(timelineValues).run();
+        }
     });
+
+    return completionApplied;
 }
 
 export async function upsertRecommendationRunMetrics(input: UpsertRecommendationRunMetricsInput) {

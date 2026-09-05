@@ -7,20 +7,18 @@ vi.mock("@/modules/watch-history/normalization", () => ({
     parseManualWatchHistoryEntries: vi.fn(),
 }));
 vi.mock("@/modules/watch-history/repositories/watch-history-repository", () => ({
-    completeWatchHistorySyncRun: vi.fn(),
     createWatchHistorySyncRun: vi.fn(),
     failWatchHistorySyncRun: vi.fn(),
-    replaceWatchHistoryItemsForSource: vi.fn(),
+    replaceWatchHistoryItemsAndCompleteSyncRun: vi.fn(),
     upsertWatchHistorySource: vi.fn(),
 }));
 
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 import { parseManualWatchHistoryEntries } from "@/modules/watch-history/normalization";
 import {
-    completeWatchHistorySyncRun,
     createWatchHistorySyncRun,
     failWatchHistorySyncRun,
-    replaceWatchHistoryItemsForSource,
+    replaceWatchHistoryItemsAndCompleteSyncRun,
     upsertWatchHistorySource,
 } from "@/modules/watch-history/repositories/watch-history-repository";
 
@@ -29,9 +27,8 @@ import { syncManualWatchHistory } from "./sync-manual-watch-history";
 const parseMock = vi.mocked(parseManualWatchHistoryEntries);
 const upsertSourceMock = vi.mocked(upsertWatchHistorySource);
 const createRunMock = vi.mocked(createWatchHistorySyncRun);
-const completeRunMock = vi.mocked(completeWatchHistorySyncRun);
 const failRunMock = vi.mocked(failWatchHistorySyncRun);
-const replaceItemsMock = vi.mocked(replaceWatchHistoryItemsForSource);
+const publishRunMock = vi.mocked(replaceWatchHistoryItemsAndCompleteSyncRun);
 const auditMock = vi.mocked(createAuditEvent);
 
 const USER_ID = "user-1";
@@ -41,9 +38,8 @@ describe("syncManualWatchHistory", () => {
         vi.clearAllMocks();
         upsertSourceMock.mockResolvedValue({ id: "src-1", sourceType: "manual" } as never);
         createRunMock.mockResolvedValue({ id: "run-1" } as never);
-        completeRunMock.mockResolvedValue(undefined as never);
-        failRunMock.mockResolvedValue(undefined as never);
-        replaceItemsMock.mockResolvedValue(undefined as never);
+        publishRunMock.mockResolvedValue(true);
+        failRunMock.mockResolvedValue(true);
         auditMock.mockResolvedValue(undefined as never);
     });
 
@@ -80,10 +76,11 @@ describe("syncManualWatchHistory", () => {
 
         expect(parseMock).toHaveBeenCalledWith("tv", "A (2024)\nB\nC (2020)");
 
-        expect(replaceItemsMock).toHaveBeenCalledTimes(1);
-        const persistArgs = replaceItemsMock.mock.calls[0]?.[0];
+        expect(publishRunMock).toHaveBeenCalledTimes(1);
+        const persistArgs = publishRunMock.mock.calls[0]?.[0];
 
         expect(persistArgs).toMatchObject({
+            runId: "run-1",
             sourceId: "src-1",
             userId: USER_ID,
             mediaType: "tv",
@@ -102,7 +99,6 @@ describe("syncManualWatchHistory", () => {
         expect(items[0]!.watchedAt.getTime()).toBeGreaterThanOrEqual(before);
         expect(items[0]!.watchedAt.getTime()).toBeLessThanOrEqual(after);
 
-        expect(completeRunMock).toHaveBeenCalledWith("run-1", 3);
         expect(failRunMock).not.toHaveBeenCalled();
 
         expect(auditMock).toHaveBeenCalledWith(
@@ -138,6 +134,42 @@ describe("syncManualWatchHistory", () => {
         });
     });
 
+    it("does not emit success when completion loses the pending guard", async () => {
+        parseMock.mockReturnValue([{ title: "X", year: null }] as never);
+        publishRunMock.mockResolvedValue(false);
+
+        const result = await syncManualWatchHistory(USER_ID, {
+            mediaType: "tv",
+            entriesText: "X",
+        });
+
+        expect(result).toEqual({
+            ok: false,
+            message: "This manual watch-history sync was already finalized.",
+        });
+        expect(auditMock).not.toHaveBeenCalled();
+        expect(failRunMock).not.toHaveBeenCalled();
+    });
+
+    it("keeps a successful sync succeeded when the success audit is unavailable", async () => {
+        parseMock.mockReturnValue([{ title: "X", year: null }] as never);
+        auditMock.mockRejectedValueOnce(new Error("audit store unavailable"));
+
+        const result = await syncManualWatchHistory(USER_ID, {
+            mediaType: "tv",
+            entriesText: "X",
+        });
+
+        expect(result).toEqual({
+            ok: true,
+            message: "Imported 1 TV titles into watch history.",
+        });
+        expect(publishRunMock).toHaveBeenCalledWith(
+            expect.objectContaining({ runId: "run-1", items: expect.any(Array) }),
+        );
+        expect(failRunMock).not.toHaveBeenCalled();
+    });
+
     it("upserts a source with null metadata and the manual display name", async () => {
         parseMock.mockReturnValue([{ title: "X" }] as never);
 
@@ -153,19 +185,33 @@ describe("syncManualWatchHistory", () => {
 
     it("fails the run, emits a failure audit event, and surfaces the error message when persistence throws", async () => {
         parseMock.mockReturnValue([{ title: "X" }] as never);
-        replaceItemsMock.mockRejectedValue(new Error("DB write failed"));
+        publishRunMock.mockRejectedValue(new Error("DB write failed"));
 
         const result = await syncManualWatchHistory(USER_ID, { mediaType: "tv", entriesText: "X" });
 
         expect(failRunMock).toHaveBeenCalledWith("run-1", "DB write failed");
-        expect(completeRunMock).not.toHaveBeenCalled();
+        expect(publishRunMock).toHaveBeenCalledTimes(1);
         expect(auditMock.mock.calls[0]?.[0]?.eventType).toBe("watch-history.sync.failed");
         expect(result).toEqual({ ok: false, message: "DB write failed" });
     });
 
+    it("does not emit failure when failure completion loses the pending guard", async () => {
+        parseMock.mockReturnValue([{ title: "X" }] as never);
+        publishRunMock.mockRejectedValue(new Error("DB write failed"));
+        failRunMock.mockResolvedValue(false);
+
+        const result = await syncManualWatchHistory(USER_ID, { mediaType: "tv", entriesText: "X" });
+
+        expect(result).toEqual({
+            ok: false,
+            message: "This manual watch-history sync was already finalized.",
+        });
+        expect(auditMock).not.toHaveBeenCalled();
+    });
+
     it("translates a non-Error throw into a stable generic message", async () => {
         parseMock.mockReturnValue([{ title: "X" }] as never);
-        replaceItemsMock.mockImplementation(async () => {
+        publishRunMock.mockImplementation(async () => {
             throw "raw failure";
         });
 

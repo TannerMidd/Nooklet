@@ -8,18 +8,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatStrip } from "@/components/ui/stat-card";
-import {
-    listLibraryOverview,
-    type LibrarySummary,
-} from "@/modules/media-library/queries/list-library-overview";
+import { listLibraryOverview } from "@/modules/media-library/queries/list-library-overview";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Library" };
-
-function sumCounts(libraries: LibrarySummary[], key: "titleCount" | "fileCount") {
-    return libraries.reduce((total, library) => total + library[key], 0);
-}
 
 function LibraryDestinationCard({
     href,
@@ -62,8 +55,6 @@ export default async function LibraryPage() {
     }
 
     const overview = await listLibraryOverview(session.user.id);
-    const movieLibraries = overview.libraries.filter((library) => library.mediaType === "movie");
-    const tvLibraries = overview.libraries.filter((library) => library.mediaType === "tv");
 
     return (
         <div className="nk-enter space-y-8">
@@ -111,13 +102,13 @@ export default async function LibraryPage() {
                 <LibraryDestinationCard
                     href="/library/movies"
                     title="Movies"
-                    description={`${sumCounts(movieLibraries, "titleCount")} titles · ${sumCounts(movieLibraries, "fileCount")} files`}
+                    description={`${overview.mediaTotals.movie.titles} titles · ${overview.mediaTotals.movie.files} files`}
                     tone="warm"
                 />
                 <LibraryDestinationCard
                     href="/library/tv"
                     title="TV series"
-                    description={`${sumCounts(tvLibraries, "titleCount")} series · ${sumCounts(tvLibraries, "fileCount")} files`}
+                    description={`${overview.mediaTotals.tv.titles} series · ${overview.mediaTotals.tv.files} files`}
                     tone="cool"
                 />
                 <LibraryDestinationCard

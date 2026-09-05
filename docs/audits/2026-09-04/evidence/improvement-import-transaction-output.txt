@@ -1,0 +1,55 @@
+
+  .codex-tmp\improvement-2026-09-04\import-success-proof.cjs      2.4mb
+  .codex-tmp\improvement-2026-09-04\import-success-proof.cjs.map  4.9mb
+
+Done in 147ms
+{
+  "phase": "initial",
+  "result": "passed",
+  "proofRoot": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\import-success-proof-data-60286c6077054d508a5c8e374c95feb5",
+  "unsupportedLinkCalls": 6,
+  "fallbackImportSucceeded": true,
+  "databaseFaultAfterPublication": 1,
+  "failedTransactionRetainsFinalClaimJournalAndSource": true,
+  "failedTransactionCommittedRows": 0,
+  "claimedSourceScanFailedClosed": true,
+  "committedSourceScanCandidate": true,
+  "cleanupFailurePreservedCommittedSuccess": true,
+  "sourceRemovalEvents": [
+    {
+      "case": "fallback-success",
+      "attemptId": "e41fac6c-b3ff-406d-a90d-89f252236674",
+      "separateConnectionObservedCommit": true,
+      "committedMarkerObserved": true,
+      "sourceExistedBeforeCleanup": true
+    },
+    {
+      "case": "cleanup-replay",
+      "attemptId": "44bbc920-6f53-4128-bb98-44ec8ebf38fb",
+      "separateConnectionObservedCommit": true,
+      "committedMarkerObserved": true,
+      "sourceExistedBeforeCleanup": true
+    }
+  ]
+}
+{
+  "phase": "replay",
+  "result": "passed",
+  "proofRoot": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\import-success-proof-data-60286c6077054d508a5c8e374c95feb5",
+  "freshProcess": true,
+  "correlatedAttemptId": "44bbc920-6f53-4128-bb98-44ec8ebf38fb",
+  "cleanupConverged": true,
+  "duplicateRows": false,
+  "libraryBytesUnchanged": true,
+  "failedAttemptStillRetained": true,
+  "sourceRemovalEvents": [
+    {
+      "case": "cleanup-replay",
+      "attemptId": "44bbc920-6f53-4128-bb98-44ec8ebf38fb",
+      "separateConnectionObservedCommit": true,
+      "committedMarkerObserved": true,
+      "sourceExistedBeforeCleanup": true
+    }
+  ]
+}
+Import success and rollback proof passed. Retained disposable evidence: F:\Development\Nooklet\Nooklet\.codex-tmp\improvement-2026-09-04\import-success-proof-data-60286c6077054d508a5c8e374c95feb5

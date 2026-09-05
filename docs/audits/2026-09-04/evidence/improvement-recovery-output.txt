@@ -1,0 +1,44 @@
+
+  .codex-tmp\improvement-2026-09-04\recovery-proof-final.cjs      2.0mb
+  .codex-tmp\improvement-2026-09-04\recovery-proof-final.cjs.map  4.0mb
+
+Done in 104ms
+[download_engine_finalization_candidate_invalid] {
+  path: 'F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\recovery-proof-data-01873af96db84e8386b6ce5536beca01\\output\\complete\\66666666-6666-4666-8666-666666666663',
+  downloadId: '66666666-6666-4666-8666-666666666663',
+  error: {
+    name: 'FinalizeDownloadError',
+    message: 'Finalized download manifest is missing.',
+    code: undefined
+  }
+}
+[download_engine_finalization_candidate_quarantined] {
+  kind: 'complete',
+  downloadId: '66666666-6666-4666-8666-666666666663',
+  path: 'F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\recovery-proof-data-01873af96db84e8386b6ce5536beca01\\output\\quarantine\\66666666-6666-4666-8666-666666666663\\43bea364-245b-4bad-842f-d0114aa1a485'
+}
+{
+  "result": "passed",
+  "cases": [
+    {
+      "kind": "complete",
+      "state": "completed",
+      "outputPathPersisted": true,
+      "artifactIntact": true,
+      "awaitingImport": true
+    },
+    {
+      "kind": "incomplete",
+      "state": "completed",
+      "outputPathPersisted": true,
+      "artifactIntact": true,
+      "awaitingImport": true
+    },
+    {
+      "kind": "legacy",
+      "state": "paused",
+      "outputPath": null,
+      "preservedInQuarantine": true
+    }
+  ]
+}

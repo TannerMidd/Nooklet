@@ -15,12 +15,14 @@ import {
     retryAllYouTubeDownloads,
     retryYouTubeDownload,
     retryYouTubeSourceInitialization,
+    summarizeYouTubeQueueResults,
     setYouTubeSourcePaused,
     syncYouTubeSourceNow,
     updateYouTubeSource,
     YouTubeDomainError,
     YtDlpAdapterError,
 } from "@/modules/youtube/public";
+import type { YouTubeQueueItemResult, YouTubeQueueSummary } from "@/modules/youtube/public";
 
 const qualityProfileSchema = z.enum(["mp4-720p", "mp4-1080p", "mp4-2160p", "best"]);
 const idSchema = z.string().trim().min(1).max(200);
@@ -103,6 +105,65 @@ function safeYouTubeError(error: unknown, fallback: string) {
     return fallback;
 }
 
+function formatSingleYouTubeQueueMessage(result: YouTubeQueueItemResult) {
+    switch (result.outcome) {
+        case "already_queued":
+            return { status: "success" as const, message: "Video is already queued for download." };
+        case "completed":
+            return { status: "success" as const, message: "Video was already completed." };
+        case "failed":
+            return {
+                status: "error" as const,
+                message: "Video already failed. Use Retry in YouTube activity to try it again.",
+            };
+        case "cancelled":
+            return {
+                status: "error" as const,
+                message: "Video was cancelled. Use Retry in YouTube activity to try it again.",
+            };
+        case "queued":
+            return { status: "success" as const, message: "Video queued for download." };
+    }
+}
+
+function videoCountLabel(count: number) {
+    return `${count} ${count === 1 ? "video" : "videos"}`;
+}
+
+function formatYouTubeQueueSummary(summary: YouTubeQueueSummary) {
+    const parts: string[] = [];
+
+    if (summary.queuedCount > 0) {
+        parts.push(
+            `${videoCountLabel(summary.queuedCount)} ${
+                summary.queuedCount === summary.totalCount ? "queued" : "newly queued"
+            }`,
+        );
+    }
+
+    if (summary.alreadyQueuedCount > 0) {
+        parts.push(`${videoCountLabel(summary.alreadyQueuedCount)} already queued`);
+    }
+
+    if (summary.completedCount > 0) {
+        parts.push(`${videoCountLabel(summary.completedCount)} already completed`);
+    }
+
+    if (summary.failedCount > 0) {
+        parts.push(
+            `${videoCountLabel(summary.failedCount)} failed; use Retry in YouTube activity to try again`,
+        );
+    }
+
+    if (summary.cancelledCount > 0) {
+        parts.push(
+            `${videoCountLabel(summary.cancelledCount)} cancelled; use Retry in YouTube activity to try again`,
+        );
+    }
+
+    return parts.join("; ");
+}
+
 async function authenticatedUserId(): Promise<string | null> {
     const session = await getProtectedActionSession();
 
@@ -143,26 +204,37 @@ export async function configureYouTubeRequestAction(
 
     try {
         if (targetKind === "video") {
-            await queueYouTubeVideoUrl(userId, { url: targetUrl, libraryPathId, qualityProfile });
+            const result = await queueYouTubeVideoUrl(userId, {
+                url: targetUrl,
+                libraryPathId,
+                qualityProfile,
+            });
+
             revalidateYouTubeViews();
 
-            return { status: "success", message: "Video queued for download." };
+            const queueMessage = formatSingleYouTubeQueueMessage(result);
+
+            return queueMessage;
         }
 
         if (monitorFuture) {
-            await createYouTubeSource(userId, {
+            const creation = await createYouTubeSource(userId, {
                 url: targetUrl,
                 libraryPathId,
                 qualityProfile,
                 selectedVideoIds,
             });
+
             revalidateYouTubeViews();
 
             return {
-                status: "success",
+                status:
+                    creation.sync.failedCount > 0 || creation.sync.cancelledCount > 0
+                        ? "error"
+                        : "success",
                 message:
                     selectedVideoIds.length > 0
-                        ? "Monitor saved, baseline completed, and selected videos queued."
+                        ? `Monitor saved, baseline completed. ${formatYouTubeQueueSummary(creation.sync)}.`
                         : "Monitor saved and baseline completed. Existing videos were not auto-downloaded.",
             };
         }
@@ -197,13 +269,26 @@ export async function configureYouTubeRequestAction(
             };
         }
 
-        await queueYouTubeVideos(userId, { videos, libraryPathId, qualityProfile });
-        revalidateYouTubeViews();
+        try {
+            const queueResults = await queueYouTubeVideos(userId, {
+                videos,
+                libraryPathId,
+                qualityProfile,
+            });
+            const summary = summarizeYouTubeQueueResults(queueResults);
 
-        return {
-            status: "success",
-            message: `${videos.length} ${videos.length === 1 ? "video" : "videos"} queued without creating a monitor.`,
-        };
+            revalidateYouTubeViews();
+
+            return {
+                status: summary.failedCount > 0 || summary.cancelledCount > 0 ? "error" : "success",
+                message: `${formatYouTubeQueueSummary(summary)} without creating a monitor.`,
+            };
+        } catch (error) {
+            return {
+                status: "error",
+                message: `No videos were queued. ${safeYouTubeError(error, "The YouTube videos could not be queued.")}`,
+            };
+        }
     } catch (error) {
         return {
             status: "error",

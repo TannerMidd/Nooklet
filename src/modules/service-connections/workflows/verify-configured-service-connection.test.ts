@@ -72,6 +72,36 @@ describe("verifyConfiguredServiceConnection", () => {
         expect(result).toEqual({ ok: true, message: "Tautulli: Connected." });
     });
 
+    it("blocks legacy credential-bearing URLs before decrypting or verifying them", async () => {
+        findMock.mockResolvedValue({
+            ...RECORD,
+            connection: {
+                ...RECORD.connection,
+                baseUrl: "https://tautulli.test/?token=legacy-secret",
+            },
+        } as never);
+
+        const result = await verifyConfiguredServiceConnection("user-1", "tautulli");
+        const auditPayload = auditMock.mock.calls[0]?.[0]?.payloadJson ?? "";
+
+        expect(result).toEqual({
+            ok: false,
+            message:
+                "The saved base URL contains embedded credentials. Replace it before verifying.",
+            field: "baseUrl",
+        });
+        expect(decryptMock).not.toHaveBeenCalled();
+        expect(verifyMock).not.toHaveBeenCalled();
+        expect(updateVerificationMock).toHaveBeenCalledWith(
+            "connection-1",
+            "error",
+            "The saved base URL contains embedded credentials. Replace it before verifying.",
+            RECORD.metadata,
+        );
+        expect(auditPayload).not.toContain("legacy-secret");
+        expect(auditPayload).not.toContain("tautulli.test");
+    });
+
     it("returns an actionable error and persists error status when the saved credential is unreadable", async () => {
         decryptMock.mockImplementation(() => {
             throw new Error("Unable to decrypt secret with the configured encryption keys.");

@@ -54,6 +54,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             : {
                   status: "error" as const,
                   message: titleSearch?.message ?? "Nooklet could not search titles right now.",
+                  reason: titleSearch && !titleSearch.ok ? titleSearch.reason : undefined,
                   results: [],
               };
 

@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import { mediaTitleExternalIds, mediaTitles, watchHistoryItems } from "@/lib/database/schema";
+import { buildWatchHistoryNormalizedKey } from "@/modules/watch-history/normalization";
 
 export async function getDiscoverExclusions(userId: string) {
     const database = ensureDatabaseReady();
@@ -18,13 +19,23 @@ export async function getDiscoverExclusions(userId: string) {
         .where(eq(mediaTitles.userId, userId))
         .all();
     const watchedRows = database
-        .select({ normalizedKey: watchHistoryItems.normalizedKey })
+        .select({
+            mediaType: watchHistoryItems.mediaType,
+            title: watchHistoryItems.title,
+            year: watchHistoryItems.year,
+        })
         .from(watchHistoryItems)
         .where(eq(watchHistoryItems.userId, userId))
         .all();
 
     return {
         ownedTmdbKeys: new Set(ownedRows.map((row) => `${row.mediaType}-${row.tmdbId}`)),
-        watchedKeys: new Set(watchedRows.map((row) => row.normalizedKey)),
+        // Recompute from the retained identity fields so older stored normalization
+        // keys keep matching after Unicode-aware normalization improvements.
+        watchedKeys: new Set(
+            watchedRows.map((row) =>
+                buildWatchHistoryNormalizedKey(row.mediaType, row.title, row.year),
+            ),
+        ),
     };
 }

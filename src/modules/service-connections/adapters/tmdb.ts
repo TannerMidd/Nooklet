@@ -9,6 +9,7 @@ import {
     readNumber,
     readString,
 } from "@/modules/service-connections/adapters/arr-response-helpers";
+import { assertCredentialFreeUrl } from "@/lib/security/credential-url";
 import { SERVICE_CONNECTION_VERIFICATION_TIMEOUT_MS } from "./verify-service-connection-constants";
 
 function normalizeTitle(value: string) {
@@ -191,7 +192,10 @@ function shouldUseBearerAuth(secret: string) {
 }
 
 function buildTmdbRequest(input: TmdbRequestInput) {
+    assertCredentialFreeUrl(input.baseUrl);
     const url = new URL(`${trimTrailingSlash(input.baseUrl)}/${normalizeTmdbPath(input.path)}`);
+
+    assertCredentialFreeUrl(url.toString());
     const normalizedSecret = normalizeTmdbSecret(input.secret);
     const headers: Record<string, string> = {
         Accept: "application/json",

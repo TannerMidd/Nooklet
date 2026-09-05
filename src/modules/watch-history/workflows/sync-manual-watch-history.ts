@@ -1,13 +1,15 @@
-import { createAuditEvent } from "@/modules/users/public";
 import { type ManualWatchHistorySyncInput } from "@/modules/watch-history/schemas/manual-watch-history-sync";
 import { parseManualWatchHistoryEntries } from "@/modules/watch-history/normalization";
 import {
-    completeWatchHistorySyncRun,
     createWatchHistorySyncRun,
     failWatchHistorySyncRun,
-    replaceWatchHistoryItemsForSource,
+    replaceWatchHistoryItemsAndCompleteSyncRun,
     upsertWatchHistorySource,
 } from "@/modules/watch-history/repositories/watch-history-repository";
+import {
+    describeWatchHistorySyncError,
+    recordWatchHistorySyncAudit,
+} from "@/modules/watch-history/workflows/watch-history-sync-audit";
 
 const manualSourceDisplayName = "Manual watch history";
 
@@ -59,7 +61,8 @@ export async function syncManualWatchHistory(
     try {
         const now = Date.now();
 
-        await replaceWatchHistoryItemsForSource({
+        const completed = await replaceWatchHistoryItemsAndCompleteSyncRun({
+            runId: syncRun.id,
             sourceId: source.id,
             userId,
             mediaType: input.mediaType,
@@ -69,8 +72,14 @@ export async function syncManualWatchHistory(
             })),
         });
 
-        await completeWatchHistorySyncRun(syncRun.id, parsedEntries.length);
-        await createAuditEvent({
+        if (!completed) {
+            return {
+                ok: false,
+                message: "This manual watch-history sync was already finalized.",
+            };
+        }
+
+        await recordWatchHistorySyncAudit({
             actorUserId: userId,
             eventType: "watch-history.sync.succeeded",
             subjectType: "watch-history-source",
@@ -90,8 +99,16 @@ export async function syncManualWatchHistory(
         const message =
             error instanceof Error ? error.message : "Watch-history sync failed unexpectedly.";
 
-        await failWatchHistorySyncRun(syncRun.id, message);
-        await createAuditEvent({
+        const failed = await failWatchHistorySyncRun(syncRun.id, message);
+
+        if (!failed) {
+            return {
+                ok: false,
+                message: "This manual watch-history sync was already finalized.",
+            };
+        }
+
+        await recordWatchHistorySyncAudit({
             actorUserId: userId,
             eventType: "watch-history.sync.failed",
             subjectType: "watch-history-source",
@@ -99,7 +116,7 @@ export async function syncManualWatchHistory(
             payloadJson: JSON.stringify({
                 sourceType: source.sourceType,
                 mediaType: input.mediaType,
-                error: message,
+                error: describeWatchHistorySyncError(error),
             }),
         });
 

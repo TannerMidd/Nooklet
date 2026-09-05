@@ -1,6 +1,16 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
-import { lstat, link, mkdir, open, readFile, rm, stat, unlink, utimes } from "node:fs/promises";
+import { lstat, link, mkdir, open, rmdir, unlink } from "node:fs/promises";
+
+import {
+    importDestinationClaimPath,
+    ensureImportJournalPublicationReady,
+    assertImportDestinationAncestors,
+    verifyImportJournalPublishedFile,
+    markImportJournal,
+    type ImportJournalHandle,
+    writeImportJournalReceipt,
+} from "./import-journal";
 
 export type ImportFilesystemProgress = {
     phase: "copy" | "verify";
@@ -20,22 +30,38 @@ export type ImportFileTransferOptions = {
     disableHardLinks?: boolean;
     /** Keep focused tests small without changing the production chunk size. */
     chunkSizeBytes?: number;
+    /** Durable attempt journal. Claims remain until its DB commit marker exists. */
+    journal?: ImportJournalHandle;
+    /** Index in the immutable journal plan for this file. */
+    journalFileIndex?: number;
 };
 
 type ImportTransferClaim = {
-    version: 1;
+    version: 1 | 2;
     sourcePath: string;
     destinationPath: string;
     sourceSize: number;
     sourceMtimeMs: number;
     temporaryPath: string;
     destinationIdentity: ImportDestinationIdentity | null;
+    attemptId?: string;
+    downloadId?: string;
+    requestId?: string;
+    fileIndex?: number;
 };
 
-type ImportDestinationIdentity = {
+export type ImportDestinationIdentity = {
     device: string;
     inode: string;
     birthtimeMs: number;
+};
+
+export type ImportFileTransferReceipt = {
+    sourcePath: string;
+    destinationPath: string;
+    identity: ImportDestinationIdentity;
+    sizeBytes: number;
+    mtimeMs: number;
 };
 
 type ImportTransferArtifacts = {
@@ -45,22 +71,14 @@ type ImportTransferArtifacts = {
 };
 
 const defaultChunkSizeBytes = 4 * 1024 * 1024;
-const claimSuffix = ".nooklet-import.json";
 
 function hasErrorCode(error: unknown, code: string) {
-    return typeof error === "object" && error !== null && "code" in error && error.code === code;
-}
-
-async function pathEntry(filePath: string) {
-    try {
-        return await lstat(filePath);
-    } catch (error) {
-        if (hasErrorCode(error, "ENOENT")) {
-            return null;
-        }
-
-        throw error;
-    }
+    return (
+        error !== null &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error as { code?: unknown }).code === code
+    );
 }
 
 function resolvedPath(filePath: string) {
@@ -76,87 +94,21 @@ function transferDigest(sourcePath: string, destinationPath: string) {
         .slice(0, 16);
 }
 
+/** Stable sibling name shared with the scanner's fresh claim check. */
 export function importTransferClaimPath(destinationPath: string) {
-    return path.join(
-        path.dirname(destinationPath),
-        `.${path.basename(destinationPath)}${claimSuffix}`,
-    );
+    return importDestinationClaimPath(destinationPath);
 }
 
-/**
- * Describes the narrowly scoped artifacts an interrupted transfer is allowed
- * to recover. Exported so recovery behavior can be tested without terminating
- * the test process midway through an actual filesystem write.
- */
-export async function describeImportTransferArtifacts(
-    sourcePath: string,
-    destinationPath: string,
-): Promise<ImportTransferArtifacts> {
-    const source = await stat(sourcePath);
+async function pathEntry(filePath: string) {
+    try {
+        return await lstat(filePath);
+    } catch (error) {
+        if (hasErrorCode(error, "ENOENT")) {
+            return null;
+        }
 
-    if (!source.isFile()) {
-        throw new Error(`Import source is not a regular file: ${sourcePath}`);
+        throw error;
     }
-
-    const absoluteSourcePath = path.resolve(/* turbopackIgnore: true */ sourcePath);
-    const absoluteDestinationPath = path.resolve(/* turbopackIgnore: true */ destinationPath);
-    const temporaryPath = path.join(
-        path.dirname(absoluteDestinationPath),
-        `.${path.basename(absoluteDestinationPath)}.${transferDigest(
-            absoluteSourcePath,
-            absoluteDestinationPath,
-        )}.nooklet-partial`,
-    );
-
-    return {
-        claimPath: importTransferClaimPath(absoluteDestinationPath),
-        temporaryPath,
-        claim: {
-            version: 1,
-            sourcePath: absoluteSourcePath,
-            destinationPath: absoluteDestinationPath,
-            sourceSize: source.size,
-            sourceMtimeMs: source.mtimeMs,
-            temporaryPath,
-            destinationIdentity: null,
-        },
-    };
-}
-
-function isDestinationIdentity(value: unknown): value is ImportDestinationIdentity {
-    if (!value || typeof value !== "object") {
-        return false;
-    }
-
-    const identity = value as Partial<ImportDestinationIdentity>;
-
-    return (
-        typeof identity.device === "string" &&
-        typeof identity.inode === "string" &&
-        typeof identity.birthtimeMs === "number" &&
-        Number.isFinite(identity.birthtimeMs)
-    );
-}
-
-function isExpectedClaim(
-    value: unknown,
-    expected: ImportTransferClaim,
-): value is ImportTransferClaim {
-    if (!value || typeof value !== "object") {
-        return false;
-    }
-
-    const claim = value as Partial<ImportTransferClaim>;
-
-    return (
-        claim.version === 1 &&
-        resolvedPath(claim.sourcePath ?? "") === resolvedPath(expected.sourcePath) &&
-        resolvedPath(claim.destinationPath ?? "") === resolvedPath(expected.destinationPath) &&
-        claim.sourceSize === expected.sourceSize &&
-        claim.sourceMtimeMs === expected.sourceMtimeMs &&
-        resolvedPath(claim.temporaryPath ?? "") === resolvedPath(expected.temporaryPath) &&
-        (claim.destinationIdentity === null || isDestinationIdentity(claim.destinationIdentity))
-    );
 }
 
 function destinationIdentity(entry: Awaited<ReturnType<typeof lstat>>): ImportDestinationIdentity {
@@ -178,11 +130,280 @@ function sameDestinationIdentity(
     );
 }
 
-async function reportProgress(
-    reporter: ImportFilesystemProgressReporter | undefined,
-    progress: ImportFilesystemProgress,
+function isDestinationIdentity(value: unknown): value is ImportDestinationIdentity {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return false;
+    }
+
+    const identity = value as Partial<ImportDestinationIdentity>;
+
+    return (
+        typeof identity.device === "string" &&
+        typeof identity.inode === "string" &&
+        typeof identity.birthtimeMs === "number" &&
+        Number.isFinite(identity.birthtimeMs)
+    );
+}
+
+export async function describeImportTransferArtifacts(
+    sourcePath: string,
+    destinationPath: string,
+    attemptId?: string,
+): Promise<ImportTransferArtifacts> {
+    const source = await lstat(sourcePath);
+
+    if (!source.isFile() || source.isSymbolicLink()) {
+        throw new Error(`Import source is not a regular file: ${sourcePath}`);
+    }
+
+    const absoluteSourcePath = path.resolve(/* turbopackIgnore: true */ sourcePath);
+    const absoluteDestinationPath = path.resolve(/* turbopackIgnore: true */ destinationPath);
+    const suffix = attemptId ?? transferDigest(absoluteSourcePath, absoluteDestinationPath);
+    const temporaryPath = path.join(
+        path.dirname(absoluteDestinationPath),
+        `.${path.basename(absoluteDestinationPath)}.${suffix}.nooklet-partial`,
+    );
+
+    return {
+        claimPath: importTransferClaimPath(absoluteDestinationPath),
+        temporaryPath,
+        claim: {
+            version: 2,
+            sourcePath: absoluteSourcePath,
+            destinationPath: absoluteDestinationPath,
+            sourceSize: source.size,
+            sourceMtimeMs: source.mtimeMs,
+            temporaryPath,
+            destinationIdentity: null,
+            ...(attemptId ? { attemptId } : {}),
+        },
+    };
+}
+
+function isExpectedClaim(
+    value: unknown,
+    expected: ImportTransferClaim,
+): value is ImportTransferClaim {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return false;
+    }
+
+    const claim = value as Partial<ImportTransferClaim>;
+
+    return (
+        (claim.version === 1 || claim.version === 2) &&
+        resolvedPath(claim.sourcePath ?? "") === resolvedPath(expected.sourcePath) &&
+        resolvedPath(claim.destinationPath ?? "") === resolvedPath(expected.destinationPath) &&
+        claim.sourceSize === expected.sourceSize &&
+        claim.sourceMtimeMs === expected.sourceMtimeMs &&
+        resolvedPath(claim.temporaryPath ?? "") === resolvedPath(expected.temporaryPath) &&
+        (claim.destinationIdentity === null || isDestinationIdentity(claim.destinationIdentity)) &&
+        (expected.attemptId === undefined || claim.attemptId === expected.attemptId) &&
+        (expected.downloadId === undefined || claim.downloadId === expected.downloadId) &&
+        (expected.requestId === undefined || claim.requestId === expected.requestId) &&
+        (expected.fileIndex === undefined || claim.fileIndex === expected.fileIndex)
+    );
+}
+
+async function syncDirectory(directoryPath: string) {
+    try {
+        const handle = await open(directoryPath, "r");
+
+        try {
+            await handle.sync();
+        } finally {
+            await handle.close();
+        }
+    } catch (error) {
+        if (
+            process.platform === "win32" &&
+            (hasErrorCode(error, "EINVAL") ||
+                hasErrorCode(error, "EPERM") ||
+                hasErrorCode(error, "EISDIR") ||
+                hasErrorCode(error, "ENOTSUP") ||
+                hasErrorCode(error, "EBADF"))
+        ) {
+            return;
+        }
+
+        throw error;
+    }
+}
+
+async function writeJsonExclusive(filePath: string, value: unknown) {
+    const handle = await open(filePath, "wx", 0o600);
+
+    try {
+        await handle.writeFile(`${JSON.stringify(value)}\n`, "utf8");
+        await handle.sync();
+    } finally {
+        await handle.close();
+    }
+
+    await syncDirectory(path.dirname(filePath));
+}
+
+async function writeTransferClaim(
+    artifacts: ImportTransferArtifacts,
+    options: ImportFileTransferOptions,
 ) {
-    await reporter?.(progress);
+    const claim = {
+        ...artifacts.claim,
+        ...(options.journal
+            ? {
+                  attemptId: options.journal.plan.attemptId,
+                  downloadId: options.journal.plan.downloadId,
+                  requestId: options.journal.plan.requestId,
+                  fileIndex: options.journalFileIndex,
+              }
+            : {}),
+    } satisfies ImportTransferClaim;
+
+    artifacts.claim = claim;
+
+    await writeJsonExclusive(artifacts.claimPath, claim);
+}
+
+async function readClaim(claimPath: string) {
+    try {
+        const entry = await lstat(claimPath);
+
+        if (!entry.isFile() || entry.isSymbolicLink() || entry.size > 16 * 1024) {
+            throw new Error("Import claim is not bounded regular metadata.");
+        }
+
+        const handle = await open(claimPath, "r");
+
+        try {
+            const opened = await handle.stat();
+
+            if (
+                !opened.isFile() ||
+                opened.ino !== entry.ino ||
+                opened.dev !== entry.dev ||
+                opened.size > 16 * 1024
+            ) {
+                throw new Error("Import claim changed while opening.");
+            }
+
+            const bytes = Buffer.alloc(16 * 1024 + 1);
+            const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0);
+
+            if (bytesRead > 16 * 1024) {
+                throw new Error("Import claim is too large.");
+            }
+
+            return JSON.parse(bytes.subarray(0, bytesRead).toString("utf8")) as unknown;
+        } finally {
+            await handle.close();
+        }
+    } catch (error) {
+        if (hasErrorCode(error, "ENOENT")) {
+            return null;
+        }
+
+        throw error;
+    }
+}
+
+async function removeOwnedClaim(artifacts: ImportTransferArtifacts) {
+    const current = await readClaim(artifacts.claimPath);
+
+    if (current !== null && !isExpectedClaim(current, artifacts.claim)) {
+        return false;
+    }
+
+    try {
+        await unlink(artifacts.claimPath);
+        await syncDirectory(path.dirname(artifacts.claimPath));
+
+        return true;
+    } catch (error) {
+        return hasErrorCode(error, "ENOENT");
+    }
+}
+
+async function removePrivateTemporary(
+    temporaryPath: string,
+    receipt: { identity: ImportDestinationIdentity; sizeBytes: number; mtimeMs: number },
+) {
+    try {
+        const entry = await lstat(temporaryPath);
+
+        if (
+            !entry.isFile() ||
+            entry.isSymbolicLink() ||
+            !sameDestinationIdentity(receipt.identity, destinationIdentity(entry)) ||
+            entry.size !== receipt.sizeBytes ||
+            entry.mtimeMs !== receipt.mtimeMs
+        ) {
+            return;
+        }
+
+        await unlink(temporaryPath);
+        await syncDirectory(path.dirname(temporaryPath));
+    } catch (error) {
+        if (!hasErrorCode(error, "ENOENT")) {
+            throw error;
+        }
+    }
+}
+
+async function describeCreatedDestination(
+    artifacts: ImportTransferArtifacts,
+): Promise<ImportFileTransferReceipt> {
+    const entry = await pathEntry(artifacts.claim.destinationPath);
+
+    if (!entry || !entry.isFile() || entry.isSymbolicLink()) {
+        throw new Error(
+            `Created import destination is not a regular file: ${artifacts.claim.destinationPath}`,
+        );
+    }
+
+    return {
+        sourcePath: artifacts.claim.sourcePath,
+        destinationPath: artifacts.claim.destinationPath,
+        identity: destinationIdentity(entry),
+        sizeBytes: entry.size,
+        mtimeMs: entry.mtimeMs,
+    };
+}
+
+async function recordJournalReceipt(
+    journal: ImportJournalHandle | undefined,
+    index: number | undefined,
+    receipt: ImportFileTransferReceipt,
+) {
+    if (!journal || index === undefined) {
+        return;
+    }
+
+    await writeImportJournalReceipt(journal, {
+        version: 1,
+        index,
+        sourcePath: receipt.sourcePath,
+        destinationPath: receipt.destinationPath,
+        device: receipt.identity.device,
+        inode: receipt.identity.inode,
+        birthtimeMs: receipt.identity.birthtimeMs,
+        sizeBytes: receipt.sizeBytes,
+        mtimeMs: receipt.mtimeMs,
+    });
+    await markImportJournal(journal, "published-known", index);
+}
+
+async function markJournalUnknown(
+    journal: ImportJournalHandle | undefined,
+    index: number | undefined,
+    error: unknown,
+) {
+    if (!journal || index === undefined) {
+        return;
+    }
+
+    await markImportJournal(journal, "published-unknown", index, {
+        error: error instanceof Error ? error.message.slice(0, 2048) : "Unknown transfer error.",
+    }).catch(() => undefined);
 }
 
 async function hashFile(
@@ -207,7 +428,7 @@ async function hashFile(
 
             hash.update(chunk.subarray(0, bytesRead));
             bytesProcessed += bytesRead;
-            await reportProgress(options.onProgress, {
+            await options.onProgress?.({
                 phase: "verify",
                 sourcePath,
                 destinationPath,
@@ -227,129 +448,51 @@ async function hasSameContent(
     destinationPath: string,
     options: ImportFileTransferOptions,
 ) {
-    const [source, destination] = await Promise.all([stat(sourcePath), stat(destinationPath)]);
+    const [sourceEntry, destinationEntry] = await Promise.all([
+        pathEntry(sourcePath),
+        pathEntry(destinationPath),
+    ]);
 
-    if (!source.isFile() || !destination.isFile() || source.size !== destination.size) {
+    if (
+        !sourceEntry ||
+        !destinationEntry ||
+        !sourceEntry.isFile() ||
+        !destinationEntry.isFile() ||
+        sourceEntry.isSymbolicLink() ||
+        destinationEntry.isSymbolicLink() ||
+        sourceEntry.size !== destinationEntry.size
+    ) {
         return false;
     }
 
     const [sourceHash, destinationHash] = await Promise.all([
-        hashFile(sourcePath, sourcePath, destinationPath, source.size, options),
-        hashFile(destinationPath, sourcePath, destinationPath, destination.size, options),
+        hashFile(sourcePath, sourcePath, destinationPath, sourceEntry.size, options),
+        hashFile(destinationPath, sourcePath, destinationPath, destinationEntry.size, options),
     ]);
 
     return sourceHash === destinationHash;
-}
-
-async function writeTransferClaim(artifacts: ImportTransferArtifacts) {
-    const handle = await open(artifacts.claimPath, "wx", 0o600);
-
-    try {
-        await handle.writeFile(`${JSON.stringify(artifacts.claim)}\n`, "utf8");
-        await handle.sync();
-    } finally {
-        await handle.close();
-    }
-}
-
-async function recordClaimedDestination(
-    artifacts: ImportTransferArtifacts,
-    identity: ImportDestinationIdentity,
-) {
-    artifacts.claim.destinationIdentity = identity;
-    const handle = await open(artifacts.claimPath, "r+");
-
-    try {
-        await handle.truncate(0);
-        await handle.writeFile(`${JSON.stringify(artifacts.claim)}\n`, "utf8");
-        await handle.sync();
-    } finally {
-        await handle.close();
-    }
 }
 
 async function recoverInterruptedTransfer(
     sourcePath: string,
     destinationPath: string,
     artifacts: ImportTransferArtifacts,
-    options: ImportFileTransferOptions,
 ) {
-    const claimEntry = await pathEntry(artifacts.claimPath);
-
-    if (!claimEntry) {
-        return { kind: "none" } as const;
-    }
-
-    if (!claimEntry.isFile()) {
-        return {
-            kind: "blocked",
-            message: `Import recovery marker is not a regular file: ${artifacts.claimPath}`,
-        } as const;
-    }
-
-    let persistedClaim: unknown;
-
-    try {
-        persistedClaim = JSON.parse(await readFile(artifacts.claimPath, "utf8"));
-    } catch {
-        return {
-            kind: "blocked",
-            message: `Import recovery marker is invalid: ${artifacts.claimPath}`,
-        } as const;
-    }
-
-    if (!isExpectedClaim(persistedClaim, artifacts.claim)) {
-        return {
-            kind: "blocked",
-            message: `Another import owns the destination: ${destinationPath}`,
-        } as const;
-    }
-
-    const destinationEntry = await pathEntry(destinationPath);
-
-    if (destinationEntry && !destinationEntry.isFile()) {
-        return {
-            kind: "blocked",
-            message: `Interrupted import destination is not a regular file: ${destinationPath}`,
-        } as const;
-    }
-
-    if (destinationEntry && (await hasSameContent(sourcePath, destinationPath, options))) {
-        await Promise.all([
-            rm(artifacts.temporaryPath, { force: true }),
-            rm(artifacts.claimPath, { force: true }),
-        ]);
-
-        return { kind: "completed" } as const;
-    }
-
-    // A matching source claim alone is insufficient: another process may have
-    // replaced the partial final path after the writer died. Delete only the
-    // exact inode/device recorded before our first byte was written.
-    if (destinationEntry) {
-        const claimedIdentity = persistedClaim.destinationIdentity;
-        const currentIdentity = destinationIdentity(destinationEntry);
-
-        if (
-            !claimedIdentity ||
-            !sameDestinationIdentity(claimedIdentity, currentIdentity) ||
-            destinationEntry.size > artifacts.claim.sourceSize
-        ) {
-            return {
-                kind: "blocked",
-                message: `Interrupted import destination changed and will not be removed: ${destinationPath}`,
-            } as const;
-        }
-
-        await unlink(destinationPath);
-    }
-
-    await Promise.all([
-        rm(artifacts.temporaryPath, { force: true }),
-        rm(artifacts.claimPath, { force: true }),
+    const [claimEntry, temporaryEntry] = await Promise.all([
+        pathEntry(artifacts.claimPath),
+        pathEntry(artifacts.temporaryPath),
     ]);
 
-    return { kind: "recovered" } as const;
+    if (claimEntry || temporaryEntry) {
+        return {
+            kind: "blocked" as const,
+            message: claimEntry
+                ? `Import recovery is awaiting its durable journal: ${artifacts.claimPath}`
+                : `An interrupted import stage was retained for recovery: ${artifacts.temporaryPath}`,
+        };
+    }
+
+    return { kind: "none" as const, sourcePath, destinationPath };
 }
 
 export type ImportDestinationResolution =
@@ -362,21 +505,37 @@ export async function resolveImportDestination(
     destinationPath: string,
     options: ImportFileTransferOptions = {},
 ): Promise<ImportDestinationResolution> {
-    await mkdir(path.dirname(destinationPath), { recursive: true });
-    const artifacts = await describeImportTransferArtifacts(sourcePath, destinationPath);
-    const recovery = await recoverInterruptedTransfer(
-        sourcePath,
-        destinationPath,
-        artifacts,
-        options,
-    );
-
-    if (recovery.kind === "blocked") {
-        return { kind: "failed", message: recovery.message };
+    if (options.journal) {
+        await ensureImportJournalPublicationReady(options.journal);
     }
 
-    if (recovery.kind === "completed") {
-        return { kind: "already-present", destinationPath };
+    await mkdir(path.dirname(destinationPath), { recursive: true });
+    const artifacts = await describeImportTransferArtifacts(
+        sourcePath,
+        destinationPath,
+        options.journal?.plan.attemptId,
+    );
+    const recovery = await recoverInterruptedTransfer(sourcePath, destinationPath, artifacts);
+
+    if (recovery.kind === "blocked") {
+        if (options.journal && options.journalFileIndex !== undefined) {
+            const expected = {
+                ...artifacts.claim,
+                downloadId: options.journal.plan.downloadId,
+                requestId: options.journal.plan.requestId,
+                fileIndex: options.journalFileIndex,
+            };
+            const claim = await readClaim(artifacts.claimPath).catch(() => null);
+
+            if (
+                isExpectedClaim(claim, expected) &&
+                (await verifyImportJournalPublishedFile(options.journal, options.journalFileIndex))
+            ) {
+                return { kind: "already-present", destinationPath };
+            }
+        }
+
+        return { kind: "failed", message: recovery.message };
     }
 
     const destination = await pathEntry(destinationPath);
@@ -385,8 +544,10 @@ export async function resolveImportDestination(
         return { kind: "ready", destinationPath };
     }
 
-    if (destination.isFile() && (await hasSameContent(sourcePath, destinationPath, options))) {
-        return { kind: "already-present", destinationPath };
+    if (destination.isFile() && !destination.isSymbolicLink()) {
+        if (await hasSameContent(sourcePath, destinationPath, options)) {
+            return { kind: "already-present", destinationPath };
+        }
     }
 
     return {
@@ -399,23 +560,22 @@ async function streamCopy(
     sourcePath: string,
     destinationPath: string,
     options: ImportFileTransferOptions,
-    onDestinationOpened?: (identity: ImportDestinationIdentity) => Promise<void>,
+    onDestinationOpened?: () => void | Promise<void>,
 ) {
     const sourceHandle = await open(sourcePath, "r");
     const source = await sourceHandle.stat();
     const chunk = Buffer.allocUnsafe(options.chunkSizeBytes ?? defaultChunkSizeBytes);
     let bytesProcessed = 0;
     let destinationHandle: Awaited<ReturnType<typeof open>> | null = null;
-    let openedIdentity: ImportDestinationIdentity | null = null;
-    let completed = false;
 
     try {
-        destinationHandle = await open(destinationPath, "wx", source.mode);
-        openedIdentity = destinationIdentity(await destinationHandle.stat());
-
-        if (onDestinationOpened) {
-            await onDestinationOpened(openedIdentity);
+        if (!source.isFile()) {
+            throw new Error(`Import source is not a regular file: ${sourcePath}`);
         }
+
+        destinationHandle = await open(destinationPath, "wx", source.mode);
+        await onDestinationOpened?.();
+        const openedIdentity = destinationIdentity(await destinationHandle.stat());
 
         for (;;) {
             const { bytesRead } = await sourceHandle.read(chunk, 0, chunk.length, null);
@@ -442,7 +602,7 @@ async function streamCopy(
             }
 
             bytesProcessed += bytesRead;
-            await reportProgress(options.onProgress, {
+            await options.onProgress?.({
                 phase: "copy",
                 sourcePath,
                 destinationPath,
@@ -451,88 +611,203 @@ async function streamCopy(
             });
         }
 
+        await destinationHandle.utimes(source.atime, source.mtime);
         await destinationHandle.sync();
-        completed = true;
+        const destination = await destinationHandle.stat();
+        const sourceAfter = await sourceHandle.stat();
+
+        if (
+            sourceAfter.size !== source.size ||
+            sourceAfter.mtimeMs !== source.mtimeMs ||
+            destination.size !== source.size
+        ) {
+            throw new Error(`Import source changed while it was being copied: ${sourcePath}`);
+        }
+
+        return {
+            identity: openedIdentity,
+            sizeBytes: destination.size,
+            mtimeMs: destination.mtimeMs,
+        };
     } finally {
         await Promise.allSettled([
             sourceHandle.close(),
             ...(destinationHandle ? [destinationHandle.close()] : []),
         ]);
-
-        // Normal errors are cleaned immediately. A process termination skips this
-        // finally block, leaving the exact claim in place for startup recovery.
-        if (destinationHandle && openedIdentity && !completed) {
-            const current = await pathEntry(destinationPath).catch(() => null);
-
-            if (current && sameDestinationIdentity(openedIdentity, destinationIdentity(current))) {
-                await rm(destinationPath, { force: true }).catch(() => undefined);
-            }
-        }
     }
+}
 
-    await utimes(destinationPath, source.atime, source.mtime);
+function hardLinkFallbackAllowed(error: unknown) {
+    return (
+        hasErrorCode(error, "EXDEV") ||
+        hasErrorCode(error, "EPERM") ||
+        hasErrorCode(error, "EOPNOTSUPP") ||
+        hasErrorCode(error, "ENOTSUP") ||
+        hasErrorCode(error, "EINVAL")
+    );
 }
 
 async function destinationSupportsHardLinks(seedPath: string) {
-    const probeSource = `${seedPath}.link-probe`;
-    const probeDestination = `${probeSource}.linked`;
+    const probeDirectory = path.join(path.dirname(seedPath), `.${randomUUID()}.nooklet-link-probe`);
+    const probeSource = path.join(probeDirectory, "source");
+    const probeDestination = path.join(probeDirectory, "linked");
+    let directoryCreated = false;
+    let sourceCreated = false;
+    let destinationCreated = false;
 
     try {
+        await mkdir(probeDirectory, { recursive: false });
+        directoryCreated = true;
         const handle = await open(probeSource, "wx", 0o600);
 
+        sourceCreated = true;
         await handle.close();
         await link(probeSource, probeDestination);
+        destinationCreated = true;
 
         return true;
     } catch {
         return false;
     } finally {
-        await Promise.allSettled([
-            rm(probeSource, { force: true }),
-            rm(probeDestination, { force: true }),
-        ]);
+        if (destinationCreated) {
+            await unlink(probeDestination).catch(() => undefined);
+        }
+
+        if (sourceCreated) {
+            await unlink(probeSource).catch(() => undefined);
+        }
+
+        if (directoryCreated) {
+            await rmdir(probeDirectory).catch(() => undefined);
+        }
     }
 }
 
 /**
- * Publish an import without deleting its engine-owned source. The engine root
- * is removed only after request/import persistence succeeds, making a crash
- * between filesystem and database phases idempotently retryable.
+ * Publish an import without deleting its engine-owned source. Once a final
+ * pathname exists, every error preserves it and leaves the claim/journal for
+ * durable reconciliation. The caller removes only the source after the DB
+ * commit marker is written.
  */
 export async function transferImportFile(
     sourcePath: string,
     destinationPath: string,
     options: ImportFileTransferOptions = {},
-) {
+): Promise<ImportFileTransferReceipt | null> {
     if (resolvedPath(sourcePath) === resolvedPath(destinationPath)) {
-        return;
+        return null;
+    }
+
+    if (options.journal) {
+        await ensureImportJournalPublicationReady(options.journal);
     }
 
     await mkdir(path.dirname(destinationPath), { recursive: true });
-    const artifacts = await describeImportTransferArtifacts(sourcePath, destinationPath);
+    const artifacts = await describeImportTransferArtifacts(
+        sourcePath,
+        destinationPath,
+        options.journal?.plan.attemptId,
+    );
+    const journalIndex = options.journalFileIndex;
 
-    await writeTransferClaim(artifacts).catch((error) => {
-        if (hasErrorCode(error, "EEXIST")) {
-            throw new Error(`Another import owns the destination: ${destinationPath}`);
+    if (options.journal) {
+        const planned =
+            journalIndex === undefined ? null : options.journal.plan.files[journalIndex];
+
+        if (
+            !planned ||
+            resolvedPath(planned.sourcePath) !== resolvedPath(sourcePath) ||
+            resolvedPath(planned.destinationPath) !== resolvedPath(destinationPath) ||
+            planned.sourceSizeBytes !== artifacts.claim.sourceSize ||
+            planned.sourceMtimeMs !== artifacts.claim.sourceMtimeMs
+        ) {
+            throw new Error("Import transfer does not match its immutable plan.");
         }
+    }
 
-        throw error;
-    });
-
+    let destinationPublished = false;
     let destinationCreated = false;
+    let uncertain = false;
+    let claimCreated = false;
+    let temporaryReceipt:
+        { identity: ImportDestinationIdentity; sizeBytes: number; mtimeMs: number } | undefined;
 
     try {
+        if (options.journal) {
+            await markImportJournal(options.journal, "publishing", journalIndex);
+        }
+
+        if (options.journal) {
+            await assertImportDestinationAncestors(options.journal, destinationPath);
+        }
+
+        await writeTransferClaim(artifacts, options).catch((error) => {
+            if (hasErrorCode(error, "EEXIST")) {
+                throw new Error(`Another import owns the destination: ${destinationPath}`);
+            }
+
+            throw error;
+        });
+
+        claimCreated = true;
+
         if (!options.disableHardLinks) {
+            const sourceEntry = await pathEntry(sourcePath);
+
+            if (!sourceEntry || !sourceEntry.isFile() || sourceEntry.isSymbolicLink()) {
+                throw new Error(`Import source is not a regular file: ${sourcePath}`);
+            }
+
             try {
                 await link(sourcePath, destinationPath);
-                destinationCreated = true;
-
-                return;
+                destinationPublished = true;
             } catch (error) {
                 if (hasErrorCode(error, "EEXIST")) {
                     throw new Error(`Destination file already exists: ${destinationPath}`);
                 }
-                // A cross-device or link-incompatible target uses the streamed path.
+
+                if (!hardLinkFallbackAllowed(error)) {
+                    throw error;
+                }
+            }
+
+            if (destinationPublished) {
+                try {
+                    const destinationEntry = await pathEntry(destinationPath);
+
+                    if (
+                        !destinationEntry ||
+                        !destinationEntry.isFile() ||
+                        destinationEntry.isSymbolicLink() ||
+                        destinationEntry.size !== sourceEntry.size ||
+                        destinationEntry.mtimeMs !== sourceEntry.mtimeMs ||
+                        !sameDestinationIdentity(
+                            destinationIdentity(sourceEntry),
+                            destinationIdentity(destinationEntry),
+                        )
+                    ) {
+                        throw new Error(
+                            `The published import destination could not be verified: ${destinationPath}`,
+                        );
+                    }
+
+                    const receipt: ImportFileTransferReceipt = {
+                        sourcePath: artifacts.claim.sourcePath,
+                        destinationPath: artifacts.claim.destinationPath,
+                        identity: destinationIdentity(destinationEntry),
+                        sizeBytes: destinationEntry.size,
+                        mtimeMs: destinationEntry.mtimeMs,
+                    };
+
+                    await recordJournalReceipt(options.journal, journalIndex, receipt);
+
+                    return receipt;
+                } catch (error) {
+                    uncertain = true;
+                    await markJournalUnknown(options.journal, journalIndex, error);
+
+                    throw error;
+                }
             }
         }
 
@@ -541,27 +816,87 @@ export async function transferImportFile(
             (await destinationSupportsHardLinks(artifacts.temporaryPath));
 
         if (hardLinksSupported) {
-            await streamCopy(sourcePath, artifacts.temporaryPath, options);
+            const copied = await streamCopy(sourcePath, artifacts.temporaryPath, options);
+
+            temporaryReceipt = copied;
 
             try {
                 await link(artifacts.temporaryPath, destinationPath);
-                destinationCreated = true;
+                destinationPublished = true;
+                const destinationEntry = await pathEntry(destinationPath);
+
+                if (
+                    !destinationEntry ||
+                    !destinationEntry.isFile() ||
+                    destinationEntry.isSymbolicLink() ||
+                    !sameDestinationIdentity(copied.identity, destinationIdentity(destinationEntry))
+                ) {
+                    throw new Error(
+                        `The published import destination could not be verified: ${destinationPath}`,
+                    );
+                }
+
+                const receipt: ImportFileTransferReceipt = {
+                    sourcePath: artifacts.claim.sourcePath,
+                    destinationPath: artifacts.claim.destinationPath,
+                    identity: destinationIdentity(destinationEntry),
+                    sizeBytes: destinationEntry.size,
+                    mtimeMs: destinationEntry.mtimeMs,
+                };
+
+                await recordJournalReceipt(options.journal, journalIndex, receipt);
+
+                return receipt;
             } catch (error) {
                 if (hasErrorCode(error, "EEXIST")) {
                     throw new Error(`Destination file already exists: ${destinationPath}`);
                 }
 
+                uncertain = destinationPublished;
+
+                if (uncertain) {
+                    await markJournalUnknown(options.journal, journalIndex, error);
+                }
+
                 throw error;
             }
-        } else {
-            await streamCopy(sourcePath, destinationPath, options, (identity) =>
-                recordClaimedDestination(artifacts, identity),
-            );
+        }
+
+        const copied = await streamCopy(sourcePath, destinationPath, options, () => {
             destinationCreated = true;
+        });
+
+        destinationPublished = true;
+
+        try {
+            const receipt = await describeCreatedDestination(artifacts);
+
+            if (
+                !sameDestinationIdentity(copied.identity, receipt.identity) ||
+                receipt.sizeBytes !== copied.sizeBytes
+            ) {
+                throw new Error(
+                    `The streamed import destination changed before verification: ${destinationPath}`,
+                );
+            }
+
+            await recordJournalReceipt(options.journal, journalIndex, receipt);
+
+            return receipt;
+        } catch (error) {
+            uncertain = true;
+            await markJournalUnknown(options.journal, journalIndex, error);
+
+            throw error;
         }
     } catch (error) {
-        if (destinationCreated) {
-            await rm(destinationPath, { force: true }).catch(() => undefined);
+        if (destinationPublished || destinationCreated || uncertain) {
+            await markJournalUnknown(options.journal, journalIndex, error);
+        } else if (claimCreated) {
+            // A collision or pre-publication failure owns no final media file.
+            // Remove only the claim this call created after re-reading it; a
+            // changed/invalid claim remains visible for recovery diagnostics.
+            await removeOwnedClaim(artifacts).catch(() => undefined);
         }
 
         if (hasErrorCode(error, "EEXIST")) {
@@ -570,9 +905,10 @@ export async function transferImportFile(
 
         throw error;
     } finally {
-        await Promise.allSettled([
-            rm(artifacts.temporaryPath, { force: true }),
-            rm(artifacts.claimPath, { force: true }),
-        ]);
+        if (temporaryReceipt) {
+            await removePrivateTemporary(artifacts.temporaryPath, temporaryReceipt).catch(
+                () => undefined,
+            );
+        }
     }
 }

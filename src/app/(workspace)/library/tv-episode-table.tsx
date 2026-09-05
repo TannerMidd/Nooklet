@@ -13,11 +13,12 @@ import {
     initialTvSeasonMonitoringActionState,
 } from "@/app/(workspace)/library/action-state";
 import { LibraryItemSearchForm } from "@/app/(workspace)/library/library-item-search-form";
+import { Button } from "@/components/ui/button";
 import { type MediaLibraryTvEpisodeSummary } from "@/modules/media-library/queries/get-media-library-tv-title-details";
 import { type MediaLibraryTvSeasonOverview } from "@/modules/media-library/queries/get-media-library-tv-title-summary";
 import { type MediaLibraryPathOption } from "@/modules/media-library/queries/list-media-library-path-options";
 import {
-    episodeHasAired,
+    episodeAvailability,
     parseCalendarDate,
     toCalendarDate,
 } from "@/modules/media-library/episode-air-date";
@@ -25,7 +26,7 @@ import { cn } from "@/lib/utils";
 
 /** Column track shared by the header and every row so they stay aligned. */
 const rowGrid =
-    "grid grid-cols-[24px_62px_minmax(0,1fr)_88px_58px_58px_44px] items-center gap-[11px] px-5";
+    "grid grid-cols-[24px_52px_minmax(0,1fr)_44px] items-center gap-2 px-3 sm:grid-cols-[24px_62px_minmax(0,1fr)_88px_58px_58px_44px] sm:gap-[11px] sm:px-5";
 
 type EpisodeFetchState =
     | { kind: "idle" }
@@ -37,8 +38,12 @@ function episodeCode(episode: MediaLibraryTvEpisodeSummary) {
     return `S${String(episode.seasonNumber).padStart(2, "0")}E${String(episode.episodeNumber).padStart(2, "0")}`;
 }
 
-function isMissing(episode: MediaLibraryTvEpisodeSummary) {
+function hasNoFile(episode: MediaLibraryTvEpisodeSummary) {
     return !episode.hasFile && episode.fileCount === 0;
+}
+
+function isMissing(episode: MediaLibraryTvEpisodeSummary, today: string) {
+    return hasNoFile(episode) && episodeAvailability(episode.airDate, today) === "aired";
 }
 
 /**
@@ -47,8 +52,18 @@ function isMissing(episode: MediaLibraryTvEpisodeSummary) {
  * which is exactly how a search returning nothing looks like a broken button.
  */
 function qualityLabel(episode: MediaLibraryTvEpisodeSummary, today: string) {
-    if (isMissing(episode)) {
-        return episodeHasAired(episode.airDate, today) ? "Missing" : "Unaired";
+    if (hasNoFile(episode)) {
+        const availability = episodeAvailability(episode.airDate, today);
+
+        if (availability === "aired") {
+            return "Missing";
+        }
+
+        if (availability === "upcoming") {
+            return "No file · unaired";
+        }
+
+        return "No file · date unknown";
     }
 
     return episode.qualityLabels.length > 0 ? episode.qualityLabels.join(" / ") : "Untagged";
@@ -74,9 +89,9 @@ function airDateTooltip(episode: MediaLibraryTvEpisodeSummary, today: string) {
         day: "numeric",
     });
 
-    return episodeHasAired(episode.airDate, today)
-        ? `Aired ${formatted}`
-        : `Airs ${formatted} — nothing has been posted yet`;
+    return episodeAvailability(episode.airDate, today) === "upcoming"
+        ? `Airs ${formatted} — nothing has been posted yet`
+        : `Aired ${formatted}`;
 }
 
 export function TvEpisodeTable({
@@ -95,6 +110,8 @@ export function TvEpisodeTable({
     const [selected, setSelected] = useState<string[]>([]);
     const [bulkPending, startBulk] = useTransition();
     const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+    const [bulkMessageStatus, setBulkMessageStatus] = useState<"success" | "error">("success");
+    const [lastBulkTarget, setLastBulkTarget] = useState<boolean | null>(null);
     // Episodes are fetched per season and cached, so switching back to a season
     // already viewed does not re-hit the server.
     const [cache, setCache] = useState<Record<number, EpisodeFetchState>>({});
@@ -134,12 +151,21 @@ export function TvEpisodeTable({
         [titleId],
     );
 
+    const retrySeason = useCallback(
+        (seasonNumber: number) => {
+            void loadSeason(seasonNumber);
+        },
+        [loadSeason],
+    );
+
     useEffect(() => {
         if (!activeSeason) {
             return;
         }
 
-        if (cache[activeSeason.seasonNumber]) {
+        const cachedState = cache[activeSeason.seasonNumber];
+
+        if (cachedState) {
             return;
         }
 
@@ -158,17 +184,22 @@ export function TvEpisodeTable({
 
     const state = cache[activeSeason.seasonNumber] ?? { kind: "idle" as const };
     const allEpisodes = state.kind === "loaded" ? state.episodes : [];
-    const visibleEpisodes = missingOnly ? allEpisodes.filter(isMissing) : allEpisodes;
     // Episode rows only render after the client-side load resolves, so reading
     // the clock here cannot desync from a server render.
     const today = toCalendarDate(new Date());
+    const visibleEpisodes = missingOnly
+        ? allEpisodes.filter((episode) => isMissing(episode, today))
+        : allEpisodes;
     // Counted apart: an unaired episode is not missing, and lumping the two
     // together makes a season look incomplete when it is merely still airing.
-    const missingCount = allEpisodes.filter(
-        (e) => isMissing(e) && episodeHasAired(e.airDate, today),
-    ).length;
+    const missingCount = allEpisodes.filter((episode) => isMissing(episode, today)).length;
     const unairedCount = allEpisodes.filter(
-        (e) => isMissing(e) && !episodeHasAired(e.airDate, today),
+        (episode) =>
+            hasNoFile(episode) && episodeAvailability(episode.airDate, today) === "upcoming",
+    ).length;
+    const unknownDateCount = allEpisodes.filter(
+        (episode) =>
+            hasNoFile(episode) && episodeAvailability(episode.airDate, today) === "unknown",
     ).length;
     const unmonitoredCount = allEpisodes.filter((e) => !e.monitored).length;
 
@@ -178,6 +209,12 @@ export function TvEpisodeTable({
 
         startBulk(async () => {
             setBulkMessage(null);
+            setBulkMessageStatus("success");
+            setLastBulkTarget(monitored);
+
+            const succeededIds: string[] = [];
+            const failedIds: string[] = [];
+            const failureMessages: string[] = [];
 
             for (const episodeId of ids) {
                 const formData = new FormData();
@@ -188,10 +225,22 @@ export function TvEpisodeTable({
                     formData.set("monitored", "on");
                 }
 
-                await updateTvEpisodeMonitoringAction(
-                    initialTvEpisodeMonitoringActionState,
-                    formData,
-                );
+                try {
+                    const result = await updateTvEpisodeMonitoringAction(
+                        initialTvEpisodeMonitoringActionState,
+                        formData,
+                    );
+
+                    if (result.status === "success") {
+                        succeededIds.push(episodeId);
+                    } else {
+                        failedIds.push(episodeId);
+                        failureMessages.push(result.message ?? "Could not update this episode.");
+                    }
+                } catch {
+                    failedIds.push(episodeId);
+                    failureMessages.push("Could not update this episode.");
+                }
             }
 
             setCache((current) => {
@@ -206,14 +255,32 @@ export function TvEpisodeTable({
                     [activeSeason.seasonNumber]: {
                         kind: "loaded",
                         episodes: seasonState.episodes.map((episode) =>
-                            ids.includes(episode.id) ? { ...episode, monitored } : episode,
+                            succeededIds.includes(episode.id) ? { ...episode, monitored } : episode,
                         ),
                     },
                 };
             });
-            setSelected([]);
+
+            setSelected(failedIds);
+
+            if (failedIds.length === 0) {
+                setLastBulkTarget(null);
+                setBulkMessage(
+                    `${succeededIds.length} ${succeededIds.length === 1 ? "episode" : "episodes"} ${monitored ? "monitored" : "unmonitored"}.`,
+                );
+
+                return;
+            }
+
+            setBulkMessageStatus("error");
+            const failureSummary = failureMessages[0] ?? "Try again.";
+            const successSummary =
+                succeededIds.length > 0
+                    ? `${succeededIds.length} ${succeededIds.length === 1 ? "episode" : "episodes"} updated. `
+                    : "No episodes were updated. ";
+
             setBulkMessage(
-                `${ids.length} ${ids.length === 1 ? "episode" : "episodes"} ${monitored ? "monitored" : "unmonitored"}.`,
+                `${successSummary}${failedIds.length} ${failedIds.length === 1 ? "episode" : "episodes"} failed: ${failureSummary} Use ${monitored ? "Retry monitor" : "Retry unmonitor"} to try the failed rows again.`,
             );
         });
     };
@@ -221,6 +288,8 @@ export function TvEpisodeTable({
     const toggleSeasonMonitoring = () => {
         startBulk(async () => {
             setBulkMessage(null);
+            setBulkMessageStatus("success");
+            setLastBulkTarget(null);
             const formData = new FormData();
 
             formData.set("seasonId", activeSeason.id);
@@ -229,10 +298,26 @@ export function TvEpisodeTable({
                 formData.set("monitored", "on");
             }
 
-            await updateTvSeasonMonitoringAction(initialTvSeasonMonitoringActionState, formData);
-            setBulkMessage(
-                `Season ${activeSeason.seasonNumber} ${activeSeason.monitored ? "unmonitored" : "monitored"}.`,
-            );
+            try {
+                const result = await updateTvSeasonMonitoringAction(
+                    initialTvSeasonMonitoringActionState,
+                    formData,
+                );
+
+                if (result.status === "success") {
+                    setBulkMessage(
+                        `Season ${activeSeason.seasonNumber} ${activeSeason.monitored ? "unmonitored" : "monitored"}.`,
+                    );
+
+                    return;
+                }
+
+                setBulkMessageStatus("error");
+                setBulkMessage(result.message ?? "Could not update this season. Try again.");
+            } catch {
+                setBulkMessageStatus("error");
+                setBulkMessage("Could not update this season. Try again.");
+            }
         });
     };
 
@@ -248,10 +333,12 @@ export function TvEpisodeTable({
                         <button
                             key={season.id}
                             type="button"
+                            disabled={bulkPending}
                             onClick={() => {
                                 setActiveSeasonNumber(season.seasonNumber);
                                 setSelected([]);
                                 setBulkMessage(null);
+                                setLastBulkTarget(null);
                             }}
                             aria-current={active ? "true" : undefined}
                             className={cn(
@@ -291,13 +378,14 @@ export function TvEpisodeTable({
                             `${activeSeason.availableEpisodeCount} available`,
                             missingCount > 0 ? `${missingCount} missing` : null,
                             unairedCount > 0 ? `${unairedCount} unaired` : null,
+                            unknownDateCount > 0 ? `${unknownDateCount} unknown` : null,
                             unmonitoredCount > 0 ? `${unmonitoredCount} unmonitored` : null,
                         ]
                             .filter(Boolean)
                             .join(" · ")}
                     </p>
                 </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <button
                         type="button"
                         onClick={() => setMissingOnly((current) => !current)}
@@ -340,38 +428,51 @@ export function TvEpisodeTable({
                 <span />
                 <span>Ep</span>
                 <span>Title</span>
-                <span>Quality</span>
-                <span>Airs</span>
-                <span>Added</span>
+                <span className="hidden sm:block">Quality</span>
+                <span className="hidden sm:block">Airs</span>
+                <span className="hidden sm:block">Added</span>
                 <span />
             </div>
 
             {/* Rows */}
-            <div className="relative min-h-0 flex-1 overflow-auto pb-[72px]">
+            <div className="relative min-h-0 flex-1 overflow-auto pb-2">
                 {state.kind === "loading" || state.kind === "idle" ? (
                     <p className="px-5 py-9 text-center text-[13px] text-muted">
                         Loading episodes…
                     </p>
                 ) : null}
                 {state.kind === "error" ? (
-                    <p className="px-5 py-9 text-center text-[13px] text-accent-wine">
-                        {state.message}
-                    </p>
+                    <div
+                        role="alert"
+                        className="flex flex-col items-center px-5 py-9 text-center text-[13px] text-accent-wine"
+                    >
+                        <p>{state.message}</p>
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="mt-3"
+                            onClick={() => retrySeason(activeSeason.seasonNumber)}
+                        >
+                            Try again
+                        </Button>
+                    </div>
                 ) : null}
                 {state.kind === "loaded" && visibleEpisodes.length === 0 ? (
                     <p className="px-5 py-9 text-center text-[13px] text-muted">
                         {missingOnly
-                            ? "Every episode in this season is on disk."
+                            ? "No aired episodes without files in this season."
                             : "No episodes have been discovered for this season yet."}
                     </p>
                 ) : null}
 
                 {visibleEpisodes.map((episode) => {
                     const checked = selected.includes(episode.id);
-                    const aired = episodeHasAired(episode.airDate, today);
+                    const availability = episodeAvailability(episode.airDate, today);
+                    const aired = availability === "aired";
                     // Only an aired episode can be missing; an unaired one is simply
                     // not out yet, and colouring it as missing implies work to do.
-                    const missing = isMissing(episode) && aired;
+                    const missing = isMissing(episode, today);
 
                     return (
                         <div
@@ -387,13 +488,14 @@ export function TvEpisodeTable({
                                 <input
                                     type="checkbox"
                                     checked={checked}
-                                    onChange={() =>
+                                    onChange={() => {
+                                        setLastBulkTarget(null);
                                         setSelected((current) =>
                                             current.includes(episode.id)
                                                 ? current.filter((id) => id !== episode.id)
                                                 : [...current, episode.id],
-                                        )
-                                    }
+                                        );
+                                    }}
                                     className="peer sr-only"
                                 />
                                 <span className="sr-only">Select {episodeCode(episode)}</span>
@@ -418,19 +520,23 @@ export function TvEpisodeTable({
                             >
                                 {episodeCode(episode)}
                             </span>
-                            <span className="flex min-w-0 items-baseline gap-2">
-                                <span className="truncate text-[13.5px] text-foreground">
+                            <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                <span className="min-w-0 line-clamp-2 text-[13.5px] text-foreground sm:truncate">
                                     {episode.title ?? `Episode ${episode.episodeNumber}`}
                                 </span>
                                 {episode.monitored ? null : (
-                                    <span className="shrink-0 text-[11px] text-muted/85">
+                                    <span className="hidden shrink-0 text-[11px] text-muted/85 sm:inline">
                                         unmonitored
                                     </span>
                                 )}
+                                <span className="block basis-full truncate text-[11px] text-muted sm:hidden">
+                                    {qualityLabel(episode, today)}
+                                    {!episode.monitored ? " · unmonitored" : ""}
+                                </span>
                             </span>
                             <span
                                 className={cn(
-                                    "truncate text-[12.5px]",
+                                    "hidden truncate text-[12.5px] sm:block",
                                     missing ? "font-semibold text-accent" : "text-muted",
                                 )}
                             >
@@ -439,13 +545,13 @@ export function TvEpisodeTable({
                             <span
                                 title={airDateTooltip(episode, today)}
                                 className={cn(
-                                    "truncate text-[12.5px] tabular-nums",
+                                    "hidden truncate text-[12.5px] tabular-nums sm:block",
                                     aired ? "text-muted" : "font-semibold text-accent-cool",
                                 )}
                             >
                                 {airDateLabel(episode)}
                             </span>
-                            <span className="text-[12.5px] text-muted">
+                            <span className="hidden text-[12.5px] text-muted sm:block">
                                 {episode.lastFileModifiedAt
                                     ? episode.lastFileModifiedAt.toLocaleDateString(undefined, {
                                           month: "short",
@@ -468,8 +574,12 @@ export function TvEpisodeTable({
 
             {/* Bulk action bar */}
             {selected.length > 0 ? (
-                <div className="nk-rise absolute bottom-[18px] left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-cream/[0.14] bg-panel-raised py-1 pl-[18px] pr-2 shadow-[0_22px_44px_-18px_rgba(0,0,0,0.95)]">
-                    <span className="mr-1.5 text-[13px] font-semibold text-foreground">
+                <div
+                    role="group"
+                    aria-label="Selected episode actions"
+                    className="nk-rise sticky bottom-0 z-10 mx-3 flex flex-wrap items-center gap-1.5 rounded-2xl border border-cream/[0.14] bg-panel-raised p-2.5 shadow-[0_22px_44px_-18px_rgba(0,0,0,0.95)]"
+                >
+                    <span className="basis-full px-1 text-[13px] font-semibold text-foreground sm:mr-auto sm:basis-auto">
                         {selected.length} {selected.length === 1 ? "episode" : "episodes"} selected
                     </span>
                     <button
@@ -478,7 +588,11 @@ export function TvEpisodeTable({
                         disabled={bulkPending}
                         className="nk-button-primary inline-flex min-h-11 items-center rounded-full px-3.5 text-[12.5px] disabled:opacity-60"
                     >
-                        {bulkPending ? "Working…" : "Monitor"}
+                        {bulkPending
+                            ? "Working…"
+                            : lastBulkTarget === true
+                              ? "Retry monitor"
+                              : "Monitor"}
                     </button>
                     <button
                         type="button"
@@ -486,22 +600,33 @@ export function TvEpisodeTable({
                         disabled={bulkPending}
                         className="inline-flex min-h-11 items-center rounded-full px-3 text-[12.5px] font-semibold text-foreground transition hover:bg-cream/[0.08] disabled:opacity-60"
                     >
-                        Unmonitor
+                        {lastBulkTarget === false ? "Retry unmonitor" : "Unmonitor"}
                     </button>
                     <button
                         type="button"
-                        onClick={() => setSelected([])}
+                        onClick={() => {
+                            setSelected([]);
+                            setLastBulkTarget(null);
+                        }}
                         aria-label="Clear selection"
                         className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted transition hover:bg-cream/[0.08] hover:text-foreground"
                     >
                         <X aria-hidden="true" size={15} />
                     </button>
+                    {bulkMessage ? (
+                        <p
+                            role={bulkMessageStatus === "error" ? "alert" : "status"}
+                            className="basis-full px-1 pt-1 text-xs leading-5 text-muted"
+                        >
+                            {bulkMessage}
+                        </p>
+                    ) : null}
                 </div>
             ) : null}
 
-            {bulkMessage ? (
+            {bulkMessage && selected.length === 0 ? (
                 <p
-                    role="status"
+                    role={bulkMessageStatus === "error" ? "alert" : "status"}
                     className="shrink-0 border-t border-cream/[0.06] px-5 py-2 text-xs text-muted"
                 >
                     {bulkMessage}

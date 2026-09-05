@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
+import os from "node:os";
+import path from "node:path";
 
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { lstat, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
@@ -219,6 +222,55 @@ function failedDownload(input: {
     } as never;
 }
 
+function organizedSeasonDownloadWithReceipt(input: {
+    request: Record<string, unknown>;
+    queueItem: Record<string, unknown>;
+    titleId: string;
+    seasonId: string;
+    fulfillmentId: string;
+    libraryPathId: string;
+    episodeId: string | null;
+    sourceRootPath: string;
+    sourcePath: string;
+    destinationRootPath: string;
+    destinationPath: string;
+    receipt: Record<string, unknown>;
+}) {
+    return {
+        kind: "organized",
+        destinationRootPath: input.destinationRootPath,
+        files: [
+            {
+                sourcePath: input.sourcePath,
+                destinationPath: input.destinationPath,
+                episodeMatch: input.episodeId
+                    ? {
+                          seasonNumber: 1,
+                          episodeNumber: 1,
+                          episodeId: input.episodeId,
+                      }
+                    : null,
+            },
+        ],
+        createdFiles: [input.receipt],
+        source: {
+            source: {
+                sourceRootPath: input.sourceRootPath,
+                target: { path: { id: input.libraryPathId } },
+                match: {
+                    request: input.request,
+                    queueItem: input.queueItem,
+                    historyItem: {
+                        id: "history-cancellation-filesystem",
+                        statusKind: "completed",
+                        completedAt: new Date("2026-05-07T00:00:00Z"),
+                    },
+                },
+            },
+        },
+    } as never;
+}
+
 beforeEach(() => {
     vi.clearAllMocks();
     acquireWorkMock.mockResolvedValue(null);
@@ -392,6 +444,129 @@ describe("completed import recovery ordering", () => {
                 .get()?.status,
         ).toBe("queued");
         expect(releaseWorkMock).toHaveBeenCalledWith(workLease);
+    });
+
+    it("retains organized files when cancellation wins after organization", async () => {
+        const userId = await seedUser();
+        const { libraryId, libraryPathId } = seedMoviePath(userId);
+        const season = seedSeasonFulfillment(userId, libraryPathId);
+        const workLease = workLeaseFor(userId, season.fulfillmentId);
+        const db = ensureDatabaseReady();
+        const root = await mkdtemp(path.join(os.tmpdir(), "nooklet-import-cancel-files-"));
+        const sourceRootPath = path.join(root, "complete");
+        const sourcePath = path.join(sourceRootPath, "episode.mkv");
+        const destinationRootPath = path.join(root, "library");
+        const destinationPath = path.join(destinationRootPath, "episode.mkv");
+
+        try {
+            await mkdir(sourceRootPath, { recursive: true });
+            await mkdir(destinationRootPath, { recursive: true });
+            await writeFile(sourcePath, "episode bytes");
+            await writeFile(destinationPath, "episode bytes");
+
+            const destination = await lstat(destinationPath);
+            const request = {
+                id: "request-cancellation-filesystem",
+                mediaType: "tv",
+                mediaTitleId: season.titleId,
+                seasonId: season.seasonId,
+                episodeId: null,
+                fulfillmentId: season.fulfillmentId,
+                requestedTitle: "Severance S01",
+                status: "queued",
+                cancellationRequestedAt: null,
+                targetLibraryId: libraryId,
+                targetLibraryPathId: libraryPathId,
+            };
+            const queueItem = {
+                id: "queue-cancellation-filesystem",
+                status: "queued",
+            };
+
+            seedRequestFixture({
+                userId,
+                requestId: request.id,
+                queueItemId: queueItem.id,
+                externalQueueId: "history-cancellation-filesystem",
+                mediaType: "tv",
+                requestedTitle: request.requestedTitle,
+                targetLibraryId: libraryId,
+                targetLibraryPathId: libraryPathId,
+                fulfillmentId: season.fulfillmentId,
+                mediaTitleId: season.titleId,
+                seasonId: season.seasonId,
+            });
+
+            acquireWorkMock.mockResolvedValue(workLease);
+            scheduleMock.mockImplementationOnce(async () => {
+                db.update(downloadRequests)
+                    .set({ cancellationRequestedAt: new Date() })
+                    .where(eq(downloadRequests.id, request.id))
+                    .run();
+
+                return null;
+            });
+
+            await expect(
+                persistCompletedDownloadImports(userId, [
+                    organizedSeasonDownloadWithReceipt({
+                        request,
+                        queueItem,
+                        titleId: season.titleId,
+                        seasonId: season.seasonId,
+                        fulfillmentId: season.fulfillmentId,
+                        libraryPathId,
+                        episodeId: null,
+                        sourceRootPath,
+                        sourcePath,
+                        destinationRootPath,
+                        destinationPath,
+                        receipt: {
+                            sourcePath,
+                            destinationPath,
+                            identity: {
+                                device: String(destination.dev),
+                                inode: String(destination.ino),
+                                birthtimeMs: destination.birthtimeMs,
+                            },
+                            sizeBytes: destination.size,
+                            mtimeMs: destination.mtimeMs,
+                        },
+                    }),
+                ]),
+            ).rejects.toThrow(/changed during import|cancellation/i);
+
+            await expect(lstat(destinationPath)).resolves.toMatchObject({ size: 13 });
+            await expect(lstat(sourcePath)).resolves.toMatchObject({ size: 13 });
+            expect(
+                db
+                    .select()
+                    .from(downloadImportRuns)
+                    .where(eq(downloadImportRuns.requestId, request.id))
+                    .all(),
+            ).toHaveLength(0);
+            expect(
+                db
+                    .select()
+                    .from(downloadImportedFiles)
+                    .where(eq(downloadImportedFiles.userId, userId))
+                    .all(),
+            ).toHaveLength(0);
+            expect(
+                db
+                    .select()
+                    .from(downloadQueueItems)
+                    .where(eq(downloadQueueItems.id, queueItem.id))
+                    .get()?.status,
+            ).toBe("queued");
+            expect(
+                db.select().from(downloadRequests).where(eq(downloadRequests.id, request.id)).get()
+                    ?.cancellationRequestedAt,
+            ).toBeInstanceOf(Date);
+            expect(releaseWorkMock).toHaveBeenCalledWith(workLease);
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
     });
 
     it("terminalizes a failed transfer when its destination is disabled", async () => {

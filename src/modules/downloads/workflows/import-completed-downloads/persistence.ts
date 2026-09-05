@@ -1,3 +1,9 @@
+import {
+    completeImportJournalCleanup,
+    isImportJournalDatabaseCommitted,
+    markImportJournalCleanupPending,
+    assertImportJournalReadyForPersistence,
+} from "./import-journal";
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
     acquireDownloadRequestWorkLease,
@@ -13,7 +19,10 @@ import {
     type SeasonFulfillmentWorkLease,
 } from "@/modules/downloads/workflows/season-fulfillment-work-lease";
 
-import { type OrganizedCompletedDownload } from "./file-organization";
+import {
+    rollbackOrganizedDownloadFiles,
+    type OrganizedCompletedDownload,
+} from "./file-organization";
 import { isRetryableCompletedMediaFailure } from "./file-inspection";
 import {
     assertEpisodeOwnership,
@@ -162,124 +171,173 @@ export async function persistCompletedDownloadImports(
     let importedFileCount = 0;
 
     for (const download of downloads) {
-        const match = requestAndQueue(download);
-        const database = ensureDatabaseReady();
-        const requestOwnership: ImportRequestOwnership = assertImportOwnership(
-            database,
-            userId,
-            match.request.id,
-            match.queueItem.id,
-            importOwnershipSnapshot(match),
-            match.queueItem.status,
-        );
-        const lifecycle = assertImportLifecycle(requestOwnership);
-
-        if (lifecycle === "terminal-replay") {
-            continue;
+        if (download.journal && download.journal.plan.userId !== userId) {
+            throw new Error("The import journal is not owned by this user.");
         }
 
-        const episodeMatches = uniqueEpisodeMatches(download);
-
-        // A failed transfer never writes to the destination, so its old path
-        // may be disabled or gone. Successful organized imports need both
-        // preflight and in-transaction destination ownership checks.
-        if (download.kind === "organized") {
-            assertImportTargetPath(database, userId, requestOwnership, download);
-            assertEpisodeOwnership(database, userId, requestOwnership, episodeMatches);
-        }
-
-        const completedAt = match.historyItem.completedAt ?? new Date();
-        const fulfillmentId = match.request.fulfillmentId;
-        const suppliedLease = fulfillmentId
-            ? (options.workLeases?.get(fulfillmentId) ?? null)
-            : (options.requestWorkLeases?.get(match.request.id) ?? null);
-
-        assertSuppliedLeaseOwnership(suppliedLease, userId, match);
-
-        const workLease = await acquireImportLease(userId, match, suppliedLease);
-        const releaseWhenDone = Boolean(workLease && !suppliedLease);
-
-        if (!workLease) {
-            throw new Error("The completed-download import is already advancing; it will retry.");
-        }
+        let committed = false;
 
         try {
-            const schedulerWorkLease = fulfillmentId ? workLease : undefined;
+            if (download.journal && isImportJournalDatabaseCommitted(download.journal)) {
+                committed = true;
+                await completeImportJournalCleanup(download.journal);
+                continue;
+            }
 
-            if (download.kind === "failed") {
-                await scheduleSeasonFulfillmentAfterRequest(
+            const match = requestAndQueue(download);
+            const database = ensureDatabaseReady();
+            const requestOwnership: ImportRequestOwnership = assertImportOwnership(
+                database,
+                userId,
+                match.request.id,
+                match.queueItem.id,
+                importOwnershipSnapshot(match),
+                match.queueItem.status,
+            );
+            const lifecycle = assertImportLifecycle(requestOwnership);
+
+            if (lifecycle === "terminal-replay") {
+                if (download.journal && isImportJournalDatabaseCommitted(download.journal)) {
+                    committed = true;
+                    await completeImportJournalCleanup(download.journal);
+                } else if (download.kind === "organized") {
+                    await rollbackOrganizedDownloadFiles(download);
+                }
+
+                continue;
+            }
+
+            const episodeMatches = uniqueEpisodeMatches(download);
+
+            // Failed transfers may retain published files and claims; they write no
+            // successful import rows. Organized imports require both preflight
+            // and in-transaction destination ownership checks.
+            if (download.kind === "organized") {
+                assertImportTargetPath(database, userId, requestOwnership, download);
+                assertEpisodeOwnership(database, userId, requestOwnership, episodeMatches);
+            }
+
+            const completedAt = match.historyItem.completedAt ?? new Date();
+            const fulfillmentId = match.request.fulfillmentId;
+            const suppliedLease = fulfillmentId
+                ? (options.workLeases?.get(fulfillmentId) ?? null)
+                : (options.requestWorkLeases?.get(match.request.id) ?? null);
+
+            assertSuppliedLeaseOwnership(suppliedLease, userId, match);
+
+            const workLease = await acquireImportLease(userId, match, suppliedLease);
+            const releaseWhenDone = Boolean(workLease && !suppliedLease);
+
+            if (!workLease) {
+                throw new Error(
+                    "The completed-download import is already advancing; it will retry.",
+                );
+            }
+
+            try {
+                const schedulerWorkLease = fulfillmentId ? workLease : undefined;
+
+                if (download.kind === "failed") {
+                    await scheduleSeasonFulfillmentAfterRequest(
+                        userId,
+                        match.request,
+                        {
+                            status: "failed",
+                            message: match.historyItem.failMessage ?? download.message,
+                            failureKind: match.historyItem.failureKind,
+                            retryableContentFailure:
+                                match.historyItem.statusKind === "failed" ||
+                                isRetryableCompletedMediaFailure(download.message),
+                        },
+                        { workLease: schedulerWorkLease },
+                    );
+
+                    persistFailedCompletedDownloadImport({
+                        userId,
+                        download,
+                        match,
+                        ownership: requestOwnership,
+                        workLease,
+                        completedAt,
+                        sourceRootPath: sourceRootPath(download),
+                    });
+
+                    committed = true;
+                    failedCount += 1;
+                    continue;
+                }
+
+                // The checkpoint is deliberately scheduled before the terminal write. If the
+                // process stops in this window, the still-open physical request is replayable;
+                // the committed season checkpoint is what makes recovery converge.
+                const checkpointMessage = `Imported ${download.files.length} file${download.files.length === 1 ? "" : "s"}; verifying season coverage.`;
+                const scheduledFulfillment = await scheduleSeasonFulfillmentAfterRequest(
                     userId,
                     match.request,
                     {
-                        status: "failed",
-                        message: match.historyItem.failMessage ?? download.message,
-                        failureKind: match.historyItem.failureKind,
-                        retryableContentFailure:
-                            match.historyItem.statusKind === "failed" ||
-                            isRetryableCompletedMediaFailure(download.message),
+                        status: "succeeded",
+                        message: checkpointMessage,
                     },
-                    { workLease: schedulerWorkLease },
+                    {
+                        workLease: schedulerWorkLease,
+                        deferEpisodeUpdate: Boolean(match.request.episodeId),
+                    },
                 );
 
-                persistFailedCompletedDownloadImport({
+                const fulfillmentEpisodeCheckpoint: FulfillmentEpisodeCheckpoint | undefined =
+                    scheduledFulfillment && match.request.fulfillmentId && match.request.episodeId
+                        ? {
+                              fulfillmentId: match.request.fulfillmentId,
+                              episodeId: match.request.episodeId,
+                              nextAttemptAt: scheduledFulfillment.nextAttemptAt,
+                              statusMessage: checkpointMessage,
+                          }
+                        : undefined;
+
+                if (download.journal) {
+                    await assertImportJournalReadyForPersistence(download.journal);
+                }
+
+                persistSuccessfulCompletedDownloadImport({
+                    importRunId: download.journal?.plan.attemptId,
                     userId,
                     download,
                     match,
                     ownership: requestOwnership,
+                    episodeMatches,
+                    fulfillmentEpisodeCheckpoint,
                     workLease,
                     completedAt,
-                    sourceRootPath: sourceRootPath(download),
                 });
 
-                failedCount += 1;
+                committed = true;
+                importedCount += 1;
+                importedFileCount += download.files.length;
+                affectedLibraryPathIds.add(download.source.source.target.path.id);
+
+                if (download.journal) {
+                    await completeImportJournalCleanup(download.journal);
+                }
+            } finally {
+                if (workLease && releaseWhenDone) {
+                    await releaseImportLease(workLease, match);
+                }
+            }
+        } catch (error) {
+            if (committed) {
+                if (download.journal) {
+                    await markImportJournalCleanupPending(
+                        download.journal,
+                        "Database commit succeeded; metadata cleanup or lease release will retry.",
+                    ).catch(() => undefined);
+                }
+
                 continue;
             }
 
-            // The checkpoint is deliberately scheduled before the terminal write. If the
-            // process stops in this window, the still-open physical request is replayable;
-            // the committed season checkpoint is what makes recovery converge.
-            const checkpointMessage = `Imported ${download.files.length} file${download.files.length === 1 ? "" : "s"}; verifying season coverage.`;
-            const scheduledFulfillment = await scheduleSeasonFulfillmentAfterRequest(
-                userId,
-                match.request,
-                {
-                    status: "succeeded",
-                    message: checkpointMessage,
-                },
-                {
-                    workLease: schedulerWorkLease,
-                    deferEpisodeUpdate: Boolean(match.request.episodeId),
-                },
-            );
+            await rollbackOrganizedDownloadFiles(download);
 
-            const fulfillmentEpisodeCheckpoint: FulfillmentEpisodeCheckpoint | undefined =
-                scheduledFulfillment && match.request.fulfillmentId && match.request.episodeId
-                    ? {
-                          fulfillmentId: match.request.fulfillmentId,
-                          episodeId: match.request.episodeId,
-                          nextAttemptAt: scheduledFulfillment.nextAttemptAt,
-                          statusMessage: checkpointMessage,
-                      }
-                    : undefined;
-
-            persistSuccessfulCompletedDownloadImport({
-                userId,
-                download,
-                match,
-                ownership: requestOwnership,
-                episodeMatches,
-                fulfillmentEpisodeCheckpoint,
-                workLease,
-                completedAt,
-            });
-
-            importedCount += 1;
-            importedFileCount += download.files.length;
-            affectedLibraryPathIds.add(download.source.source.target.path.id);
-        } finally {
-            if (workLease && releaseWhenDone) {
-                await releaseImportLease(workLease, match);
-            }
+            throw error;
         }
     }
 

@@ -1,0 +1,3 @@
+{"phase":"before","state":"extracting","outputPath":null,"artifactExists":true}
+[download_engine_artifact_sweep_completed] { removedIncomplete: 0, removedComplete: 1 }
+{"phase":"after","state":"paused","outputPath":null,"artifactExists":false,"payloadRetained":true}

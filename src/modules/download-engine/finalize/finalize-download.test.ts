@@ -1,6 +1,16 @@
 import path from "node:path";
 import os from "node:os";
-import { access, link, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import {
+    access,
+    link,
+    mkdir,
+    mkdtemp,
+    readFile,
+    readdir,
+    rm,
+    symlink,
+    writeFile,
+} from "node:fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -14,8 +24,10 @@ import {
     parse7zTechnicalListing,
     parseUnrarTechnicalListing,
     redactArchiveToolText,
+    validateFinalizedDownloadArtifact,
     verifyStagedArchiveTree,
     withArchiveStaging,
+    writeFinalizedDownloadManifest,
 } from "@/modules/download-engine/finalize/finalize-download";
 import { type DownloadedNzbFile } from "@/modules/download-engine/scheduler/download-nzb";
 
@@ -306,6 +318,135 @@ describe("deobfuscateDownloadFiles", () => {
     });
 });
 
+describe("finalized download manifests", () => {
+    async function makeManifestArtifact() {
+        const { workDir } = await makeDirs();
+        const artifactPath = path.join(workDir, "download-1");
+
+        await mkdir(artifactPath, { recursive: true });
+        await writeFile(path.join(artifactPath, "movie.mkv"), "finalized media");
+        await writeFinalizedDownloadManifest(artifactPath, "download-1");
+
+        return artifactPath;
+    }
+
+    it("validates a finalizer-produced tree and binds it to its directory id", async () => {
+        const artifactPath = await makeManifestArtifact();
+
+        await expect(
+            validateFinalizedDownloadArtifact(artifactPath, "download-1", {
+                expectedDirectoryName: "download-1",
+            }),
+        ).resolves.toMatchObject({ manifest: { downloadId: "download-1", totalFiles: 1 } });
+        await expect(
+            validateFinalizedDownloadArtifact(artifactPath, "other-download", {
+                expectedDirectoryName: "download-1",
+            }),
+        ).rejects.toThrow(/owned|manifest/i);
+        await expect(
+            validateFinalizedDownloadArtifact(artifactPath, "download-1", {
+                expectedDirectoryName: "wrong-directory",
+            }),
+        ).rejects.toThrow(/directory|queue id/i);
+    });
+
+    it("fails closed for a missing or malformed marker and for changed file sizes", async () => {
+        const { workDir } = await makeDirs();
+        const markerlessPath = path.join(workDir, "download-1");
+
+        await mkdir(markerlessPath, { recursive: true });
+        await writeFile(path.join(markerlessPath, "movie.mkv"), "media");
+        await expect(
+            validateFinalizedDownloadArtifact(markerlessPath, "download-1", {
+                expectedDirectoryName: "download-1",
+            }),
+        ).rejects.toThrow(/manifest/i);
+
+        const malformedPath = path.join(workDir, "download-2");
+
+        await mkdir(malformedPath, { recursive: true });
+        await writeFile(path.join(malformedPath, ".nooklet-finalized.json"), "not json");
+        await expect(
+            validateFinalizedDownloadArtifact(malformedPath, "download-2", {
+                expectedDirectoryName: "download-2",
+            }),
+        ).rejects.toThrow(/malformed/i);
+
+        const changedPath = await makeManifestArtifact();
+
+        await writeFile(path.join(changedPath, "movie.mkv"), "changed and longer");
+        await expect(
+            validateFinalizedDownloadArtifact(changedPath, "download-1", {
+                expectedDirectoryName: "download-1",
+            }),
+        ).rejects.toThrow(/match|tree/i);
+    });
+
+    it("rejects temporary, nested, traversal, and link entries", async () => {
+        const temporaryPath = await makeManifestArtifact();
+
+        await writeFile(
+            path.join(temporaryPath, ".nooklet-finalized.json.tmp-leftover"),
+            "partial",
+        );
+        await expect(
+            validateFinalizedDownloadArtifact(temporaryPath, "download-1", {
+                expectedDirectoryName: "download-1",
+            }),
+        ).rejects.toThrow(/temporary/i);
+
+        const nestedMarkerPath = await makeManifestArtifact();
+
+        await mkdir(path.join(nestedMarkerPath, "nested"));
+        await writeFile(path.join(nestedMarkerPath, "nested", ".nooklet-finalized.json"), "nested");
+        await expect(
+            validateFinalizedDownloadArtifact(nestedMarkerPath, "download-1", {
+                expectedDirectoryName: "download-1",
+            }),
+        ).rejects.toThrow(/nested|manifest/i);
+
+        const escapePath = path.join(workRoot!, "download-3");
+
+        await mkdir(escapePath, { recursive: true });
+        await writeFile(path.join(escapePath, "movie.mkv"), "media");
+        await writeFile(
+            path.join(escapePath, ".nooklet-finalized.json"),
+            JSON.stringify({
+                version: 1,
+                downloadId: "download-3",
+                files: [{ relativePath: "../outside.mkv", sizeBytes: 1 }],
+                totalBytes: 1,
+                totalFiles: 1,
+            }),
+        );
+        await expect(
+            validateFinalizedDownloadArtifact(escapePath, "download-3", {
+                expectedDirectoryName: "download-3",
+            }),
+        ).rejects.toThrow(/manifest|invalid|unsafe/i);
+
+        const hardLinkPath = await makeManifestArtifact();
+
+        await link(path.join(hardLinkPath, "movie.mkv"), path.join(hardLinkPath, "alias.mkv"));
+        await expect(
+            validateFinalizedDownloadArtifact(hardLinkPath, "download-1", {
+                expectedDirectoryName: "download-1",
+            }),
+        ).rejects.toThrow(/hard|regular/i);
+
+        if (process.platform !== "win32") {
+            const symlinkPath = await makeManifestArtifact();
+
+            await symlink(path.join(symlinkPath, "movie.mkv"), path.join(symlinkPath, "link.mkv"));
+            await expect(
+                validateFinalizedDownloadArtifact(symlinkPath, "download-1", {
+                    expectedDirectoryName: "download-1",
+                }),
+            ).rejects.toThrow(/link|reparse/i);
+        }
+    });
+});
+
 describe("finalizeDownload", () => {
     it("produces importable media from an obfuscated post without any binaries", async () => {
         const { workDir, outputDir } = await makeDirs();
@@ -324,6 +465,7 @@ describe("finalizeDownload", () => {
         const result = await finalizeDownload({
             workDir,
             outputDir,
+            downloadId: path.basename(outputDir),
             downloadName: "Obsession.2026.1080p.WEB-DL",
             files: [okFile("2d5015096de9")],
             password: null,
@@ -350,6 +492,7 @@ describe("finalizeDownload", () => {
             finalizeDownload({
                 workDir,
                 outputDir,
+                downloadId: path.basename(outputDir),
                 downloadName: "Junk.Post",
                 files: [okFile("junk1")],
                 password: null,
@@ -360,6 +503,7 @@ describe("finalizeDownload", () => {
             finalizeDownload({
                 workDir,
                 outputDir,
+                downloadId: path.basename(outputDir),
                 downloadName: "Junk.Post",
                 files: [okFile("junk1")],
                 password: null,
@@ -386,6 +530,7 @@ describe("finalizeDownload", () => {
             finalizeDownload({
                 workDir,
                 outputDir,
+                downloadId: path.basename(outputDir),
                 downloadName: "Rar.Post",
                 files: [okFile("obfuscated-archive")],
                 password: null,
@@ -410,6 +555,7 @@ describe("finalizeDownload", () => {
             finalizeDownload({
                 workDir,
                 outputDir,
+                downloadId: path.basename(outputDir),
                 downloadName: "Damaged.Post",
                 files: [damaged],
                 password: null,
@@ -436,6 +582,7 @@ describe("finalizeDownload", () => {
         const result = await finalizeDownload({
             workDir,
             outputDir,
+            downloadId: path.basename(outputDir),
             downloadName: "Intact.Post",
             // The recovery volume lost segments; the payload did not.
             files: [okFile("movie.mkv"), { ...okFile("movie.par2"), ok: false, failedSegments: 3 }],
@@ -484,6 +631,7 @@ describe("finalizeDownload", () => {
             finalizeDownload({
                 workDir,
                 outputDir,
+                downloadId: path.basename(outputDir),
                 downloadName: "Rar.Post",
                 files: [okFile("obfuscated-archive")],
                 password: null,

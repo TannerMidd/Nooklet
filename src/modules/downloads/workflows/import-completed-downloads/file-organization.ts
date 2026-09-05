@@ -1,5 +1,11 @@
 import path from "node:path";
-import { unlink } from "node:fs/promises";
+import {
+    createImportJournal,
+    findReusableImportJournal,
+    markImportJournalRetained,
+    type ImportJournalHandle,
+} from "./import-journal";
+import { lstat, realpath } from "node:fs/promises";
 
 import {
     findSeasonFolderNumber,
@@ -13,6 +19,7 @@ import {
 } from "./file-inspection";
 import {
     type ImportFilesystemProgressReporter,
+    type ImportFileTransferReceipt,
     resolveImportDestination,
     transferImportFile,
 } from "./file-transfer";
@@ -38,10 +45,18 @@ export type ImportedDownloadFile = {
     episodeMatch: ImportedFileEpisodeMatch | null;
 };
 
+export type { ImportFileTransferReceipt } from "./file-transfer";
+
+export type ImportRollbackResult = {
+    removedPaths: string[];
+    preservedPaths: string[];
+};
+
 export type FailedOrganizedDownload = {
     kind: "failed";
     source: InspectedCompletedDownload;
     message: string;
+    journal?: ImportJournalHandle;
 };
 
 export type OrganizedCompletedDownload =
@@ -51,6 +66,8 @@ export type OrganizedCompletedDownload =
           source: ReadyInspectedDownload;
           destinationRootPath: string;
           files: ImportedDownloadFile[];
+          createdFiles: ImportFileTransferReceipt[];
+          journal?: ImportJournalHandle;
       };
 
 function sanitizePathSegment(value: string) {
@@ -403,17 +420,37 @@ function planFileDestinations(download: ReadyInspectedDownload): PlannedFileDest
     return [...videoPlans, ...planCompanionDestinations(download, videoPlans)];
 }
 
+/** Retention-only compensation: Node cannot atomically compare-and-unlink a final path. */
+export async function rollbackOrganizedDownloadFiles(
+    download: OrganizedCompletedDownload,
+): Promise<ImportRollbackResult> {
+    if (download.journal) {
+        await markImportJournalRetained(
+            download.journal,
+            "Import did not complete; published output was retained.",
+        ).catch(() => undefined);
+    }
+
+    return {
+        removedPaths: [],
+        preservedPaths:
+            download.kind === "organized" ? download.files.map((file) => file.destinationPath) : [],
+    };
+}
+
 async function organizeReadyDownload(
     download: ReadyInspectedDownload,
     onFilesystemProgress?: ImportFilesystemProgressReporter,
+    journalRootPath?: string,
 ): Promise<OrganizedCompletedDownload> {
     const targetRoot = download.source.target.path.path;
     const importedFiles: ImportedDownloadFile[] = [];
+    const createdFiles: ImportFileTransferReceipt[] = [];
+    let journal: ImportJournalHandle | undefined;
     const resolvedPlans: Array<{
         planned: PlannedFileDestination;
         destination: { kind: "ready" | "already-present"; destinationPath: string };
     }> = [];
-    const movedPlans: typeof resolvedPlans = [];
 
     try {
         if (primaryVideoFiles(download.files).length === 0) {
@@ -440,15 +477,44 @@ async function organizeReadyDownload(
             destinationOwners.set(destinationKey, planned);
         }
 
-        for (const planned of plans) {
+        const [sourceRootPath, destinationRootPath] = await Promise.all([
+            realpath(download.source.sourceRootPath),
+            realpath(targetRoot),
+        ]);
+        const journalInput = {
+            downloadId: download.source.match.historyItem.id,
+            requestId: download.source.match.request.id,
+            userId: download.source.match.request.userId,
+            sourceRootPath,
+            destinationRootPath,
+            rootPath: journalRootPath,
+            files: await Promise.all(
+                plans.map(async (planned) => {
+                    const entry = await lstat(planned.file.sourcePath);
+
+                    return {
+                        sourcePath: planned.file.sourcePath,
+                        destinationPath: planned.destinationPath,
+                        sourceSizeBytes: entry.size,
+                        sourceMtimeMs: entry.mtimeMs,
+                    };
+                }),
+            ),
+        };
+
+        journal =
+            (await findReusableImportJournal(journalInput)) ??
+            (await createImportJournal(journalInput));
+
+        for (const [index, planned] of plans.entries()) {
             const destination = await resolveImportDestination(
                 planned.file.sourcePath,
                 planned.destinationPath,
-                { onProgress: onFilesystemProgress },
+                { onProgress: onFilesystemProgress, journal, journalFileIndex: index },
             );
 
             if (destination.kind === "failed") {
-                return { kind: "failed", source: download, message: destination.message };
+                return { kind: "failed", source: download, message: destination.message, journal };
             }
 
             if (!ensureChildPath(targetRoot, destination.destinationPath)) {
@@ -464,14 +530,17 @@ async function organizeReadyDownload(
 
         // Validate every destination before moving the first file. This avoids a
         // predictable late collision leaving a partially imported pack.
-        for (const resolved of resolvedPlans) {
+        for (const [index, resolved] of resolvedPlans.entries()) {
             if (resolved.destination.kind === "ready") {
-                await transferImportFile(
+                const receipt = await transferImportFile(
                     resolved.planned.file.sourcePath,
                     resolved.destination.destinationPath,
-                    { onProgress: onFilesystemProgress },
+                    { onProgress: onFilesystemProgress, journal, journalFileIndex: index },
                 );
-                movedPlans.push(resolved);
+
+                if (receipt) {
+                    createdFiles.push(receipt);
+                }
             }
 
             importedFiles.push({
@@ -486,18 +555,15 @@ async function organizeReadyDownload(
             source: download,
             destinationRootPath: path.join(targetRoot, titleFolderLabel(download)),
             files: importedFiles,
+            createdFiles,
+            journal,
         };
     } catch (error) {
-        let rollbackFailed = false;
-
-        for (const moved of [...movedPlans].reverse()) {
-            try {
-                // Sources remain engine-owned until persistence succeeds, so rollback
-                // removes only destinations created by this attempt.
-                await unlink(moved.destination.destinationPath);
-            } catch {
-                rollbackFailed = true;
-            }
+        if (journal) {
+            await markImportJournalRetained(
+                journal,
+                "Organization failed; output was retained.",
+            ).catch(() => undefined);
         }
 
         const message =
@@ -506,8 +572,9 @@ async function organizeReadyDownload(
         return {
             kind: "failed",
             source: download,
-            message: rollbackFailed
-                ? `${message} Some moved files could not be rolled back.`
+            journal,
+            message: journal
+                ? `${message} Import output retained; journal: ${journal.journalPath}`
                 : message,
         };
     }
@@ -515,7 +582,10 @@ async function organizeReadyDownload(
 
 export async function organizeCompletedDownloadFiles(
     downloads: InspectedCompletedDownload[],
-    options: { onFilesystemProgress?: ImportFilesystemProgressReporter } = {},
+    options: {
+        onFilesystemProgress?: ImportFilesystemProgressReporter;
+        journalRootPath?: string;
+    } = {},
 ): Promise<OrganizedCompletedDownload[]> {
     const organized: OrganizedCompletedDownload[] = [];
 
@@ -523,7 +593,11 @@ export async function organizeCompletedDownloadFiles(
         organized.push(
             download.kind === "failed"
                 ? { kind: "failed", source: download, message: download.message }
-                : await organizeReadyDownload(download, options.onFilesystemProgress),
+                : await organizeReadyDownload(
+                      download,
+                      options.onFilesystemProgress,
+                      options.journalRootPath,
+                  ),
         );
     }
 

@@ -37,6 +37,29 @@ beforeEach(() => {
 });
 
 describe("submitConnectionAction", () => {
+    it.each([
+        ["tmdb", "baseUrl"],
+        ["usenet-server", "usenetHost"],
+        ["trakt", "baseUrl"],
+        ["ai-provider", "baseUrl"],
+    ] as const)("maps a saved %s URL problem to the address field", async (serviceType, field) => {
+        authMock.mockResolvedValue({ user: { id: "admin-1", role: "admin" } } as never);
+        verifyMock.mockResolvedValue({
+            ok: false,
+            message: "Replace the saved address before verifying.",
+            field: "baseUrl",
+        });
+        const form = new FormData();
+
+        form.set("intent", "verify");
+        form.set("serviceType", serviceType);
+
+        expect(await submitConnectionAction(initialConnectionActionState, form)).toMatchObject({
+            status: "error",
+            fieldErrors: { [field]: "Replace the saved address before verifying." },
+        });
+    });
+
     it("lets a regular user save their personal Trakt connection with structured fields", async () => {
         authMock.mockResolvedValue({ user: { id: "user-1", role: "user" } } as never);
         saveMock.mockResolvedValue({ ok: true, message: "Trakt configuration saved." });

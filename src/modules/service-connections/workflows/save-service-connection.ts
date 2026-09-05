@@ -1,4 +1,5 @@
 import { decryptSecret, encryptSecret, maskSecret } from "@/lib/security/secret-box";
+import { CredentialUrlError, assertCredentialFreeUrl } from "@/lib/security/credential-url";
 import { createAuditEvent } from "@/modules/users/public";
 import {
     type AiProviderConnectionInput,
@@ -13,12 +14,25 @@ import {
 type SaveServiceConnectionInput = AiProviderConnectionInput | ApiKeyServiceConnectionInput;
 
 export type SaveServiceConnectionResult =
-    { ok: true; message: string } | { ok: false; message: string; field?: "apiKey" };
+    { ok: true; message: string } | { ok: false; message: string; field?: "apiKey" | "baseUrl" };
 
 export async function saveConfiguredServiceConnection(
     userId: string,
     input: SaveServiceConnectionInput,
 ): Promise<SaveServiceConnectionResult> {
+    try {
+        assertCredentialFreeUrl(input.baseUrl);
+    } catch (error) {
+        return {
+            ok: false,
+            message:
+                error instanceof CredentialUrlError && error.code === "invalid"
+                    ? "Enter a valid base URL."
+                    : "Base URLs must not contain embedded credentials.",
+            field: "baseUrl",
+        };
+    }
+
     const existingRecord = await findServiceConnectionByType(userId, input.serviceType);
     const secretValue = input.apiKey.trim();
 
@@ -68,7 +82,6 @@ export async function saveConfiguredServiceConnection(
         subjectId: input.serviceType,
         payloadJson: JSON.stringify({
             serviceType: input.serviceType,
-            baseUrl: input.baseUrl,
         }),
     });
 

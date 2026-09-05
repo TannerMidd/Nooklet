@@ -1,0 +1,30 @@
+import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { ensureDatabaseReady } from "@/lib/database/client";
+import { engineDownloads, users } from "@/lib/database/schema";
+import { env } from "@/lib/env";
+import { recoverInterruptedEngineDownloads } from "@/modules/download-engine/runtime/engine-runner";
+
+async function main() {
+    const allowedRoot = path.resolve(".codex-tmp/audit-2026-09-04/recovery-proof");
+    for (const target of [env.DOWNLOAD_ENGINE_DIR, env.DOWNLOAD_ENGINE_WORK_DIR, env.DATABASE_URL.slice(5)]) {
+        assert(path.resolve(target).startsWith(allowedRoot + path.sep), "Proof paths must be inside the disposable recovery-proof directory");
+    }
+    assert(!existsSync(env.DATABASE_URL.slice(5)), "Proof requires a fresh database");
+    const database = ensureDatabaseReady();
+    const userId = "55555555-5555-4555-8555-555555555555";
+    const id = "66666666-6666-4666-8666-666666666666";
+    database.insert(users).values({id:userId,email:"recovery-proof@nooklet.test",displayName:"Synthetic recovery proof",passwordHash:"not-a-real-login-hash"}).run();
+    database.insert(engineDownloads).values({id,userId,name:"Synthetic finalization fixture",category:"movies",state:"extracting",controlIntent:null,nzbXml:"<nzb/>",outputPath:null}).run();
+    const artifact = path.join(env.DOWNLOAD_ENGINE_DIR, "complete", id, "synthetic-artifact.txt");
+    assert(path.resolve(artifact).startsWith(allowedRoot + path.sep));
+    await mkdir(path.dirname(artifact), {recursive:true});
+    await writeFile(artifact, "Synthetic audit artifact. Not a media file.");
+    console.log(JSON.stringify({phase:"before",state:"extracting",outputPath:null,artifactExists:existsSync(artifact)}));
+    await recoverInterruptedEngineDownloads();
+    const [row] = database.select({state:engineDownloads.state,outputPath:engineDownloads.outputPath,nzbXml:engineDownloads.nzbXml}).from(engineDownloads).all();
+    console.log(JSON.stringify({phase:"after",state:row.state,outputPath:row.outputPath,artifactExists:existsSync(artifact),payloadRetained:row.nzbXml.length>0}));
+}
+main().catch(error=>{console.error(error);process.exitCode=1;});

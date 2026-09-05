@@ -34,6 +34,40 @@ vi.mock("@/modules/youtube/public", () => {
         retryAllYouTubeDownloads: vi.fn(),
         retryYouTubeDownload: vi.fn(),
         retryYouTubeSourceInitialization: vi.fn(),
+        summarizeYouTubeQueueResults: vi.fn((results: Array<{ outcome: string }>) => {
+            const summary = {
+                totalCount: results.length,
+                queuedCount: 0,
+                alreadyQueuedCount: 0,
+                completedCount: 0,
+                failedCount: 0,
+                cancelledCount: 0,
+            };
+
+            for (const result of results) {
+                if (result.outcome === "queued") {
+                    summary.queuedCount += 1;
+                }
+
+                if (result.outcome === "already_queued") {
+                    summary.alreadyQueuedCount += 1;
+                }
+
+                if (result.outcome === "completed") {
+                    summary.completedCount += 1;
+                }
+
+                if (result.outcome === "failed") {
+                    summary.failedCount += 1;
+                }
+
+                if (result.outcome === "cancelled") {
+                    summary.cancelledCount += 1;
+                }
+            }
+
+            return summary;
+        }),
         setYouTubeSourcePaused: vi.fn(),
         syncYouTubeSourceNow: vi.fn(),
         updateYouTubeSource: vi.fn(),
@@ -100,7 +134,11 @@ describe("configureYouTubeRequestAction", () => {
     });
 
     it("re-probes an individual URL through the facade before queueing", async () => {
-        queueVideoUrlMock.mockResolvedValue({ id: "download-1" } as never);
+        queueVideoUrlMock.mockResolvedValue({
+            id: "download-1",
+            inserted: true,
+            outcome: "queued",
+        } as never);
 
         const result = await configureYouTubeRequestAction(
             initialYouTubeActionState,
@@ -117,12 +155,52 @@ describe("configureYouTubeRequestAction", () => {
         expect(result).toEqual({ status: "success", message: "Video queued for download." });
     });
 
+    it("explains existing failed and completed individual downloads without restarting them", async () => {
+        queueVideoUrlMock.mockResolvedValueOnce({
+            id: "download-failed",
+            inserted: false,
+            outcome: "failed",
+            status: "failed",
+        } as never);
+
+        await expect(
+            configureYouTubeRequestAction(initialYouTubeActionState, configurationForm("video")),
+        ).resolves.toEqual({
+            status: "error",
+            message: "Video already failed. Use Retry in YouTube activity to try it again.",
+        });
+
+        queueVideoUrlMock.mockResolvedValueOnce({
+            id: "download-completed",
+            inserted: false,
+            outcome: "completed",
+            status: "completed",
+        } as never);
+
+        await expect(
+            configureYouTubeRequestAction(initialYouTubeActionState, configurationForm("video")),
+        ).resolves.toEqual({
+            status: "success",
+            message: "Video was already completed.",
+        });
+    });
+
     it("creates a baseline monitor with only selected backlog video IDs", async () => {
         const form = configurationForm("source");
 
         form.set("monitorFuture", "on");
         form.append("videoIds", "dQw4w9WgXcQ");
-        createSourceMock.mockResolvedValue({ source: { id: "source-1" } } as never);
+        createSourceMock.mockResolvedValue({
+            source: { id: "source-1" },
+            sync: {
+                totalCount: 1,
+                queuedCount: 1,
+                alreadyQueuedCount: 0,
+                completedCount: 0,
+                failedCount: 0,
+                cancelledCount: 0,
+            },
+        } as never);
 
         const result = await configureYouTubeRequestAction(initialYouTubeActionState, form);
 
@@ -133,6 +211,34 @@ describe("configureYouTubeRequestAction", () => {
             selectedVideoIds: ["dQw4w9WgXcQ"],
         });
         expect(result.status).toBe("success");
+        expect(result.message).toBe("Monitor saved, baseline completed. 1 video queued.");
+    });
+
+    it("reports mixed baseline queue outcomes and leaves terminal rows for explicit retry", async () => {
+        const form = configurationForm("source");
+
+        form.set("monitorFuture", "on");
+        form.append("videoIds", "dQw4w9WgXcQ");
+        form.append("videoIds", "aqz-KE-bpKQ");
+        createSourceMock.mockResolvedValue({
+            source: { id: "source-1" },
+            sync: {
+                totalCount: 2,
+                queuedCount: 0,
+                alreadyQueuedCount: 0,
+                completedCount: 1,
+                failedCount: 1,
+                cancelledCount: 0,
+            },
+        } as never);
+
+        const result = await configureYouTubeRequestAction(initialYouTubeActionState, form);
+
+        expect(result).toEqual({
+            status: "error",
+            message:
+                "Monitor saved, baseline completed. 1 video already completed; 1 video failed; use Retry in YouTube activity to try again.",
+        });
     });
 
     it("does not accept an empty selection when future monitoring is disabled", async () => {
@@ -173,6 +279,90 @@ describe("configureYouTubeRequestAction", () => {
             message: "YouTube returned an incomplete source listing. Try again later.",
         });
         expect(queueVideosMock).not.toHaveBeenCalled();
+    });
+
+    it("reports that no videos were queued when the atomic batch fails", async () => {
+        const form = configurationForm("source");
+        const selectedId = "dQw4w9WgXcQ";
+
+        form.append("videoIds", selectedId);
+        enumerateSourceMock.mockResolvedValue({
+            complete: true,
+            videos: [
+                {
+                    youtubeVideoId: selectedId,
+                    title: "Selected video",
+                    channelId: null,
+                    channelTitle: null,
+                    description: null,
+                    publishedAt: null,
+                    durationSeconds: 30,
+                    thumbnailUrl: null,
+                    webpageUrl: `https://www.youtube.com/watch?v=${selectedId}`,
+                    contentKind: "regular",
+                    availability: "public",
+                    eligible: true,
+                },
+            ],
+        } as never);
+        queueVideosMock.mockRejectedValue(new Error("destination changed"));
+
+        await expect(
+            configureYouTubeRequestAction(initialYouTubeActionState, form),
+        ).resolves.toEqual({
+            status: "error",
+            message: "No videos were queued. The YouTube videos could not be queued.",
+        });
+        expect(revalidateMock).not.toHaveBeenCalled();
+    });
+
+    it("summarizes mixed bulk outcomes without silently retrying terminal rows", async () => {
+        const form = configurationForm("source");
+        const selectedIds = [
+            "dQw4w9WgXcQ",
+            "aqz-KE-bpKQ",
+            "jNQXAC9IVRw",
+            "BaW_jenozKc",
+            "9bZkp7q19f0",
+        ];
+
+        for (const selectedId of selectedIds) {
+            form.append("videoIds", selectedId);
+        }
+
+        enumerateSourceMock.mockResolvedValue({
+            complete: true,
+            videos: selectedIds.map((youtubeVideoId) => ({
+                youtubeVideoId,
+                title: youtubeVideoId,
+                channelId: null,
+                channelTitle: null,
+                description: null,
+                publishedAt: null,
+                durationSeconds: 30,
+                thumbnailUrl: null,
+                webpageUrl: `https://www.youtube.com/watch?v=${youtubeVideoId}`,
+                contentKind: "regular",
+                availability: "public",
+                eligible: true,
+            })),
+        } as never);
+        queueVideosMock.mockResolvedValue([
+            { inserted: true, outcome: "queued", status: "queued" },
+            { inserted: false, outcome: "already_queued", status: "queued" },
+            { inserted: false, outcome: "completed", status: "completed" },
+            { inserted: false, outcome: "failed", status: "failed" },
+            { inserted: false, outcome: "cancelled", status: "cancelled" },
+        ] as never);
+
+        await expect(
+            configureYouTubeRequestAction(initialYouTubeActionState, form),
+        ).resolves.toEqual({
+            status: "error",
+            message:
+                "1 video newly queued; 1 video already queued; 1 video already completed; 1 video failed; use Retry in YouTube activity to try again; 1 video cancelled; use Retry in YouTube activity to try again without creating a monitor.",
+        });
+        expect(revalidateMock).toHaveBeenCalled();
     });
 
     it("redacts extractor detail into a stable user-facing error", async () => {

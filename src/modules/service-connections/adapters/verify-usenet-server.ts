@@ -1,4 +1,5 @@
 import { NntpClient } from "@/modules/download-engine/nntp/nntp-client";
+import { assertCredentialFreeUrl } from "@/lib/security/credential-url";
 import { assertOutboundHostAllowed } from "@/lib/security/safe-fetch";
 import {
     parseUsenetCredentials,
@@ -22,6 +23,7 @@ export async function verifyUsenetServer(
     let client: NntpClient | null = null;
 
     try {
+        assertCredentialFreeUrl(input.baseUrl);
         const server = parseUsenetServerUrl(input.baseUrl);
         const credentials = parseUsenetCredentials(input.secret);
         const resolvedAddresses = await assertOutboundHostAllowed(server.host);

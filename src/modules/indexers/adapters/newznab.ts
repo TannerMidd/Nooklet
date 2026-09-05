@@ -1,6 +1,10 @@
 import { XMLParser } from "fast-xml-parser";
 import { z } from "zod";
 
+import {
+    assertCredentialFreeUrl,
+    inspectCredentialBearingUrl,
+} from "@/lib/security/credential-url";
 import { safeFetch } from "@/lib/security/safe-fetch";
 import { indexerProtocols } from "@/lib/database/schema";
 import {
@@ -20,11 +24,23 @@ const nullableNonnegativeInt = z.number().int().nonnegative().nullable();
 
 const newznabSearchInputSchema = z.object({
     protocol: z.enum(indexerProtocols),
-    baseUrl: z.string().url(),
+    baseUrl: z
+        .string()
+        .url()
+        .superRefine((value, context) => {
+            const inspection = inspectCredentialBearingUrl(value);
+
+            if (inspection.issue && inspection.issue !== "invalid") {
+                context.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: "Indexer URLs must not contain embedded credentials.",
+                });
+            }
+        }),
     apiPath: z
         .string()
         .min(1)
-        .regex(/^\/(?!\/)/),
+        .regex(/^\/(?!\/)[^?#\\]*$/),
     apiKey: z.string().min(1),
     query: z.string().min(1),
     categories: z.array(z.string().min(1)),
@@ -135,10 +151,16 @@ function readAttr(item: ParsedNode, name: string) {
 }
 
 function buildSearchUrl(input: ParsedNewznabSearchInput) {
+    assertCredentialFreeUrl(input.baseUrl);
+
     const url = new URL(
         input.apiPath,
         input.baseUrl.endsWith("/") ? input.baseUrl : `${input.baseUrl}/`,
     );
+
+    if (inspectCredentialBearingUrl(url.toString()).hasEmbeddedCredentials) {
+        throw new NewznabAdapterError("Indexer endpoint contains embedded credentials.");
+    }
 
     url.searchParams.set("t", input.searchType);
     url.searchParams.set("q", input.query);

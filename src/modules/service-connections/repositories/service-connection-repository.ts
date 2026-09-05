@@ -3,6 +3,10 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
+import {
+    assertCredentialFreeUrl,
+    sanitizeExternalErrorMessage,
+} from "@/lib/security/credential-url";
 import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import { decryptSecretWithMetadata, encryptSecret } from "@/lib/security/secret-box";
 import {
@@ -206,7 +210,12 @@ type SaveServiceConnectionInput = {
 };
 
 export async function saveServiceConnection(input: SaveServiceConnectionInput) {
+    assertCredentialFreeUrl(input.baseUrl);
     const database = ensureDatabaseReady();
+    const safeStatusMessage = sanitizeExternalErrorMessage(
+        input.statusMessage,
+        "Connection status is unavailable.",
+    );
     const ownerUserId = await resolveServiceConnectionOwnerId(input.userId, input.serviceType);
     const existingConnection = findOwnedConnectionByType(ownerUserId, input.serviceType);
     const existingRecord = existingConnection ? hydrateConnection(existingConnection) : null;
@@ -222,7 +231,7 @@ export async function saveServiceConnection(input: SaveServiceConnectionInput) {
                 baseUrl: input.baseUrl,
                 displayName: input.displayName,
                 status: input.status,
-                statusMessage: input.statusMessage,
+                statusMessage: safeStatusMessage,
                 metadataJson,
                 updatedAt: new Date(),
             })
@@ -268,7 +277,7 @@ export async function saveServiceConnection(input: SaveServiceConnectionInput) {
             displayName: input.displayName,
             baseUrl: input.baseUrl,
             status: input.status,
-            statusMessage: input.statusMessage,
+            statusMessage: safeStatusMessage,
             metadataJson,
         })
         .run();
@@ -294,12 +303,16 @@ export async function updateServiceConnectionVerification(
     metadata?: Record<string, unknown> | null,
 ) {
     const database = ensureDatabaseReady();
+    const safeStatusMessage = sanitizeExternalErrorMessage(
+        statusMessage,
+        "Connection status is unavailable.",
+    );
 
     database
         .update(serviceConnections)
         .set({
             status,
-            statusMessage,
+            statusMessage: safeStatusMessage,
             ...(metadata === undefined
                 ? {}
                 : {

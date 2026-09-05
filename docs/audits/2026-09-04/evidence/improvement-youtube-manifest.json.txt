@@ -1,0 +1,58 @@
+[
+  {
+    "sha256": "9F3480DCC6800EF21EEAF775DB4CD13150DB4B197C132EBC3AA03432DD96E360",
+    "path": "src/app/(workspace)/library/youtube/actions.test.ts"
+  },
+  {
+    "sha256": "1BD293D3DCD47CCE2E85DF73FB06D7EF0AE1D7A822EF402C2AE0E777D66F58D0",
+    "path": "src/app/(workspace)/library/youtube/actions.ts"
+  },
+  {
+    "sha256": "0133FEEB057F1A2E80DC98B49642153D3CB7853CA232FB65C395933425779FFF",
+    "path": "src/app/(workspace)/library/youtube/library-content.tsx"
+  },
+  {
+    "sha256": "2750C0BD11F4CC2B808A0C7699F113047F4ED05399E3CE1C1D8C560D4C172E77",
+    "path": "src/app/(workspace)/library/youtube/page.test.ts"
+  },
+  {
+    "sha256": "208FDD9ED3F8D196C135B0338E70616963CF08EE62A07CD862C736041E4392C3",
+    "path": "src/app/(workspace)/library/youtube/page.tsx"
+  },
+  {
+    "sha256": "6774251B4917A31A238BF017B094ED7FB4F6F97B3C861327EDE6A9DD8CF5179D",
+    "path": "src/app/(workspace)/library/youtube/search-params.test.ts"
+  },
+  {
+    "sha256": "71A94F8CE6BE8E444A1A663ADBEEF842394CFA024AEC7C8D783BA6611CFD9543",
+    "path": "src/app/(workspace)/library/youtube/search-params.ts"
+  },
+  {
+    "sha256": "AD23010B084D3531B598BF22E4AEE553279B3EF3BA992B9BDF07A549986755D9",
+    "path": "src/modules/youtube/public.test.ts"
+  },
+  {
+    "sha256": "FAC5737C8759D190CE7406E5E556805422348099D56059E78C6B6101553EA14B",
+    "path": "src/modules/youtube/public.ts"
+  },
+  {
+    "sha256": "26C714711663F0E6782E511C5D60ABE8FA52051B02F9CF28A123FCFE0460E2F8",
+    "path": "src/modules/youtube/repositories/youtube-repository.test.ts"
+  },
+  {
+    "sha256": "010FB2205E02C46D8A08A502E8012735EE34498774C96E3CC5BEF8BC0C04FE6F",
+    "path": "src/modules/youtube/repositories/youtube-repository.ts"
+  },
+  {
+    "sha256": "F0A547CE65D56554A211193146014F2A7BD9EC4A3CBAEFE6F9363A31DF06EF00",
+    "path": "src/modules/youtube/types.ts"
+  },
+  {
+    "sha256": "C8AD5FAF9C1B62294C1C3D353631F3E887E7AB5FF5BC54CB4F2E72BA51D0ED69",
+    "path": "src/modules/youtube/workflows/source-sync.test.ts"
+  },
+  {
+    "sha256": "5438B8325FBB8866FDB713FA69CEE7781E376084C44E23A68B2B00D4F821FE36",
+    "path": "src/modules/youtube/workflows/source-sync.ts"
+  }
+]

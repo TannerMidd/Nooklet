@@ -33,15 +33,18 @@ function ActionResult({ state }: { state: ConnectionActionState }) {
 export function YouTubeAccessCard({
     summary,
     canManage,
+    initiallyExpanded = false,
 }: {
     summary: ServiceConnectionSummary;
     canManage: boolean;
+    initiallyExpanded?: boolean;
 }) {
     const [state, formAction, pending] = useActionState(
         submitYouTubeAccessAction,
         initialConnectionActionState,
     );
     const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
+    const [guidanceOpen, setGuidanceOpen] = useState(initiallyExpanded);
     const disconnectButtonRef = useRef<HTMLButtonElement | null>(null);
     const connected = summary.status !== "disconnected";
 
@@ -78,8 +81,14 @@ export function YouTubeAccessCard({
                     </span>
                 </div>
 
-                <div className="rounded-xl border border-cream/[0.08] bg-black/10 p-4 text-sm leading-6 text-muted">
-                    <p className="font-medium text-foreground">Create a durable session export</p>
+                <details
+                    open={guidanceOpen}
+                    onToggle={(event) => setGuidanceOpen(event.currentTarget.open)}
+                    className="rounded-xl border border-cream/[0.08] bg-black/10 p-4 text-sm leading-6 text-muted"
+                >
+                    <summary className="min-h-11 cursor-pointer font-medium text-foreground">
+                        How to create a YouTube session export
+                    </summary>
                     <ol className="mt-2 list-decimal space-y-1 pl-5">
                         <li>Open one private/incognito window and sign in to YouTube.</li>
                         <li>
@@ -111,7 +120,7 @@ export function YouTubeAccessCard({
                         </a>
                         .
                     </p>
-                </div>
+                </details>
 
                 {connected ? (
                     <div className="grid gap-2 text-sm sm:grid-cols-2">
@@ -145,13 +154,27 @@ export function YouTubeAccessCard({
                             <input
                                 type="file"
                                 name="cookiesFile"
+                                aria-label="YouTube cookies.txt"
                                 accept=".txt,text/plain"
                                 disabled={pending}
                                 aria-invalid={Boolean(state.fieldErrors?.cookiesFile)}
+                                aria-describedby={
+                                    state.fieldErrors?.cookiesFile
+                                        ? "youtube-cookies-error"
+                                        : undefined
+                                }
+                                aria-errormessage={
+                                    state.fieldErrors?.cookiesFile
+                                        ? "youtube-cookies-error"
+                                        : undefined
+                                }
                                 className="block w-full rounded-xl border border-cream/[0.10] bg-panel px-3 py-2.5 text-sm text-foreground file:mr-4 file:rounded-lg file:border-0 file:bg-accent file:px-3 file:py-2 file:font-semibold file:text-background"
                             />
                             {state.fieldErrors?.cookiesFile ? (
-                                <span className="text-sm text-accent-wine">
+                                <span
+                                    id="youtube-cookies-error"
+                                    className="text-sm text-accent-wine"
+                                >
                                     {state.fieldErrors.cookiesFile}
                                 </span>
                             ) : null}

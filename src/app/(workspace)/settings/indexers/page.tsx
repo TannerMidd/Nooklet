@@ -1,4 +1,6 @@
 import { auth } from "@/auth";
+import Link from "next/link";
+import { setupReturnHref } from "@/components/setup/setup-checklist";
 import { IndexerSettingsForm } from "@/app/(workspace)/settings/indexers/indexer-settings-form";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -55,7 +57,9 @@ function ConfiguredIndexers({
     );
 }
 
-export default async function IndexerSettingsPage() {
+export default async function IndexerSettingsPage({
+    searchParams,
+}: { searchParams?: Promise<{ add?: string; returnTo?: string }> } = {}) {
     const session = await auth();
 
     if (!session?.user?.id) {
@@ -63,6 +67,7 @@ export default async function IndexerSettingsPage() {
     }
 
     const indexers = await listIndexerSettings(session.user.id);
+    const params = await searchParams;
 
     return (
         <div className="nk-enter space-y-7">
@@ -70,6 +75,14 @@ export default async function IndexerSettingsPage() {
                 eyebrow="Built-in search"
                 title="Indexers"
                 description="Connect Newznab providers that Nooklet can search for movie and TV releases."
+                actions={
+                    <Link
+                        href={setupReturnHref(params?.returnTo)}
+                        className="inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] px-4 text-sm font-semibold text-foreground"
+                    >
+                        Back to Setup Center
+                    </Link>
+                }
             />
 
             <div className="rounded-xl border border-cream/[0.08] bg-cream/[0.03] px-4 py-3 text-sm leading-6 text-muted">
@@ -79,7 +92,10 @@ export default async function IndexerSettingsPage() {
             </div>
 
             {session.user.role === "admin" ? (
-                <details className="rounded-2xl border border-cream/[0.08] bg-cream/[0.03]">
+                <details
+                    open={params?.add === "1"}
+                    className="rounded-2xl border border-cream/[0.08] bg-cream/[0.03]"
+                >
                     <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 py-3 font-semibold text-foreground">
                         <span>
                             Add an indexer

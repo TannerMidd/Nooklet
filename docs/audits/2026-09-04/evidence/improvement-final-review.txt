@@ -1,0 +1,30 @@
+Final local improvement acceptance — September 4, 2026
+Baseline: bdbe90bbdcd739cc72113bbedc0e8c5da307b2ca
+This is the parent agent's record of independent review results, not a commit or deployment record.
+
+Engine/scanner: ACCEPT, 27-file v5 scope.
+Reviewer: fresh_engine_final_acceptance (read-only).
+Manifest SHA256: F1BEEF34512EBE7E41CDCAD6133BABED8F55E21C5017B44615FF950BDCA89D6B
+All 27 source hashes matched before and after review. Original and amendment commitment hashes matched.
+No remaining actionable finding. Prior cancellation, journal-starvation, required-sync retry, and same-process catalogue repair findings are resolved.
+Reviewed parent evidence: 40 suites/372 tests, whole application 288 suites/1863 tests, typecheck/lint/build, real filesystem/SQLite finalization, fence/cancellation, hardlink fallback, rollback/cleanup replay, nine sync-failure/reload phases, and fresh 899-journal scale proof.
+Scale proof: all 279 original active entries visited across two bounded pages; two late cleanups converged; 277 unresolved entries, 622 correlated committed rows, and all source/library bytes preserved. Health remained read-only and correctly redacted.
+Limits: supported single-worker topology and stable trusted roots. No portable power-loss or hostile concurrent pathname-replacement guarantee. Reviewer inspected source and proof results; reviewer did not execute tests or production operations.
+
+UI: ACCEPT, 61-file v5 scope.
+Original UI production/mobile review: fresh_ui_acceptance.
+Independent final test-amendment reviewer: fresh_integration_acceptance (read-only).
+Manifest SHA256: 096E0EC890657906DBC3D59D88596015F79F6BF01849B7561DC16ABED30F9114
+Both retry layouts verified at 390px and 320px. Final amendment changed only two tests to await complete async outcomes; reversing those changes reproduced the v4 hashes. No assertion removed or timeout increased. Other 59 files unchanged. Parent 2-suite/10-test check and full suite passed.
+
+Integration: ACCEPT, 27-file v4 scope, fresh_integration_acceptance (read-only).
+Manifest SHA256: 1613C6AFD5347C60E993B1F1913FFE4341D95AD1F57465701E52B7D7E19849A1
+Atomic source snapshots/terminal writes, sync ordering, recommendation CAS follow-ups, atomic run/job creation, Unicode legacy reads, and title/external-ID persistence accepted. Parent final targeted run: 12 files/95 tests.
+
+Security/readiness: ACCEPT, 43-file v2 scope, independent R3 review.
+Manifest SHA256: 25B105A3640ED215F9DC4E753B6FB90D03992BFB8E4D8F1ACE5C73975EA68405
+YouTube: ACCEPT, 14-file v3 scope, independent review.
+Manifest SHA256: 48B5FABF0F327B5DE4ED89CFF4BAF51B2B4E39CEA0BF31C895C4BB18E6D967AB
+Library totals: parent accepted a narrow three-file read-only query/presentation correction after complete diff inspection, SQLite regressions, and actual browser verification.
+
+The final parent hash check covered all 175 changed source files. All hashes matched; no changed source fell outside the reviewed scopes or the explicitly accepted Library correction. Production data, credentials, media, live providers, commits, pushes, and deployments were outside this local verification.

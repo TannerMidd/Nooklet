@@ -1,0 +1,11 @@
+{
+    "input": ["千と千尋の神隠し", "天空の城ラピュタ"],
+    "keys": ["movie::::unknown", "movie::::unknown"],
+    "parsed": [
+        {
+            "title": "千と千尋の神隠し",
+            "year": null,
+            "normalizedKey": "movie::::unknown"
+        }
+    ]
+}

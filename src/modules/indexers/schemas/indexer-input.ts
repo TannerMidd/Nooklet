@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { indexerProtocols, recommendationMediaTypes } from "@/lib/database/schema";
+import { inspectCredentialBearingUrl } from "@/lib/security/credential-url";
 
 const indexerUrlSchema = z
     .string()
@@ -10,6 +11,16 @@ const indexerUrlSchema = z
     .url("Provide a valid indexer URL.")
     .refine((value) => /^https?:\/\//i.test(value), {
         message: "Indexer URL must start with http:// or https://.",
+    })
+    .superRefine((value, context) => {
+        const inspection = inspectCredentialBearingUrl(value);
+
+        if (inspection.issue && inspection.issue !== "invalid") {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Indexer URLs must not contain embedded credentials.",
+            });
+        }
     });
 
 export const indexerCategoryInputSchema = z.object({

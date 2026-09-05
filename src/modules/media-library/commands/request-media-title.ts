@@ -1,10 +1,10 @@
 import {
     findMediaLibraryByIdForUser,
     findMediaLibraryPathByIdForUser,
-    setMediaTitleExternalIds,
-    upsertMediaTitle,
+    upsertMediaTitleWithExternalIds,
     type MediaTitleRecord,
 } from "@/modules/media-library/repositories/media-library-repository";
+import { logger } from "@/lib/observability/logger";
 import {
     requestMediaTitleInputSchema,
     type RequestMediaTitleInput,
@@ -31,6 +31,28 @@ function titleKey(value: string) {
 
 function buildNormalizedKey(input: { title: string; year?: number | null }) {
     return `${titleKey(input.title)}::${input.year ?? "unknown"}`;
+}
+
+function describeAuditError(error: unknown) {
+    if (!(error instanceof Error)) {
+        return { name: "UnknownError" };
+    }
+
+    const code =
+        "code" in error && typeof error.code === "string" ? error.code.slice(0, 64) : undefined;
+
+    return code ? { name: error.name, code } : { name: error.name };
+}
+
+async function recordTitleRequestAudit(input: Parameters<typeof recordAuditEvent>[0]) {
+    try {
+        await recordAuditEvent(input);
+    } catch (error) {
+        logger.warn("media_library_title_request_audit_failed", {
+            subjectId: input.subjectId,
+            error: describeAuditError(error),
+        });
+    }
 }
 
 export async function requestMediaTitleCommand(
@@ -83,7 +105,7 @@ export async function requestMediaTitleCommand(
         );
     }
 
-    const mediaTitle = await upsertMediaTitle({
+    const mediaTitle = await upsertMediaTitleWithExternalIds({
         userId,
         libraryId: library?.id ?? null,
         mediaType: parsed.mediaType,
@@ -99,6 +121,9 @@ export async function requestMediaTitleCommand(
         backdropUrl: parsed.backdropUrl ?? null,
         runtimeMinutes: parsed.runtimeMinutes ?? null,
         originalLanguage: parsed.originalLanguage ?? null,
+        ...(parsed.tmdbId
+            ? { externalIds: [{ source: "tmdb" as const, value: String(parsed.tmdbId) }] }
+            : {}),
     });
 
     if (!mediaTitle) {
@@ -108,13 +133,7 @@ export async function requestMediaTitleCommand(
         );
     }
 
-    if (parsed.tmdbId) {
-        await setMediaTitleExternalIds(mediaTitle.id, [
-            { source: "tmdb", value: String(parsed.tmdbId) },
-        ]);
-    }
-
-    await recordAuditEvent({
+    await recordTitleRequestAudit({
         actorUserId: userId,
         eventType: "media-library.title.requested",
         subjectType: "media-title",

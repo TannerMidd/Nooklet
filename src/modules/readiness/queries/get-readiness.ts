@@ -22,6 +22,7 @@ export async function getReadiness(userId: string) {
     const evaluation = evaluateReadiness({
         services: services.map(({ serviceType, status }) => ({ serviceType, status })),
         indexers: indexers.map((indexer) => ({
+            protocol: indexer.protocol,
             status: indexer.status,
             isEnabled: indexer.isEnabled,
             mediaTypes: Array.from(

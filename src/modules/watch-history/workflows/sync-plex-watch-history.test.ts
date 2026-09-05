@@ -13,10 +13,9 @@ vi.mock("@/modules/users/repositories/user-repository", () => ({
     createAuditEvent: vi.fn(),
 }));
 vi.mock("@/modules/watch-history/repositories/watch-history-repository", () => ({
-    completeWatchHistorySyncRun: vi.fn(),
     createWatchHistorySyncRun: vi.fn(),
     failWatchHistorySyncRun: vi.fn(),
-    replaceWatchHistoryItemsForSource: vi.fn(),
+    replaceWatchHistoryItemsAndCompleteSyncRun: vi.fn(),
     upsertWatchHistorySource: vi.fn(),
 }));
 vi.mock("@/modules/watch-history/workflows/watch-history-sync-helpers", () => ({
@@ -34,10 +33,9 @@ import { decryptSecret } from "@/lib/security/secret-box";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 import {
-    completeWatchHistorySyncRun,
     createWatchHistorySyncRun,
     failWatchHistorySyncRun,
-    replaceWatchHistoryItemsForSource,
+    replaceWatchHistoryItemsAndCompleteSyncRun,
     upsertWatchHistorySource,
 } from "@/modules/watch-history/repositories/watch-history-repository";
 import {
@@ -50,9 +48,8 @@ import { syncPlexWatchHistory } from "./sync-plex-watch-history";
 const findMock = vi.mocked(findServiceConnectionByType);
 const upsertSourceMock = vi.mocked(upsertWatchHistorySource);
 const createRunMock = vi.mocked(createWatchHistorySyncRun);
-const completeRunMock = vi.mocked(completeWatchHistorySyncRun);
 const failRunMock = vi.mocked(failWatchHistorySyncRun);
-const replaceItemsMock = vi.mocked(replaceWatchHistoryItemsForSource);
+const publishRunMock = vi.mocked(replaceWatchHistoryItemsAndCompleteSyncRun);
 const auditMock = vi.mocked(createAuditEvent);
 const listHistoryMock = vi.mocked(listPlexHistory);
 const decryptMock = vi.mocked(decryptSecret);
@@ -97,9 +94,8 @@ describe("syncPlexWatchHistory", () => {
         vi.clearAllMocks();
         upsertSourceMock.mockResolvedValue({ id: "src-1", sourceType: "plex" } as never);
         createRunMock.mockResolvedValue({ id: "run-1" } as never);
-        completeRunMock.mockResolvedValue(undefined as never);
-        failRunMock.mockResolvedValue(undefined as never);
-        replaceItemsMock.mockResolvedValue(undefined as never);
+        publishRunMock.mockResolvedValue(true);
+        failRunMock.mockResolvedValue(true);
         auditMock.mockResolvedValue(undefined as never);
     });
 
@@ -164,14 +160,14 @@ describe("syncPlexWatchHistory", () => {
         });
         expect(normalizeMock).toHaveBeenCalledWith("tv", [{ raw: 1 }, { raw: 2 }, { raw: 3 }], 50);
 
-        expect(replaceItemsMock).toHaveBeenCalledTimes(1);
-        expect(replaceItemsMock.mock.calls[0]?.[0]).toMatchObject({
+        expect(publishRunMock).toHaveBeenCalledTimes(1);
+        expect(publishRunMock.mock.calls[0]?.[0]).toMatchObject({
+            runId: "run-1",
             sourceId: "src-1",
             userId: USER_ID,
             mediaType: "tv",
         });
 
-        expect(completeRunMock).toHaveBeenCalledWith("run-1", 3);
         expect(failRunMock).not.toHaveBeenCalled();
 
         expect(auditMock).toHaveBeenCalledWith(
@@ -203,7 +199,28 @@ describe("syncPlexWatchHistory", () => {
 
         expect(result.ok).toBe(true);
         expect(result.message).toBe("No movie history items were returned from Plex for Owner.");
-        expect(completeRunMock).toHaveBeenCalledWith("run-1", 0);
+        expect(publishRunMock).toHaveBeenCalledWith({
+            runId: "run-1",
+            sourceId: "src-1",
+            userId: USER_ID,
+            mediaType: "movie",
+            items: [],
+        });
+    });
+
+    it("does not emit success when completion loses the pending guard", async () => {
+        findMock.mockResolvedValue(buildVerifiedPlexConnection());
+        listHistoryMock.mockResolvedValue([] as never);
+        publishRunMock.mockResolvedValue(false);
+
+        const result = await syncPlexWatchHistory(USER_ID, buildInput());
+
+        expect(result).toEqual({
+            ok: false,
+            message: "This Plex watch-history sync was already finalized.",
+        });
+        expect(auditMock).not.toHaveBeenCalled();
+        expect(failRunMock).not.toHaveBeenCalled();
     });
 
     it("upserts the source with the server-name-prefixed display name and import limit metadata", async () => {
@@ -231,16 +248,33 @@ describe("syncPlexWatchHistory", () => {
         const result = await syncPlexWatchHistory(USER_ID, buildInput());
 
         expect(failRunMock).toHaveBeenCalledWith("run-1", "Plex 503");
-        expect(completeRunMock).not.toHaveBeenCalled();
-        expect(replaceItemsMock).not.toHaveBeenCalled();
+        expect(publishRunMock).not.toHaveBeenCalled();
 
         expect(auditMock).toHaveBeenCalledTimes(1);
         expect(auditMock.mock.calls[0]?.[0]?.eventType).toBe("watch-history.sync.failed");
         const auditPayload = JSON.parse(auditMock.mock.calls[0]?.[0]?.payloadJson ?? "{}");
 
-        expect(auditPayload).toMatchObject({ error: "Plex 503", selectedUserId: "user-id-7" });
+        expect(auditPayload).toMatchObject({
+            error: { name: "Error" },
+            selectedUserId: "user-id-7",
+        });
+        expect(JSON.stringify(auditPayload)).not.toContain("Plex 503");
 
         expect(result).toEqual({ ok: false, message: "Plex 503" });
+    });
+
+    it("does not emit failure when failure completion loses the pending guard", async () => {
+        findMock.mockResolvedValue(buildVerifiedPlexConnection());
+        listHistoryMock.mockRejectedValue(new Error("Plex 503"));
+        failRunMock.mockResolvedValue(false);
+
+        const result = await syncPlexWatchHistory(USER_ID, buildInput());
+
+        expect(result).toEqual({
+            ok: false,
+            message: "This Plex watch-history sync was already finalized.",
+        });
+        expect(auditMock).not.toHaveBeenCalled();
     });
 
     it("translates a non-Error throw into a stable generic message and never leaks the secret", async () => {

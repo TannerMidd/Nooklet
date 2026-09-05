@@ -1,19 +1,21 @@
 import { listTraktWatchedHistory, parseTraktSecret } from "@/lib/integrations/trakt";
 import { decryptSecret } from "@/lib/security/secret-box";
 import { findServiceConnectionByType } from "@/modules/service-connections/public";
-import { createAuditEvent } from "@/modules/users/public";
 import { type TraktWatchHistorySyncInput } from "@/modules/watch-history/schemas/trakt-watch-history-sync";
 import {
-    completeWatchHistorySyncRun,
     createWatchHistorySyncRun,
     failWatchHistorySyncRun,
-    replaceWatchHistoryItemsForSource,
+    replaceWatchHistoryItemsAndCompleteSyncRun,
     upsertWatchHistorySource,
 } from "@/modules/watch-history/repositories/watch-history-repository";
 import {
     normalizeWatchHistorySyncItems,
     resolveWatchHistoryFetchLimit,
 } from "@/modules/watch-history/workflows/watch-history-sync-helpers";
+import {
+    describeWatchHistorySyncError,
+    recordWatchHistorySyncAudit,
+} from "@/modules/watch-history/workflows/watch-history-sync-audit";
 
 const traktSourceDisplayName = "Trakt watch history";
 
@@ -98,15 +100,22 @@ export async function syncTraktWatchHistory(
         });
         const items = normalizeWatchHistorySyncItems(input.mediaType, rawItems, input.importLimit);
 
-        await replaceWatchHistoryItemsForSource({
+        const completed = await replaceWatchHistoryItemsAndCompleteSyncRun({
+            runId: syncRun.id,
             sourceId: source.id,
             userId,
             mediaType: input.mediaType,
             items,
         });
 
-        await completeWatchHistorySyncRun(syncRun.id, items.length);
-        await createAuditEvent({
+        if (!completed) {
+            return {
+                ok: false,
+                message: "This Trakt watch-history sync was already finalized.",
+            };
+        }
+
+        await recordWatchHistorySyncAudit({
             actorUserId: userId,
             eventType: "watch-history.sync.succeeded",
             subjectType: "watch-history-source",
@@ -132,8 +141,16 @@ export async function syncTraktWatchHistory(
                 ? error.message
                 : "Trakt watch-history sync failed unexpectedly.";
 
-        await failWatchHistorySyncRun(syncRun.id, message);
-        await createAuditEvent({
+        const failed = await failWatchHistorySyncRun(syncRun.id, message);
+
+        if (!failed) {
+            return {
+                ok: false,
+                message: "This Trakt watch-history sync was already finalized.",
+            };
+        }
+
+        await recordWatchHistorySyncAudit({
             actorUserId: userId,
             eventType: "watch-history.sync.failed",
             subjectType: "watch-history-source",
@@ -142,7 +159,7 @@ export async function syncTraktWatchHistory(
                 sourceType: source.sourceType,
                 mediaType: input.mediaType,
                 username,
-                error: message,
+                error: describeWatchHistorySyncError(error),
             }),
         });
 

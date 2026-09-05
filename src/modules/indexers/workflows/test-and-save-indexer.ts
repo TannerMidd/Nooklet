@@ -1,4 +1,9 @@
 import { decryptSecret } from "@/lib/security/secret-box";
+import {
+    CredentialUrlError,
+    assertCredentialFreeUrl,
+    sanitizeExternalErrorMessage,
+} from "@/lib/security/credential-url";
 import { addIndexerCommand } from "@/modules/indexers/commands/add-indexer";
 import { updateIndexerCommand } from "@/modules/indexers/commands/update-indexer";
 import { searchNewznabIndexer } from "@/modules/indexers/adapters/newznab";
@@ -16,7 +21,7 @@ import { createAuditEvent } from "@/modules/users/public";
 export class TestAndSaveIndexerError extends Error {
     constructor(
         message: string,
-        public readonly code: "not_found" | "missing_secret",
+        public readonly code: "not_found" | "missing_secret" | "invalid_url",
     ) {
         super(message);
         this.name = "TestAndSaveIndexerError";
@@ -57,6 +62,16 @@ export async function testAndSaveIndexer(
     userId: string,
     input: AddIndexerInput | UpdateIndexerInput,
 ) {
+    try {
+        assertCredentialFreeUrl(input.baseUrl);
+    } catch (error) {
+        if (error instanceof CredentialUrlError) {
+            throw new TestAndSaveIndexerError(error.message, "invalid_url");
+        }
+
+        throw error;
+    }
+
     const apiKey = await resolveDraftApiKey(userId, input);
     let resultCount = 0;
 
@@ -72,7 +87,7 @@ export async function testAndSaveIndexer(
 
         resultCount = results.length;
     } catch (error) {
-        const message = error instanceof Error ? error.message : "Indexer test failed.";
+        const message = sanitizeExternalErrorMessage(error, "Indexer test failed.");
 
         await createAuditEvent({
             actorUserId: userId,

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
@@ -23,16 +23,19 @@ import {
     deferYouTubeDownloadForCapacity,
     deferYouTubeQueueForRateLimit,
     getYouTubeActivityPage,
+    getYouTubeVideosPage,
     hasYouTubeAssociationForLibraryPath,
     getYouTubeDownloadContext,
     listActiveYouTubeSourceRecords,
     listYouTubeSources,
     peekNextYouTubeDownload,
     queueYouTubeVideo,
+    queueYouTubeVideos,
     recordYouTubeSourceError,
     removeYouTubeSource,
     retryAllYouTubeDownloads,
     setYouTubeSourceStatus,
+    summarizeYouTubeQueueResults,
 } from "./youtube-repository";
 
 async function seedUser(role: "admin" | "user" = "admin") {
@@ -480,6 +483,322 @@ describe("YouTube repository sync", () => {
                 .all(),
         ).toHaveLength(1);
         expect(await hasYouTubeAssociationForLibraryPath(libraryPathId)).toBe(true);
+    });
+
+    it("counts only newly inserted downloads when auto-queueing hits an existing row", async () => {
+        const userId = await seedUser();
+        const libraryPathId = await seedYouTubePath(userId);
+        const selected = video("dautoqueue1");
+        const existingDownload = await queueYouTubeVideo({
+            userId,
+            video: selected,
+            libraryPathId,
+            qualityProfile: "best",
+        });
+        const source = await createInitializingSource({
+            userId,
+            libraryPathId,
+            qualityProfile: "best",
+            selectedVideoIds: [selected.youtubeVideoId],
+            source: enumeration([]).source,
+        });
+
+        const result = await applySuccessfulEnumeration({
+            source,
+            enumeration: enumeration([selected]),
+        });
+
+        expect(result).toMatchObject({ baseline: true, queuedCount: 0 });
+        expect(
+            ensureDatabaseReady()
+                .select()
+                .from(youtubeDownloads)
+                .where(eq(youtubeDownloads.userId, userId))
+                .all(),
+        ).toEqual([expect.objectContaining({ id: existingDownload.id })]);
+    });
+
+    it("reports mixed queue outcomes without restarting completed or failed downloads", async () => {
+        const userId = await seedUser();
+        const libraryPathId = await seedYouTubePath(userId);
+        const newVideo = video("batchnew001", "New upload");
+        const queuedVideo = video("batchqueue1", "Queued upload");
+        const completedVideo = video("batchdone01", "Completed upload");
+        const failedVideo = video("batchfail01", "Failed upload");
+        const cancelledVideo = video("batchcancl1", "Cancelled upload");
+        const completedDownload = await queueYouTubeVideo({
+            userId,
+            video: completedVideo,
+            libraryPathId,
+            qualityProfile: "best",
+        });
+        const queuedDownload = await queueYouTubeVideo({
+            userId,
+            video: queuedVideo,
+            libraryPathId,
+            qualityProfile: "best",
+        });
+        const failedDownload = await queueYouTubeVideo({
+            userId,
+            video: failedVideo,
+            libraryPathId,
+            qualityProfile: "best",
+        });
+        const cancelledDownload = await queueYouTubeVideo({
+            userId,
+            video: cancelledVideo,
+            libraryPathId,
+            qualityProfile: "best",
+        });
+        const database = ensureDatabaseReady();
+
+        database
+            .update(youtubeDownloads)
+            .set({ status: "completed" })
+            .where(eq(youtubeDownloads.id, completedDownload.id))
+            .run();
+        database
+            .update(youtubeDownloads)
+            .set({ status: "failed" })
+            .where(eq(youtubeDownloads.id, failedDownload.id))
+            .run();
+        database
+            .update(youtubeDownloads)
+            .set({ status: "cancelled" })
+            .where(eq(youtubeDownloads.id, cancelledDownload.id))
+            .run();
+
+        const results = await queueYouTubeVideos({
+            userId,
+            libraryPathId,
+            qualityProfile: "best",
+            videos: [newVideo, queuedVideo, completedVideo, failedVideo, cancelledVideo],
+        });
+
+        expect(
+            results.map(({ inserted, outcome, status }) => ({ inserted, outcome, status })),
+        ).toEqual([
+            { inserted: true, outcome: "queued", status: "queued" },
+            {
+                inserted: false,
+                outcome: "already_queued",
+                status: "queued",
+            },
+            {
+                inserted: false,
+                outcome: "completed",
+                status: "completed",
+            },
+            {
+                inserted: false,
+                outcome: "failed",
+                status: "failed",
+            },
+            {
+                inserted: false,
+                outcome: "cancelled",
+                status: "cancelled",
+            },
+        ]);
+        expect(summarizeYouTubeQueueResults(results)).toEqual({
+            totalCount: 5,
+            queuedCount: 1,
+            alreadyQueuedCount: 1,
+            completedCount: 1,
+            failedCount: 1,
+            cancelledCount: 1,
+        });
+        expect(
+            database
+                .select({ id: youtubeDownloads.id, status: youtubeDownloads.status })
+                .from(youtubeDownloads)
+                .where(eq(youtubeDownloads.userId, userId))
+                .all(),
+        ).toEqual([
+            { id: completedDownload.id, status: "completed" },
+            { id: queuedDownload.id, status: "queued" },
+            { id: failedDownload.id, status: "failed" },
+            { id: cancelledDownload.id, status: "cancelled" },
+            expect.objectContaining({ status: "queued" }),
+        ]);
+    });
+
+    it("rolls back every video when one item in the atomic queue fails", async () => {
+        const userId = await seedUser();
+        const libraryPathId = await seedYouTubePath(userId);
+        const database = ensureDatabaseReady();
+
+        database.run(sql`
+            create trigger youtube_batch_queue_failure
+            before insert on youtube_downloads
+            when new.video_id = (
+                select id from youtube_videos where youtube_video_id = 'batchfail02'
+            )
+            begin
+                select raise(abort, 'synthetic batch write failure');
+            end
+        `);
+
+        try {
+            await expect(
+                queueYouTubeVideos({
+                    userId,
+                    libraryPathId,
+                    qualityProfile: "best",
+                    videos: [
+                        video("batchfail01", "First batch item"),
+                        video("batchfail02", "Second batch item"),
+                        video("batchfail03", "Third batch item"),
+                    ],
+                }),
+            ).rejects.toThrow("synthetic batch write failure");
+        } finally {
+            database.run(sql`drop trigger youtube_batch_queue_failure`);
+        }
+
+        expect(
+            database.select().from(youtubeVideos).where(eq(youtubeVideos.userId, userId)).all(),
+        ).toEqual([]);
+        expect(
+            database
+                .select()
+                .from(youtubeDownloads)
+                .where(eq(youtubeDownloads.userId, userId))
+                .all(),
+        ).toEqual([]);
+    });
+
+    it("paginates videos with set-based membership and latest-download state", async () => {
+        const userId = await seedUser();
+        const libraryPathId = await seedYouTubePath(userId);
+        const source = await createInitializingSource({
+            userId,
+            libraryPathId,
+            qualityProfile: "mp4-1080p",
+            source: enumeration([]).source,
+        });
+        const videos = Array.from({ length: 101 }, (_, index) =>
+            video(`p${String(index).padStart(10, "0")}`, `Video ${String(index).padStart(3, "0")}`),
+        );
+
+        await applySuccessfulEnumeration({ source, enumeration: enumeration(videos) });
+        const firstPage = await getYouTubeVideosPage(userId, { page: 1, pageSize: 25 });
+        const sourcePage = await getYouTubeVideosPage(userId, {
+            sourceId: source.id,
+            page: 5,
+            pageSize: 25,
+        });
+
+        expect(firstPage.videos).toHaveLength(25);
+        expect(firstPage.videos[0]).toMatchObject({
+            title: "Video 000",
+            sourceId: source.id,
+            remotePresent: true,
+            downloadId: null,
+            downloadStatus: null,
+        });
+        expect(firstPage.pagination).toMatchObject({
+            page: 1,
+            pageSize: 25,
+            pageCount: 5,
+            total: 101,
+            hasNextPage: true,
+            hasPreviousPage: false,
+            firstItem: 1,
+            lastItem: 25,
+        });
+        expect(sourcePage.videos).toHaveLength(1);
+        expect(sourcePage.videos[0]).toMatchObject({ title: "Video 100", sourceId: source.id });
+        expect(sourcePage.pagination).toMatchObject({
+            page: 5,
+            pageCount: 5,
+            total: 101,
+            hasNextPage: false,
+            hasPreviousPage: true,
+            firstItem: 101,
+            lastItem: 101,
+        });
+
+        const clampedPage = await getYouTubeVideosPage(userId, {
+            page: 0.5,
+            pageSize: 0.5,
+        });
+
+        expect(clampedPage.pagination).toMatchObject({ page: 1, pageSize: 1 });
+        expect(clampedPage.videos).toHaveLength(1);
+    });
+
+    it("scopes selected-source membership state when the same video belongs to two sources", async () => {
+        const userId = await seedUser();
+        const libraryPathId = await seedYouTubePath(userId);
+        const sourceA = await createInitializingSource({
+            userId,
+            libraryPathId,
+            qualityProfile: "mp4-1080p",
+            source: {
+                ...enumeration([]).source,
+                youtubeSourceId: "channel-source-a",
+                canonicalUrl: "https://www.youtube.com/@nooklet-a/videos",
+            },
+        });
+        const sourceB = await createInitializingSource({
+            userId,
+            libraryPathId,
+            qualityProfile: "mp4-1080p",
+            source: {
+                ...enumeration([]).source,
+                youtubeSourceId: "channel-source-b",
+                canonicalUrl: "https://www.youtube.com/@nooklet-b/videos",
+            },
+        });
+        const sharedVideo = video("shared-source-state", "Shared upload");
+
+        await applySuccessfulEnumeration({
+            source: sourceA,
+            enumeration: {
+                ...enumeration([sharedVideo]),
+                source: {
+                    ...enumeration([]).source,
+                    youtubeSourceId: "channel-source-a",
+                    canonicalUrl: "https://www.youtube.com/@nooklet-a/videos",
+                },
+            },
+        });
+        await applySuccessfulEnumeration({
+            source: { ...sourceA, baselineCompletedAt: new Date() },
+            enumeration: {
+                ...enumeration([]),
+                source: {
+                    ...enumeration([]).source,
+                    youtubeSourceId: "channel-source-a",
+                    canonicalUrl: "https://www.youtube.com/@nooklet-a/videos",
+                },
+            },
+        });
+        await applySuccessfulEnumeration({
+            source: sourceB,
+            enumeration: {
+                ...enumeration([sharedVideo]),
+                source: {
+                    ...enumeration([]).source,
+                    youtubeSourceId: "channel-source-b",
+                    canonicalUrl: "https://www.youtube.com/@nooklet-b/videos",
+                },
+            },
+        });
+
+        const selectedSourcePage = await getYouTubeVideosPage(userId, {
+            sourceId: sourceA.id,
+            page: 1,
+            pageSize: 10,
+        });
+
+        expect(selectedSourcePage.videos).toHaveLength(1);
+        expect(selectedSourcePage.videos[0]).toMatchObject({
+            youtubeVideoId: sharedVideo.youtubeVideoId,
+            sourceId: sourceA.id,
+            remotePresent: false,
+        });
     });
 
     it("paginates and searches activity with per-user counts", async () => {

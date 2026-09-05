@@ -1,7 +1,8 @@
 import path from "node:path";
-import { readdir, stat } from "node:fs/promises";
+import { lstat, readdir, stat } from "node:fs/promises";
 
 import { resolveApprovedMediaDirectory } from "@/lib/security/filesystem-policy";
+import { importDestinationClaimPath } from "@/modules/downloads/workflows/import-completed-downloads/import-journal";
 import { type ActiveMediaLibraryPathRecord } from "@/modules/media-library/repositories/media-library-repository";
 import { type ValidatedScanSources } from "./source-validation";
 
@@ -38,6 +39,25 @@ export type FetchedLibrarySources = {
     failedPaths: FailedLibraryPathScan[];
 };
 
+async function assertNoImportClaim(filePath: string) {
+    try {
+        await lstat(importDestinationClaimPath(filePath));
+    } catch (error) {
+        if (
+            error !== null &&
+            typeof error === "object" &&
+            "code" in error &&
+            error.code === "ENOENT"
+        ) {
+            return;
+        }
+
+        throw error;
+    }
+
+    throw new Error(`Library file has an outstanding import claim: ${filePath}`);
+}
+
 async function walkMediaFiles(rootPath: string): Promise<FetchedFileWithoutSource[]> {
     // A scan is authoritative only when every subtree was read successfully. If
     // an unreadable directory were treated as empty, the merge phase could
@@ -64,6 +84,11 @@ async function walkMediaFiles(rootPath: string): Promise<FetchedFileWithoutSourc
             // A media file whose metadata cannot be read is an uncertain
             // observation rather than proof that the file disappeared. Fail the
             // source so its prior inventory remains untouched.
+            // Imports publish their sibling claim before the final pathname.
+            // Check freshly for every observed candidate; any claim, regardless
+            // of its contents or type, makes this source non-authoritative.
+            await assertNoImportClaim(entryPath);
+
             const fileStat = await stat(entryPath);
 
             files.push({

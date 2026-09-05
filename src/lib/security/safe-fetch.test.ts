@@ -3,7 +3,12 @@ import { createServer } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 
 import { env } from "@/lib/env";
-import { SafeFetchAbortError, SsrfBlockedError, safeFetch } from "@/lib/security/safe-fetch";
+import {
+    SafeFetchAbortError,
+    SsrfBlockedError,
+    SsrfRedirectError,
+    safeFetch,
+} from "@/lib/security/safe-fetch";
 
 describe("safeFetch host classification", () => {
     it("rejects non-http(s) schemes", async () => {
@@ -352,7 +357,7 @@ describe("safeFetch redirect refusal", () => {
         },
     );
 
-    it("includes the redirect target in the SsrfBlockedError message for diagnostics", async () => {
+    it("uses a generic redirect error without exposing the Location header", async () => {
         const response = new Response(null, {
             status: 302,
             headers: { location: "http://internal.example/" },
@@ -360,9 +365,22 @@ describe("safeFetch redirect refusal", () => {
         const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(response);
 
         try {
-            await expect(
-                safeFetch("http://127.0.0.1/", { allowPrivateHosts: true }),
-            ).rejects.toThrow(/internal\.example/);
+            let error: unknown;
+
+            try {
+                await safeFetch("http://127.0.0.1/", { allowPrivateHosts: true });
+            } catch (caught) {
+                error = caught;
+            }
+
+            expect(error).toBeInstanceOf(SsrfRedirectError);
+            expect(error).toBeInstanceOf(SsrfBlockedError);
+            expect(error).toMatchObject({ status: 302 });
+            expect(error).toHaveProperty("message", "Outbound redirects are not permitted.");
+
+            if (error instanceof Error) {
+                expect(error.message).not.toContain("internal.example");
+            }
         } finally {
             fetchSpy.mockRestore();
         }

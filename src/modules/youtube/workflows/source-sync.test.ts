@@ -27,6 +27,7 @@ import type { YtDlpAdapter } from "@/modules/youtube/adapters/yt-dlp";
 
 import {
     createYouTubeSourceWorkflow,
+    retryYouTubeSourceInitializationWorkflow,
     syncAllActiveYouTubeSourcesWorkflow,
     syncYouTubeSourceWorkflow,
     YouTubeSourceSyncAggregateError,
@@ -34,6 +35,7 @@ import {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getYouTubeAutomationSettingsWorkflow.mockReset();
     mocks.resolveYouTubeDestination.mockReset();
     mocks.requireYouTubeSourceForUser.mockReset();
     mocks.listActiveYouTubeSourceRecords.mockReset();
@@ -177,6 +179,101 @@ describe("YouTube source sync destination fencing", () => {
 });
 
 describe("YouTube source initialization selections", () => {
+    it("records a visible source error when recurring-job bootstrap fails", async () => {
+        const source = {
+            id: "source-bootstrap-failure",
+            userId: "user-1",
+            canonicalUrl: "https://youtube.com/@nooklet/videos",
+            libraryPathId: "path-1",
+            status: "initializing",
+        };
+
+        mocks.createInitializingSource.mockResolvedValue(source);
+        mocks.getYouTubeAutomationSettingsWorkflow.mockRejectedValue(
+            new Error("scheduler unavailable"),
+        );
+
+        await expect(
+            createYouTubeSourceWorkflow(
+                "user-1",
+                {
+                    url: source.canonicalUrl,
+                    libraryPathId: source.libraryPathId,
+                    qualityProfile: "mp4-1080p",
+                },
+                { adapter: { enumerate: vi.fn() } as unknown as YtDlpAdapter },
+            ),
+        ).rejects.toThrow("scheduler unavailable");
+
+        expect(mocks.recordYouTubeSourceError).toHaveBeenCalledWith(
+            "user-1",
+            source.id,
+            "scheduler unavailable",
+        );
+    });
+
+    it("retries shared recurring-job bootstrap before syncing an errored source", async () => {
+        const source = {
+            id: "source-retry-bootstrap",
+            userId: "user-1",
+            canonicalUrl: "https://youtube.com/@nooklet/videos",
+            libraryPathId: "path-1",
+            status: "initializing",
+        };
+        const recurringJob = { id: "youtube-recurring-job" };
+        let saveAttempts = 0;
+
+        mocks.createInitializingSource.mockResolvedValue(source);
+        mocks.getYouTubeAutomationSettingsWorkflow.mockImplementation(async () => {
+            saveAttempts += 1;
+
+            if (saveAttempts === 1) {
+                throw new Error("saveRecurringJob failed");
+            }
+
+            return recurringJob;
+        });
+        mocks.requireYouTubeSourceForUser.mockResolvedValue(source);
+        mocks.resolveYouTubeDestination.mockResolvedValue({ path: { id: "path-1" } });
+        mocks.applySuccessfulEnumeration.mockResolvedValue({
+            baseline: true,
+            discoveredCount: 0,
+            queuedCount: 0,
+            removedCount: 0,
+        });
+        const adapter = {
+            enumerate: vi.fn(async () => ({ complete: true, source: {}, videos: [] })),
+        };
+
+        await expect(
+            createYouTubeSourceWorkflow(
+                "user-1",
+                {
+                    url: source.canonicalUrl,
+                    libraryPathId: source.libraryPathId,
+                    qualityProfile: "mp4-1080p",
+                },
+                { adapter: adapter as unknown as YtDlpAdapter },
+            ),
+        ).rejects.toThrow("saveRecurringJob failed");
+
+        await expect(
+            retryYouTubeSourceInitializationWorkflow("user-1", source.id, {
+                adapter: adapter as unknown as YtDlpAdapter,
+            }),
+        ).resolves.toMatchObject({ queuedCount: 0 });
+
+        expect(saveAttempts).toBe(2);
+        expect(recurringJob).toEqual({ id: "youtube-recurring-job" });
+        expect(adapter.enumerate).toHaveBeenCalledOnce();
+        expect(mocks.recordYouTubeSourceError).toHaveBeenCalledWith(
+            "user-1",
+            source.id,
+            "saveRecurringJob failed",
+        );
+        expect(mocks.applySuccessfulEnumeration).toHaveBeenCalledOnce();
+    });
+
     it("persists selection intent before enumeration and never probes arbitrary client IDs", async () => {
         const enumeration = {
             complete: true,

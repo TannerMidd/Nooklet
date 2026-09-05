@@ -8,6 +8,7 @@ import { updateMediaTitlePreferencesAction } from "@/app/(workspace)/library/act
 import { initialMediaTitlePreferenceActionState } from "@/app/(workspace)/library/action-state";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { InlineAlert } from "@/components/ui/inline-alert";
 import { type MediaQualityProfileOption } from "@/modules/media-library/queries/list-media-quality-profiles";
 
 type MediaTitlePreferencesFormProps = {
@@ -75,15 +76,12 @@ export function MediaTitlePreferencesForm({
             </label>
             <SaveButton />
             {state.message ? (
-                <p
-                    className={
-                        state.status === "success"
-                            ? "text-sm text-muted md:col-span-3"
-                            : "text-sm text-accent-wine md:col-span-3"
-                    }
+                <InlineAlert
+                    variant={state.status === "success" ? "success" : "error"}
+                    className="md:col-span-3"
                 >
                     {state.message}
-                </p>
+                </InlineAlert>
             ) : null}
         </form>
     );

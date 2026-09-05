@@ -76,4 +76,55 @@ describe("getDiscoverExclusions", () => {
         expect([...result.ownedTmdbKeys]).toEqual(["movie-329865"]);
         expect([...result.watchedKeys]).toEqual(["movie::arrival::2016"]);
     });
+
+    it("rebuilds legacy watched keys from retained Unicode titles", async () => {
+        const database = ensureDatabaseReady();
+        const userId = randomUUID();
+
+        database
+            .insert(users)
+            .values({
+                id: userId,
+                email: `${userId}@test.local`,
+                displayName: "Legacy viewer",
+                passwordHash: "x",
+                role: "user",
+            })
+            .run();
+        const titles = ["千と千尋の神隠し", "天空の城ラピュタ"];
+
+        for (const [index, title] of titles.entries()) {
+            const sourceId = randomUUID();
+
+            database
+                .insert(watchHistorySources)
+                .values({
+                    id: sourceId,
+                    userId,
+                    sourceType: index === 0 ? "manual" : "trakt",
+                    displayName: `Source ${index}`,
+                })
+                .run();
+            database
+                .insert(watchHistoryItems)
+                .values({
+                    id: randomUUID(),
+                    sourceId,
+                    userId,
+                    mediaType: "movie",
+                    title,
+                    year: null,
+                    normalizedKey: "movie::::unknown",
+                    watchedAt: new Date(),
+                })
+                .run();
+        }
+
+        const result = await getDiscoverExclusions(userId);
+
+        expect(result.watchedKeys).toEqual(
+            new Set(titles.map((title) => `movie::${title}::unknown`)),
+        );
+        expect(result.watchedKeys.has("movie::::unknown")).toBe(false);
+    });
 });

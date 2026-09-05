@@ -1,6 +1,7 @@
 import { AlertTriangle, CheckCircle2, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
+import { connectionReturnTarget } from "@/app/(workspace)/settings/connections/connection-navigation";
 import { auth } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -141,12 +142,17 @@ function ActionCapability({ capability }: { capability: ReadinessCapability }) {
     );
 }
 
-export default async function HealthPage() {
+export default async function HealthPage({
+    searchParams,
+}: { searchParams?: Promise<{ returnTo?: string }> } = {}) {
     const session = await auth();
+    const params = await searchParams;
 
     if (!session?.user?.id) {
         return null;
     }
+
+    const returnTarget = connectionReturnTarget(params?.returnTo);
 
     const [readiness, jobs, youtubeHealth] = await Promise.all([
         getReadiness(session.user.id),
@@ -184,6 +190,14 @@ export default async function HealthPage() {
                 eyebrow="Operations"
                 title="Health & readiness"
                 description="See what users can actually do, fix blockers first, and open technical diagnostics only when you need them."
+                actions={
+                    <Link
+                        href={returnTarget.href}
+                        className="inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] px-4 text-sm font-semibold text-foreground"
+                    >
+                        {returnTarget.label}
+                    </Link>
+                }
             />
 
             {attentionCapabilities.length === 0 ? (

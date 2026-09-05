@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { inspectCredentialBearingUrl } from "@/lib/security/credential-url";
+
 export const serviceConnectionTypeSchema = z.enum([
     "ai-provider",
     "tautulli",
@@ -19,16 +21,32 @@ const apiKeySchema = z
     .optional()
     .transform((value) => value ?? "");
 
+const baseUrlSchema = z
+    .string()
+    .trim()
+    .max(2048)
+    .url("Enter a valid base URL.")
+    .superRefine((value, context) => {
+        const inspection = inspectCredentialBearingUrl(value);
+
+        if (inspection.issue && inspection.issue !== "invalid") {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Base URLs must not contain embedded credentials.",
+            });
+        }
+    });
+
 export const aiProviderConnectionSchema = z.object({
     serviceType: z.literal("ai-provider"),
-    baseUrl: z.string().trim().max(2048).url("Enter a valid base URL."),
+    baseUrl: baseUrlSchema,
     apiKey: apiKeySchema,
     model: z.string().trim().min(1, "Enter a model identifier.").max(200),
 });
 
 export const apiKeyServiceConnectionSchema = z.object({
     serviceType: z.enum(["tautulli", "plex", "usenet-server", "tmdb", "tvdb", "trakt"]),
-    baseUrl: z.string().trim().max(2048).url("Enter a valid base URL."),
+    baseUrl: baseUrlSchema,
     apiKey: apiKeySchema,
 });
 

@@ -1,0 +1,110 @@
+[
+  {
+    "sha256": "A30901177C444B2632AAC654069E2291314EA1AF11AA75D994DF7C87237A586D",
+    "path": "src/modules/download-engine/finalize/finalize-download.test.ts"
+  },
+  {
+    "sha256": "E84D3E8A85047BD11CB39F59A629CC014783952C9A0F11702B0FFB7829C363D6",
+    "path": "src/modules/download-engine/finalize/finalize-download.ts"
+  },
+  {
+    "sha256": "3E2D64B010D7A008808AC8845237E8463F62FF1AB83BCF803EB338813C73A929",
+    "path": "src/modules/download-engine/finalize/finalize-move.test.ts"
+  },
+  {
+    "sha256": "F611EDED14E7530AC9BEF21A7416F50C4128296087309096A32E6C103F2992F0",
+    "path": "src/modules/download-engine/queries/get-download-engine-health.ts"
+  },
+  {
+    "sha256": "94ED2931DB9ADD497A2224C941AE8F52F8480F44DDF0FCB370A2F6009FC63B10",
+    "path": "src/modules/download-engine/queue/engine-repository.test.ts"
+  },
+  {
+    "sha256": "DA0945249FAE9E8071977FAA00DBADC933BEF329F1AC3562A393BB49107955D7",
+    "path": "src/modules/download-engine/queue/engine-repository.ts"
+  },
+  {
+    "sha256": "833606590D39B50359154003D00DFDEB3D133FA1F0CDBE61E80C8CAD5CF3CE50",
+    "path": "src/modules/download-engine/runtime/engine-finalization-recovery.test.ts"
+  },
+  {
+    "sha256": "828E3259CD22B50DA3553ADE3E1FD95AD0A577EEC8EEC0173A6E8994B6F63ACB",
+    "path": "src/modules/download-engine/runtime/engine-runner-cancellation.test.ts"
+  },
+  {
+    "sha256": "61241B1F5A0D34E1F145DD942B76CF0C67370DE9EF41C02D97F22EAC166E4544",
+    "path": "src/modules/download-engine/runtime/engine-runner.ts"
+  },
+  {
+    "sha256": "F907AC8282B0816C5FF97E0502BEBC33AB101611A3EDD19B33D2FDB7E85C8F00",
+    "path": "src/modules/downloads/workflows/import-completed-downloads/file-organization-policy.test.ts"
+  },
+  {
+    "sha256": "533CD848313B3A7AACDE3F89E3279C8949D7C24ED816877DB9EEDCD7129B6F39",
+    "path": "src/modules/downloads/workflows/import-completed-downloads/file-organization.test.ts"
+  },
+  {
+    "sha256": "2094F7B49776A12367B8E247270A00249045C8515965535F95385032155BA519",
+    "path": "src/modules/downloads/workflows/import-completed-downloads/file-organization.ts"
+  },
+  {
+    "sha256": "B7FF3E589F3FDE60AC75286A143A73CAB5682E1DE76AAF31E33EE1E2DBA79B7F",
+    "path": "src/modules/downloads/workflows/import-completed-downloads/file-transfer-failures.test.ts"
+  },
+  {
+    "sha256": "3911EB1D84CE9B09534D80CD57A3F8CFF16CDCDAF46F0C48530D30AFA012279A",
+    "path": "src/modules/downloads/workflows/import-completed-downloads/file-transfer.test.ts"
+  },
+  {
+    "sha256": "0A4879AAD778F11C6171D8A1EFB63883FB82E5AF018AFE5EBD72C941400B4206",
+    "path": "src/modules/downloads/workflows/import-completed-downloads/file-transfer.ts"
+  },
+  {
+    "sha256": "A2D5E3DBC6B04B1BFF05AF906BC3E279D82D397F97582417974E86435DA8F4F7",
+    "path": "src/modules/downloads/workflows/import-completed-downloads/import-journal-index.test.ts"
+  },
+  {
+    "sha256": "98B59705A246BFA3CF9D8C0C754D70A6AF86ECDBAB01410762B4D2E45383FF4A",
+    "path": "src/modules/downloads/workflows/import-completed-downloads/import-journal-index.ts"
+  },
+  {
+    "sha256": "64DF4BB3B987EF5370F105F584731851DC020BAB5D0556A16B692DA3EFB6F3AB",
+    "path": "src/modules/downloads/workflows/import-completed-downloads/import-journal-sync.test.ts"
+  },
+  {
+    "sha256": "C4B76E8AF72FB4D3DAC612EDB8607B6E13CE9DF5D963D10D42801F85762286D4",
+    "path": "src/modules/downloads/workflows/import-completed-downloads/import-journal.test.ts"
+  },
+  {
+    "sha256": "7903534B9E0C2A31634A44F1E11181F4691FD15FB7AC47679B83E033A8CC4E14",
+    "path": "src/modules/downloads/workflows/import-completed-downloads/import-journal.ts"
+  },
+  {
+    "sha256": "424C00D17004DA14B4B6D7B496B3C198B82178E06E3F990ECFD01CFB5F05D95F",
+    "path": "src/modules/downloads/workflows/import-completed-downloads/persistence-recovery-order.test.ts"
+  },
+  {
+    "sha256": "6262D37C13B4776B335C1D4D5233F3B79ED99F3FC0DF0EDEED99B4243C01CB6D",
+    "path": "src/modules/downloads/workflows/import-completed-downloads/persistence-writes.ts"
+  },
+  {
+    "sha256": "A8E8CEB502C870AFA997C624254F66143AA9D27440C81098543486A9F3324B9D",
+    "path": "src/modules/downloads/workflows/import-completed-downloads/persistence.ts"
+  },
+  {
+    "sha256": "D8F52D176A897BB93D052A91F72425652AC4B34A6C7138E45AA2F06C392CE168",
+    "path": "src/modules/downloads/workflows/import-completed-engine-downloads.test.ts"
+  },
+  {
+    "sha256": "3E5A382F844D1529B30F89C4F5635AA7D59E24FA9D4B64FA1404A88ACE3B8199",
+    "path": "src/modules/downloads/workflows/import-completed-engine-downloads.ts"
+  },
+  {
+    "sha256": "0E09F5C9D857256EBB7CD3A8CAE08465E2D1D7FA7C28E954661A40ED4E6CD33C",
+    "path": "src/modules/media-library/workflows/scan-library/source-fetch.test.ts"
+  },
+  {
+    "sha256": "263CA725C085E2631F112484FB8C308C10F936A7D13C04E2BF4B1F4DFA5E44F2",
+    "path": "src/modules/media-library/workflows/scan-library/source-fetch.ts"
+  }
+]

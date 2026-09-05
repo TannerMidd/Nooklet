@@ -1,4 +1,4 @@
-const defaultCallbackUrl = "/tv";
+const defaultCallbackUrl = "/home";
 const localOrigin = "http://nooklet.local";
 
 export function safeCallbackUrl(value: unknown): string {

@@ -1,0 +1,25 @@
+
+  .codex-tmp\improvement-2026-09-04\journal-proof.cjs      2.4mb
+  .codex-tmp\improvement-2026-09-04\journal-proof.cjs.map  4.9mb
+
+Done in 161ms
+{
+  "phase": "fence",
+  "result": "passed",
+  "libraryBytesRetained": true,
+  "sourceRetained": true,
+  "importRows": 0,
+  "scanFailedClosed": true,
+  "retainedJournalVisible": true,
+  "crossUserPathsHidden": true
+}
+{
+  "phase": "restart",
+  "result": "passed",
+  "libraryBytesRetained": true,
+  "sourceRetained": false,
+  "importRows": 0,
+  "scanFailedClosed": true,
+  "retainedJournalVisible": true,
+  "crossUserPathsHidden": true
+}

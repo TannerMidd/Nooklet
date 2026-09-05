@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/security/secret-box", async (importOriginal) => {
@@ -74,9 +75,65 @@ describe("listConnectionSummaries", () => {
         const summaries = await listConnectionSummaries(userId);
 
         expect(summaries.find((summary) => summary.serviceType === "trakt")).toMatchObject({
+            baseUrl: "https://trakt.example.com",
+            hasEmbeddedCredentials: false,
             status: "verified",
+            statusMessage: "Connected",
             maskedSecret: "trakt-requester-••••",
         });
         expect(decryptMock).not.toHaveBeenCalled();
+    });
+
+    it("redacts a legacy credential URL and status error in the shared projection", async () => {
+        const userId = seedUserWithConnection("trakt", "trakt-requester-••••");
+        const database = ensureDatabaseReady();
+
+        database
+            .update(serviceConnections)
+            .set({
+                baseUrl: "https://legacy-user:legacy-secret@trakt.example.com/api?token=secret",
+                statusMessage: "Provider redirected to https://trakt.example.com/api?token=secret",
+            })
+            .where(eq(serviceConnections.ownerUserId, userId))
+            .run();
+
+        const summary = (await listConnectionSummaries(userId)).find(
+            (entry) => entry.serviceType === "trakt",
+        );
+
+        expect(summary).toMatchObject({
+            baseUrl: "https://trakt.example.com/api",
+            hasEmbeddedCredentials: true,
+            status: "error",
+            statusMessage:
+                "The saved base URL contains embedded credentials. Replace it before verifying.",
+        });
+        expect(JSON.stringify(summary)).not.toContain("legacy-secret");
+        expect(JSON.stringify(summary)).not.toContain("token=secret");
+    });
+
+    it("marks an invalid legacy base URL as unsafe even when it was formerly verified", async () => {
+        const userId = seedUserWithConnection("trakt", "trakt-requester-••••");
+        const database = ensureDatabaseReady();
+
+        database
+            .update(serviceConnections)
+            .set({
+                baseUrl: "",
+                statusMessage: "Connected",
+            })
+            .where(eq(serviceConnections.ownerUserId, userId))
+            .run();
+
+        const summary = (await listConnectionSummaries(userId)).find(
+            (entry) => entry.serviceType === "trakt",
+        );
+
+        expect(summary).toMatchObject({
+            baseUrl: "[REDACTED URL]",
+            hasEmbeddedCredentials: true,
+            status: "error",
+            statusMessage: "The saved base URL is invalid. Replace it before verifying.",
+        });
     });
 });

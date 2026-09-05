@@ -19,12 +19,16 @@ type SaveRecurringJobInput = {
     isEnabled: boolean;
 };
 
-type CreateImmediateJobInput = {
+export type CreateImmediateJobInput = {
     userId: string;
     jobType: JobType;
     targetType: string;
     targetKey: string;
 };
+
+type JobDatabaseTransaction = Parameters<
+    Parameters<ReturnType<typeof ensureDatabaseReady>["transaction"]>[0]
+>[0];
 
 function calculateNextRunAt(scheduleMinutes: number, referenceTime = new Date()) {
     return new Date(referenceTime.getTime() + scheduleMinutes * 60_000);
@@ -147,78 +151,85 @@ export async function saveRecurringJob(input: SaveRecurringJobInput) {
     });
 }
 
-export async function createImmediateJob(input: CreateImmediateJobInput) {
-    const database = ensureDatabaseReady();
+export function createImmediateJobInTransaction(
+    transaction: JobDatabaseTransaction,
+    input: CreateImmediateJobInput,
+) {
     const now = new Date();
+    const existingJob = transaction
+        .select()
+        .from(jobs)
+        .where(
+            and(
+                eq(jobs.userId, input.userId),
+                eq(jobs.jobType, input.jobType),
+                eq(jobs.targetType, input.targetType),
+                eq(jobs.targetKey, input.targetKey),
+            ),
+        )
+        .get();
 
-    return database.transaction((transaction) => {
-        const existingJob = transaction
-            .select()
-            .from(jobs)
-            .where(
-                and(
-                    eq(jobs.userId, input.userId),
-                    eq(jobs.jobType, input.jobType),
-                    eq(jobs.targetType, input.targetType),
-                    eq(jobs.targetKey, input.targetKey),
-                ),
-            )
-            .get();
-
-        if (existingJob) {
-            const activeLease = hasActiveLease(existingJob, now);
-            const deferredRunAt = activeLease
-                ? new Date(
-                      Math.max(
-                          now.getTime(),
-                          (existingJob.lastStartedAt?.getTime() ?? now.getTime()) + 1,
-                      ),
-                  )
-                : now;
-
-            transaction
-                .update(jobs)
-                .set({
-                    scheduleMinutes: 0,
-                    isEnabled: true,
-                    nextRunAt: deferredRunAt,
-                    lastError: null,
-                    ...(activeLease
-                        ? {}
-                        : {
-                              lastStatus: "idle" as const,
-                              lastStartedAt: null,
-                              lastCompletedAt: null,
-                              runToken: null,
-                              lockedUntil: null,
-                              lastHeartbeatAt: null,
-                          }),
-                    updatedAt: now,
-                })
-                .where(eq(jobs.id, existingJob.id))
-                .run();
-
-            return transaction.select().from(jobs).where(eq(jobs.id, existingJob.id)).get()!;
-        }
-
-        const jobId = randomUUID();
+    if (existingJob) {
+        const activeLease = hasActiveLease(existingJob, now);
+        const deferredRunAt = activeLease
+            ? new Date(
+                  Math.max(
+                      now.getTime(),
+                      (existingJob.lastStartedAt?.getTime() ?? now.getTime()) + 1,
+                  ),
+              )
+            : now;
 
         transaction
-            .insert(jobs)
-            .values({
-                id: jobId,
-                userId: input.userId,
-                jobType: input.jobType,
-                targetType: input.targetType,
-                targetKey: input.targetKey,
+            .update(jobs)
+            .set({
                 scheduleMinutes: 0,
                 isEnabled: true,
-                nextRunAt: now,
+                nextRunAt: deferredRunAt,
+                lastError: null,
+                ...(activeLease
+                    ? {}
+                    : {
+                          lastStatus: "idle" as const,
+                          lastStartedAt: null,
+                          lastCompletedAt: null,
+                          runToken: null,
+                          lockedUntil: null,
+                          lastHeartbeatAt: null,
+                      }),
+                updatedAt: now,
             })
+            .where(eq(jobs.id, existingJob.id))
             .run();
 
-        return transaction.select().from(jobs).where(eq(jobs.id, jobId)).get()!;
-    });
+        return transaction.select().from(jobs).where(eq(jobs.id, existingJob.id)).get()!;
+    }
+
+    const jobId = randomUUID();
+
+    transaction
+        .insert(jobs)
+        .values({
+            id: jobId,
+            userId: input.userId,
+            jobType: input.jobType,
+            targetType: input.targetType,
+            targetKey: input.targetKey,
+            scheduleMinutes: 0,
+            isEnabled: true,
+            nextRunAt: now,
+        })
+        .run();
+
+    return transaction.select().from(jobs).where(eq(jobs.id, jobId)).get()!;
+}
+
+export async function createImmediateJob(input: CreateImmediateJobInput) {
+    const database = ensureDatabaseReady();
+
+    return database.transaction((transaction) =>
+        createImmediateJobInTransaction(transaction, input),
+    );
 }
 
 export async function claimDueJobs(

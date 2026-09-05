@@ -9,6 +9,11 @@ import type {
     VerifyServiceConnectionInput,
     VerifyServiceConnectionResult,
 } from "./verify-service-connection-types";
+import {
+    CredentialUrlError,
+    assertCredentialFreeUrl,
+    sanitizeExternalErrorMessage,
+} from "@/lib/security/credential-url";
 
 export type {
     VerifyServiceConnectionInput,
@@ -19,34 +24,57 @@ export async function verifyServiceConnection(
     input: VerifyServiceConnectionInput,
 ): Promise<VerifyServiceConnectionResult> {
     try {
+        assertCredentialFreeUrl(input.baseUrl);
+
+        let result: VerifyServiceConnectionResult;
+
         switch (input.serviceType) {
             case "ai-provider":
-                return await verifyAiProvider(input);
+                result = await verifyAiProvider(input);
+                break;
             case "tautulli":
-                return await verifyTautulli(input);
+                result = await verifyTautulli(input);
+                break;
             case "plex":
-                return await verifyPlex(input);
+                result = await verifyPlex(input);
+                break;
             case "usenet-server":
-                return await verifyUsenetServer(input);
+                result = await verifyUsenetServer(input);
+                break;
             case "tmdb":
-                return await verifyTmdb(input);
+                result = await verifyTmdb(input);
+                break;
             case "tvdb":
-                return await verifyTvdb(input);
+                result = await verifyTvdb(input);
+                break;
             case "trakt":
-                return await verifyTrakt(input);
+                result = await verifyTrakt(input);
+                break;
             default:
-                return {
+                result = {
                     ok: false,
                     message: "Unsupported service type.",
                 };
+                break;
         }
+
+        return {
+            ...result,
+            message: sanitizeExternalErrorMessage(
+                result.message,
+                "Connection verification failed.",
+            ),
+        };
     } catch (error) {
         return {
             ok: false,
             message:
-                error instanceof Error
+                error instanceof CredentialUrlError
                     ? error.message
-                    : "Connection verification failed unexpectedly.",
+                    : sanitizeExternalErrorMessage(
+                          error,
+                          "Connection verification failed unexpectedly.",
+                      ),
         };
     }
 }

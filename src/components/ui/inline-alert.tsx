@@ -17,7 +17,7 @@ const alertVariants = {
 
 export function InlineAlert({ children, variant = "info", className }: InlineAlertProps) {
     return (
-        <p
+        <div
             role={variant === "error" ? "alert" : "status"}
             className={cn(
                 "rounded-lg border px-3.5 py-2 text-sm leading-6",
@@ -26,6 +26,6 @@ export function InlineAlert({ children, variant = "info", className }: InlineAle
             )}
         >
             {children}
-        </p>
+        </div>
     );
 }

@@ -1,4 +1,5 @@
 import { fetchWithTimeout, trimTrailingSlash } from "@/lib/integrations/http-helpers";
+import { assertCredentialFreeUrl } from "@/lib/security/credential-url";
 import { readString } from "@/modules/service-connections/adapters/arr-response-helpers";
 
 type TvdbConnectionInput = {
@@ -27,8 +28,13 @@ function getTvdbFailureMessage(payload: TvdbLoginPayload) {
 }
 
 export async function verifyTvdbConnection(input: TvdbConnectionInput) {
+    assertCredentialFreeUrl(input.baseUrl);
+    const endpoint = `${trimTrailingSlash(input.baseUrl)}/login`;
+
+    assertCredentialFreeUrl(endpoint);
+
     const response = await fetchWithTimeout(
-        `${trimTrailingSlash(input.baseUrl)}/login`,
+        endpoint,
         {
             method: "POST",
             cache: "no-store",

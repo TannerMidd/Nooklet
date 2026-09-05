@@ -151,6 +151,20 @@ describe("verifyServiceConnection dispatcher", () => {
         expect(result.message).not.toContain("secret-token");
     });
 
+    it("redacts redirect destinations returned by a verifier", async () => {
+        verifyAiProviderMock.mockResolvedValue({
+            ok: false,
+            message: "Redirected to https://provider.example/api?apiKey=secret-value",
+        });
+
+        const result = await verifyServiceConnection(buildInput());
+
+        expect(result).toEqual({
+            ok: false,
+            message: "The service redirected; verify its base URL.",
+        });
+    });
+
     it("does not swallow falsy 'ok: false' results from the verifier", async () => {
         verifyTautulliMock.mockResolvedValue({
             ok: false,
@@ -172,7 +186,7 @@ describe("verifyServiceConnection dispatcher", () => {
 
         const input = buildInput({
             serviceType: "usenet-server",
-            baseUrl: "news.example.test:563",
+            baseUrl: "nntps://news.example.test:563",
             secret: "usenet-password",
             metadata: { username: "nooklet" },
         });

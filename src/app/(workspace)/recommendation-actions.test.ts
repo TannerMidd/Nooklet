@@ -74,6 +74,24 @@ beforeEach(() => {
 });
 
 describe("submitRecommendationRequestAction", () => {
+    it("returns retryable feedback and does not queue when saving settings fails", async () => {
+        authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+        updateDefaultsMock.mockRejectedValueOnce(new Error("private database path"));
+
+        const result = await submitRecommendationRequestAction(
+            { status: "idle" },
+            validRequestFormData(),
+        );
+
+        expect(result).toEqual({
+            status: "error",
+            message: "Your request settings could not be saved. Try starting the request again.",
+        });
+        expect(workflowMock).not.toHaveBeenCalled();
+        expect(redirectMock).not.toHaveBeenCalled();
+        expect(revalidateMock).not.toHaveBeenCalled();
+    });
+
     it("returns sign-in error when there is no session", async () => {
         authMock.mockResolvedValue(null as never);
         const result = await submitRecommendationRequestAction(
@@ -166,6 +184,21 @@ describe("submitRecommendationRequestAction", () => {
 });
 
 describe("submitRecommendationWatchHistoryModeAction", () => {
+    it("reports a failed mode save without redirecting or leaking database details", async () => {
+        authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+        updateWatchHistoryMock.mockRejectedValueOnce(new Error("private database path"));
+        const formData = new FormData();
+
+        formData.set("watchHistoryOnly", "true");
+        formData.set("redirectPath", "/tv");
+        expect(await submitRecommendationWatchHistoryModeAction(formData)).toEqual({
+            status: "error",
+            message: "Watch-history mode could not be saved. Try again.",
+        });
+        expect(redirectMock).not.toHaveBeenCalled();
+        expect(revalidateMock).not.toHaveBeenCalled();
+    });
+
     it("redirects to /login when no session", async () => {
         authMock.mockResolvedValue(null as never);
         const formData = new FormData();
@@ -220,38 +253,59 @@ describe("submitRecommendationWatchHistoryModeAction", () => {
 });
 
 describe("submitRecommendationDefaultsAction", () => {
-    it("silently no-ops when there is no session", async () => {
+    it("returns a sign-in error when there is no session", async () => {
         authMock.mockResolvedValue(null as never);
-        await submitRecommendationDefaultsAction({
+        const result = await submitRecommendationDefaultsAction({
             requestedCount: 6,
             temperature: 0.7,
             aiModel: "x",
         });
+
         expect(updateDefaultsMock).not.toHaveBeenCalled();
+        expect(result).toMatchObject({ ok: false, message: expect.stringContaining("Sign in") });
     });
 
-    it("silently no-ops when the input fails validation", async () => {
+    it("reports invalid defaults without persisting them", async () => {
         authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-        await submitRecommendationDefaultsAction({
+        const result = await submitRecommendationDefaultsAction({
             requestedCount: 0,
             temperature: 9,
             aiModel: "",
         });
+
         expect(updateDefaultsMock).not.toHaveBeenCalled();
+        expect(result).toMatchObject({ ok: false });
     });
 
     it("persists when input is valid", async () => {
         authMock.mockResolvedValue({ user: { id: "u1" } } as never);
-        await submitRecommendationDefaultsAction({
+        const result = await submitRecommendationDefaultsAction({
             requestedCount: 5,
             temperature: 0.5,
             aiModel: "m",
         });
+
         expect(updateDefaultsMock).toHaveBeenCalledWith("u1", {
             defaultResultCount: 5,
             defaultTemperature: 0.5,
             defaultAiModel: "m",
         });
+        expect(result).toEqual({ ok: true });
+    });
+
+    it("reports a save failure without returning private database details", async () => {
+        authMock.mockResolvedValue({ user: { id: "u1" } } as never);
+        updateDefaultsMock.mockRejectedValueOnce(new Error("private database path"));
+        const result = await submitRecommendationDefaultsAction({
+            requestedCount: 5,
+            temperature: 0.5,
+        });
+
+        expect(result).toMatchObject({
+            ok: false,
+            message: expect.stringContaining("could not be saved"),
+        });
+        expect(JSON.stringify(result)).not.toContain("private");
     });
 });
 

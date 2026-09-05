@@ -1,6 +1,11 @@
 import { asc, eq } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
+import {
+    inspectCredentialBearingUrl,
+    redactUrlForDisplay,
+    sanitizeExternalErrorMessage,
+} from "@/lib/security/credential-url";
 import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
     indexerMediaCategories,
@@ -22,6 +27,7 @@ export type IndexerSettingsView = {
     name: string;
     protocol: IndexerProtocol;
     baseUrl: string;
+    hasEmbeddedCredentials: boolean;
     apiPath: string;
     status: IndexerConnectionStatus;
     statusMessage: string | null;
@@ -63,17 +69,35 @@ export async function listIndexerSettings(userId: string): Promise<IndexerSettin
         categoriesByIndexer.set(row.indexerId, categories);
     }
 
-    return rows.map(({ indexer, secret }) => ({
-        id: indexer.id,
-        name: indexer.name,
-        protocol: indexer.protocol,
-        baseUrl: indexer.baseUrl,
-        apiPath: indexer.apiPath,
-        status: indexer.status,
-        statusMessage: indexer.statusMessage,
-        isEnabled: indexer.isEnabled,
-        priority: indexer.priority,
-        maskedApiKey: secret?.maskedApiKey ?? null,
-        categories: categoriesByIndexer.get(indexer.id) ?? [],
-    }));
+    return rows.map(({ indexer, secret }) => {
+        const baseUrlInspection = inspectCredentialBearingUrl(indexer.baseUrl);
+        const hasUnsafeBaseUrl =
+            !baseUrlInspection.valid || baseUrlInspection.hasEmbeddedCredentials;
+        const status = hasUnsafeBaseUrl && indexer.status !== "disabled" ? "error" : indexer.status;
+        const statusMessage = hasUnsafeBaseUrl
+            ? baseUrlInspection.issue === "invalid"
+                ? "The saved base URL is invalid. Replace it before enabling or testing."
+                : "The saved base URL contains embedded credentials. Replace it before enabling or testing."
+            : indexer.statusMessage
+              ? sanitizeExternalErrorMessage(
+                    indexer.statusMessage,
+                    "Indexer status is unavailable.",
+                )
+              : null;
+
+        return {
+            id: indexer.id,
+            name: indexer.name,
+            protocol: indexer.protocol,
+            baseUrl: redactUrlForDisplay(indexer.baseUrl),
+            hasEmbeddedCredentials: hasUnsafeBaseUrl,
+            apiPath: indexer.apiPath,
+            status,
+            statusMessage,
+            isEnabled: indexer.isEnabled,
+            priority: indexer.priority,
+            maskedApiKey: secret?.maskedApiKey ?? null,
+            categories: categoriesByIndexer.get(indexer.id) ?? [],
+        };
+    });
 }

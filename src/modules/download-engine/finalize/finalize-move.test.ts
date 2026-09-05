@@ -23,7 +23,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 
 import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 
-import { moveDownloadToOutput } from "./finalize-download";
+import { moveDownloadToOutput, writeFinalizedDownloadManifest } from "./finalize-download";
 
 function crossDeviceError() {
     const error = new Error("EXDEV: cross-device link not permitted") as NodeJS.ErrnoException;
@@ -49,6 +49,7 @@ beforeEach(async () => {
     await mkdir(path.join(workDir, "Sample"), { recursive: true });
     await writeFile(path.join(workDir, "movie.mkv"), "video-bytes");
     await writeFile(path.join(workDir, "Sample", "sample.mkv"), "sample-bytes");
+    await writeFinalizedDownloadManifest(workDir, "download-1");
 });
 
 afterEach(async () => {
@@ -57,7 +58,7 @@ afterEach(async () => {
 
 describe("moveDownloadToOutput", () => {
     it("renames within the same filesystem without copying", async () => {
-        await moveDownloadToOutput(workDir, outputDir);
+        await moveDownloadToOutput(workDir, outputDir, "download-1");
 
         await expect(readFile(path.join(outputDir, "movie.mkv"), "utf8")).resolves.toBe(
             "video-bytes",
@@ -67,9 +68,9 @@ describe("moveDownloadToOutput", () => {
     });
 
     it("copies the tree and removes the work directory when rename crosses filesystems", async () => {
-        mocks.rename.mockRejectedValue(crossDeviceError());
+        mocks.rename.mockImplementationOnce(() => Promise.reject(crossDeviceError()));
 
-        await moveDownloadToOutput(workDir, outputDir);
+        await moveDownloadToOutput(workDir, outputDir, "download-1");
 
         await expect(readFile(path.join(outputDir, "movie.mkv"), "utf8")).resolves.toBe(
             "video-bytes",
@@ -81,7 +82,7 @@ describe("moveDownloadToOutput", () => {
     });
 
     it("removes the partial output tree and keeps the work directory when the copy fails", async () => {
-        mocks.rename.mockRejectedValue(crossDeviceError());
+        mocks.rename.mockImplementationOnce(() => Promise.reject(crossDeviceError()));
         const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
 
         // First file copies, then the filesystem "fills up".
@@ -91,7 +92,7 @@ describe("moveDownloadToOutput", () => {
                 Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" }),
             );
 
-        await expect(moveDownloadToOutput(workDir, outputDir)).rejects.toMatchObject({
+        await expect(moveDownloadToOutput(workDir, outputDir, "download-1")).rejects.toMatchObject({
             code: "ENOSPC",
         });
 
@@ -109,7 +110,7 @@ describe("moveDownloadToOutput", () => {
             Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" }),
         );
 
-        await expect(moveDownloadToOutput(workDir, outputDir)).rejects.toMatchObject({
+        await expect(moveDownloadToOutput(workDir, outputDir, "download-1")).rejects.toMatchObject({
             code: "EACCES",
         });
         await expect(readFile(path.join(workDir, "movie.mkv"), "utf8")).resolves.toBe(

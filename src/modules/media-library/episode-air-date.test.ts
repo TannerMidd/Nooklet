@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { episodeHasAired, parseCalendarDate, toCalendarDate } from "./episode-air-date";
+import {
+    episodeAvailability,
+    episodeHasAired,
+    parseCalendarDate,
+    toCalendarDate,
+} from "./episode-air-date";
 
 describe("parseCalendarDate", () => {
     // `new Date("2026-08-06")` is UTC midnight, which formats as 5 August in any
@@ -21,6 +26,7 @@ describe("parseCalendarDate", () => {
         ["an empty string", ""],
         ["a timestamp", "2026-08-06T00:00:00.000Z"],
         ["nonsense", "not-a-date"],
+        ["an impossible calendar date", "2026-02-30"],
     ])("returns null for %s", (_label, value) => {
         expect(parseCalendarDate(value)).toBeNull();
     });
@@ -45,4 +51,21 @@ describe("episodeHasAired", () => {
     it.each([[null], [undefined]])("treats an unknown air date (%s) as aired", (airDate) => {
         expect(episodeHasAired(airDate, "2026-08-05")).toBe(true);
     });
+});
+
+describe("episodeAvailability", () => {
+    it.each([
+        ["the day before", "2026-08-04", "aired"],
+        ["the same day", "2026-08-05", "aired"],
+        ["the day after", "2026-08-06", "upcoming"],
+    ] as const)("classifies %s", (_label, airDate, expected) => {
+        expect(episodeAvailability(airDate, "2026-08-05")).toBe(expected);
+    });
+
+    it.each([[null], [undefined], [""], ["not-a-date"], ["2026-02-30"]] as const)(
+        "classifies %s as unknown",
+        (airDate) => {
+            expect(episodeAvailability(airDate, "2026-08-05")).toBe("unknown");
+        },
+    );
 });

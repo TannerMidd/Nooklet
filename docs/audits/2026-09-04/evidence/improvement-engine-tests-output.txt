@@ -1,0 +1,8 @@
+
+ RUN  v4.1.10 F:/Development/Nooklet/Nooklet
+
+
+ Test Files  40 passed (40)
+      Tests  372 passed (372)
+   Start at  18:43:58
+   Duration  24.90s (transform 17.08s, setup 2.54s, import 44.82s, tests 44.40s, environment 10ms)

@@ -7,6 +7,8 @@ import { ensureDatabaseReady } from "@/lib/database/client";
 import {
     indexerMediaCategories,
     indexerSearchResultSecrets,
+    indexerSearchResults,
+    indexerSearchRuns,
     indexerSecrets,
     users,
 } from "@/lib/database/schema";
@@ -23,6 +25,7 @@ import {
     listEnabledIndexersForMedia,
     listIndexerMediaCategories,
     listSearchResultsForRun,
+    persistIndexerSearchBatch,
     recordIndexerSearchResult,
     saveIndexerSecret,
     setIndexerMediaCategories,
@@ -106,6 +109,21 @@ describe("indexer-repository", () => {
         expect(enabledTvIndexers.map((entry) => entry.id)).toEqual([indexer.id]);
     });
 
+    it("sanitizes URL-bearing indexer status messages at the write boundary", async () => {
+        const userId = await seedUser();
+        const indexer = await createIndexer({
+            userId,
+            name: "Status test indexer",
+            protocol: "newznab",
+            baseUrl: "https://indexer.example",
+            status: "error",
+            statusMessage: "Redirected to https://indexer.example/?token=secret",
+        });
+
+        expect(indexer?.statusMessage).toBe("The service redirected; verify its base URL.");
+        expect(indexer?.statusMessage).not.toContain("token=secret");
+    });
+
     it("persists search runs, safe result metadata, and encrypted result links", async () => {
         const userId = await seedUser();
         const indexer = await createIndexer({
@@ -170,6 +188,101 @@ describe("indexer-repository", () => {
         expect(safeResults.map((entry) => entry.indexerGuid)).toEqual(["guid-arrival-2160p"]);
         expect(storedSecret?.encryptedDownloadUrl).toBe("encrypted-download-url");
         expect(storedSecret?.maskedDownloadUrl).toBe("https://indexer.example/...");
+    });
+
+    it("commits a completed search and all result secrets as one transaction", async () => {
+        const userId = await seedUser();
+        const result = await persistIndexerSearchBatch({
+            userId,
+            mediaType: "movie",
+            query: "Arrival 2016",
+            normalizedKey: "arrival::2016",
+            status: "succeeded",
+            expiresAt: new Date("2099-01-01T00:00:00Z"),
+            results: [
+                {
+                    mediaType: "movie",
+                    title: "Arrival 2016 2160p",
+                    normalizedTitle: "arrival 2016 2160p",
+                    indexerGuid: "arrival-2160p",
+                    downloadUrl: "https://indexer.example/a?guid=arrival-2160p",
+                },
+                {
+                    mediaType: "movie",
+                    title: "Arrival 2016 1080p",
+                    normalizedTitle: "arrival 2016 1080p",
+                    indexerGuid: "arrival-1080p",
+                    downloadUrl: "https://indexer.example/a?guid=arrival-1080p",
+                },
+            ],
+        });
+
+        const storedResults = ensureDatabaseReady()
+            .select()
+            .from(indexerSearchResults)
+            .where(eq(indexerSearchResults.searchRunId, result.searchRun.id))
+            .all();
+        const storedSecrets = ensureDatabaseReady()
+            .select()
+            .from(indexerSearchResultSecrets)
+            .where(eq(indexerSearchResultSecrets.resultId, storedResults[0]!.id))
+            .all();
+
+        expect(result.searchRun.status).toBe("succeeded");
+        expect(result.searchRun.resultCount).toBe(2);
+        expect(result.results).toHaveLength(2);
+        expect(storedSecrets).toHaveLength(1);
+        expect(storedSecrets[0]?.encryptedDownloadUrl).not.toContain(
+            "https://indexer.example/a?guid=arrival-2160p",
+        );
+    });
+
+    it("rolls back the run and earlier result rows when a later result insert fails", async () => {
+        const userId = await seedUser();
+        const query = `rollback-${randomUUID()}`;
+
+        await expect(
+            persistIndexerSearchBatch({
+                userId,
+                mediaType: "movie",
+                query,
+                status: "succeeded",
+                expiresAt: new Date("2099-01-01T00:00:00Z"),
+                results: [
+                    {
+                        mediaType: "movie",
+                        title: "Duplicate one",
+                        normalizedTitle: "duplicate one",
+                        indexerGuid: "duplicate-guid",
+                        downloadUrl: "https://indexer.example/one",
+                    },
+                    {
+                        mediaType: "movie",
+                        title: "Duplicate two",
+                        normalizedTitle: "duplicate two",
+                        indexerGuid: "duplicate-guid",
+                        downloadUrl: "https://indexer.example/two",
+                    },
+                ],
+            }),
+        ).rejects.toThrow();
+
+        const database = ensureDatabaseReady();
+
+        expect(
+            database
+                .select()
+                .from(indexerSearchRuns)
+                .where(eq(indexerSearchRuns.userId, userId))
+                .all(),
+        ).toEqual([]);
+        expect(
+            database
+                .select()
+                .from(indexerSearchResults)
+                .where(eq(indexerSearchResults.userId, userId))
+                .all(),
+        ).toEqual([]);
     });
 
     it("rejects expired download results and removes their cascaded secrets on the next search", async () => {

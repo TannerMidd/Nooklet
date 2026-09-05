@@ -89,6 +89,7 @@ export function TvRequestPicker({
     const [seasons, setSeasons] = useState<TmdbTvSeasonSummary[]>([]);
     const [seasonsError, setSeasonsError] = useState<string | null>(null);
     const [seasonsLoading, setSeasonsLoading] = useState(false);
+    const [seasonsRetryKey, setSeasonsRetryKey] = useState(0);
     const [selectedSeasons, setSelectedSeasons] = useState<number[]>(
         selection?.mode === "seasons" ? selection.seasons : [],
     );
@@ -98,6 +99,7 @@ export function TvRequestPicker({
     const [episodes, setEpisodes] = useState<TmdbTvEpisodeSummary[]>([]);
     const [episodesError, setEpisodesError] = useState<string | null>(null);
     const [episodesLoading, setEpisodesLoading] = useState(false);
+    const [episodesRetryKey, setEpisodesRetryKey] = useState(0);
     const [selectedEpisodes, setSelectedEpisodes] = useState<number[]>(
         selection?.mode === "episodes" ? selection.episodes : [],
     );
@@ -141,7 +143,7 @@ export function TvRequestPicker({
         return () => {
             active = false;
         };
-    }, [tmdbId]);
+    }, [seasonsRetryKey, tmdbId]);
 
     useEffect(() => {
         if (mode !== "episodes" || selectedSeason === null) {
@@ -180,7 +182,7 @@ export function TvRequestPicker({
         return () => {
             active = false;
         };
-    }, [mode, selectedSeason, tmdbId]);
+    }, [episodesRetryKey, mode, selectedSeason, tmdbId]);
 
     function emit(next: TvSelectionState | null) {
         onSelectionChange(next);
@@ -319,12 +321,21 @@ export function TvRequestPicker({
                     Loading seasons…
                 </p>
             ) : seasonsError ? (
-                <p
+                <div
                     className="rounded-xl border border-accent-wine/40 bg-accent-wine/10 px-3 py-2 text-sm text-foreground"
                     role="alert"
                 >
-                    {seasonsError}
-                </p>
+                    <p>{seasonsError}</p>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() => setSeasonsRetryKey((current) => current + 1)}
+                    >
+                        Try again
+                    </Button>
+                </div>
             ) : null}
 
             {!seasonsLoading && !seasonsError && mode === "all" ? (
@@ -422,12 +433,21 @@ export function TvRequestPicker({
                                 Loading episodes…
                             </p>
                         ) : episodesError ? (
-                            <p
+                            <div
                                 role="alert"
                                 className="rounded-xl border border-accent-wine/40 bg-accent-wine/10 px-3 py-2 text-sm text-foreground"
                             >
-                                {episodesError}
-                            </p>
+                                <p>{episodesError}</p>
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    className="mt-2"
+                                    onClick={() => setEpisodesRetryKey((current) => current + 1)}
+                                >
+                                    Try again
+                                </Button>
+                            </div>
                         ) : (
                             <div className="space-y-3">
                                 <div className="flex flex-wrap items-center justify-between gap-2">

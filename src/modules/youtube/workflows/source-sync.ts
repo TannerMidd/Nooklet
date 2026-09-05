@@ -11,18 +11,28 @@ import {
     resolveYouTubeDestination,
 } from "@/modules/youtube/repositories/youtube-repository";
 import { getYouTubeAutomationSettingsWorkflow } from "@/modules/youtube/workflows/automation";
+import type { YouTubeQueueSummary } from "@/modules/youtube/types";
 
 function publicErrorMessage(error: unknown) {
     return error instanceof Error ? error.message.slice(0, 500) : "YouTube source sync failed.";
+}
+
+async function safelyRecordYouTubeSourceError(userId: string, sourceId: string, message: string) {
+    try {
+        await recordYouTubeSourceError(userId, sourceId, message);
+    } catch {
+        // Preserve the original bootstrap/sync failure when the database is
+        // unavailable while recording the source state. A later scheduled sync
+        // can retry the source once the database is healthy again.
+    }
 }
 
 export type YouTubeSourceSyncResult = {
     sourceId: string;
     status: "succeeded" | "failed";
     discoveredCount?: number;
-    queuedCount?: number;
     error?: string;
-};
+} & Partial<YouTubeQueueSummary>;
 
 export class YouTubeSourceSyncAggregateError extends Error {
     constructor(public readonly results: readonly YouTubeSourceSyncResult[]) {
@@ -35,7 +45,7 @@ export class YouTubeSourceSyncAggregateError extends Error {
     }
 }
 
-export async function syncYouTubeSourceWorkflow(
+async function performYouTubeSourceSync(
     userId: string,
     sourceId: string,
     options: { adapter?: YtDlpAdapter; allowPaused?: boolean } = {},
@@ -48,17 +58,47 @@ export async function syncYouTubeSourceWorkflow(
 
     const adapter = options.adapter ?? createConfiguredYtDlpAdapter();
 
+    await resolveYouTubeDestination(userId, source.libraryPathId);
+    const enumeration = await adapter.enumerate(source.canonicalUrl);
+
+    // Enumeration can take long enough for an administrator to detach or
+    // disable the root. Re-check before the atomic membership/queue write.
+    await resolveYouTubeDestination(userId, source.libraryPathId);
+
+    return applySuccessfulEnumeration({ source, enumeration });
+}
+
+export async function syncYouTubeSourceWorkflow(
+    userId: string,
+    sourceId: string,
+    options: { adapter?: YtDlpAdapter; allowPaused?: boolean } = {},
+) {
     try {
-        await resolveYouTubeDestination(userId, source.libraryPathId);
-        const enumeration = await adapter.enumerate(source.canonicalUrl);
-
-        // Enumeration can take long enough for an administrator to detach or
-        // disable the root. Re-check before the atomic membership/queue write.
-        await resolveYouTubeDestination(userId, source.libraryPathId);
-
-        return await applySuccessfulEnumeration({ source, enumeration });
+        return await performYouTubeSourceSync(userId, sourceId, options);
     } catch (error) {
-        await recordYouTubeSourceError(userId, sourceId, publicErrorMessage(error));
+        await safelyRecordYouTubeSourceError(userId, sourceId, publicErrorMessage(error));
+
+        throw error;
+    }
+}
+
+export async function retryYouTubeSourceInitializationWorkflow(
+    userId: string,
+    sourceId: string,
+    options: { adapter?: YtDlpAdapter } = {},
+) {
+    try {
+        // Retry the shared scheduler bootstrap before syncing the source. The
+        // initial creation may have persisted the source while this idempotent
+        // job creation was unavailable.
+        await getYouTubeAutomationSettingsWorkflow(userId);
+
+        return await performYouTubeSourceSync(userId, sourceId, {
+            adapter: options.adapter,
+            allowPaused: true,
+        });
+    } catch (error) {
+        await safelyRecordYouTubeSourceError(userId, sourceId, publicErrorMessage(error));
 
         throw error;
     }
@@ -83,34 +123,39 @@ export async function createYouTubeSourceWorkflow(
         );
     }
 
-    const source = await createInitializingSource({
-        userId,
-        libraryPathId: input.libraryPathId,
-        qualityProfile: input.qualityProfile,
-        selectedVideoIds: input.selectedVideoIds,
-        source: {
-            kind: classified.kind,
-            youtubeSourceId: classified.sourceId,
-            canonicalUrl: classified.canonicalUrl,
-            title: classified.kind === "playlist" ? "YouTube playlist" : "YouTube channel",
-            channelId: classified.kind === "channel_videos" ? classified.sourceId : null,
-            channelTitle: null,
-            thumbnailUrl: null,
-        },
-    });
-
-    // A monitor created before an administrator visits Automation must still be
-    // discoverable by the shared scheduler. This idempotently bootstraps the
-    // instance-owned six-hour recurring job.
-    await getYouTubeAutomationSettingsWorkflow(userId);
-    const adapter = options.adapter ?? createConfiguredYtDlpAdapter();
+    let source: Awaited<ReturnType<typeof createInitializingSource>> | null = null;
 
     try {
-        const sync = await syncYouTubeSourceWorkflow(userId, source.id, { adapter });
+        source = await createInitializingSource({
+            userId,
+            libraryPathId: input.libraryPathId,
+            qualityProfile: input.qualityProfile,
+            selectedVideoIds: input.selectedVideoIds,
+            source: {
+                kind: classified.kind,
+                youtubeSourceId: classified.sourceId,
+                canonicalUrl: classified.canonicalUrl,
+                title: classified.kind === "playlist" ? "YouTube playlist" : "YouTube channel",
+                channelId: classified.kind === "channel_videos" ? classified.sourceId : null,
+                channelTitle: null,
+                thumbnailUrl: null,
+            },
+        });
+
+        // A monitor created before an administrator visits Automation must still
+        // be discoverable by the shared scheduler. This idempotently bootstraps the
+        // instance-owned six-hour recurring job. Keep bootstrap in the same
+        // recoverable lifecycle as the initial source sync so an unavailable
+        // scheduler leaves a visible source error instead of silent initialization.
+        await getYouTubeAutomationSettingsWorkflow(userId);
+        const adapter = options.adapter ?? createConfiguredYtDlpAdapter();
+        const sync = await performYouTubeSourceSync(userId, source.id, { adapter });
 
         return { sourceId: source.id, sync };
     } catch (error) {
-        await recordYouTubeSourceError(userId, source.id, publicErrorMessage(error));
+        if (source) {
+            await safelyRecordYouTubeSourceError(userId, source.id, publicErrorMessage(error));
+        }
 
         throw error;
     }

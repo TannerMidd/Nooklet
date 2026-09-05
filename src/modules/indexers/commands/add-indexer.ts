@@ -1,4 +1,5 @@
 import { encryptSecret, maskSecret } from "@/lib/security/secret-box";
+import { assertCredentialFreeUrl } from "@/lib/security/credential-url";
 import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
 import {
     createIndexer,
@@ -27,6 +28,8 @@ export async function addIndexerCommand(
     input: AddIndexerInput,
 ): Promise<IndexerRecord> {
     const parsed = addIndexerInputSchema.parse(input);
+
+    assertCredentialFreeUrl(parsed.baseUrl);
     const ownerUserId = await resolveInstanceConfigurationOwnerId(userId);
     const indexer = await createIndexer({
         userId: ownerUserId,

@@ -13,10 +13,9 @@ vi.mock("@/modules/users/repositories/user-repository", () => ({
     createAuditEvent: vi.fn(),
 }));
 vi.mock("@/modules/watch-history/repositories/watch-history-repository", () => ({
-    completeWatchHistorySyncRun: vi.fn(),
     createWatchHistorySyncRun: vi.fn(),
     failWatchHistorySyncRun: vi.fn(),
-    replaceWatchHistoryItemsForSource: vi.fn(),
+    replaceWatchHistoryItemsAndCompleteSyncRun: vi.fn(),
     upsertWatchHistorySource: vi.fn(),
 }));
 vi.mock("@/modules/watch-history/workflows/watch-history-sync-helpers", () => ({
@@ -34,10 +33,9 @@ import { decryptSecret } from "@/lib/security/secret-box";
 import { findServiceConnectionByType } from "@/modules/service-connections/repositories/service-connection-repository";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 import {
-    completeWatchHistorySyncRun,
     createWatchHistorySyncRun,
     failWatchHistorySyncRun,
-    replaceWatchHistoryItemsForSource,
+    replaceWatchHistoryItemsAndCompleteSyncRun,
     upsertWatchHistorySource,
 } from "@/modules/watch-history/repositories/watch-history-repository";
 
@@ -46,9 +44,8 @@ import { syncTautulliWatchHistory } from "./sync-tautulli-watch-history";
 const findMock = vi.mocked(findServiceConnectionByType);
 const upsertSourceMock = vi.mocked(upsertWatchHistorySource);
 const createRunMock = vi.mocked(createWatchHistorySyncRun);
-const completeRunMock = vi.mocked(completeWatchHistorySyncRun);
 const failRunMock = vi.mocked(failWatchHistorySyncRun);
-const replaceItemsMock = vi.mocked(replaceWatchHistoryItemsForSource);
+const publishRunMock = vi.mocked(replaceWatchHistoryItemsAndCompleteSyncRun);
 const auditMock = vi.mocked(createAuditEvent);
 const listHistoryMock = vi.mocked(listTautulliHistory);
 const decryptMock = vi.mocked(decryptSecret);
@@ -93,9 +90,8 @@ describe("syncTautulliWatchHistory", () => {
         vi.clearAllMocks();
         upsertSourceMock.mockResolvedValue({ id: "src-1", sourceType: "tautulli" } as never);
         createRunMock.mockResolvedValue({ id: "run-1" } as never);
-        completeRunMock.mockResolvedValue(undefined as never);
-        failRunMock.mockResolvedValue(undefined as never);
-        replaceItemsMock.mockResolvedValue(undefined as never);
+        publishRunMock.mockResolvedValue(true);
+        failRunMock.mockResolvedValue(true);
         auditMock.mockResolvedValue(undefined as never);
     });
 
@@ -156,8 +152,13 @@ describe("syncTautulliWatchHistory", () => {
             limit: 100,
         });
 
-        expect(replaceItemsMock).toHaveBeenCalledTimes(1);
-        expect(completeRunMock).toHaveBeenCalledWith("run-1", 2);
+        expect(publishRunMock).toHaveBeenCalledTimes(1);
+        expect(publishRunMock.mock.calls[0]?.[0]).toMatchObject({
+            runId: "run-1",
+            sourceId: "src-1",
+            userId: USER_ID,
+            mediaType: "tv",
+        });
         expect(failRunMock).not.toHaveBeenCalled();
 
         expect(auditMock).toHaveBeenCalledWith(
@@ -181,7 +182,28 @@ describe("syncTautulliWatchHistory", () => {
         expect(result.message).toBe(
             "No movie history items were returned from Tautulli for Owner.",
         );
-        expect(completeRunMock).toHaveBeenCalledWith("run-1", 0);
+        expect(publishRunMock).toHaveBeenCalledWith({
+            runId: "run-1",
+            sourceId: "src-1",
+            userId: USER_ID,
+            mediaType: "movie",
+            items: [],
+        });
+    });
+
+    it("does not emit success when completion loses the pending guard", async () => {
+        findMock.mockResolvedValue(buildVerifiedTautulliConnection());
+        listHistoryMock.mockResolvedValue([] as never);
+        publishRunMock.mockResolvedValue(false);
+
+        const result = await syncTautulliWatchHistory(USER_ID, buildInput());
+
+        expect(result).toEqual({
+            ok: false,
+            message: "This Tautulli watch-history sync was already finalized.",
+        });
+        expect(auditMock).not.toHaveBeenCalled();
+        expect(failRunMock).not.toHaveBeenCalled();
     });
 
     it("upserts the source with the server-name-prefixed display name and import limit metadata", async () => {
@@ -209,10 +231,24 @@ describe("syncTautulliWatchHistory", () => {
         const result = await syncTautulliWatchHistory(USER_ID, buildInput());
 
         expect(failRunMock).toHaveBeenCalledWith("run-1", "Tautulli 503");
-        expect(completeRunMock).not.toHaveBeenCalled();
+        expect(publishRunMock).not.toHaveBeenCalled();
         expect(auditMock.mock.calls[0]?.[0]?.eventType).toBe("watch-history.sync.failed");
 
         expect(result).toEqual({ ok: false, message: "Tautulli 503" });
+    });
+
+    it("does not emit failure when failure completion loses the pending guard", async () => {
+        findMock.mockResolvedValue(buildVerifiedTautulliConnection());
+        listHistoryMock.mockRejectedValue(new Error("Tautulli 503"));
+        failRunMock.mockResolvedValue(false);
+
+        const result = await syncTautulliWatchHistory(USER_ID, buildInput());
+
+        expect(result).toEqual({
+            ok: false,
+            message: "This Tautulli watch-history sync was already finalized.",
+        });
+        expect(auditMock).not.toHaveBeenCalled();
     });
 
     it("translates a non-Error throw into a stable generic message and never leaks the secret", async () => {

@@ -3,6 +3,7 @@ import {
     fetchWithRetry,
     trimTrailingSlash,
 } from "@/lib/integrations/http-helpers";
+import { assertCredentialFreeUrl } from "@/lib/security/credential-url";
 
 type TautulliCredentials = {
     baseUrl: string;
@@ -63,7 +64,10 @@ async function fetchTautulliCommand<T>(
     command: string,
     params: Record<string, string> = {},
 ) {
+    assertCredentialFreeUrl(credentials.baseUrl);
     const url = new URL(`${trimTrailingSlash(credentials.baseUrl)}/api/v2`);
+
+    assertCredentialFreeUrl(url.toString());
 
     url.searchParams.set("apikey", credentials.apiKey);
     url.searchParams.set("cmd", command);

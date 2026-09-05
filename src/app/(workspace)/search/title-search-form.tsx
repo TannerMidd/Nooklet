@@ -11,6 +11,7 @@ import {
     X,
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -355,6 +356,10 @@ function TitleResults({
         return <EmptyState message="No title search has run yet." />;
     }
 
+    if (state.status === "error") {
+        return null;
+    }
+
     if (state.results.length === 0) {
         return <EmptyState message="No title matches found." />;
     }
@@ -433,6 +438,25 @@ export function TitleSearchForm({
                     </div>
                 </div>
                 <StatusBanner state={initialState} />
+                {initialState.status === "error" ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                        {initialState.reason === "tmdb-not-configured" ? (
+                            <Link
+                                href={`/settings/connections?configure=tmdb&returnTo=${encodeURIComponent(`/search?type=${initialMediaType}&q=${encodeURIComponent(initialQuery)}`)}`}
+                                className="inline-flex min-h-11 items-center text-sm font-semibold text-accent underline-offset-4 hover:underline"
+                            >
+                                Configure metadata
+                            </Link>
+                        ) : (
+                            <Button type="submit" variant="secondary">
+                                Try search again
+                            </Button>
+                        )}
+                        <p className="text-sm text-muted">
+                            Your search is kept here while you resolve the problem.
+                        </p>
+                    </div>
+                ) : null}
                 <p className="max-w-3xl text-[13px] leading-[22px] text-muted">
                     Search finds the title first. Request & download then adds it to your catalog,
                     searches indexers, and queues the best match; Add to library only skips the

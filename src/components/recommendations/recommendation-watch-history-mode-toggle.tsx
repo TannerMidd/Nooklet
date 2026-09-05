@@ -1,8 +1,10 @@
 "use client";
 
+import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { submitRecommendationWatchHistoryModeAction } from "@/app/(workspace)/recommendation-actions";
+import { initialRecommendationRunActionState } from "@/app/(workspace)/recommendation-action-state";
 import { cn } from "@/lib/utils";
 
 type RecommendationWatchHistoryModeToggleProps = {
@@ -47,9 +49,15 @@ export function RecommendationWatchHistoryModeToggle({
     enabled,
     redirectPath,
 }: RecommendationWatchHistoryModeToggleProps) {
+    const [state, formAction] = useActionState(
+        (_previousState: typeof initialRecommendationRunActionState, formData: FormData) =>
+            submitRecommendationWatchHistoryModeAction(formData),
+        initialRecommendationRunActionState,
+    );
+
     return (
         <form
-            action={submitRecommendationWatchHistoryModeAction}
+            action={formAction}
             className="flex items-center justify-between gap-4 border-t border-cream/[0.06] pt-3.5 pl-8"
         >
             <input type="hidden" name="redirectPath" value={redirectPath} />
@@ -60,6 +68,11 @@ export function RecommendationWatchHistoryModeToggle({
                         ? "Synced history is the primary recommendation context."
                         : "Library taste and synced history are both used."}
                 </p>
+                {state.status === "error" && state.message ? (
+                    <p role="alert" className="mt-2 text-sm text-accent-wine">
+                        {state.message}
+                    </p>
+                ) : null}
             </div>
             <ToggleControl enabled={enabled} />
         </form>

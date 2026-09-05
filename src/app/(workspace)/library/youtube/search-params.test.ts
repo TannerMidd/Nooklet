@@ -28,4 +28,17 @@ describe("YouTube library search parameters", () => {
             "/library/youtube?view=videos&q=cats+%26+dogs",
         );
     });
+
+    it("normalizes a video source filter and page number", () => {
+        expect(
+            parseYouTubeLibrarySearchParams({
+                view: "videos",
+                sourceId: " source-1 ",
+                page: "3",
+            }),
+        ).toEqual({ view: "videos", q: "", sourceId: "source-1", page: 3 });
+        expect(youtubeLibraryHref("videos", undefined, { sourceId: "source-1", page: 3 })).toBe(
+            "/library/youtube?view=videos&sourceId=source-1&page=3",
+        );
+    });
 });

@@ -73,6 +73,39 @@ describe("getDiscoverOverview", () => {
             expect(result.rails).toHaveLength(1);
             expect(result.rails[0]?.category).toBe("trending");
             expect(result.rails[0]?.mediaType).toBe("movie");
+            expect(result.unavailableRailCount).toBe(7);
         }
+    });
+
+    it("keeps successful rails when transport or JSON parsing throws", async () => {
+        connectionMock.mockResolvedValue({
+            baseUrl: "https://api.tmdb.test",
+            secret: "tmdb",
+        } as never);
+        discoverMock.mockResolvedValue({ ok: true, titles: [] } as never);
+        discoverMock.mockRejectedValueOnce(new Error("request timed out"));
+        discoverMock.mockRejectedValueOnce(new SyntaxError("Invalid JSON"));
+
+        const result = await getDiscoverOverview("u1");
+
+        expect(result.ok).toBe(true);
+
+        if (result.ok) {
+            expect(result.rails).toHaveLength(6);
+            expect(result.unavailableRailCount).toBe(2);
+        }
+    });
+
+    it("returns a recoverable error when every rail throws", async () => {
+        connectionMock.mockResolvedValue({
+            baseUrl: "https://api.tmdb.test",
+            secret: "tmdb",
+        } as never);
+        discoverMock.mockRejectedValue(new Error("private transport details"));
+
+        const result = await getDiscoverOverview("u1");
+
+        expect(result).toMatchObject({ ok: false, reason: "tmdb-error" });
+        expect(JSON.stringify(result)).not.toContain("private transport details");
     });
 });

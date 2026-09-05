@@ -2,8 +2,8 @@ import { parsePlexWatchHistorySourceMetadata } from "@/modules/watch-history/ple
 import {
     getWatchHistoryItemCounts,
     listRecentWatchHistoryItems,
+    listLatestWatchHistorySyncRunsBySource,
     listWatchHistorySources,
-    listWatchHistorySyncRuns,
 } from "@/modules/watch-history/repositories/watch-history-repository";
 import { parseTautulliWatchHistorySourceMetadata } from "@/modules/watch-history/tautulli-watch-history-source-metadata";
 import { parseTraktWatchHistorySourceMetadata } from "@/modules/watch-history/trakt-watch-history-source-metadata";
@@ -12,7 +12,7 @@ import { parseWatchHistorySourceMetadataJson } from "@/modules/watch-history/sou
 export async function getWatchHistoryOverview(userId: string) {
     const [sources, syncRuns, counts, recentTvItems, recentMovieItems] = await Promise.all([
         listWatchHistorySources(userId),
-        listWatchHistorySyncRuns(userId, 8),
+        listLatestWatchHistorySyncRunsBySource(userId),
         getWatchHistoryItemCounts(userId),
         listRecentWatchHistoryItems(userId, "tv", 8),
         listRecentWatchHistoryItems(userId, "movie", 8),

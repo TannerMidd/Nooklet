@@ -1,4 +1,9 @@
 import { rm } from "node:fs/promises";
+import {
+    recoverImportJournals,
+    canConsumeImportJournalSources,
+    markImportJournalCleanupPending,
+} from "./import-completed-downloads/import-journal";
 
 import {
     annotateDownloadRequestStatusMessage,
@@ -24,7 +29,10 @@ import { findServiceConnectionByType } from "@/modules/service-connections/queri
 import { recordCompletedDownloadImportAudit } from "./import-completed-downloads/audit";
 import { resolveCompletedDownloadDestinations } from "./import-completed-downloads/destination-resolution";
 import { inspectCompletedDownloadFiles } from "./import-completed-downloads/file-inspection";
-import { organizeCompletedDownloadFiles } from "./import-completed-downloads/file-organization";
+import {
+    organizeCompletedDownloadFiles,
+    rollbackOrganizedDownloadFiles,
+} from "./import-completed-downloads/file-organization";
 import { type ImportFilesystemProgressReporter } from "./import-completed-downloads/file-transfer";
 import { dispatchCompletedDownloadNotifications } from "./import-completed-downloads/notifications";
 import {
@@ -51,6 +59,10 @@ export type ImportCompletedEngineDownloadsOptions = {
  * retry cleanup in the same process on a later import pass.
  */
 async function consumeFinishedEngineDownload(id: string, artifactPath: string | null) {
+    if (!(await canConsumeImportJournalSources(id))) {
+        return false;
+    }
+
     if (artifactPath) {
         try {
             await rm(artifactPath, { recursive: true, force: true });
@@ -77,6 +89,7 @@ async function runImportCompletedEngineDownloadsWorkflow(
     input: ImportCompletedEngineDownloadsInput = {},
     options: ImportCompletedEngineDownloadsOptions = {},
 ) {
+    await recoverImportJournals({ userId });
     const usenetServer = await findServiceConnectionByType(userId, "usenet-server");
 
     // Safety net: an active request whose engine download no longer exists
@@ -234,6 +247,7 @@ async function runImportCompletedEngineDownloadsWorkflow(
     const fences = await acquireSeasonImportFences(userId, matches);
     let organized;
     let persisted;
+    let persistenceCompleted = false;
 
     try {
         const resolved = await resolveCompletedDownloadDestinations(userId, fences.matches);
@@ -248,8 +262,30 @@ async function runImportCompletedEngineDownloadsWorkflow(
             workLeases: fences.workLeases,
             requestWorkLeases: fences.requestWorkLeases,
         });
+        persistenceCompleted = true;
+    } catch (error) {
+        for (const download of organized ?? []) {
+            await rollbackOrganizedDownloadFiles(download);
+        }
+
+        throw error;
     } finally {
-        await fences.release();
+        try {
+            await fences.release();
+        } catch (error) {
+            for (const download of organized ?? []) {
+                if (download.journal) {
+                    await markImportJournalCleanupPending(
+                        download.journal,
+                        "Import lease release requires recovery.",
+                    ).catch(() => undefined);
+                }
+            }
+
+            if (!persistenceCompleted) {
+                throw error;
+            }
+        }
     }
 
     const matchedEngineIds = new Set(fences.matches.map((match) => match.historyItem.id));
