@@ -109,6 +109,24 @@ describe("verifyServiceConnection dispatcher", () => {
         },
     );
 
+    it("rejects a Plex query token before invoking any verifier", async () => {
+        const result = await verifyServiceConnection(
+            buildInput({
+                serviceType: "plex",
+                baseUrl: "https://plex.example.test/?X-Plex-Token=synthetic-plex-secret",
+            }),
+        );
+
+        expect(result).toEqual({
+            ok: false,
+            message: "Base URLs must not contain embedded credentials.",
+        });
+
+        for (const mock of allMocks) {
+            expect(mock).not.toHaveBeenCalled();
+        }
+    });
+
     it("returns a typed failure for an unsupported service type without invoking any verifier", async () => {
         const result = await verifyServiceConnection(
             buildInput({

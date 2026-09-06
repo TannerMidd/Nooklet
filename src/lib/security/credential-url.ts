@@ -38,6 +38,8 @@ const CREDENTIAL_QUERY_NAMES = new Set([
     "token",
     "user",
     "username",
+    // Plex accepts its provider-specific authentication token in query strings.
+    "xplextoken",
 ]);
 
 export type CredentialUrlIssue = "invalid" | "userinfo" | "credential-query";

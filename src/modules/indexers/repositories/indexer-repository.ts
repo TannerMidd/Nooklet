@@ -508,43 +508,48 @@ export async function persistIndexerSearchBatch(input: {
             })
             .run();
 
-        if (preparedResults.length === 0) {
-            return;
+        // Each metadata row binds 16 parameters. Bound both statements well
+        // below bundled SQLite's 32,766-variable limit, without splitting the
+        // transaction: any later chunk failure must roll back the whole search.
+        const resultBatchSize = 500;
+
+        for (let offset = 0; offset < preparedResults.length; offset += resultBatchSize) {
+            const batch = preparedResults.slice(offset, offset + resultBatchSize);
+
+            tx.insert(indexerSearchResults)
+                .values(
+                    batch.map((result) => ({
+                        id: result.id,
+                        searchRunId,
+                        userId: input.userId,
+                        indexerId: result.indexerId ?? null,
+                        mediaType: result.mediaType,
+                        title: result.title,
+                        normalizedTitle: result.normalizedTitle,
+                        indexerGuid: result.indexerGuid,
+                        qualityLabel: result.qualityLabel ?? null,
+                        releaseGroup: result.releaseGroup ?? null,
+                        sizeBytes: result.sizeBytes ?? null,
+                        publishedAt: result.publishedAt ?? null,
+                        ageMinutes: result.ageMinutes ?? null,
+                        seeders: result.seeders ?? null,
+                        leechers: result.leechers ?? null,
+                        grabs: result.grabs ?? null,
+                    })),
+                )
+                .run();
+
+            tx.insert(indexerSearchResultSecrets)
+                .values(
+                    batch.map((result) => ({
+                        resultId: result.id,
+                        encryptedDownloadUrl: result.encryptedDownloadUrl,
+                        maskedDownloadUrl: result.maskedDownloadUrl,
+                        updatedAt: completedAt,
+                    })),
+                )
+                .run();
         }
-
-        tx.insert(indexerSearchResults)
-            .values(
-                preparedResults.map((result) => ({
-                    id: result.id,
-                    searchRunId,
-                    userId: input.userId,
-                    indexerId: result.indexerId ?? null,
-                    mediaType: result.mediaType,
-                    title: result.title,
-                    normalizedTitle: result.normalizedTitle,
-                    indexerGuid: result.indexerGuid,
-                    qualityLabel: result.qualityLabel ?? null,
-                    releaseGroup: result.releaseGroup ?? null,
-                    sizeBytes: result.sizeBytes ?? null,
-                    publishedAt: result.publishedAt ?? null,
-                    ageMinutes: result.ageMinutes ?? null,
-                    seeders: result.seeders ?? null,
-                    leechers: result.leechers ?? null,
-                    grabs: result.grabs ?? null,
-                })),
-            )
-            .run();
-
-        tx.insert(indexerSearchResultSecrets)
-            .values(
-                preparedResults.map((result) => ({
-                    resultId: result.id,
-                    encryptedDownloadUrl: result.encryptedDownloadUrl,
-                    maskedDownloadUrl: result.maskedDownloadUrl,
-                    updatedAt: completedAt,
-                })),
-            )
-            .run();
     });
 
     const searchRun = database

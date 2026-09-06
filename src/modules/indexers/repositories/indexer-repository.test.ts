@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
+import { decryptSecret } from "@/lib/security/secret-box";
 import {
     indexerMediaCategories,
     indexerSearchResultSecrets,
@@ -235,6 +236,108 @@ describe("indexer-repository", () => {
         expect(storedSecrets[0]?.encryptedDownloadUrl).not.toContain(
             "https://indexer.example/a?guid=arrival-2160p",
         );
+    });
+
+    it.each([0, 2048, 8193])(
+        "persists all metadata and encrypted URLs for %i search results",
+        async (resultCount) => {
+            const userId = await seedUser();
+            // 2,048 rows exceed one metadata statement's variable limit; 8,193
+            // also exceed one secrets statement's limit. Neither may be truncated.
+            const results = Array.from({ length: resultCount }, (_, index) => ({
+                mediaType: "movie" as const,
+                title: `Release ${index}`,
+                normalizedTitle: `release ${index}`,
+                indexerGuid: `large-search-${index}`,
+                downloadUrl: `https://indexer.example/download/${index}?apikey=synthetic-secret`,
+            }));
+            const persisted = await persistIndexerSearchBatch({
+                userId,
+                mediaType: "movie",
+                query: "Large search",
+                status: "succeeded",
+                expiresAt: new Date("2099-01-01T00:00:00Z"),
+                results,
+            });
+            const stored = ensureDatabaseReady()
+                .select({
+                    guid: indexerSearchResults.indexerGuid,
+                    encryptedUrl: indexerSearchResultSecrets.encryptedDownloadUrl,
+                })
+                .from(indexerSearchResults)
+                .innerJoin(
+                    indexerSearchResultSecrets,
+                    eq(indexerSearchResultSecrets.resultId, indexerSearchResults.id),
+                )
+                .where(eq(indexerSearchResults.searchRunId, persisted.searchRun.id))
+                .all();
+            const expectedUrls = new Map(
+                results.map((result) => [result.indexerGuid, result.downloadUrl]),
+            );
+
+            expect(persisted.searchRun.status).toBe("succeeded");
+            expect(persisted.searchRun.resultCount).toBe(resultCount);
+            expect(persisted.results).toHaveLength(resultCount);
+            expect(stored).toHaveLength(resultCount);
+            expect(new Set(stored.map((row) => row.guid)).size).toBe(resultCount);
+            expect(stored.every((row) => !row.encryptedUrl.includes("synthetic-secret"))).toBe(
+                true,
+            );
+            expect(
+                new Map(stored.map((row) => [row.guid, decryptSecret(row.encryptedUrl)])),
+            ).toEqual(expectedUrls);
+        },
+        // This deliberately encrypts, writes and verifies thousands of rows.
+        15_000,
+    );
+
+    it("rolls back earlier chunks, their secrets, and expired-run deletion after a late insert failure", async () => {
+        const userId = await seedUser();
+        const expiredRun = await createIndexerSearchRun({
+            userId,
+            mediaType: "movie",
+            query: "Keep on rollback",
+            expiresAt: new Date("2000-01-01T00:00:00Z"),
+        });
+
+        await recordIndexerSearchResult({
+            searchRunId: expiredRun.id,
+            userId,
+            mediaType: "movie",
+            title: "Existing release",
+            normalizedTitle: "existing release",
+            indexerGuid: "existing-guid",
+            encryptedDownloadUrl: "existing-encrypted-url",
+            maskedDownloadUrl: "existing-mask",
+        });
+        const database = ensureDatabaseReady();
+        const before = {
+            runs: database.select().from(indexerSearchRuns).all(),
+            results: database.select().from(indexerSearchResults).all(),
+            secrets: database.select().from(indexerSearchResultSecrets).all(),
+        };
+        const results = Array.from({ length: 1001 }, (_, index) => ({
+            mediaType: "movie" as const,
+            title: `Release ${index}`,
+            normalizedTitle: `release ${index}`,
+            indexerGuid: `rollback-${index === 1000 ? 0 : index}`,
+            downloadUrl: `https://indexer.example/download/${index}`,
+        }));
+
+        await expect(
+            persistIndexerSearchBatch({
+                userId,
+                mediaType: "movie",
+                query: "Late duplicate",
+                status: "succeeded",
+                expiresAt: new Date("2099-01-01T00:00:00Z"),
+                results,
+            }),
+        ).rejects.toThrow();
+
+        expect(database.select().from(indexerSearchRuns).all()).toEqual(before.runs);
+        expect(database.select().from(indexerSearchResults).all()).toEqual(before.results);
+        expect(database.select().from(indexerSearchResultSecrets).all()).toEqual(before.secrets);
     });
 
     it("rolls back the run and earlier result rows when a later result insert fails", async () => {

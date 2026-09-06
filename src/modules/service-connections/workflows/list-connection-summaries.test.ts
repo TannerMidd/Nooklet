@@ -13,14 +13,19 @@ vi.mock("@/lib/security/secret-box", async (importOriginal) => {
 });
 
 import { ensureDatabaseReady } from "@/lib/database/client";
-import { serviceConnections, serviceSecrets, users } from "@/lib/database/schema";
+import {
+    instanceConfiguration,
+    serviceConnections,
+    serviceSecrets,
+    users,
+} from "@/lib/database/schema";
 import { decryptSecretWithMetadata } from "@/lib/security/secret-box";
 
 import { listConnectionSummaries } from "./list-connection-summaries";
 
 const decryptMock = vi.mocked(decryptSecretWithMetadata);
 
-function seedUserWithConnection(serviceType: "trakt", maskedValue: string) {
+function seedUserWithConnection(serviceType: "trakt" | "plex", maskedValue: string) {
     const database = ensureDatabaseReady();
     const userId = randomUUID();
     const connectionId = randomUUID();
@@ -110,6 +115,40 @@ describe("listConnectionSummaries", () => {
         });
         expect(JSON.stringify(summary)).not.toContain("legacy-secret");
         expect(JSON.stringify(summary)).not.toContain("token=secret");
+    });
+
+    it("redacts legacy Plex query tokens and marks the connection for repair without decrypting", async () => {
+        const userId = seedUserWithConnection("plex", "plex-requester-••••");
+        const viewerId = seedUserWithConnection("trakt", "viewer-trakt-••••");
+
+        ensureDatabaseReady()
+            .insert(instanceConfiguration)
+            .values({ id: "default", ownerUserId: userId })
+            .onConflictDoUpdate({ target: instanceConfiguration.id, set: { ownerUserId: userId } })
+            .run();
+        ensureDatabaseReady()
+            .update(serviceConnections)
+            .set({
+                baseUrl:
+                    "https://plex.example.com/?X-Plex-Token=synthetic-plex-secret&X-Plex-Product=Nooklet",
+            })
+            .where(eq(serviceConnections.ownerUserId, userId))
+            .run();
+
+        const summary = (await listConnectionSummaries(viewerId)).find(
+            (entry) => entry.serviceType === "plex",
+        );
+
+        expect(summary).toMatchObject({
+            baseUrl: "https://plex.example.com/?X-Plex-Product=Nooklet",
+            hasEmbeddedCredentials: true,
+            status: "error",
+            statusMessage:
+                "The saved base URL contains embedded credentials. Replace it before verifying.",
+            maskedSecret: "plex-requester-••••",
+        });
+        expect(JSON.stringify(summary)).not.toContain("synthetic-plex-secret");
+        expect(decryptMock).not.toHaveBeenCalled();
     });
 
     it("marks an invalid legacy base URL as unsafe even when it was formerly verified", async () => {
