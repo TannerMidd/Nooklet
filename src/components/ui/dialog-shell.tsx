@@ -3,9 +3,11 @@
 import { ChevronLeft, SlidersHorizontal, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import {
+    type KeyboardEvent as ReactKeyboardEvent,
     type PointerEvent as ReactPointerEvent,
     type ReactNode,
     type RefObject,
+    forwardRef,
     useCallback,
     useEffect,
     useRef,
@@ -428,22 +430,47 @@ export function DialogShell({
 }
 
 /** Pill button for pinned sub-bars (tabs, modes, season chips). */
-export function DialogPill({
-    active,
-    onClick,
-    children,
-    className,
-}: {
-    active: boolean;
-    onClick?: () => void;
-    children: ReactNode;
-    className?: string;
-}) {
-    return (
+export const DialogPill = forwardRef<
+    HTMLButtonElement,
+    {
+        active: boolean;
+        onClick?: () => void;
+        children: ReactNode;
+        className?: string;
+        id?: string;
+        role?: "tab";
+        ariaControls?: string;
+        ariaSelected?: boolean;
+        tabIndex?: number;
+        onKeyDown?: (event: ReactKeyboardEvent<HTMLButtonElement>) => void;
+    }
+>(
+    (
+        {
+            active,
+            onClick,
+            children,
+            className,
+            id,
+            role,
+            ariaControls,
+            ariaSelected,
+            tabIndex,
+            onKeyDown,
+        },
+        ref,
+    ) => (
         <button
+            ref={ref}
             type="button"
-            aria-pressed={active}
+            id={id}
+            role={role}
+            aria-pressed={role === "tab" ? undefined : active}
+            aria-selected={role === "tab" ? (ariaSelected ?? active) : undefined}
+            aria-controls={ariaControls}
+            tabIndex={tabIndex}
             onClick={onClick}
+            onKeyDown={onKeyDown}
             className={cn(
                 "inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full border px-3.5 text-[13px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:min-h-[44px]",
                 active
@@ -454,8 +481,9 @@ export function DialogPill({
         >
             {children}
         </button>
-    );
-}
+    ),
+);
+DialogPill.displayName = "DialogPill";
 
 /** Selectable row used inside dialog bodies (seasons, episodes, files). */
 export function DialogRow({

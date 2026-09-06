@@ -9,7 +9,14 @@ function readyInput(): ReadinessEvaluationInput {
             { serviceType: "ai-provider", status: "verified" },
             { serviceType: "usenet-server", status: "verified" },
         ],
-        indexers: [{ status: "verified", isEnabled: true, mediaTypes: ["movie", "tv"] }],
+        indexers: [
+            {
+                protocol: "newznab",
+                status: "verified",
+                isEnabled: true,
+                mediaTypes: ["movie", "tv"],
+            },
+        ],
         destinations: [
             { mediaType: "movie", reachable: true, writable: true },
             { mediaType: "tv", reachable: true, writable: true },
@@ -81,5 +88,25 @@ describe("evaluateReadiness", () => {
         expect(
             result.capabilities.find((entry) => entry.id === "movie-downloads")?.details,
         ).toContain("Make the built-in download workspace writable and free enough space.");
+    });
+
+    it("does not count a verified Torznab-only indexer as searchable", () => {
+        const input = readyInput();
+
+        input.indexers = [
+            {
+                protocol: "torznab",
+                status: "verified",
+                isEnabled: true,
+                mediaTypes: ["movie", "tv"],
+            },
+        ];
+
+        const result = evaluateReadiness(input);
+
+        expect(result.readyForFirstRequest).toBe(false);
+        expect(
+            result.capabilities.find((entry) => entry.id === "movie-downloads")?.details,
+        ).toContain("Verify an indexer with movie categories.");
     });
 });

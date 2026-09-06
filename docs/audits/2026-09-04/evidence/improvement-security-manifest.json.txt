@@ -1,0 +1,174 @@
+[
+  {
+    "sha256": "86888BF53CEF3DB8B610A83D7DA92EA3D21FE042B86F83E848DC6642BE42DC24",
+    "path": "src/app/(workspace)/settings/indexers/indexer-settings-form.test.tsx"
+  },
+  {
+    "sha256": "CFECDCE120EE1E48AFB06D782B7263A952DCF1946972D6691AF33710192B2508",
+    "path": "src/app/(workspace)/settings/indexers/indexer-settings-form.tsx"
+  },
+  {
+    "sha256": "0E9D361AD9B6258C210AA4B1BA5F05E4A69DEBEB20D7239961DE64C05103E632",
+    "path": "src/lib/integrations/plex.ts"
+  },
+  {
+    "sha256": "8A11ED68CF29BA587D3C5007C03BAE73C04ACC2B883C6F262055169A33A763AA",
+    "path": "src/lib/integrations/tautulli.ts"
+  },
+  {
+    "sha256": "559738C2F91DB1DE63D697288B47469A27EA1C5261CD1E8AC0ADFA5C5407C0D5",
+    "path": "src/lib/integrations/trakt.ts"
+  },
+  {
+    "sha256": "67272458841D7B6A9F8CF9F35FC2ED69598572BBDC20FA85C177CDA8439F6C1A",
+    "path": "src/lib/security/credential-url.test.ts"
+  },
+  {
+    "sha256": "73E34918A37815EA6037DA5989A9666CD248A3376AA1EBB5E11B1B3D752CD79A",
+    "path": "src/lib/security/credential-url.ts"
+  },
+  {
+    "sha256": "7581C33ED0CD3FF758F9DC51E61EB2071110A4250CE9ABA872F69838C9520679",
+    "path": "src/lib/security/safe-fetch.test.ts"
+  },
+  {
+    "sha256": "A15891E1D5D1013BC94B913D885BF6480BF02127C8A909E04FFD285F4429948E",
+    "path": "src/lib/security/safe-fetch.ts"
+  },
+  {
+    "sha256": "E2B387ECDCDC1CCF747BF69C4D9FA89D81935FED02F4291AEDF525085240C826",
+    "path": "src/modules/indexers/adapters/newznab.ts"
+  },
+  {
+    "sha256": "5AF893AFFD32260F195130E7B0B9485681893C67CE3C03E4DFA1E09124D29953",
+    "path": "src/modules/indexers/capabilities.ts"
+  },
+  {
+    "sha256": "2564041B69232EED953462CF6880164E17F0BEF8C948315CCC6788D5603320A9",
+    "path": "src/modules/indexers/commands/add-indexer.ts"
+  },
+  {
+    "sha256": "39704CE4C669099DBE3D20BFFFDB7EEB28EE9A245621A13E80E4C69DC5AB7D8E",
+    "path": "src/modules/indexers/commands/update-indexer.ts"
+  },
+  {
+    "sha256": "2C38716CE8F64FF019B07E2ABDB20109596E24885D8E298AB7941249B0654A23",
+    "path": "src/modules/indexers/public.ts"
+  },
+  {
+    "sha256": "ADD397B2A98DEAD7CB54BA5021565D83D90C5F4DCA32850664B2C4F95C450E0E",
+    "path": "src/modules/indexers/queries/list-indexer-settings.test.ts"
+  },
+  {
+    "sha256": "4C06439F2CF0BBD0A7F64F477A60040D347874D0AA04F6AE171B43634D37D123",
+    "path": "src/modules/indexers/queries/list-indexer-settings.ts"
+  },
+  {
+    "sha256": "E679EBCFB547F5F992F274E2BF46ADFF1E2636F2D1EB8E08BF293244CC3D6D5B",
+    "path": "src/modules/indexers/repositories/indexer-repository.test.ts"
+  },
+  {
+    "sha256": "FC9B579B2C5DED6061AD894106EAFD8393D2C7B660B61AEFD42D596524E37018",
+    "path": "src/modules/indexers/repositories/indexer-repository.ts"
+  },
+  {
+    "sha256": "B4927F8C5A105A8866C597DD854826F6EA4BAFB781734E0574966A52EBC425F9",
+    "path": "src/modules/indexers/schemas/indexer-input.ts"
+  },
+  {
+    "sha256": "FFA989747D68CCDEC281A44BB20EA2C7E7C7CC3C48017F44649A3D35601EB677",
+    "path": "src/modules/indexers/workflows/search-indexers/indexer-execution.ts"
+  },
+  {
+    "sha256": "4187D243A95E7EF47A25BF6111C8D4B4D7DCEA3383D703EF550CD9052659357C",
+    "path": "src/modules/indexers/workflows/search-indexers/indexer-selection.ts"
+  },
+  {
+    "sha256": "FCEDF758C691E4702697CAB3A3F4BB55E1206D27ADED4920C94BEC33F02099D3",
+    "path": "src/modules/indexers/workflows/search-indexers/persistence.test.ts"
+  },
+  {
+    "sha256": "C1FC80940529BA87F722978A1C38495E787BB935E47AFF828138CF2E9E5BC08B",
+    "path": "src/modules/indexers/workflows/search-indexers/persistence.ts"
+  },
+  {
+    "sha256": "426D07F08DE146CC0DEA0C4E42D66CCD720C2B3A3C880184BAE8073794BB03F6",
+    "path": "src/modules/indexers/workflows/test-and-save-indexer.ts"
+  },
+  {
+    "sha256": "E34209F4EBA0C09772263638C11298D2031722EEA0D667B9D8773A23322ECC23",
+    "path": "src/modules/indexers/workflows/test-indexer/indexer-execution.ts"
+  },
+  {
+    "sha256": "945FDEEF3391545B63720E9EC1C68DA6E9A576861BEAE2D7BD37DDF5D5528CD6",
+    "path": "src/modules/readiness/evaluate-readiness.test.ts"
+  },
+  {
+    "sha256": "6DA8CD89957015F6AB3C315F5001738613AAA30445EC20510DE1F1305BAADF73",
+    "path": "src/modules/readiness/evaluate-readiness.ts"
+  },
+  {
+    "sha256": "84C9809FFD690997E9ACEB632B2ABB53423C5BD3256C8A9F4777FC3A4502A32B",
+    "path": "src/modules/service-connections/adapters/tmdb.ts"
+  },
+  {
+    "sha256": "543316A63C4EE980CBDFA6CA4CC1166DF91A902CF75C857573065880726BED2D",
+    "path": "src/modules/service-connections/adapters/tvdb.ts"
+  },
+  {
+    "sha256": "AF316F7AD5FADF93C583722D60413F7787A9EE5EB704B89F1EB260C2B196EC7C",
+    "path": "src/modules/service-connections/adapters/verify-service-connection.test.ts"
+  },
+  {
+    "sha256": "5C8DB7B357704A9A6AC5D58652398A7045655DF160E7D8CBECA075B23569E6D3",
+    "path": "src/modules/service-connections/adapters/verify-service-connection.ts"
+  },
+  {
+    "sha256": "A58C176868030C9A87CFC58B66715520C7FE2F6A5F1BA7B97C89DC783B92D5CB",
+    "path": "src/modules/service-connections/adapters/verify-usenet-server.ts"
+  },
+  {
+    "sha256": "28DCA9FB9496DD2B27CF19473A1EB57A38F6EA0361BA5C10EE96225C81154BFF",
+    "path": "src/modules/service-connections/ai-provider-endpoints.ts"
+  },
+  {
+    "sha256": "958B69F043A37910A7A411236D3934BB5C63EEF022DF4160402F56C300269BCB",
+    "path": "src/modules/service-connections/repositories/service-connection-repository.ts"
+  },
+  {
+    "sha256": "6A2F1F8383745336A3FB2551B2EB9B1737BFAB24CDDADC36CDBDF823021AC699",
+    "path": "src/modules/service-connections/schemas/service-connection.ts"
+  },
+  {
+    "sha256": "4A68EE8C9CFEA8D437E032A96157F046B5539BBA12B5C9775C135F319DBDF314",
+    "path": "src/modules/service-connections/workflows/list-connection-summaries.test.ts"
+  },
+  {
+    "sha256": "49F4AFA9F467D2CE3E9A5F7A0C2E79DF181EE537CD8EECE30502685B2F7DEC03",
+    "path": "src/modules/service-connections/workflows/list-connection-summaries.ts"
+  },
+  {
+    "sha256": "A631252F1838CD275A76CF8BC3E0065F50B92C2E6525E44296449B472F2AE999",
+    "path": "src/modules/service-connections/workflows/save-service-connection.test.ts"
+  },
+  {
+    "sha256": "DB3111A62E69E659E0E171276AD9743AD95AF5EBD993A5AFD36DAECA32AB1DB9",
+    "path": "src/modules/service-connections/workflows/save-service-connection.ts"
+  },
+  {
+    "sha256": "FDBE1CF2CF3912A2F8051C572EC6647AAB07B9941E70C50F1CAC052848B6C157",
+    "path": "src/modules/service-connections/workflows/test-and-save-service-connection.test.ts"
+  },
+  {
+    "sha256": "2BCCECEDF6648F2BFA22A49D5E7B52B6490E0473ACCEC77CBB8DE1F63934C9B5",
+    "path": "src/modules/service-connections/workflows/test-and-save-service-connection.ts"
+  },
+  {
+    "sha256": "4C1D8BE20A7861A896982E3C6489AAE43654CFC9B02C6F3B683A7FA77EE82CEA",
+    "path": "src/modules/service-connections/workflows/verify-configured-service-connection.test.ts"
+  },
+  {
+    "sha256": "F7A99E679B180F2F0245F09A918BEB41811524FE90C6622B4C91E01D3922BD2E",
+    "path": "src/modules/service-connections/workflows/verify-configured-service-connection.ts"
+  }
+]

@@ -5,31 +5,32 @@ vi.mock("@/lib/security/secret-box", () => ({
     maskSecret: vi.fn(() => "masked"),
 }));
 vi.mock("@/modules/indexers/repositories/indexer-repository", () => ({
-    completeIndexerSearchRun: vi.fn(),
-    createIndexerSearchRun: vi.fn(),
-    listSearchResultsForRun: vi.fn(),
-    recordIndexerSearchResult: vi.fn(),
+    persistIndexerSearchBatch: vi.fn(),
 }));
 
-import {
-    completeIndexerSearchRun,
-    createIndexerSearchRun,
-    listSearchResultsForRun,
-    recordIndexerSearchResult,
-} from "@/modules/indexers/repositories/indexer-repository";
+import { persistIndexerSearchBatch } from "@/modules/indexers/repositories/indexer-repository";
 
 import { persistIndexerSearchResults } from "./persistence";
 
-const completeMock = vi.mocked(completeIndexerSearchRun);
-const createMock = vi.mocked(createIndexerSearchRun);
-const listMock = vi.mocked(listSearchResultsForRun);
-const recordMock = vi.mocked(recordIndexerSearchResult);
+const persistMock = vi.mocked(persistIndexerSearchBatch);
 
 beforeEach(() => {
     vi.clearAllMocks();
-    createMock.mockResolvedValue({ id: "run-1" } as never);
-    completeMock.mockImplementation(async (input) => ({ id: "run-1", ...input }) as never);
-    listMock.mockResolvedValue([]);
+    persistMock.mockImplementation(
+        async (input) =>
+            ({
+                searchRun: {
+                    id: "run-1",
+                    status: input.status,
+                    resultCount: input.results.length,
+                    errorMessage: input.errorMessage ?? null,
+                },
+                results: input.results.map((result, index) => ({
+                    id: `result-${index + 1}`,
+                    ...result,
+                })),
+            }) as never,
+    );
 });
 
 describe("persistIndexerSearchResults", () => {
@@ -65,12 +66,21 @@ describe("persistIndexerSearchResults", () => {
             ] as never,
         );
 
-        expect(recordMock).toHaveBeenCalledTimes(1);
-        expect(completeMock).toHaveBeenCalledWith({
-            searchRunId: "run-1",
+        expect(persistMock).toHaveBeenCalledWith({
+            userId: "user-1",
+            mediaType: "tv",
+            query: "Severance S01E01",
+            normalizedKey: "severance",
             status: "succeeded",
-            resultCount: 1,
             errorMessage: "Indexer returned 503 Service Unavailable.",
+            expiresAt: expect.any(Date),
+            results: [
+                expect.objectContaining({
+                    indexerId: "healthy-indexer",
+                    indexerGuid: "healthy:release-1",
+                    downloadUrl: "https://indexer.test/release-1",
+                }),
+            ],
         });
         expect(result.searchRun.status).toBe("succeeded");
     });
@@ -93,11 +103,15 @@ describe("persistIndexerSearchResults", () => {
             ] as never,
         );
 
-        expect(completeMock).toHaveBeenCalledWith({
-            searchRunId: "run-1",
+        expect(persistMock).toHaveBeenCalledWith({
+            userId: "user-1",
+            mediaType: "tv",
+            query: "Severance S01E01",
+            normalizedKey: "severance",
             status: "failed",
-            resultCount: 0,
             errorMessage: "Indexer timed out.; Indexer returned 429.",
+            expiresAt: expect.any(Date),
+            results: [],
         });
     });
 });

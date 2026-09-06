@@ -3,6 +3,7 @@ import {
     fetchWithRetry,
     trimTrailingSlash,
 } from "@/lib/integrations/http-helpers";
+import { assertCredentialFreeUrl } from "@/lib/security/credential-url";
 import { readString } from "@/modules/service-connections/adapters/arr-response-helpers";
 
 type TraktSecret =
@@ -124,7 +125,12 @@ export function parseTraktSecret(secret: string): TraktSecret {
 }
 
 function buildTraktUrl(baseUrl: string, path: string) {
-    return new URL(`${trimTrailingSlash(baseUrl)}${path.startsWith("/") ? path : `/${path}`}`);
+    assertCredentialFreeUrl(baseUrl);
+    const url = new URL(`${trimTrailingSlash(baseUrl)}${path.startsWith("/") ? path : `/${path}`}`);
+
+    assertCredentialFreeUrl(url.toString());
+
+    return url;
 }
 
 function buildTraktHeaders(credentials: TraktCredentials) {

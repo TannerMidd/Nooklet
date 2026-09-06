@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
-import { auditEvents, mediaTitleExternalIds, users } from "@/lib/database/schema";
+import { auditEvents, mediaTitleExternalIds, mediaTitles, users } from "@/lib/database/schema";
 import {
     addMediaLibraryPath,
     createMediaLibrary,
@@ -96,6 +96,43 @@ describe("requestMediaTitleCommand", () => {
         });
     });
 
+    it("preserves existing external ids when a rerequest omits TMDB", async () => {
+        const userId = await seedUser();
+        const library = await createMediaLibrary({
+            userId,
+            mediaType: "movie",
+            name: "Movies",
+            isDefault: true,
+        });
+
+        const initialTitle = await requestMediaTitleCommand(userId, {
+            mediaType: "movie",
+            libraryId: library.id,
+            tmdbId: 329865,
+            title: "Arrival",
+            year: 2016,
+            monitored: true,
+            qualityProfile: "hd-1080p",
+        });
+
+        await requestMediaTitleCommand(userId, {
+            mediaType: "movie",
+            libraryId: library.id,
+            title: "Arrival",
+            year: 2016,
+            monitored: true,
+            qualityProfile: "hd-1080p",
+        });
+
+        const externalIds = ensureDatabaseReady()
+            .select()
+            .from(mediaTitleExternalIds)
+            .where(eq(mediaTitleExternalIds.titleId, initialTitle.id))
+            .all();
+
+        expect(externalIds).toEqual([expect.objectContaining({ source: "tmdb", value: "329865" })]);
+    });
+
     it("uses the selected target path library when no library is submitted", async () => {
         const userId = await seedUser();
         const library = await createMediaLibrary({
@@ -121,6 +158,49 @@ describe("requestMediaTitleCommand", () => {
         });
 
         expect(title.libraryId).toBe(library.id);
+    });
+
+    it("returns the committed title when the post-commit audit is unavailable", async () => {
+        const userId = await seedUser();
+        const library = await createMediaLibrary({
+            userId,
+            mediaType: "movie",
+            name: "Movies",
+            isDefault: true,
+        });
+        const database = ensureDatabaseReady();
+
+        database.run(sql`
+            create trigger request_media_title_audit_failure
+            before insert on audit_events
+            when new.event_type = 'media-library.title.requested'
+            begin
+                select raise(abort, 'synthetic audit failure');
+            end
+        `);
+
+        try {
+            const title = await requestMediaTitleCommand(userId, {
+                mediaType: "movie",
+                libraryId: library.id,
+                title: "Audit failure title",
+                year: 2026,
+                monitored: true,
+                qualityProfile: "hd-1080p",
+            });
+
+            expect(title).toMatchObject({
+                userId,
+                libraryId: library.id,
+                title: "Audit failure title",
+            });
+        } finally {
+            database.run(sql`drop trigger request_media_title_audit_failure`);
+        }
+
+        expect(
+            database.select().from(mediaTitles).where(eq(mediaTitles.userId, userId)).all(),
+        ).toHaveLength(1);
     });
 
     it("rejects libraries that do not belong to the user or media type", async () => {

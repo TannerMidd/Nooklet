@@ -60,6 +60,35 @@ describe("saveConfiguredServiceConnection", () => {
         expect(auditMock).not.toHaveBeenCalled();
     });
 
+    it.each([
+        {
+            serviceType: "tautulli" as const,
+            baseUrl: "https://tautulli.test/?API%5FKEY=synthetic-secret",
+        },
+        {
+            serviceType: "plex" as const,
+            baseUrl: "https://plex.test/?X-Plex-Token=synthetic-secret",
+        },
+    ])(
+        "rejects credential-bearing $serviceType URLs before reading or writing any state",
+        async (input) => {
+            const result = await saveConfiguredServiceConnection(USER_ID, {
+                ...input,
+                apiKey: "replacement-secret",
+            });
+
+            expect(result).toEqual({
+                ok: false,
+                message: "Base URLs must not contain embedded credentials.",
+                field: "baseUrl",
+            });
+            expect(findMock).not.toHaveBeenCalled();
+            expect(saveMock).not.toHaveBeenCalled();
+            expect(encryptMock).not.toHaveBeenCalled();
+            expect(auditMock).not.toHaveBeenCalled();
+        },
+    );
+
     it("encrypts and masks the supplied API key, persists the record, and emits an audit event", async () => {
         const result = await saveConfiguredServiceConnection(USER_ID, {
             serviceType: "tautulli",
@@ -91,7 +120,6 @@ describe("saveConfiguredServiceConnection", () => {
             subjectId: "tautulli",
             payloadJson: JSON.stringify({
                 serviceType: "tautulli",
-                baseUrl: "https://tautulli.test",
             }),
         });
 

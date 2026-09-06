@@ -8,6 +8,8 @@ import { DiscoverTitleOverviewDialog } from "@/components/discover/discover-titl
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
+import { InlineAlert } from "@/components/ui/inline-alert";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { getDiscoverOverview } from "@/modules/discover/queries/get-discover-overview";
 import { getDiscoverExclusions } from "@/modules/discover/queries/get-discover-exclusions";
 import { getDiscoverTitleOverview } from "@/modules/discover/queries/get-discover-title-overview";
@@ -360,6 +362,18 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
                 </div>
             </form>
 
+            {overview.ok && overview.unavailableRailCount > 0 ? (
+                <InlineAlert variant="warning">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p>
+                            Some collections could not load. The available collections are shown
+                            below.
+                        </p>
+                        <RefreshButton label="Retry collections" />
+                    </div>
+                </InlineAlert>
+            ) : null}
+
             {!overview.ok ? (
                 <Panel
                     eyebrow={
@@ -370,12 +384,17 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
                     title="Discover is offline"
                 >
                     <p className="text-sm leading-6 text-muted">{overview.message}</p>
-                    <Link
-                        href="/settings/connections"
-                        className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground"
-                    >
-                        Configure metadata
-                    </Link>
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                        {overview.reason === "tmdb-error" ? <RefreshButton /> : null}
+                        <Link
+                            href={`/settings/connections?configure=tmdb&returnTo=${encodeURIComponent(buildDiscoverHref(filters, { rail: selectedRailKey }))}`}
+                            className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground"
+                        >
+                            {overview.reason === "tmdb-not-configured"
+                                ? "Configure metadata"
+                                : "Check metadata connection"}
+                        </Link>
+                    </div>
                 </Panel>
             ) : (
                 visibleRails.map((rail) => (

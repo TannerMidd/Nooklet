@@ -1,4 +1,5 @@
 import { decryptSecret, encryptSecret, maskSecret } from "@/lib/security/secret-box";
+import { CredentialUrlError, assertCredentialFreeUrl } from "@/lib/security/credential-url";
 import { verifyServiceConnection } from "@/modules/service-connections/adapters/verify-service-connection";
 import {
     findServiceConnectionByType,
@@ -15,7 +16,7 @@ import { createAuditEvent } from "@/modules/users/public";
 type TestAndSaveInput = AiProviderConnectionInput | ApiKeyServiceConnectionInput;
 
 export type TestAndSaveServiceConnectionResult =
-    { ok: true; message: string } | { ok: false; message: string; field?: "apiKey" };
+    { ok: true; message: string } | { ok: false; message: string; field?: "apiKey" | "baseUrl" };
 
 /**
  * Verifies draft values before replacing the saved connection. A failed draft
@@ -25,6 +26,19 @@ export async function testAndSaveServiceConnection(
     userId: string,
     input: TestAndSaveInput,
 ): Promise<TestAndSaveServiceConnectionResult> {
+    try {
+        assertCredentialFreeUrl(input.baseUrl);
+    } catch (error) {
+        return {
+            ok: false,
+            message:
+                error instanceof CredentialUrlError && error.code === "invalid"
+                    ? "Enter a valid base URL."
+                    : "Base URLs must not contain embedded credentials.",
+            field: "baseUrl",
+        };
+    }
+
     const existingRecord = await findServiceConnectionByType(userId, input.serviceType);
     const newSecret = input.apiKey.trim();
 
@@ -70,7 +84,6 @@ export async function testAndSaveServiceConnection(
         subjectId: input.serviceType,
         payloadJson: JSON.stringify({
             serviceType: input.serviceType,
-            baseUrl: input.baseUrl,
             ok: verification.ok,
         }),
     });

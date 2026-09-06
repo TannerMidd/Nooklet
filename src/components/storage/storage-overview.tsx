@@ -1,6 +1,18 @@
 import { Badge } from "@/components/ui/badge";
+import { connectionReturnTarget } from "@/app/(workspace)/settings/connections/connection-navigation";
+import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { type StorageOverview } from "@/modules/storage/queries/get-storage-overview";
+
+export function buildStorageHealthHref(returnTo: unknown): string {
+    if (typeof returnTo !== "string" || returnTo.trim().length === 0) {
+        return "/health";
+    }
+
+    const returnTarget = connectionReturnTarget(returnTo);
+
+    return `/health?returnTo=${encodeURIComponent(returnTarget.href)}`;
+}
 
 function formatBytes(value: number | null) {
     if (value === null || !Number.isFinite(value)) {
@@ -28,12 +40,19 @@ function capacityPercent(free: number | null, total: number | null) {
 }
 
 function checkedAtLabel(value: Date | null) {
-    return value ? `Last checked ${value.toLocaleString()}` : "Awaiting the first background check";
+    return value ? `Last checked ${value.toLocaleString()}` : "No background reading yet";
 }
 
-function snapshotBadge(status: "fresh" | "stale" | "error" | "unavailable", healthy: boolean) {
+function snapshotBadge(
+    status: "fresh" | "stale" | "error" | "unavailable",
+    healthy: boolean,
+    workerResponsive?: boolean,
+) {
     if (status === "unavailable") {
-        return { label: "Checking", variant: "neutral" as const };
+        return {
+            label: workerResponsive === false ? "Waiting for worker" : "No reading yet",
+            variant: "neutral" as const,
+        };
     }
 
     if (status === "stale") {
@@ -79,17 +98,42 @@ function CapacityBar({
     );
 }
 
-export function StorageOverviewView({ overview }: { overview: StorageOverview }) {
+export function StorageOverviewView({
+    overview,
+    workerResponsive,
+    healthHref = "/health",
+}: {
+    overview: StorageOverview;
+    workerResponsive?: boolean;
+    healthHref?: string;
+}) {
     const workspace = overview.downloadWorkspace;
     const workspaceHealthy =
         workspace.reachable &&
         workspace.writable &&
         workspace.maximumNewDownloadBytes !== null &&
         workspace.maximumNewDownloadBytes > 0;
-    const workspaceBadge = snapshotBadge(workspace.snapshotStatus, workspaceHealthy);
+    const workspaceBadge = snapshotBadge(
+        workspace.snapshotStatus,
+        workspaceHealthy,
+        workerResponsive,
+    );
 
     return (
         <div className="space-y-6">
+            {workerResponsive === false ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-accent/25 bg-accent/[0.06] p-4 text-sm">
+                    <p className="text-foreground">
+                        Storage readings are waiting for a responsive background worker.
+                    </p>
+                    <Link
+                        href={healthHref}
+                        className="inline-flex min-h-11 items-center font-semibold text-accent underline-offset-4 hover:underline"
+                    >
+                        Check worker health
+                    </Link>
+                </div>
+            ) : null}
             <section
                 aria-labelledby="download-workspace-title"
                 className="rounded-2xl border border-accent/25 bg-accent/[0.06] p-4 sm:p-5"
@@ -114,7 +158,7 @@ export function StorageOverviewView({ overview }: { overview: StorageOverview })
                     <Badge variant={workspaceBadge.variant}>{workspaceBadge.label}</Badge>
                 </div>
 
-                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-5">
+                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
                     <div className="rounded-lg bg-cream/[0.04] p-3">
                         <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
                             Work path
@@ -129,22 +173,6 @@ export function StorageOverviewView({ overview }: { overview: StorageOverview })
                         </dt>
                         <dd className="mt-1 break-all font-mono text-xs leading-5 text-foreground">
                             {workspace.outputLocation.effectivePath}
-                        </dd>
-                    </div>
-                    <div className="rounded-lg bg-cream/[0.04] p-3">
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
-                            Safety + processing reserve
-                        </dt>
-                        <dd className="mt-1 font-semibold text-foreground">
-                            {formatBytes(workspace.processingReservationBytes)}
-                        </dd>
-                    </div>
-                    <div className="rounded-lg bg-cream/[0.04] p-3">
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
-                            Active download data
-                        </dt>
-                        <dd className="mt-1 font-semibold text-foreground">
-                            {formatBytes(workspace.activeDownloadBytes)}
                         </dd>
                     </div>
                     <div className="rounded-lg bg-cream/[0.04] p-3">
@@ -167,22 +195,43 @@ export function StorageOverviewView({ overview }: { overview: StorageOverview })
                 <p
                     className={`mt-3 text-sm ${workspaceHealthy ? "text-muted" : "text-accent-wine"}`}
                 >
-                    {workspaceHealthy
-                        ? workspace.statusMessage
-                        : workspace.snapshotStatus === "fresh" &&
-                            workspace.maximumNewDownloadBytes === 0
-                          ? "The workspace is below the safety reserve. Free space before starting another download."
-                          : workspace.statusMessage}
+                    {workspace.snapshotStatus === "unavailable" && workerResponsive === false
+                        ? "Start or restore the background worker to obtain a storage reading."
+                        : workspaceHealthy
+                          ? workspace.statusMessage
+                          : workspace.snapshotStatus === "fresh" &&
+                              workspace.maximumNewDownloadBytes === 0
+                            ? "The workspace is below the safety reserve. Free space before starting another download."
+                            : workspace.statusMessage}
                 </p>
                 <p className="mt-2 text-xs leading-5 text-muted">
                     {checkedAtLabel(workspace.lastCheckedAt)}. Capacity is cached so loading this
                     page never touches the mount directly.
                 </p>
-                <p className="mt-2 text-xs leading-5 text-muted">
-                    This estimate already accounts for Nooklet&apos;s 512 MB reserve and the
-                    temporary second copy needed while unpacking. The exact requirement appears
-                    before each request is queued.
-                </p>
+                <details className="mt-3 text-xs leading-5 text-muted">
+                    <summary className="min-h-11 cursor-pointer font-semibold text-foreground">
+                        How usable space is calculated
+                    </summary>
+                    <dl className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                            <dt>Safety + processing reserve</dt>
+                            <dd className="font-semibold text-foreground">
+                                {formatBytes(workspace.processingReservationBytes)}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt>Active download data</dt>
+                            <dd className="font-semibold text-foreground">
+                                {formatBytes(workspace.activeDownloadBytes)}
+                            </dd>
+                        </div>
+                    </dl>
+                    <p className="mt-2">
+                        This estimate already accounts for Nooklet&apos;s 512 MB reserve and the
+                        temporary second copy needed while unpacking. The exact requirement appears
+                        before each request is queued.
+                    </p>
+                </details>
             </section>
 
             <section aria-labelledby="final-destinations-title" className="space-y-3">
@@ -202,7 +251,7 @@ export function StorageOverviewView({ overview }: { overview: StorageOverview })
                 </div>
 
                 {overview.libraryDestinations.length === 0 ? (
-                    <EmptyState message="No movie or TV library destination is configured yet." />
+                    <EmptyState message="No movie, TV, or YouTube library destination is configured yet." />
                 ) : (
                     <ul className="grid gap-3 lg:grid-cols-2">
                         {overview.libraryDestinations.map((destination) => {
@@ -212,7 +261,11 @@ export function StorageOverviewView({ overview }: { overview: StorageOverview })
                                 destination.live &&
                                 !destination.writable
                                     ? { label: "Read-only", variant: "wine" as const }
-                                    : snapshotBadge(destination.snapshotStatus, healthy);
+                                    : snapshotBadge(
+                                          destination.snapshotStatus,
+                                          healthy,
+                                          workerResponsive,
+                                      );
 
                             return (
                                 <li
@@ -264,7 +317,10 @@ export function StorageOverviewView({ overview }: { overview: StorageOverview })
                                     <p
                                         className={`mt-2 text-xs leading-5 ${destination.live && destination.writable ? "text-muted" : "text-accent-wine"}`}
                                     >
-                                        {destination.statusMessage}
+                                        {destination.snapshotStatus === "unavailable" &&
+                                        workerResponsive === false
+                                            ? "Start or restore the background worker to check this destination."
+                                            : destination.statusMessage}
                                     </p>
                                     <p className="mt-1 text-xs leading-5 text-muted">
                                         {checkedAtLabel(destination.lastCheckedAt)}.
@@ -276,10 +332,10 @@ export function StorageOverviewView({ overview }: { overview: StorageOverview })
                 )}
             </section>
 
-            <aside className="rounded-xl border border-cream/[0.10] bg-cream/[0.03] p-4 text-sm leading-6 text-muted">
-                <p className="font-semibold text-foreground">
+            <details className="rounded-xl border border-cream/[0.10] bg-cream/[0.03] p-4 text-sm leading-6 text-muted">
+                <summary className="min-h-11 cursor-pointer font-semibold text-foreground">
                     {overview.runtime === "container" ? "Docker path guidance" : "Path guidance"}
-                </p>
+                </summary>
                 <p className="mt-1">{overview.runtimeGuidance}</p>
                 {overview.runtime === "container" ? (
                     <ol className="mt-3 list-decimal space-y-1 pl-5 text-xs">
@@ -318,7 +374,7 @@ export function StorageOverviewView({ overview }: { overview: StorageOverview })
                         ? overview.approvedMediaRoots.join(", ")
                         : "None configured. Set APPROVED_MEDIA_ROOTS before attaching folders."}
                 </p>
-            </aside>
+            </details>
         </div>
     );
 }

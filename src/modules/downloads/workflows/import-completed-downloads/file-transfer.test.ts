@@ -48,7 +48,7 @@ describe("crash-safe import file transfer", () => {
         await expect(readFile(destinationPath, "utf8")).resolves.toBe("abcdefghijkl");
     });
 
-    it("removes an owned interrupted partial and retries without a final-path collision", async () => {
+    it("retains an interrupted partial, claim, and stage without deleting any final output", async () => {
         const root = await tempRoot("recovery");
         const sourcePath = path.join(root, "source.mkv");
         const destinationPath = path.join(root, "library", "movie.mkv");
@@ -68,16 +68,14 @@ describe("crash-safe import file transfer", () => {
         await writeFile(artifacts.claimPath, `${JSON.stringify(artifacts.claim)}\n`);
         await writeFile(artifacts.temporaryPath, "stale temporary bytes");
 
-        await expect(resolveImportDestination(sourcePath, destinationPath)).resolves.toEqual({
-            kind: "ready",
-            destinationPath,
+        await expect(resolveImportDestination(sourcePath, destinationPath)).resolves.toMatchObject({
+            kind: "failed",
         });
-        await expect(access(destinationPath)).rejects.toMatchObject({ code: "ENOENT" });
-        await expect(access(artifacts.claimPath)).rejects.toMatchObject({ code: "ENOENT" });
-        await expect(access(artifacts.temporaryPath)).rejects.toMatchObject({ code: "ENOENT" });
-
-        await transferImportFile(sourcePath, destinationPath, { disableHardLinks: true });
-        await expect(readFile(destinationPath, "utf8")).resolves.toBe("complete movie bytes");
+        await expect(readFile(destinationPath, "utf8")).resolves.toBe("partial");
+        await expect(access(artifacts.claimPath)).resolves.toBeUndefined();
+        await expect(readFile(artifacts.temporaryPath, "utf8")).resolves.toBe(
+            "stale temporary bytes",
+        );
     });
 
     it("never deletes a final path replaced after an interrupted copy", async () => {
@@ -105,7 +103,7 @@ describe("crash-safe import file transfer", () => {
 
         await expect(resolveImportDestination(sourcePath, destinationPath)).resolves.toEqual({
             kind: "failed",
-            message: `Interrupted import destination changed and will not be removed: ${destinationPath}`,
+            message: `Import recovery is awaiting its durable journal: ${artifacts.claimPath}`,
         });
         await expect(readFile(destinationPath, "utf8")).resolves.toBe("unrelated replacement");
         await expect(access(artifacts.claimPath)).resolves.toBeUndefined();

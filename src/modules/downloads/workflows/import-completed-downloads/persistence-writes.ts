@@ -205,6 +205,7 @@ export function persistFailedCompletedDownloadImport(input: {
 }
 
 export function persistSuccessfulCompletedDownloadImport(input: {
+    importRunId?: string;
     userId: string;
     download: OrganizedDownload;
     match: MatchedCompletedDownload;
@@ -224,7 +225,7 @@ export function persistSuccessfulCompletedDownloadImport(input: {
         assertEpisodeOwnership(tx, input.userId, input.ownership, input.episodeMatches);
         assertFulfillmentOpen(tx, input.userId, input.ownership);
 
-        const importRunId = randomUUID();
+        const importRunId = input.importRunId ?? randomUUID();
 
         tx.insert(downloadImportRuns)
             .values({

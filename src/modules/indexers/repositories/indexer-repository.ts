@@ -3,8 +3,12 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, gt, lte } from "drizzle-orm";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
+import {
+    assertCredentialFreeUrl,
+    sanitizeExternalErrorMessage,
+} from "@/lib/security/credential-url";
 import { resolveInstanceConfigurationOwnerId } from "@/modules/instance-config/resolve-instance-configuration-owner";
-import { decryptSecretWithMetadata, encryptSecret } from "@/lib/security/secret-box";
+import { decryptSecretWithMetadata, encryptSecret, maskSecret } from "@/lib/security/secret-box";
 import {
     indexerMediaCategories,
     indexerSearchResultSecrets,
@@ -91,8 +95,12 @@ export async function createIndexer(input: {
     isEnabled?: boolean;
     priority?: number;
 }) {
+    assertCredentialFreeUrl(input.baseUrl);
     const database = ensureDatabaseReady();
     const id = randomUUID();
+    const statusMessage = input.statusMessage
+        ? sanitizeExternalErrorMessage(input.statusMessage, "Indexer status is unavailable.")
+        : null;
 
     database
         .insert(indexers)
@@ -104,7 +112,7 @@ export async function createIndexer(input: {
             baseUrl: input.baseUrl,
             apiPath: input.apiPath ?? "/api",
             status: input.status ?? "configured",
-            statusMessage: input.statusMessage ?? null,
+            statusMessage,
             isEnabled: input.isEnabled ?? true,
             priority: input.priority ?? 0,
         })
@@ -154,7 +162,11 @@ export async function updateIndexer(input: {
     isEnabled: boolean;
     priority: number;
 }) {
+    assertCredentialFreeUrl(input.baseUrl);
     const database = ensureDatabaseReady();
+    const statusMessage = input.statusMessage
+        ? sanitizeExternalErrorMessage(input.statusMessage, "Indexer status is unavailable.")
+        : null;
 
     database
         .update(indexers)
@@ -164,7 +176,7 @@ export async function updateIndexer(input: {
             baseUrl: input.baseUrl,
             apiPath: input.apiPath,
             status: input.status,
-            statusMessage: input.statusMessage ?? null,
+            statusMessage,
             isEnabled: input.isEnabled,
             priority: input.priority,
             updatedAt: new Date(),
@@ -192,12 +204,16 @@ export async function updateIndexerConnectionStatus(input: {
     lastTestedAt?: Date | null;
 }) {
     const database = ensureDatabaseReady();
+    const statusMessage = sanitizeExternalErrorMessage(
+        input.statusMessage,
+        "Indexer status is unavailable.",
+    );
 
     database
         .update(indexers)
         .set({
             status: input.status,
-            statusMessage: input.statusMessage,
+            statusMessage,
             lastTestedAt: input.lastTestedAt ?? new Date(),
             updatedAt: new Date(),
         })
@@ -398,13 +414,16 @@ export async function completeIndexerSearchRun(input: {
 }) {
     const database = ensureDatabaseReady();
     const completedAt = input.completedAt ?? new Date();
+    const errorMessage = input.errorMessage
+        ? sanitizeExternalErrorMessage(input.errorMessage, "Indexer search failed.")
+        : null;
 
     database
         .update(indexerSearchRuns)
         .set({
             status: input.status,
             resultCount: input.resultCount,
-            errorMessage: input.errorMessage ?? null,
+            errorMessage,
             completedAt,
         })
         .where(eq(indexerSearchRuns.id, input.searchRunId))
@@ -415,6 +434,147 @@ export async function completeIndexerSearchRun(input: {
         .from(indexerSearchRuns)
         .where(eq(indexerSearchRuns.id, input.searchRunId))
         .get()!;
+}
+
+type IndexerSearchResultBatchInput = {
+    indexerId?: string | null;
+    mediaType: RecommendationMediaType;
+    title: string;
+    normalizedTitle: string;
+    indexerGuid: string;
+    qualityLabel?: string | null;
+    releaseGroup?: string | null;
+    sizeBytes?: number | null;
+    publishedAt?: Date | null;
+    ageMinutes?: number | null;
+    seeders?: number | null;
+    leechers?: number | null;
+    grabs?: number | null;
+    downloadUrl: string;
+};
+
+/**
+ * Atomically persists one completed search and every result it produced.
+ * Encrypting the URLs happens before opening the transaction so an encryption
+ * failure cannot leave a running search or partial result set behind. All
+ * metadata and secret rows then commit together with the terminal run state.
+ */
+export async function persistIndexerSearchBatch(input: {
+    userId: string;
+    mediaType: RecommendationMediaType;
+    query: string;
+    normalizedKey?: string | null;
+    status: Extract<IndexerSearchRunStatus, "succeeded" | "failed">;
+    errorMessage?: string | null;
+    expiresAt: Date;
+    results: IndexerSearchResultBatchInput[];
+}) {
+    const preparedResults = input.results.map((result) => ({
+        ...result,
+        id: randomUUID(),
+        encryptedDownloadUrl: encryptSecret(result.downloadUrl),
+        maskedDownloadUrl: maskSecret(result.downloadUrl),
+    }));
+    const database = ensureDatabaseReady();
+    const searchRunId = randomUUID();
+    const completedAt = new Date();
+    const errorMessage = input.errorMessage
+        ? sanitizeExternalErrorMessage(input.errorMessage, "Indexer search failed.")
+        : null;
+
+    database.transaction((tx) => {
+        tx.delete(indexerSearchRuns)
+            .where(
+                and(
+                    eq(indexerSearchRuns.userId, input.userId),
+                    lte(indexerSearchRuns.expiresAt, new Date()),
+                ),
+            )
+            .run();
+
+        tx.insert(indexerSearchRuns)
+            .values({
+                id: searchRunId,
+                userId: input.userId,
+                indexerId: null,
+                mediaType: input.mediaType,
+                query: input.query,
+                normalizedKey: input.normalizedKey ?? null,
+                status: input.status,
+                resultCount: preparedResults.length,
+                errorMessage,
+                expiresAt: input.expiresAt,
+                completedAt,
+            })
+            .run();
+
+        // Each metadata row binds 16 parameters. Bound both statements well
+        // below bundled SQLite's 32,766-variable limit, without splitting the
+        // transaction: any later chunk failure must roll back the whole search.
+        const resultBatchSize = 500;
+
+        for (let offset = 0; offset < preparedResults.length; offset += resultBatchSize) {
+            const batch = preparedResults.slice(offset, offset + resultBatchSize);
+
+            tx.insert(indexerSearchResults)
+                .values(
+                    batch.map((result) => ({
+                        id: result.id,
+                        searchRunId,
+                        userId: input.userId,
+                        indexerId: result.indexerId ?? null,
+                        mediaType: result.mediaType,
+                        title: result.title,
+                        normalizedTitle: result.normalizedTitle,
+                        indexerGuid: result.indexerGuid,
+                        qualityLabel: result.qualityLabel ?? null,
+                        releaseGroup: result.releaseGroup ?? null,
+                        sizeBytes: result.sizeBytes ?? null,
+                        publishedAt: result.publishedAt ?? null,
+                        ageMinutes: result.ageMinutes ?? null,
+                        seeders: result.seeders ?? null,
+                        leechers: result.leechers ?? null,
+                        grabs: result.grabs ?? null,
+                    })),
+                )
+                .run();
+
+            tx.insert(indexerSearchResultSecrets)
+                .values(
+                    batch.map((result) => ({
+                        resultId: result.id,
+                        encryptedDownloadUrl: result.encryptedDownloadUrl,
+                        maskedDownloadUrl: result.maskedDownloadUrl,
+                        updatedAt: completedAt,
+                    })),
+                )
+                .run();
+        }
+    });
+
+    const searchRun = database
+        .select()
+        .from(indexerSearchRuns)
+        .where(eq(indexerSearchRuns.id, searchRunId))
+        .get();
+
+    if (!searchRun) {
+        throw new Error("Indexer search run could not be persisted.");
+    }
+
+    return {
+        searchRun,
+        results: database
+            .select()
+            .from(indexerSearchResults)
+            .where(
+                and(
+                    eq(indexerSearchResults.userId, input.userId),
+                    eq(indexerSearchResults.searchRunId, searchRunId),
+                ),
+            )
+            .all(),
+    };
 }
 
 export async function recordIndexerSearchResult(input: {

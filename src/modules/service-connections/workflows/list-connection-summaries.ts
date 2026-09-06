@@ -1,4 +1,9 @@
 import { type ServiceConnectionType } from "@/lib/database/schema";
+import {
+    inspectCredentialBearingUrl,
+    redactUrlForDisplay,
+    sanitizeExternalErrorMessage,
+} from "@/lib/security/credential-url";
 import { parsePlexMetadata } from "@/modules/service-connections/plex-metadata";
 import { serviceConnectionDefinitions } from "@/modules/service-connections/service-definitions";
 import { parseTautulliMetadata } from "@/modules/service-connections/tautulli-metadata";
@@ -14,6 +19,7 @@ export type ServiceConnectionSummary = {
     displayName: string;
     description: string;
     baseUrl: string;
+    hasEmbeddedCredentials: boolean;
     status: "disconnected" | "configured" | "verified" | "error";
     statusMessage: string;
     maskedSecret: string | null;
@@ -47,6 +53,7 @@ export async function listConnectionSummaries(userId: string) {
                 displayName: definition.displayName,
                 description: definition.description,
                 baseUrl: definition.defaultBaseUrl,
+                hasEmbeddedCredentials: false,
                 status: "disconnected",
                 statusMessage: "No saved configuration.",
                 maskedSecret: null,
@@ -67,13 +74,30 @@ export async function listConnectionSummaries(userId: string) {
                   ? record.metadata.username
                   : null;
 
+        const configuredBaseUrl = record.connection.baseUrl ?? definition.defaultBaseUrl;
+        const baseUrlInspection = inspectCredentialBearingUrl(configuredBaseUrl);
+        const hasConfiguredBaseUrl = record.connection.baseUrl !== null;
+        const hasUnsafeBaseUrl =
+            hasConfiguredBaseUrl &&
+            (!baseUrlInspection.valid || baseUrlInspection.hasEmbeddedCredentials);
+        const status = hasUnsafeBaseUrl ? "error" : record.connection.status;
+        const statusMessage = hasUnsafeBaseUrl
+            ? baseUrlInspection.issue === "invalid"
+                ? "The saved base URL is invalid. Replace it before verifying."
+                : "The saved base URL contains embedded credentials. Replace it before verifying."
+            : sanitizeExternalErrorMessage(
+                  record.connection.statusMessage ?? "Saved configuration.",
+                  "Connection status is unavailable.",
+              );
+
         return {
             serviceType: definition.serviceType,
             displayName: definition.displayName,
             description: definition.description,
-            baseUrl: record.connection.baseUrl ?? definition.defaultBaseUrl,
-            status: record.connection.status,
-            statusMessage: record.connection.statusMessage ?? "Saved configuration.",
+            baseUrl: redactUrlForDisplay(configuredBaseUrl),
+            hasEmbeddedCredentials: hasUnsafeBaseUrl,
+            status,
+            statusMessage,
             maskedSecret: record.maskedSecret,
             model:
                 typeof record.metadata?.model === "string"

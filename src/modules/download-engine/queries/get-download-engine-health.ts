@@ -1,4 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
+import { listImportJournalDiagnosticsSync } from "@/modules/downloads/workflows/import-completed-downloads/import-journal";
+import { readImportJournalIndexHealth } from "@/modules/downloads/workflows/import-completed-downloads/import-journal-index";
+import { env } from "@/lib/env";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
 import {
@@ -40,6 +43,12 @@ export type DownloadEngineHealthIssue = {
 };
 
 export type DownloadEngineHealth = {
+    importJournalRecovery?: {
+        unresolvedCount: number;
+        overflowCount: number;
+        discoveredAt: Date | null;
+        error: string | null;
+    };
     status: DownloadEngineHealthStatus;
     activeCount: number;
     stalledCount: number;
@@ -237,5 +246,30 @@ export function getDownloadEngineHealth(userId?: string, now = Date.now()) {
         )
         .all();
 
-    return evaluateDownloadEngineHealth(rows, readDownloadEngineLoopHealth(), now);
+    const health = evaluateDownloadEngineHealth(rows, readDownloadEngineLoopHealth(), now);
+    const index = readImportJournalIndexHealth(env.DOWNLOAD_ENGINE_DIR, userId);
+
+    health.importJournalRecovery = {
+        unresolvedCount: index.total,
+        overflowCount: index.overflow,
+        discoveredAt: index.discoveredAt === null ? null : new Date(index.discoveredAt),
+        error: index.error ?? null,
+    };
+    const journals = listImportJournalDiagnosticsSync(userId);
+
+    for (const journal of journals.filter((entry) => entry.state !== "committed")) {
+        health.issues.push({
+            id: `import-journal-${journal.id}`,
+            name: "Retained import output",
+            state: "runner",
+            lastProgressAt: null,
+            message: `${journal.message}${journal.journalPath ? ` Journal: ${journal.journalPath}` : ""}${journal.durabilityWarning ? ` ${journal.durabilityWarning}` : ""}`,
+        });
+    }
+
+    if (health.issues.length > 0) {
+        health.status = "degraded";
+    }
+
+    return health;
 }

@@ -20,8 +20,8 @@ import {
     discoverPublicYouTubeChannel,
     enumeratePublicYouTubeSource,
     getYouTubeRequestOptions,
+    getYouTubeVideosPage,
     listYouTubeSources,
-    listYouTubeVideos,
     probePublicYouTubeVideo,
     resolvePublicYouTubeUrl,
     searchPublicYouTube,
@@ -156,43 +156,22 @@ export default async function YouTubeLibraryPage({ searchParams }: YouTubeLibrar
     }
 
     const params = parseYouTubeLibrarySearchParams(await searchParams);
-    const [options, sources, baseVideos, discovery] = await Promise.all([
+    const [options, sources, videoPage, discovery] = await Promise.all([
         getYouTubeRequestOptions(session.user.id),
         listYouTubeSources(session.user.id),
-        listYouTubeVideos(session.user.id),
+        getYouTubeVideosPage(session.user.id, {
+            sourceId: params.sourceId,
+            page: params.page,
+        }),
         params.view === "search"
             ? discoverYouTube(params.q, session.user.id)
             : Promise.resolve({ kind: "empty" } as const),
     ]);
-    const membershipLists =
-        params.view === "videos"
-            ? await Promise.all(
-                  sources.map((source) =>
-                      listYouTubeVideos(session.user.id, { sourceId: source.id }),
-                  ),
-              )
-            : [];
-    const membershipByVideoId = new Map(
-        membershipLists
-            .flat()
-            .sort((left, right) => Number(left.remotePresent) - Number(right.remotePresent))
-            .map((video) => [video.id, video]),
-    );
-    const videos = baseVideos.map((video) => {
-        const membership = membershipByVideoId.get(video.id);
-
-        return membership
-            ? {
-                  ...video,
-                  sourceId: membership.sourceId,
-                  remotePresent: membership.remotePresent,
-              }
-            : video;
-    });
+    const videos = videoPage.videos;
     const tabs = [
         { value: "search", label: "Search" },
         { value: "sources", label: `Monitored sources ${sources.length}` },
-        { value: "videos", label: `Videos ${videos.length}` },
+        { value: "videos", label: `Videos ${videoPage.pagination.total}` },
     ] as const;
 
     return (
@@ -283,7 +262,39 @@ export default async function YouTubeLibraryPage({ searchParams }: YouTubeLibrar
                             remote playlist.
                         </p>
                     </div>
-                    <YouTubeVideosContent videos={videos} />
+                    <form
+                        action="/library/youtube"
+                        method="get"
+                        className="flex max-w-2xl flex-col gap-2 sm:flex-row sm:items-end"
+                    >
+                        <input type="hidden" name="view" value="videos" />
+                        <label className="min-w-0 flex-1 text-sm font-medium text-foreground">
+                            Monitored source
+                            <select
+                                name="sourceId"
+                                defaultValue={params.sourceId ?? ""}
+                                className="mt-1.5 flex min-h-11 w-full rounded-lg border border-cream/[0.14] bg-panel px-3 py-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                            >
+                                <option value="">All sources and individual videos</option>
+                                {sources.map((source) => (
+                                    <option key={source.id} value={source.id}>
+                                        {source.title}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <button
+                            type="submit"
+                            className="inline-flex min-h-11 items-center justify-center rounded-lg border border-cream/[0.14] px-5 text-sm font-semibold text-foreground hover:bg-cream/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                        >
+                            Apply filter
+                        </button>
+                    </form>
+                    <YouTubeVideosContent
+                        videos={videos}
+                        sourceId={params.sourceId}
+                        pagination={videoPage.pagination}
+                    />
                 </section>
             )}
         </div>

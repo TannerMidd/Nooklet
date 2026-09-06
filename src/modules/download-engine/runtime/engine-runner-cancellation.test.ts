@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { recoverImportJournals } from "@/modules/downloads/workflows/import-completed-downloads/import-journal";
 
 const mocks = vi.hoisted(() => ({
     claimQueuedEngineDownload: vi.fn(),
@@ -9,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     finalizeDownload: vi.fn(),
     inspectLiveEngineCapacity: vi.fn(),
     listEngineDownloadArtifactStates: vi.fn(),
+    listEngineDownloadsForFinalizationRecovery: vi.fn(),
     listEngineDownloadsWithControlIntent: vi.fn(),
     parseNzb: vi.fn(),
     recordDownloadEngineLoopFailed: vi.fn(),
@@ -16,6 +18,7 @@ const mocks = vi.hoisted(() => ({
     recordDownloadEngineLoopSucceeded: vi.fn(),
     readEngineDownloadRuntimeState: vi.fn(),
     readdir: vi.fn(),
+    recoverFinalizedEngineDownload: vi.fn(),
     recoverStrandedEngineDownloads: vi.fn(),
     resolveEngineDownloadPayload: vi.fn(),
     resolveUsenetServer: vi.fn(),
@@ -25,7 +28,15 @@ const mocks = vi.hoisted(() => ({
     updateEngineDownloadProgress: vi.fn(),
 }));
 
-vi.mock("node:fs/promises", () => ({ readdir: mocks.readdir, rm: mocks.rm }));
+vi.mock("@/modules/downloads/workflows/import-completed-downloads/import-journal", () => ({
+    recoverImportJournals: vi.fn(async () => undefined),
+}));
+
+vi.mock("node:fs/promises", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("node:fs/promises")>()),
+    readdir: mocks.readdir,
+    rm: mocks.rm,
+}));
 vi.mock("@/lib/env", () => ({
     env: {
         DOWNLOAD_ENGINE_DIR: "C:\\nooklet-engine-test",
@@ -48,10 +59,14 @@ vi.mock("@/modules/download-engine/nzb/parse-nzb", () => ({ parseNzb: mocks.pars
 vi.mock("@/modules/download-engine/queue/engine-repository", () => ({
     claimQueuedEngineDownload: mocks.claimQueuedEngineDownload,
     deleteCancelledEngineDownload: mocks.deleteCancelledEngineDownload,
+    isEngineDownloadPostProcessing: (state: string) =>
+        state === "repairing" || state === "extracting",
+    listEngineDownloadsForFinalizationRecovery: mocks.listEngineDownloadsForFinalizationRecovery,
     listEngineDownloadsWithControlIntent: mocks.listEngineDownloadsWithControlIntent,
     markEngineDownloadWaitingForCapacity: mocks.markEngineDownloadWaitingForCapacity,
     peekNextQueuedEngineDownload: mocks.peekNextQueuedEngineDownload,
     readEngineDownloadRuntimeState: mocks.readEngineDownloadRuntimeState,
+    recoverFinalizedEngineDownload: mocks.recoverFinalizedEngineDownload,
     recoverStrandedEngineDownloads: mocks.recoverStrandedEngineDownloads,
     resolveEngineDownloadPayload: mocks.resolveEngineDownloadPayload,
     setEngineDownloadState: mocks.setEngineDownloadState,
@@ -91,9 +106,11 @@ const download = {
 beforeEach(() => {
     vi.clearAllMocks();
     mocks.listEngineDownloadsWithControlIntent.mockResolvedValue([]);
+    mocks.listEngineDownloadsForFinalizationRecovery.mockResolvedValue([]);
     mocks.listEngineDownloadArtifactStates.mockResolvedValue([]);
     mocks.readdir.mockResolvedValue([]);
     mocks.recoverStrandedEngineDownloads.mockResolvedValue(undefined);
+    mocks.recoverFinalizedEngineDownload.mockResolvedValue(true);
     mocks.inspectLiveEngineCapacity.mockResolvedValue({ sufficient: true });
     mocks.markEngineDownloadWaitingForCapacity.mockResolvedValue(true);
     mocks.claimQueuedEngineDownload.mockImplementation(async (id: string) =>
@@ -111,6 +128,80 @@ beforeEach(() => {
 });
 
 describe("engine runner durable cancellation fencing", () => {
+    it.each(["queued", "paused", "completed"])(
+        "reconciles a new %s cancellation after both startup latches are set",
+        async (state) => {
+            const globals = globalThis as typeof globalThis & {
+                __nookletEngine: {
+                    recovered?: boolean;
+                    running?: boolean;
+                    activeDownloadId?: string;
+                };
+            };
+            const previous = { ...globals.__nookletEngine };
+
+            Object.assign(globals.__nookletEngine, {
+                recovered: true,
+                running: true,
+                activeDownloadId: undefined,
+            });
+            mocks.listEngineDownloadsWithControlIntent.mockResolvedValue([{ ...download, state }]);
+
+            try {
+                await ensureEngineRunnerStarted();
+                expect(mocks.deleteCancelledEngineDownload).toHaveBeenCalledWith(
+                    download.userId,
+                    download.id,
+                );
+                const recovery = vi.mocked(recoverImportJournals);
+                const scopedIndex = recovery.mock.calls.findIndex(
+                    (args) => args[0]?.downloadId === download.id,
+                );
+
+                expect(scopedIndex).toBeGreaterThanOrEqual(0);
+                expect(recovery.mock.invocationCallOrder[scopedIndex]).toBeLessThan(
+                    mocks.rm.mock.invocationCallOrder[0],
+                );
+            } finally {
+                Object.assign(globals.__nookletEngine, {
+                    recovered: previous.recovered,
+                    running: previous.running,
+                    activeDownloadId: previous.activeDownloadId,
+                });
+            }
+        },
+    );
+
+    it("retries a post-startup cancellation after a source cleanup error", async () => {
+        const globals = globalThis as typeof globalThis & {
+            __nookletEngine: { recovered?: boolean; running?: boolean; activeDownloadId?: string };
+        };
+        const previous = { ...globals.__nookletEngine };
+
+        Object.assign(globals.__nookletEngine, {
+            recovered: true,
+            running: true,
+            activeDownloadId: undefined,
+        });
+        mocks.listEngineDownloadsWithControlIntent.mockResolvedValue([
+            { ...download, state: "paused" },
+        ]);
+        mocks.rm.mockRejectedValueOnce(new Error("source temporarily locked"));
+
+        try {
+            await expect(ensureEngineRunnerStarted()).rejects.toThrow("temporarily locked");
+            expect(mocks.deleteCancelledEngineDownload).not.toHaveBeenCalled();
+            await ensureEngineRunnerStarted();
+            expect(mocks.deleteCancelledEngineDownload).toHaveBeenCalledOnce();
+        } finally {
+            Object.assign(globals.__nookletEngine, {
+                recovered: previous.recovered,
+                running: previous.running,
+                activeDownloadId: previous.activeDownloadId,
+            });
+        }
+    });
+
     it("parks interrupted downloads before starting the drain loop", async () => {
         await recoverInterruptedEngineDownloads();
 

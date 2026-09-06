@@ -22,15 +22,30 @@ describe("normalizeWatchHistoryTitle", () => {
         expect(normalizeWatchHistoryTitle("   ")).toBe("");
     });
 
+    it("uses a stable fallback for symbol-only titles", () => {
+        expect(normalizeWatchHistoryTitle("💯")).toBe("symbol:1f4af");
+        expect(normalizeWatchHistoryTitle("💯")).not.toBe(normalizeWatchHistoryTitle("1f4af"));
+        expect(normalizeWatchHistoryTitle("💯")).not.toBe(normalizeWatchHistoryTitle("🦄"));
+    });
+
     it("normalizes unicode punctuation to spaces and merges them", () => {
         expect(normalizeWatchHistoryTitle("Spider-Man: Far From Home")).toBe(
             "spider man far from home",
         );
     });
 
-    it("treats accented latin characters as non-ascii and strips them (current behavior)", () => {
-        // The normalizer keeps only [a-z0-9]; documenting the behavior so future locale work is intentional.
-        expect(normalizeWatchHistoryTitle("Amélie")).toBe("am lie");
+    it("preserves letters from supported unicode scripts", () => {
+        expect(normalizeWatchHistoryTitle("Amélie 東京")).toBe("amélie 東京");
+    });
+
+    it("keeps distinct non-latin titles distinct during manual deduplication", () => {
+        const result = parseManualWatchHistoryEntries(
+            "movie",
+            "東京物語\n東京\n\u0645\u062f\u064a\u0646\u0629",
+        );
+
+        expect(result).toHaveLength(3);
+        expect(new Set(result.map((entry) => entry.normalizedKey)).size).toBe(3);
     });
 });
 

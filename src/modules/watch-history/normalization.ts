@@ -9,13 +9,28 @@ export type ParsedManualWatchHistoryEntry = {
 };
 
 export function normalizeWatchHistoryTitle(value: string) {
-    return value
+    const normalizedValue = value.normalize("NFKC");
+    const normalizedTitle = normalizedValue
         .trim()
         .toLowerCase()
         .replace(/^[*-]\s+/, "")
-        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/[^\p{L}\p{N}\p{M}]+/gu, " ")
         .replace(/\s+/g, " ")
         .trim();
+
+    if (normalizedTitle.length > 0) {
+        return normalizedTitle;
+    }
+
+    const trimmedValue = normalizedValue.trim().toLowerCase();
+
+    if (trimmedValue.length === 0) {
+        return "";
+    }
+
+    return `symbol:${Array.from(trimmedValue)
+        .map((character) => character.codePointAt(0)?.toString(16) ?? "0")
+        .join("-")}`;
 }
 
 export function buildWatchHistoryNormalizedKey(

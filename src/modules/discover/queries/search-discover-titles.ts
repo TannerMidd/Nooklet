@@ -41,7 +41,10 @@ export async function searchDiscoverTitles(
         ...tmdbConnection,
         mediaType: parsed.mediaType,
         query: parsed.query,
-    });
+    }).catch(() => ({
+        ok: false as const,
+        message: "The metadata service could not complete this search. Try again.",
+    }));
 
     if (!result.ok) {
         return {

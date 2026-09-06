@@ -1,0 +1,12 @@
+
+> nooklet@0.1.0 test
+> vitest run --environment node --exclude=e2e/** --exclude=scripts/**/*.test.mjs
+
+
+ RUN  v4.1.10 F:/Development/Nooklet/Nooklet
+
+
+ Test Files  288 passed (288)
+      Tests  1863 passed (1863)
+   Start at  18:42:25
+   Duration  38.10s (transform 42.80s, setup 15.15s, import 261.86s, tests 136.73s, environment 44.41s)

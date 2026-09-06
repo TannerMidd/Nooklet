@@ -31,7 +31,34 @@ export function parseCalendarDate(value: string | null | undefined): Date | null
 
     const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
 
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+    if (Number.isNaN(parsed.getTime()) || toCalendarDate(parsed) !== value) {
+        return null;
+    }
+
+    return parsed;
+}
+
+export type EpisodeAirDateStatus = "aired" | "upcoming" | "unknown";
+
+/**
+ * Classifies an episode's calendar date for presentation and filtering.
+ *
+ * `episodeHasAired` intentionally treats an unknown date as aired because the
+ * missing-release search can still be useful when metadata is incomplete. UI
+ * surfaces need a third state so an episode with no date is not presented as a
+ * known missing or upcoming episode.
+ */
+export function episodeAvailability(
+    airDate: string | null | undefined,
+    today: string,
+): EpisodeAirDateStatus {
+    const parsed = parseCalendarDate(airDate);
+
+    if (!airDate || !parsed || toCalendarDate(parsed) !== airDate) {
+        return "unknown";
+    }
+
+    return airDate <= today ? "aired" : "upcoming";
 }
 
 /**

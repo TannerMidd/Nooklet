@@ -37,6 +37,7 @@ vi.mock("@/modules/youtube/public", () => {
         discoverPublicYouTubeChannel: vi.fn(),
         enumeratePublicYouTubeSource: vi.fn(),
         getYouTubeRequestOptions: vi.fn(),
+        getYouTubeVideosPage: vi.fn(),
         listYouTubeSources: vi.fn(),
         listYouTubeVideos: vi.fn(),
         probePublicYouTubeVideo: vi.fn(),

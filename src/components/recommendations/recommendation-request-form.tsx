@@ -105,6 +105,7 @@ export function RecommendationRequestForm({
     const [defaultsStatus, setDefaultsStatus] = useState<"idle" | "saving" | "saved" | "error">(
         "idle",
     );
+    const [defaultsErrorMessage, setDefaultsErrorMessage] = useState<string | null>(null);
     const lastSubmittedDefaultsRef = useRef(
         buildRequestDefaultsKey(defaultResultCount, defaultTemperature, defaultModel),
     );
@@ -122,22 +123,35 @@ export function RecommendationRequestForm({
         const nextDefaultsKey = buildRequestDefaultsKey(requestedCount, temperature, aiModel);
 
         if (nextDefaultsKey === lastSubmittedDefaultsRef.current) {
+            setDefaultsErrorMessage(null);
             setDefaultsStatus("saved");
 
             return;
         }
 
         setDefaultsStatus("saving");
+        setDefaultsErrorMessage(null);
 
         try {
-            await submitRecommendationDefaultsAction({
+            const result = (await submitRecommendationDefaultsAction({
                 requestedCount,
                 temperature,
                 aiModel: aiModel.trim().length > 0 ? aiModel.trim() : undefined,
-            });
+            })) as { ok: true } | { ok: false; message?: string } | undefined;
+
+            if (!result || !result.ok) {
+                setDefaultsErrorMessage(
+                    result?.message ?? "Nooklet could not save these defaults. Try again.",
+                );
+                setDefaultsStatus("error");
+
+                return;
+            }
+
             lastSubmittedDefaultsRef.current = nextDefaultsKey;
             setDefaultsStatus("saved");
         } catch {
+            setDefaultsErrorMessage("Nooklet could not save these defaults. Try again.");
             setDefaultsStatus("error");
         }
     }
@@ -173,6 +187,7 @@ export function RecommendationRequestForm({
 
     function handleModelChange(nextModel: string) {
         setSelectedModel(nextModel);
+        setDefaultsErrorMessage(null);
         setDefaultsStatus("idle");
     }
 
@@ -238,6 +253,9 @@ export function RecommendationRequestForm({
                 className="flex flex-wrap items-center gap-2 pl-8"
                 role="group"
                 aria-label="Quick genre selectors"
+                aria-describedby={
+                    state.fieldErrors?.selectedGenres ? "recommendation-genres-error" : undefined
+                }
             >
                 {genreOptions.map((option) => {
                     const isSelected = selectedGenres.includes(option.value);
@@ -268,7 +286,13 @@ export function RecommendationRequestForm({
                 </p>
             ) : null}
             {state.fieldErrors?.selectedGenres ? (
-                <p className="pl-8 text-sm text-accent-wine">{state.fieldErrors.selectedGenres}</p>
+                <p
+                    id="recommendation-genres-error"
+                    role="alert"
+                    className="pl-8 text-sm text-accent-wine"
+                >
+                    {state.fieldErrors.selectedGenres}
+                </p>
             ) : null}
 
             <details className="ml-8 rounded-xl border border-cream/[0.08] bg-cream/[0.02]">
@@ -280,7 +304,18 @@ export function RecommendationRequestForm({
                         <span className="text-xs font-semibold text-foreground">AI model</span>
                         <SearchableSelect
                             name="aiModel"
+                            id="recommendation-ai-model"
                             ariaLabel="AI model"
+                            ariaDescribedBy={
+                                state.fieldErrors?.aiModel
+                                    ? "recommendation-ai-model-error"
+                                    : undefined
+                            }
+                            ariaErrormessage={
+                                state.fieldErrors?.aiModel
+                                    ? "recommendation-ai-model-error"
+                                    : undefined
+                            }
                             value={selectedModel}
                             onChange={handleModelChange}
                             options={availableModels}
@@ -299,15 +334,28 @@ export function RecommendationRequestForm({
                     <label className="w-36 space-y-1.5">
                         <span className="text-xs font-semibold text-foreground">Creativity</span>
                         <Input
+                            id="recommendation-temperature"
                             name="temperature"
                             type="number"
                             min={0}
                             max={2}
                             step={0.1}
                             defaultValue={defaultTemperature.toFixed(1)}
-                            onChange={() => setDefaultsStatus("idle")}
+                            onChange={() => {
+                                setDefaultsErrorMessage(null);
+                                setDefaultsStatus("idle");
+                            }}
                             aria-invalid={Boolean(state.fieldErrors?.temperature)}
-                            aria-describedby="recommendation-creativity-help"
+                            aria-errormessage={
+                                state.fieldErrors?.temperature
+                                    ? "recommendation-temperature-error"
+                                    : undefined
+                            }
+                            aria-describedby={
+                                state.fieldErrors?.temperature
+                                    ? "recommendation-creativity-help recommendation-temperature-error"
+                                    : "recommendation-creativity-help"
+                            }
                         />
                         <span
                             id="recommendation-creativity-help"
@@ -322,13 +370,28 @@ export function RecommendationRequestForm({
                             Number of picks
                         </span>
                         <Input
+                            id="recommendation-requested-count"
                             name="requestedCount"
                             type="number"
                             min={1}
                             max={20}
+                            step={1}
                             defaultValue={defaultResultCount}
-                            onChange={() => setDefaultsStatus("idle")}
+                            onChange={() => {
+                                setDefaultsErrorMessage(null);
+                                setDefaultsStatus("idle");
+                            }}
                             aria-invalid={Boolean(state.fieldErrors?.requestedCount)}
+                            aria-errormessage={
+                                state.fieldErrors?.requestedCount
+                                    ? "recommendation-requested-count-error"
+                                    : undefined
+                            }
+                            aria-describedby={
+                                state.fieldErrors?.requestedCount
+                                    ? "recommendation-requested-count-error"
+                                    : undefined
+                            }
                         />
                     </label>
                     <Button
@@ -340,23 +403,44 @@ export function RecommendationRequestForm({
                     >
                         {defaultsStatus === "saving" ? "Saving…" : "Save as defaults"}
                     </Button>
-                    <p role="status" className="w-full text-sm text-muted">
+                    <p
+                        role={defaultsStatus === "error" ? "alert" : "status"}
+                        className="w-full text-sm text-muted"
+                    >
                         {defaultsStatus === "saved"
                             ? "Defaults saved."
                             : defaultsStatus === "error"
-                              ? "Check the advanced values and try again."
+                              ? (defaultsErrorMessage ?? "Check the advanced values and try again.")
                               : "These values apply to this request; save only when you want them reused."}
                     </p>
                 </div>
             </details>
             {state.fieldErrors?.aiModel ? (
-                <p className="pl-8 text-sm text-accent-wine">{state.fieldErrors.aiModel}</p>
+                <p
+                    id="recommendation-ai-model-error"
+                    role="alert"
+                    className="pl-8 text-sm text-accent-wine"
+                >
+                    {state.fieldErrors.aiModel}
+                </p>
             ) : null}
             {state.fieldErrors?.temperature ? (
-                <p className="pl-8 text-sm text-accent-wine">{state.fieldErrors.temperature}</p>
+                <p
+                    id="recommendation-temperature-error"
+                    role="alert"
+                    className="pl-8 text-sm text-accent-wine"
+                >
+                    {state.fieldErrors.temperature}
+                </p>
             ) : null}
             {state.fieldErrors?.requestedCount ? (
-                <p className="pl-8 text-sm text-accent-wine">{state.fieldErrors.requestedCount}</p>
+                <p
+                    id="recommendation-requested-count-error"
+                    role="alert"
+                    className="pl-8 text-sm text-accent-wine"
+                >
+                    {state.fieldErrors.requestedCount}
+                </p>
             ) : null}
 
             {state.message ? (

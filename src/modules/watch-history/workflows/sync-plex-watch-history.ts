@@ -2,19 +2,21 @@ import { listPlexHistory } from "@/lib/integrations/plex";
 import { decryptSecret } from "@/lib/security/secret-box";
 import { parsePlexMetadata } from "@/modules/service-connections/plex-metadata";
 import { findServiceConnectionByType } from "@/modules/service-connections/public";
-import { createAuditEvent } from "@/modules/users/public";
 import { type PlexWatchHistorySyncInput } from "@/modules/watch-history/schemas/plex-watch-history-sync";
 import {
-    completeWatchHistorySyncRun,
     createWatchHistorySyncRun,
     failWatchHistorySyncRun,
-    replaceWatchHistoryItemsForSource,
+    replaceWatchHistoryItemsAndCompleteSyncRun,
     upsertWatchHistorySource,
 } from "@/modules/watch-history/repositories/watch-history-repository";
 import {
     normalizeWatchHistorySyncItems,
     resolveWatchHistoryFetchLimit,
 } from "@/modules/watch-history/workflows/watch-history-sync-helpers";
+import {
+    describeWatchHistorySyncError,
+    recordWatchHistorySyncAudit,
+} from "@/modules/watch-history/workflows/watch-history-sync-audit";
 
 const plexSourceDisplayName = "Plex watch history";
 
@@ -97,15 +99,22 @@ export async function syncPlexWatchHistory(
         });
         const items = normalizeWatchHistorySyncItems(input.mediaType, rawItems, input.importLimit);
 
-        await replaceWatchHistoryItemsForSource({
+        const completed = await replaceWatchHistoryItemsAndCompleteSyncRun({
+            runId: syncRun.id,
             sourceId: source.id,
             userId,
             mediaType: input.mediaType,
             items,
         });
 
-        await completeWatchHistorySyncRun(syncRun.id, items.length);
-        await createAuditEvent({
+        if (!completed) {
+            return {
+                ok: false,
+                message: "This Plex watch-history sync was already finalized.",
+            };
+        }
+
+        await recordWatchHistorySyncAudit({
             actorUserId: userId,
             eventType: "watch-history.sync.succeeded",
             subjectType: "watch-history-source",
@@ -130,8 +139,16 @@ export async function syncPlexWatchHistory(
         const message =
             error instanceof Error ? error.message : "Watch-history sync failed unexpectedly.";
 
-        await failWatchHistorySyncRun(syncRun.id, message);
-        await createAuditEvent({
+        const failed = await failWatchHistorySyncRun(syncRun.id, message);
+
+        if (!failed) {
+            return {
+                ok: false,
+                message: "This Plex watch-history sync was already finalized.",
+            };
+        }
+
+        await recordWatchHistorySyncAudit({
             actorUserId: userId,
             eventType: "watch-history.sync.failed",
             subjectType: "watch-history-source",
@@ -141,7 +158,7 @@ export async function syncPlexWatchHistory(
                 mediaType: input.mediaType,
                 selectedUserId: selectedUser.id,
                 selectedUserName: selectedUser.name,
-                error: message,
+                error: describeWatchHistorySyncError(error),
             }),
         });
 

@@ -1,0 +1,110 @@
+[
+  {
+    "sha256": "8212FEE462E0BC4D5DB8E3579D9521FCBF9A9C156E97AD9CC6AA5C2A911D6F5E",
+    "path": "src/modules/jobs/public.ts"
+  },
+  {
+    "sha256": "8739E1FC4775D2DEFFB037E49227B839D3F7C98C29DDF022091F3B31828508F4",
+    "path": "src/modules/jobs/repositories/job-repository.ts"
+  },
+  {
+    "sha256": "77F860F546A9C644F7108989AFC07CDAC328E146A231D82211777966554CF409",
+    "path": "src/modules/media-library/commands/request-media-title.test.ts"
+  },
+  {
+    "sha256": "1862A621C431A87E2E5A5DA438471E8593B69A875B543C3C6EE473EEAD2915FA",
+    "path": "src/modules/media-library/commands/request-media-title.ts"
+  },
+  {
+    "sha256": "25A699CF6B51791F581306443A171C70DB8BAD81D0A62AC8413447DFE4D337A9",
+    "path": "src/modules/media-library/repositories/media-library-repository.test.ts"
+  },
+  {
+    "sha256": "197BE030A0ACDD5086D08483CDCA16491ACEC8D479B8148ECE1709F10C82F6AE",
+    "path": "src/modules/media-library/repositories/media-library-repository.ts"
+  },
+  {
+    "sha256": "7A16EA9D630D10E67FC2779770EBE738999C66ABDAE441644CD218777F1BF047",
+    "path": "src/modules/recommendations/repositories/recommendation-repository.test.ts"
+  },
+  {
+    "sha256": "4852F217D3CEE952785D6E37BD98F63F990AA92DCE63FE14C9F362163AD4FB38",
+    "path": "src/modules/recommendations/repositories/recommendation-repository.ts"
+  },
+  {
+    "sha256": "3344A1D51B5504A6CBBA759B75184C7B0A0737702449E767CD055A232F148CE6",
+    "path": "src/modules/recommendations/workflows/add-recommendation-to-library.test.ts"
+  },
+  {
+    "sha256": "4491261A916C003110E399B7105FE27B1651152EF1515B20C40C61467DBA0C93",
+    "path": "src/modules/recommendations/workflows/add-recommendation-to-library.ts"
+  },
+  {
+    "sha256": "C6A06767D22472A986147B21228319B07360D159D289C56DC07DEEFB21680B26",
+    "path": "src/modules/recommendations/workflows/create-recommendation-run.test.ts"
+  },
+  {
+    "sha256": "2A6D2D17EA7F593C6AD353A3E58422951723F98ECE47B9E2617617F566648CFC",
+    "path": "src/modules/recommendations/workflows/create-recommendation-run.ts"
+  },
+  {
+    "sha256": "3D815020133F474EAFB07348F6829E1E72DBE737283112ED0E5914EBB715FE6E",
+    "path": "src/modules/watch-history/normalization.test.ts"
+  },
+  {
+    "sha256": "DE10CA6FABC29F100DC3A4ED5B6F1345AFA7142588E59AEFE72799A965DDE97B",
+    "path": "src/modules/watch-history/normalization.ts"
+  },
+  {
+    "sha256": "C86EE3447AA1967D101AF2F13051C18D94420AA293AD3BE621929E1D34FC19BD",
+    "path": "src/modules/watch-history/queries/get-watch-history-overview.ts"
+  },
+  {
+    "sha256": "0CAF85C797A730BAB5FDE26C68A895A7045779218AAA04A6447CB513882F9D00",
+    "path": "src/modules/watch-history/repositories/watch-history-repository.test.ts"
+  },
+  {
+    "sha256": "D740C7A460E21D5226D4DCC7E04670C77ACA9C22631C5A71A6CA3F3B57C0FC52",
+    "path": "src/modules/watch-history/repositories/watch-history-repository.ts"
+  },
+  {
+    "sha256": "6F51E88BADAEE3D5F07DF254242913B3C1A148005A30F5E9B0171332A8C56514",
+    "path": "src/modules/watch-history/workflows/sync-manual-watch-history.test.ts"
+  },
+  {
+    "sha256": "66F570B7B1F511CE252131F7866FFD1A85AC0B71A57D60F5154FE9FCCDE778DD",
+    "path": "src/modules/watch-history/workflows/sync-manual-watch-history.ts"
+  },
+  {
+    "sha256": "1BF5991E0EECFA80D63C65053CC066ACF639CF38D286CE126748BB7FC8AF9386",
+    "path": "src/modules/watch-history/workflows/sync-plex-watch-history.test.ts"
+  },
+  {
+    "sha256": "C61E64CA88AE7F60A70EBD2A939B69241B8E84E342377011F16167A797CB4810",
+    "path": "src/modules/watch-history/workflows/sync-plex-watch-history.ts"
+  },
+  {
+    "sha256": "FF5B8EEC11C68339D44D74184DD794E5E6445FC15F4A27F4462285EACEF68571",
+    "path": "src/modules/watch-history/workflows/sync-tautulli-watch-history.test.ts"
+  },
+  {
+    "sha256": "DA19302A8BED16E780E82866D2852472DBFBDC5AEFE9C6CE7F6E018A230D13A2",
+    "path": "src/modules/watch-history/workflows/sync-tautulli-watch-history.ts"
+  },
+  {
+    "sha256": "38378C3C7C3F7FD73C86356DA8DA485A06AAC0419118A05C29A45B179E7FEC03",
+    "path": "src/modules/watch-history/workflows/sync-trakt-watch-history.test.ts"
+  },
+  {
+    "sha256": "78420272B08767B8C10D55A66B5EF09A967A1D690989EF6A0A793C1BA3DBB8A4",
+    "path": "src/modules/watch-history/workflows/sync-trakt-watch-history.ts"
+  },
+  {
+    "sha256": "5001A9FB6BCCF9EF14E7BB34C9C674D2B94A7625FDC06045833CA36FA2FAA13A",
+    "path": "src/modules/watch-history/workflows/watch-history-sync-audit.test.ts"
+  },
+  {
+    "sha256": "59318C27ABCE952E343FCD064312B542F0E32D03A162DACFED853483C66E3F60",
+    "path": "src/modules/watch-history/workflows/watch-history-sync-audit.ts"
+  }
+]

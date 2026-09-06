@@ -90,5 +90,74 @@ describe("listLibraryOverview", () => {
         });
         expect(overview.libraries[0]?.name).toBe("Movies");
         expect(overview.libraries[0]?.paths[0]?.fileCount).toBe(1);
+        expect(overview.mediaTotals).toEqual({
+            movie: { titles: 1, files: 1 },
+            tv: { titles: 0, files: 0 },
+        });
+    });
+
+    it("includes unassigned catalog titles and files in user-scoped media totals", async () => {
+        const userId = await seedUser();
+        const otherUserId = await seedUser();
+
+        for (const mediaType of ["movie", "tv"] as const) {
+            const title = await upsertMediaTitle({
+                userId,
+                libraryId: null,
+                mediaType,
+                title: `Unassigned ${mediaType}`,
+                sortTitle: `unassigned ${mediaType}`,
+                normalizedKey: `unassigned-${mediaType}`,
+                status: "available",
+            });
+            const otherTitle = await upsertMediaTitle({
+                userId: otherUserId,
+                libraryId: null,
+                mediaType,
+                title: `Other ${mediaType}`,
+                sortTitle: `other ${mediaType}`,
+                normalizedKey: `other-${mediaType}`,
+                status: "available",
+            });
+
+            if (!title || !otherTitle) {
+                throw new Error("title missing");
+            }
+
+            const fileCount = mediaType === "tv" ? 2 : 1;
+
+            for (let index = 0; index < fileCount; index += 1) {
+                await recordMediaFile({
+                    userId,
+                    titleId: title.id,
+                    libraryPathId: null,
+                    mediaType,
+                    fileKind: mediaType === "tv" ? "episode" : "movie",
+                    filePath: `F:/Unassigned/${mediaType}-${index}.mkv`,
+                    relativePath: `${mediaType}-${index}.mkv`,
+                });
+            }
+
+            await recordMediaFile({
+                userId: otherUserId,
+                titleId: otherTitle.id,
+                libraryPathId: null,
+                mediaType,
+                fileKind: mediaType === "tv" ? "episode" : "movie",
+                filePath: `F:/Other/${mediaType}.mkv`,
+                relativePath: `${mediaType}.mkv`,
+            });
+        }
+
+        const overview = await listLibraryOverview(userId);
+
+        expect(overview.mediaTotals).toEqual({
+            movie: { titles: 1, files: 1 },
+            tv: { titles: 1, files: 2 },
+        });
+        expect(overview.totals.titles).toBe(2);
+        expect(overview.totals.files).toBe(3);
+        expect(overview.libraries.every((library) => library.titleCount === 0)).toBe(true);
+        expect(overview.libraries.every((library) => library.fileCount === 0)).toBe(true);
     });
 });

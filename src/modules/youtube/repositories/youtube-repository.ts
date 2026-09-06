@@ -21,9 +21,12 @@ import { YouTubeDomainError } from "@/modules/youtube/errors";
 import type {
     YouTubeDownloadActivityDTO,
     YouTubeEnumerationDTO,
+    YouTubeQueueOutcome,
+    YouTubeQueueSummary,
     YouTubeRequestOptionsDTO,
     YouTubeSourceDTO,
     YouTubeSourceSummaryDTO,
+    YouTubeVideoPage,
     YouTubeVideoDTO,
     YouTubeVideoPageItemDTO,
 } from "@/modules/youtube/types";
@@ -31,8 +34,16 @@ import type {
 export type YouTubeSourceRecord = typeof youtubeSources.$inferSelect;
 export type YouTubeVideoRecord = typeof youtubeVideos.$inferSelect;
 export type YouTubeDownloadRecord = typeof youtubeDownloads.$inferSelect;
+export type YouTubeQueueItemResult = YouTubeDownloadRecord & {
+    inserted: boolean;
+    outcome: YouTubeQueueOutcome;
+};
 type YouTubeDatabase = ReturnType<typeof ensureDatabaseReady>;
 type YouTubeTransaction = Parameters<Parameters<YouTubeDatabase["transaction"]>[0]>[0];
+type YouTubeDatabaseReader = Pick<YouTubeDatabase, "select">;
+
+export const youtubeVideoPageSize = 50;
+const maximumYouTubeVideoPageSize = 100;
 
 function videoValues(userId: string, video: YouTubeVideoDTO) {
     return {
@@ -71,8 +82,25 @@ function toVideoDto(record: YouTubeVideoRecord): YouTubeVideoDTO {
 
 export async function resolveYouTubeDestination(userId: string, libraryPathId: string) {
     const ownerUserId = await resolveInstanceConfigurationOwnerId(userId);
-    const row =
-        ensureDatabaseReady()
+    const row = findYouTubeDestination(ensureDatabaseReady(), ownerUserId, libraryPathId);
+
+    if (!row) {
+        throw new YouTubeDomainError(
+            "Choose an active YouTube library folder.",
+            "destination_unavailable",
+        );
+    }
+
+    return row;
+}
+
+function findYouTubeDestination(
+    database: YouTubeDatabaseReader,
+    ownerUserId: string,
+    libraryPathId: string,
+) {
+    return (
+        database
             .select({ library: mediaLibraries, path: mediaLibraryPaths })
             .from(mediaLibraryPaths)
             .innerJoin(mediaLibraries, eq(mediaLibraries.id, mediaLibraryPaths.libraryId))
@@ -85,16 +113,8 @@ export async function resolveYouTubeDestination(userId: string, libraryPathId: s
                     eq(mediaLibraries.mediaType, "youtube"),
                 ),
             )
-            .get() ?? null;
-
-    if (!row) {
-        throw new YouTubeDomainError(
-            "Choose an active YouTube library folder.",
-            "destination_unavailable",
-        );
-    }
-
-    return row;
+            .get() ?? null
+    );
 }
 
 export async function listYouTubeRequestOptions(userId: string): Promise<YouTubeRequestOptionsDTO> {
@@ -411,31 +431,102 @@ function insertDownloadInTransaction(
 ) {
     const id = randomUUID();
 
-    transaction
-        .insert(youtubeDownloads)
-        .values({ id, ...input })
-        .onConflictDoNothing({
-            target: [
-                youtubeDownloads.userId,
-                youtubeDownloads.videoId,
-                youtubeDownloads.libraryPathId,
-                youtubeDownloads.qualityProfile,
-            ],
-        })
-        .run();
+    const inserted =
+        transaction
+            .insert(youtubeDownloads)
+            .values({ id, ...input })
+            .onConflictDoNothing({
+                target: [
+                    youtubeDownloads.userId,
+                    youtubeDownloads.videoId,
+                    youtubeDownloads.libraryPathId,
+                    youtubeDownloads.qualityProfile,
+                ],
+            })
+            .run().changes > 0;
 
-    return transaction
-        .select()
-        .from(youtubeDownloads)
-        .where(
-            and(
-                eq(youtubeDownloads.userId, input.userId),
-                eq(youtubeDownloads.videoId, input.videoId),
-                eq(youtubeDownloads.libraryPathId, input.libraryPathId),
-                eq(youtubeDownloads.qualityProfile, input.qualityProfile),
-            ),
-        )
-        .get()!;
+    return {
+        download: transaction
+            .select()
+            .from(youtubeDownloads)
+            .where(
+                and(
+                    eq(youtubeDownloads.userId, input.userId),
+                    eq(youtubeDownloads.videoId, input.videoId),
+                    eq(youtubeDownloads.libraryPathId, input.libraryPathId),
+                    eq(youtubeDownloads.qualityProfile, input.qualityProfile),
+                ),
+            )
+            .get()!,
+        inserted,
+    };
+}
+
+function queueOutcome(download: YouTubeDownloadRecord, inserted: boolean): YouTubeQueueOutcome {
+    if (inserted) {
+        return "queued";
+    }
+
+    switch (download.status) {
+        case "completed":
+            return "completed";
+        case "failed":
+            return "failed";
+        case "cancelled":
+            return "cancelled";
+        default:
+            return "already_queued";
+    }
+}
+
+function toQueueItemResult(result: {
+    download: YouTubeDownloadRecord;
+    inserted: boolean;
+}): YouTubeQueueItemResult {
+    return {
+        ...result.download,
+        inserted: result.inserted,
+        outcome: queueOutcome(result.download, result.inserted),
+    };
+}
+
+function summarizeQueueOutcomes(outcomes: readonly YouTubeQueueOutcome[]): YouTubeQueueSummary {
+    const summary: YouTubeQueueSummary = {
+        totalCount: outcomes.length,
+        queuedCount: 0,
+        alreadyQueuedCount: 0,
+        completedCount: 0,
+        failedCount: 0,
+        cancelledCount: 0,
+    };
+
+    for (const outcome of outcomes) {
+        switch (outcome) {
+            case "queued":
+                summary.queuedCount += 1;
+                break;
+            case "already_queued":
+                summary.alreadyQueuedCount += 1;
+                break;
+            case "completed":
+                summary.completedCount += 1;
+                break;
+            case "failed":
+                summary.failedCount += 1;
+                break;
+            case "cancelled":
+                summary.cancelledCount += 1;
+                break;
+        }
+    }
+
+    return summary;
+}
+
+export function summarizeYouTubeQueueResults(
+    results: readonly Pick<YouTubeQueueItemResult, "outcome">[],
+): YouTubeQueueSummary {
+    return summarizeQueueOutcomes(results.map((result) => result.outcome));
 }
 
 export async function queueYouTubeVideo(input: {
@@ -456,12 +547,83 @@ export async function queueYouTubeVideo(input: {
     return ensureDatabaseReady().transaction((transaction) => {
         const video = upsertVideoInTransaction(transaction, input.userId, input.video);
 
-        return insertDownloadInTransaction(transaction, {
-            userId: input.userId,
-            videoId: video.id,
-            sourceId: null,
-            libraryPathId: input.libraryPathId,
-            qualityProfile: input.qualityProfile,
+        return toQueueItemResult(
+            insertDownloadInTransaction(transaction, {
+                userId: input.userId,
+                videoId: video.id,
+                sourceId: null,
+                libraryPathId: input.libraryPathId,
+                qualityProfile: input.qualityProfile,
+            }),
+        );
+    });
+}
+
+export async function queueYouTubeVideos(input: {
+    userId: string;
+    videos: readonly YouTubeVideoDTO[];
+    libraryPathId: string;
+    qualityProfile: YoutubeQualityProfile;
+}) {
+    if (input.videos.length === 0) {
+        return [];
+    }
+
+    if (input.videos.length > 500) {
+        throw new YouTubeDomainError(
+            "Select no more than 500 videos at a time.",
+            "invalid_request",
+        );
+    }
+
+    const videoIds = new Set<string>();
+
+    for (const video of input.videos) {
+        if (videoIds.has(video.youtubeVideoId)) {
+            throw new YouTubeDomainError(
+                "Each YouTube video may only be queued once per request.",
+                "invalid_request",
+            );
+        }
+
+        videoIds.add(video.youtubeVideoId);
+
+        if (!video.eligible) {
+            throw new YouTubeDomainError(
+                "Only public, non-live, regular YouTube videos can be downloaded.",
+                "invalid_request",
+            );
+        }
+    }
+
+    // Validate before opening the write transaction so an invalid destination
+    // never starts a batch. It is checked again from the transaction-owned
+    // connection immediately before the first write to fence a concurrent
+    // disable/delete between these two operations.
+    await resolveYouTubeDestination(input.userId, input.libraryPathId);
+    const ownerUserId = await resolveInstanceConfigurationOwnerId(input.userId);
+    const database = ensureDatabaseReady();
+
+    return database.transaction((transaction) => {
+        if (!findYouTubeDestination(transaction, ownerUserId, input.libraryPathId)) {
+            throw new YouTubeDomainError(
+                "Choose an active YouTube library folder.",
+                "destination_unavailable",
+            );
+        }
+
+        return input.videos.map((video) => {
+            const persistedVideo = upsertVideoInTransaction(transaction, input.userId, video);
+
+            return toQueueItemResult(
+                insertDownloadInTransaction(transaction, {
+                    userId: input.userId,
+                    videoId: persistedVideo.id,
+                    sourceId: null,
+                    libraryPathId: input.libraryPathId,
+                    qualityProfile: input.qualityProfile,
+                }),
+            );
         });
     });
 }
@@ -507,6 +669,9 @@ export async function applySuccessfulEnumeration(input: {
         const enumeratedById = new Map(
             input.enumeration.videos.map((video) => [video.youtubeVideoId, video]),
         );
+        const enumeratedYoutubeIds = new Set(
+            input.enumeration.videos.map((video) => video.youtubeVideoId),
+        );
 
         if (
             initialSelections.some(({ youtubeVideoId }) => {
@@ -543,7 +708,7 @@ export async function applySuccessfulEnumeration(input: {
             .set({ remotePresent: false, removedAt: now })
             .where(eq(youtubeSourceVideos.sourceId, currentSource.id))
             .run();
-        let queuedCount = 0;
+        const queueOutcomes: YouTubeQueueOutcome[] = [];
 
         for (const item of input.enumeration.videos) {
             const video = upsertVideoInTransaction(transaction, currentSource.userId, item);
@@ -570,14 +735,15 @@ export async function applySuccessfulEnumeration(input: {
                 .run();
 
             if (shouldQueue) {
-                insertDownloadInTransaction(transaction, {
+                const queueResult = insertDownloadInTransaction(transaction, {
                     userId: currentSource.userId,
                     videoId: video.id,
                     sourceId: currentSource.id,
                     libraryPathId: currentSource.libraryPathId,
                     qualityProfile: currentSource.qualityProfile,
                 });
-                queuedCount += 1;
+
+                queueOutcomes.push(queueOutcome(queueResult.download, queueResult.inserted));
             }
         }
 
@@ -607,69 +773,173 @@ export async function applySuccessfulEnumeration(input: {
         return {
             baseline,
             discoveredCount: input.enumeration.videos.length,
-            queuedCount,
+            ...summarizeQueueOutcomes(queueOutcomes),
             removedCount: previousMembership.filter(
-                (row) =>
-                    !input.enumeration.videos.some(
-                        (video) => video.youtubeVideoId === row.youtubeVideoId,
-                    ),
+                (row) => !enumeratedYoutubeIds.has(row.youtubeVideoId),
             ).length,
         };
     });
 }
 
+type YouTubeVideoListInput = {
+    sourceId?: string | null;
+    page?: number | null;
+    pageSize?: number | null;
+};
+
+function resolvePositiveInteger(value: number | null | undefined, fallback: number) {
+    return typeof value === "number" && Number.isFinite(value) && value > 0
+        ? Math.max(1, Math.floor(value))
+        : fallback;
+}
+
+function youtubeVideoSourceFilter(userId: string, sourceId: string) {
+    return sql`exists (
+        select 1
+        from ${youtubeSourceVideos}
+        inner join ${youtubeSources}
+            on ${youtubeSources.id} = ${youtubeSourceVideos.sourceId}
+        where ${youtubeSourceVideos.videoId} = ${youtubeVideos.id}
+          and ${youtubeSourceVideos.sourceId} = ${sourceId}
+          and ${youtubeSources.userId} = ${userId}
+    )`;
+}
+
+export async function getYouTubeVideosPage(
+    userId: string,
+    input: YouTubeVideoListInput = {},
+): Promise<YouTubeVideoPage> {
+    const database = ensureDatabaseReady();
+    const sourceId = input.sourceId?.trim() || undefined;
+    const pageSize = Math.min(
+        resolvePositiveInteger(input.pageSize, youtubeVideoPageSize),
+        maximumYouTubeVideoPageSize,
+    );
+    const requestedPage = resolvePositiveInteger(input.page, 1);
+    const videoFilters = and(
+        eq(youtubeVideos.userId, userId),
+        sourceId ? youtubeVideoSourceFilter(userId, sourceId) : undefined,
+    );
+    const total = Number(
+        database.select({ total: count() }).from(youtubeVideos).where(videoFilters).get()?.total ??
+            0,
+    );
+    const pageCount = Math.max(1, Math.ceil(total / pageSize));
+    const page = Math.min(requestedPage, pageCount);
+
+    // Rank memberships and downloads in SQL so the page does not perform one
+    // query per video. A present membership wins over a removed one; ties use
+    // the latest observation and source ID for deterministic output when a
+    // video belongs to multiple monitored sources.
+    const rankedMemberships = database
+        .select({
+            videoId: youtubeSourceVideos.videoId,
+            sourceId: youtubeSourceVideos.sourceId,
+            remotePresent: youtubeSourceVideos.remotePresent,
+            membershipRank: sql<number>`row_number() over (
+                partition by ${youtubeSourceVideos.videoId}
+                order by ${youtubeSourceVideos.remotePresent} desc,
+                    ${youtubeSourceVideos.lastSeenAt} desc,
+                    ${youtubeSourceVideos.sourceId} asc
+            )`.as("membership_rank"),
+        })
+        .from(youtubeSourceVideos)
+        .innerJoin(youtubeSources, eq(youtubeSources.id, youtubeSourceVideos.sourceId))
+        .where(
+            and(
+                eq(youtubeSources.userId, userId),
+                sourceId ? eq(youtubeSourceVideos.sourceId, sourceId) : undefined,
+            ),
+        )
+        .as("ranked_youtube_memberships");
+    const latestDownloads = database
+        .select({
+            id: youtubeDownloads.id,
+            videoId: youtubeDownloads.videoId,
+            status: youtubeDownloads.status,
+            finalPath: youtubeDownloads.finalPath,
+            downloadRank: sql<number>`row_number() over (
+                partition by ${youtubeDownloads.videoId}
+                order by ${youtubeDownloads.createdAt} desc,
+                    ${youtubeDownloads.id} desc
+            )`.as("download_rank"),
+        })
+        .from(youtubeDownloads)
+        .where(eq(youtubeDownloads.userId, userId))
+        .as("latest_youtube_downloads");
+    const rows = database
+        .select({
+            video: youtubeVideos,
+            membershipSourceId: rankedMemberships.sourceId,
+            membershipRemotePresent: rankedMemberships.remotePresent,
+            downloadId: latestDownloads.id,
+            downloadStatus: latestDownloads.status,
+            finalPath: latestDownloads.finalPath,
+        })
+        .from(youtubeVideos)
+        .leftJoin(
+            rankedMemberships,
+            and(
+                eq(rankedMemberships.videoId, youtubeVideos.id),
+                eq(rankedMemberships.membershipRank, 1),
+            ),
+        )
+        .leftJoin(
+            latestDownloads,
+            and(eq(latestDownloads.videoId, youtubeVideos.id), eq(latestDownloads.downloadRank, 1)),
+        )
+        .where(videoFilters)
+        .orderBy(desc(youtubeVideos.publishedAt), asc(youtubeVideos.title), asc(youtubeVideos.id))
+        .limit(pageSize)
+        .offset((page - 1) * pageSize)
+        .all();
+    const videos = rows.map(
+        ({
+            video,
+            membershipSourceId,
+            membershipRemotePresent,
+            downloadId,
+            downloadStatus,
+            finalPath,
+        }) => ({
+            ...toVideoDto(video),
+            id: video.id,
+            remotePresent: membershipRemotePresent ?? null,
+            sourceId: membershipSourceId ?? null,
+            downloadId: downloadId ?? null,
+            downloadStatus: downloadStatus ?? null,
+            finalPath: finalPath ?? null,
+        }),
+    );
+    const offset = (page - 1) * pageSize;
+
+    return {
+        videos,
+        pagination: {
+            page,
+            pageSize,
+            pageCount,
+            hasNextPage: page < pageCount,
+            hasPreviousPage: page > 1,
+            firstItem: videos.length === 0 ? 0 : offset + 1,
+            lastItem: offset + videos.length,
+            total,
+        },
+    };
+}
+
+/**
+ * Retain the array-shaped repository API for existing callers while applying
+ * the bounded default page. Call getYouTubeVideosPage when pagination metadata
+ * is needed.
+ */
 export async function listYouTubeVideos(
     userId: string,
-    sourceId?: string | null,
+    input: string | null | YouTubeVideoListInput = {},
 ): Promise<YouTubeVideoPageItemDTO[]> {
-    const database = ensureDatabaseReady();
-    const videos = database
-        .select()
-        .from(youtubeVideos)
-        .where(eq(youtubeVideos.userId, userId))
-        .orderBy(desc(youtubeVideos.publishedAt), asc(youtubeVideos.title))
-        .all();
+    const options = typeof input === "string" || input === null ? { sourceId: input } : input;
 
-    return videos.flatMap((video) => {
-        const membership = sourceId
-            ? (database
-                  .select()
-                  .from(youtubeSourceVideos)
-                  .innerJoin(youtubeSources, eq(youtubeSources.id, youtubeSourceVideos.sourceId))
-                  .where(
-                      and(
-                          eq(youtubeSourceVideos.videoId, video.id),
-                          eq(youtubeSourceVideos.sourceId, sourceId),
-                          eq(youtubeSources.userId, userId),
-                      ),
-                  )
-                  .get()?.youtube_source_videos ?? null)
-            : null;
-
-        if (sourceId && !membership) {
-            return [];
-        }
-
-        const download = database
-            .select()
-            .from(youtubeDownloads)
-            .where(and(eq(youtubeDownloads.userId, userId), eq(youtubeDownloads.videoId, video.id)))
-            .orderBy(desc(youtubeDownloads.createdAt))
-            .limit(1)
-            .get();
-
-        return [
-            {
-                ...toVideoDto(video),
-                id: video.id,
-                remotePresent: membership?.remotePresent ?? null,
-                sourceId: membership?.sourceId ?? null,
-                downloadId: download?.id ?? null,
-                downloadStatus: download?.status ?? null,
-                finalPath: download?.finalPath ?? null,
-            },
-        ];
-    });
+    return (await getYouTubeVideosPage(userId, options)).videos;
 }
 
 type YouTubeActivityRow = {

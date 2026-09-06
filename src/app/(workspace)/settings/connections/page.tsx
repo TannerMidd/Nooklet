@@ -1,9 +1,11 @@
 import { auth } from "@/auth";
+import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { listConnectionSummaries } from "@/modules/service-connections/workflows/list-connection-summaries";
 
 import { ConnectionCard } from "./connection-card";
 import { YouTubeAccessCard } from "./youtube-access-card";
+import { connectionReturnTarget } from "./connection-navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +49,9 @@ const connectionGroups = [
     },
 ] as const;
 
-export default async function ConnectionsSettingsPage() {
+export default async function ConnectionsSettingsPage({
+    searchParams,
+}: { searchParams?: Promise<{ configure?: string; returnTo?: string }> } = {}) {
     const session = await auth();
 
     if (!session?.user?.id) {
@@ -55,6 +59,14 @@ export default async function ConnectionsSettingsPage() {
     }
 
     const summaries = await listConnectionSummaries(session.user.id);
+    const params = await searchParams;
+    const configure = summaries.find((item) => item.serviceType === params?.configure)?.serviceType;
+    const returnTarget = connectionReturnTarget(params?.returnTo);
+    const groups = [...connectionGroups].sort(
+        (a, b) =>
+            Number(b.connections.some((item) => item.serviceType === configure)) -
+            Number(a.connections.some((item) => item.serviceType === configure)),
+    );
 
     return (
         <div className="nk-enter space-y-7">
@@ -62,6 +74,14 @@ export default async function ConnectionsSettingsPage() {
                 eyebrow="Services"
                 title="Connections"
                 description="Connect only the services needed for the Nooklet features you want to use."
+                actions={
+                    <Link
+                        href={returnTarget.href}
+                        className="inline-flex min-h-11 items-center rounded-lg border border-cream/[0.14] px-4 text-sm font-semibold text-foreground hover:bg-cream/[0.06]"
+                    >
+                        {returnTarget.label}
+                    </Link>
+                }
             />
 
             {session.user.role !== "admin" ? (
@@ -71,7 +91,19 @@ export default async function ConnectionsSettingsPage() {
                 </p>
             ) : null}
 
-            {connectionGroups.map((group) => {
+            <nav aria-label="Connection groups" className="flex flex-wrap gap-2">
+                {connectionGroups.map((group) => (
+                    <a
+                        key={group.title}
+                        href={`#connection-group-${group.connections[0].serviceType}`}
+                        className="inline-flex min-h-11 items-center rounded-full border border-cream/[0.12] px-4 text-sm text-foreground hover:bg-cream/[0.06]"
+                    >
+                        {group.title}
+                    </a>
+                ))}
+            </nav>
+
+            {groups.map((group) => {
                 const cards = group.connections.flatMap((connection) => {
                     const summary = summaries.find(
                         (item) => item.serviceType === connection.serviceType,
@@ -84,7 +116,7 @@ export default async function ConnectionsSettingsPage() {
                     <section
                         key={group.title}
                         aria-labelledby={`connection-group-${group.connections[0].serviceType}`}
-                        className="space-y-3"
+                        className="scroll-mt-6 space-y-3"
                     >
                         <div className="max-w-3xl">
                             <h2
@@ -102,16 +134,18 @@ export default async function ConnectionsSettingsPage() {
                                         key={summary.serviceType}
                                         summary={summary}
                                         canManage={session.user.role === "admin"}
+                                        initiallyExpanded={configure === "youtube"}
                                     />
                                 ) : (
                                     <ConnectionCard
-                                        key={summary.serviceType}
+                                        key={`${summary.serviceType}-${configure === summary.serviceType}`}
                                         summary={summary}
                                         canManage={
                                             session.user.role === "admin" ||
                                             summary.serviceType === "trakt"
                                         }
                                         requirement={requirement}
+                                        initiallyExpanded={configure === summary.serviceType}
                                     />
                                 ),
                             )}

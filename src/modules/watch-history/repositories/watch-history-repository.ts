@@ -7,9 +7,20 @@ import {
     watchHistoryItems,
     watchHistorySources,
     watchHistorySyncRuns,
+    watchHistorySourceTypes,
     type RecommendationMediaType,
     type WatchHistorySourceType,
 } from "@/lib/database/schema";
+import { buildWatchHistoryNormalizedKey } from "@/modules/watch-history/normalization";
+
+const maxProviderWatchHistoryItemsPerSource = 500;
+const maxManualWatchHistoryItemsPerSource = 10_000;
+
+type WatchHistoryDatabase = ReturnType<typeof ensureDatabaseReady>;
+type WatchHistoryDatabaseTransaction = Parameters<
+    Parameters<WatchHistoryDatabase["transaction"]>[0]
+>[0];
+type WatchHistoryExecutor = WatchHistoryDatabase | WatchHistoryDatabaseTransaction;
 
 export type StoredWatchHistorySource = typeof watchHistorySources.$inferSelect;
 export type StoredWatchHistoryItem = typeof watchHistoryItems.$inferSelect;
@@ -110,6 +121,7 @@ export async function upsertWatchHistorySource(input: UpsertWatchHistorySourceIn
 export async function createWatchHistorySyncRun(input: CreateWatchHistorySyncRunInput) {
     const database = ensureDatabaseReady();
     const runId = randomUUID();
+    const createdAt = new Date();
 
     database
         .insert(watchHistorySyncRuns)
@@ -119,6 +131,7 @@ export async function createWatchHistorySyncRun(input: CreateWatchHistorySyncRun
             userId: input.userId,
             mediaType: input.mediaType,
             status: "pending",
+            createdAt,
         })
         .run();
 
@@ -132,7 +145,7 @@ export async function createWatchHistorySyncRun(input: CreateWatchHistorySyncRun
 export async function completeWatchHistorySyncRun(runId: string, itemCount: number) {
     const database = ensureDatabaseReady();
 
-    database
+    const result = database
         .update(watchHistorySyncRuns)
         .set({
             status: "succeeded",
@@ -140,57 +153,185 @@ export async function completeWatchHistorySyncRun(runId: string, itemCount: numb
             errorMessage: null,
             completedAt: new Date(),
         })
-        .where(eq(watchHistorySyncRuns.id, runId))
+        .where(and(eq(watchHistorySyncRuns.id, runId), eq(watchHistorySyncRuns.status, "pending")))
         .run();
+
+    return result.changes > 0;
 }
 
 export async function failWatchHistorySyncRun(runId: string, errorMessage: string) {
     const database = ensureDatabaseReady();
 
-    database
+    const result = database
         .update(watchHistorySyncRuns)
         .set({
             status: "failed",
             errorMessage,
             completedAt: new Date(),
         })
-        .where(eq(watchHistorySyncRuns.id, runId))
+        .where(and(eq(watchHistorySyncRuns.id, runId), eq(watchHistorySyncRuns.status, "pending")))
+        .run();
+
+    return result.changes > 0;
+}
+
+function replaceWatchHistoryItemsForSourceWithExecutor(
+    database: WatchHistoryExecutor,
+    input: ReplaceWatchHistoryItemsInput,
+) {
+    database
+        .delete(watchHistoryItems)
+        .where(
+            and(
+                eq(watchHistoryItems.sourceId, input.sourceId),
+                eq(watchHistoryItems.userId, input.userId),
+                eq(watchHistoryItems.mediaType, input.mediaType),
+            ),
+        )
+        .run();
+
+    if (input.items.length === 0) {
+        return;
+    }
+
+    database
+        .insert(watchHistoryItems)
+        .values(
+            input.items.map((item) => ({
+                id: randomUUID(),
+                sourceId: input.sourceId,
+                userId: input.userId,
+                mediaType: input.mediaType,
+                title: item.title,
+                year: item.year,
+                normalizedKey: item.normalizedKey,
+                watchedAt: item.watchedAt,
+            })),
+        )
         .run();
 }
 
 export async function replaceWatchHistoryItemsForSource(input: ReplaceWatchHistoryItemsInput) {
     const database = ensureDatabaseReady();
 
-    database.transaction(() => {
-        database
-            .delete(watchHistoryItems)
+    database.transaction((transaction) => {
+        replaceWatchHistoryItemsForSourceWithExecutor(transaction, input);
+    });
+}
+
+type CompleteWatchHistorySyncRunWithItemsInput = ReplaceWatchHistoryItemsInput & {
+    runId: string;
+};
+
+function isLaterWatchHistorySyncRun(
+    candidate: { createdAt: Date; insertionOrder: number },
+    current: { createdAt: Date; insertionOrder: number },
+) {
+    const candidateCreatedAt = candidate.createdAt.getTime();
+    const currentCreatedAt = current.createdAt.getTime();
+
+    return (
+        candidateCreatedAt > currentCreatedAt ||
+        (candidateCreatedAt === currentCreatedAt &&
+            candidate.insertionOrder > current.insertionOrder)
+    );
+}
+
+/**
+ * Publishes a fetched source snapshot only when this run still owns the
+ * pending completion boundary. A newer successful run wins permanently so a
+ * late older response cannot overwrite its snapshot.
+ */
+export async function replaceWatchHistoryItemsAndCompleteSyncRun(
+    input: CompleteWatchHistorySyncRunWithItemsInput,
+) {
+    const database = ensureDatabaseReady();
+
+    return database.transaction((transaction) => {
+        const pendingRun = transaction
+            .select({
+                id: watchHistorySyncRuns.id,
+                createdAt: watchHistorySyncRuns.createdAt,
+                insertionOrder: sql<number>`rowid`.as("insertion_order"),
+            })
+            .from(watchHistorySyncRuns)
             .where(
                 and(
-                    eq(watchHistoryItems.sourceId, input.sourceId),
-                    eq(watchHistoryItems.mediaType, input.mediaType),
+                    eq(watchHistorySyncRuns.id, input.runId),
+                    eq(watchHistorySyncRuns.sourceId, input.sourceId),
+                    eq(watchHistorySyncRuns.userId, input.userId),
+                    eq(watchHistorySyncRuns.mediaType, input.mediaType),
+                    eq(watchHistorySyncRuns.status, "pending"),
+                ),
+            )
+            .get();
+
+        if (!pendingRun) {
+            return false;
+        }
+
+        const latestSucceededRun = transaction
+            .select({
+                createdAt: watchHistorySyncRuns.createdAt,
+                insertionOrder: sql<number>`rowid`.as("insertion_order"),
+            })
+            .from(watchHistorySyncRuns)
+            .where(
+                and(
+                    eq(watchHistorySyncRuns.sourceId, input.sourceId),
+                    eq(watchHistorySyncRuns.userId, input.userId),
+                    eq(watchHistorySyncRuns.mediaType, input.mediaType),
+                    eq(watchHistorySyncRuns.status, "succeeded"),
+                ),
+            )
+            .orderBy(desc(watchHistorySyncRuns.createdAt), sql`rowid desc`)
+            .get();
+
+        if (latestSucceededRun && isLaterWatchHistorySyncRun(latestSucceededRun, pendingRun)) {
+            transaction
+                .update(watchHistorySyncRuns)
+                .set({
+                    status: "failed",
+                    errorMessage: "Superseded by a newer successful sync.",
+                    completedAt: new Date(),
+                })
+                .where(
+                    and(
+                        eq(watchHistorySyncRuns.id, input.runId),
+                        eq(watchHistorySyncRuns.status, "pending"),
+                    ),
+                )
+                .run();
+
+            return false;
+        }
+
+        const result = transaction
+            .update(watchHistorySyncRuns)
+            .set({
+                status: "succeeded",
+                itemCount: input.items.length,
+                errorMessage: null,
+                completedAt: new Date(),
+            })
+            .where(
+                and(
+                    eq(watchHistorySyncRuns.id, input.runId),
+                    eq(watchHistorySyncRuns.sourceId, input.sourceId),
+                    eq(watchHistorySyncRuns.userId, input.userId),
+                    eq(watchHistorySyncRuns.mediaType, input.mediaType),
+                    eq(watchHistorySyncRuns.status, "pending"),
                 ),
             )
             .run();
 
-        if (input.items.length === 0) {
-            return;
+        if (result.changes === 0) {
+            return false;
         }
 
-        database
-            .insert(watchHistoryItems)
-            .values(
-                input.items.map((item) => ({
-                    id: randomUUID(),
-                    sourceId: input.sourceId,
-                    userId: input.userId,
-                    mediaType: input.mediaType,
-                    title: item.title,
-                    year: item.year,
-                    normalizedKey: item.normalizedKey,
-                    watchedAt: item.watchedAt,
-                })),
-            )
-            .run();
+        replaceWatchHistoryItemsForSourceWithExecutor(transaction, input);
+
+        return true;
     });
 }
 
@@ -212,8 +353,49 @@ export async function listWatchHistorySyncRuns(userId: string, limit = 10) {
         .select()
         .from(watchHistorySyncRuns)
         .where(eq(watchHistorySyncRuns.userId, userId))
-        .orderBy(desc(watchHistorySyncRuns.createdAt))
+        .orderBy(desc(watchHistorySyncRuns.createdAt), sql`rowid desc`)
         .limit(limit)
+        .all();
+}
+
+export async function listLatestWatchHistorySyncRunsBySource(userId: string) {
+    const database = ensureDatabaseReady();
+    const rankedRuns = database
+        .select({
+            id: watchHistorySyncRuns.id,
+            sourceId: watchHistorySyncRuns.sourceId,
+            userId: watchHistorySyncRuns.userId,
+            mediaType: watchHistorySyncRuns.mediaType,
+            status: watchHistorySyncRuns.status,
+            itemCount: watchHistorySyncRuns.itemCount,
+            errorMessage: watchHistorySyncRuns.errorMessage,
+            createdAt: watchHistorySyncRuns.createdAt,
+            completedAt: watchHistorySyncRuns.completedAt,
+            insertionOrder: sql<number>`rowid`.as("insertion_order"),
+            recencyRank: sql<number>`row_number() over (
+        partition by ${watchHistorySyncRuns.sourceId}
+        order by ${watchHistorySyncRuns.createdAt} desc, rowid desc
+      )`.as("recency_rank"),
+        })
+        .from(watchHistorySyncRuns)
+        .where(eq(watchHistorySyncRuns.userId, userId))
+        .as("ranked_watch_history_sync_runs");
+
+    return database
+        .select({
+            id: rankedRuns.id,
+            sourceId: rankedRuns.sourceId,
+            userId: rankedRuns.userId,
+            mediaType: rankedRuns.mediaType,
+            status: rankedRuns.status,
+            itemCount: rankedRuns.itemCount,
+            errorMessage: rankedRuns.errorMessage,
+            createdAt: rankedRuns.createdAt,
+            completedAt: rankedRuns.completedAt,
+        })
+        .from(rankedRuns)
+        .where(eq(rankedRuns.recencyRank, 1))
+        .orderBy(desc(rankedRuns.createdAt), desc(rankedRuns.insertionOrder))
         .all();
 }
 
@@ -230,7 +412,26 @@ export async function listRecentWatchHistoryItems(
         return [];
     }
 
-    const rankedItems = database
+    const resolvedLimit = Math.max(0, limit);
+
+    if (resolvedLimit === 0) {
+        return [];
+    }
+
+    const sourceTypesForRead: WatchHistorySourceType[] = resolvedSourceTypes ?? [
+        ...watchHistorySourceTypes,
+    ];
+    const maxReadRows = sourceTypesForRead.reduce<number>(
+        (total, sourceType) =>
+            total +
+            (sourceType === "manual"
+                ? maxManualWatchHistoryItemsPerSource
+                : maxProviderWatchHistoryItemsPerSource),
+        0,
+    );
+    const mediaTypeMultiplier = mediaType ? 1 : 2;
+
+    const rows = database
         .select({
             id: watchHistoryItems.id,
             sourceId: watchHistoryItems.sourceId,
@@ -238,13 +439,8 @@ export async function listRecentWatchHistoryItems(
             mediaType: watchHistoryItems.mediaType,
             title: watchHistoryItems.title,
             year: watchHistoryItems.year,
-            normalizedKey: watchHistoryItems.normalizedKey,
             watchedAt: watchHistoryItems.watchedAt,
             createdAt: watchHistoryItems.createdAt,
-            recencyRank: sql<number>`row_number() over (
-        partition by ${watchHistoryItems.mediaType}, ${watchHistoryItems.normalizedKey}
-        order by ${watchHistoryItems.watchedAt} desc, ${watchHistoryItems.id} desc
-      )`.as("recency_rank"),
         })
         .from(watchHistoryItems)
         .innerJoin(watchHistorySources, eq(watchHistoryItems.sourceId, watchHistorySources.id))
@@ -253,51 +449,66 @@ export async function listRecentWatchHistoryItems(
                 eq(watchHistoryItems.userId, userId),
                 ...(mediaType ? [eq(watchHistoryItems.mediaType, mediaType)] : []),
                 ...(resolvedSourceTypes
-                    ? [inArray(watchHistorySources.sourceType, resolvedSourceTypes)]
+                    ? [inArray(watchHistorySources.sourceType, sourceTypesForRead)]
                     : []),
             ),
         )
-        .as("ranked_watch_history_items");
-
-    return database
-        .select({
-            id: rankedItems.id,
-            sourceId: rankedItems.sourceId,
-            userId: rankedItems.userId,
-            mediaType: rankedItems.mediaType,
-            title: rankedItems.title,
-            year: rankedItems.year,
-            normalizedKey: rankedItems.normalizedKey,
-            watchedAt: rankedItems.watchedAt,
-            createdAt: rankedItems.createdAt,
-        })
-        .from(rankedItems)
-        .where(eq(rankedItems.recencyRank, 1))
-        .orderBy(desc(rankedItems.watchedAt))
-        .limit(Math.max(0, limit))
+        .orderBy(desc(watchHistoryItems.watchedAt), desc(watchHistoryItems.id))
+        // Provider imports are capped at 500 items per source and manual input
+        // is capped at 20,000 characters (at most 10,000 one-character lines).
+        // Read the full bounded source snapshot before current-key deduplication
+        // so legacy stored keys cannot hide a newer Unicode identity.
+        .limit(maxReadRows * mediaTypeMultiplier)
         .all();
+
+    const seenKeys = new Set<string>();
+    const uniqueItems = [];
+
+    for (const row of rows) {
+        const normalizedKey = buildWatchHistoryNormalizedKey(row.mediaType, row.title, row.year);
+
+        if (seenKeys.has(normalizedKey)) {
+            continue;
+        }
+
+        seenKeys.add(normalizedKey);
+        uniqueItems.push({ ...row, normalizedKey });
+
+        if (uniqueItems.length >= resolvedLimit) {
+            break;
+        }
+    }
+
+    return uniqueItems;
 }
 
 export async function getWatchHistoryItemCounts(userId: string) {
     const database = ensureDatabaseReady();
 
-    const [tvItems, movieItems] = await Promise.all([
-        database
-            .select({ count: sql<number>`count(distinct ${watchHistoryItems.normalizedKey})` })
-            .from(watchHistoryItems)
-            .where(and(eq(watchHistoryItems.userId, userId), eq(watchHistoryItems.mediaType, "tv")))
-            .get(),
-        database
-            .select({ count: sql<number>`count(distinct ${watchHistoryItems.normalizedKey})` })
-            .from(watchHistoryItems)
-            .where(
-                and(eq(watchHistoryItems.userId, userId), eq(watchHistoryItems.mediaType, "movie")),
-            )
-            .get(),
-    ]);
+    const rows = database
+        .select({
+            mediaType: watchHistoryItems.mediaType,
+            title: watchHistoryItems.title,
+            year: watchHistoryItems.year,
+        })
+        .from(watchHistoryItems)
+        .where(eq(watchHistoryItems.userId, userId))
+        .all();
+    const tvKeys = new Set<string>();
+    const movieKeys = new Set<string>();
 
-    const resolvedTvCount = tvItems?.count ?? 0;
-    const resolvedMovieCount = movieItems?.count ?? 0;
+    for (const row of rows) {
+        const normalizedKey = buildWatchHistoryNormalizedKey(row.mediaType, row.title, row.year);
+
+        if (row.mediaType === "tv") {
+            tvKeys.add(normalizedKey);
+        } else {
+            movieKeys.add(normalizedKey);
+        }
+    }
+
+    const resolvedTvCount = tvKeys.size;
+    const resolvedMovieCount = movieKeys.size;
 
     return {
         tvCount: resolvedTvCount,

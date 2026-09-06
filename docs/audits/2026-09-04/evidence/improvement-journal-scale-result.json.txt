@@ -1,0 +1,18 @@
+{
+  "result": "passed",
+  "totalCount": 899,
+  "originalActiveEntriesVisited": 279,
+  "distinctVisited": 279,
+  "activeBefore": 279,
+  "activeAfter": 277,
+  "cleanCompletedHistory": 620,
+  "lateCleanupsConverged": 2,
+  "malformedEvidencePreserved": 5,
+  "pendingEvidencePreserved": 272,
+  "pageCounts": [
+    256,
+    256
+  ],
+  "correlatedCommittedRows": 622,
+  "sourceAndLibraryBytesPreserved": true
+}

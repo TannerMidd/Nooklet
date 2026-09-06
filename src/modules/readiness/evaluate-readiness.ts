@@ -1,4 +1,5 @@
 import { type RecommendationMediaType, type ServiceConnectionType } from "@/lib/database/schema";
+import { isSupportedIndexerProtocol } from "@/modules/indexers/capabilities";
 
 export const readinessCapabilityIds = [
     "discover",
@@ -31,6 +32,7 @@ export type ReadinessEvaluationInput = {
         status: "disconnected" | "configured" | "verified" | "error";
     }>;
     indexers: Array<{
+        protocol: "newznab" | "torznab";
         status: "configured" | "verified" | "error" | "disabled";
         isEnabled: boolean;
         mediaTypes: RecommendationMediaType[];
@@ -91,6 +93,7 @@ export function evaluateReadiness(input: ReadinessEvaluationInput): ReadinessEva
     const indexerReady = (mediaType: RecommendationMediaType) =>
         input.indexers.some(
             (indexer) =>
+                isSupportedIndexerProtocol(indexer.protocol) &&
                 indexer.isEnabled &&
                 indexer.status === "verified" &&
                 indexer.mediaTypes.includes(mediaType),

@@ -1,0 +1,20 @@
+
+  .codex-tmp\improvement-2026-09-04\journal-scale-proof.cjs      892.8kb
+  .codex-tmp\improvement-2026-09-04\journal-scale-proof.cjs.map    1.8mb
+
+Done in 278ms
+{"phase":"seed","historicalJournalsCreated":100}
+{"phase":"seed","historicalJournalsCreated":200}
+{"phase":"seed","historicalJournalsCreated":300}
+{"phase":"seed","historicalJournalsCreated":400}
+{"phase":"seed","historicalJournalsCreated":500}
+{"phase":"seed","historicalJournalsCreated":600}
+{"phase":"seed","result":"passed","totalCount":899,"historyCount":620,"earlyPendingCount":270,"malformedCount":5,"latePendingCount":2,"lateCommittedCleanupCount":2,"initialActiveCount":279,"finalActiveCountAfterBothCleanups":277}
+{"phase":"direct","result":"passed","catalogueEntries":899,"lateReuseIndependentOfGlobalPosition":true,"lateConsumptionIndependentOfGlobalPosition":true,"ownMalformedEvidenceFailsClosed":true}
+{"phase":"catalogue","result":"passed","entries":899,"active":279,"completedHistoryExcluded":620,"cursor":""}
+{"phase":"health-before","result":"passed","expectedActive":279,"lateOwnedEntriesVisible":true,"otherUsersPathsRedacted":true,"globalPathsRedacted":true,"catalogueUnchangedByHealth":true}
+{"phase":"page-1","result":"passed","freshProcess":true,"inspected":256,"activeBefore":279,"activeAfter":278,"lateCleanupsResolved":1,"beforeCursor":"","afterCursor":"e30ba02fa480a348d5d6200c2cc458e06533974a27835d003f8cc68984a9579b"}
+{"phase":"page-2","result":"passed","freshProcess":true,"inspected":256,"activeBefore":278,"activeAfter":277,"lateCleanupsResolved":2,"beforeCursor":"e30ba02fa480a348d5d6200c2cc458e06533974a27835d003f8cc68984a9579b","afterCursor":"ce80d9fe6fdd5ede21f9cef86dfd9e23216104c9c49884ea208db2dbabf21c0e"}
+{"phase":"health-after","result":"passed","expectedActive":277,"lateOwnedEntriesVisible":true,"otherUsersPathsRedacted":true,"globalPathsRedacted":true,"catalogueUnchangedByHealth":true}
+{"phase":"verify","result":"passed","totalCount":899,"originalActiveEntriesVisited":279,"activeAfter":277,"lateCleanupsConverged":2,"noStarvationAcrossFreshProcesses":true,"proofRoot":"F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-scale-proof-data-c3b323fe973c44baa6679f2e096f3547"}
+Journal scale/restart proof passed. Retained disposable evidence: F:\Development\Nooklet\Nooklet\.codex-tmp\improvement-2026-09-04\journal-scale-proof-data-c3b323fe973c44baa6679f2e096f3547

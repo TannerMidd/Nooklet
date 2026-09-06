@@ -1,0 +1,68 @@
+
+> nooklet@0.1.0 build
+> next build && node scripts/build-worker.mjs
+
+▲ Next.js 16.3.0 (Turbopack)
+- Environments: .env
+✓ Running next.config.ts took 55ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 1624ms
+  Running TypeScript ...
+  Finished TypeScript in 5.7s ...
+  Collecting page data using 23 workers ...
+  Generating static pages using 23 workers (0/3) ...
+✓ Generating static pages using 23 workers (3/3) in 212ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /admin
+├ ƒ /analytics
+├ ƒ /api/auth/[...nextauth]
+├ ƒ /api/downloads/queue
+├ ƒ /api/health
+├ ƒ /bootstrap
+├ ƒ /discover
+├ ƒ /health
+├ ƒ /history
+├ ƒ /home
+├ ○ /icon.png
+├ ƒ /in-progress
+├ ƒ /library
+├ ƒ /library/movies
+├ ƒ /library/tv
+├ ƒ /library/youtube
+├ ƒ /login
+├ ƒ /movies
+├ ƒ /recommendations/[itemId]
+├ ƒ /search
+├ ƒ /settings
+├ ƒ /settings/account
+├ ƒ /settings/automation
+├ ƒ /settings/connections
+├ ƒ /settings/history
+├ ƒ /settings/indexers
+├ ƒ /settings/notifications
+├ ƒ /settings/preferences
+├ ƒ /settings/storage
+├ ƒ /setup
+└ ƒ /tv
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+  .next\worker\worker.cjs      2.9mb
+  .next\worker\worker.cjs.map  5.6mb
+
+Done in 144ms
+
+> nooklet@0.1.0 postbuild
+> node scripts/sanitize-standalone.mjs
+
+Standalone artifact sanitized and verified (1 path removed).

@@ -26,6 +26,17 @@ function credentialFieldForService(serviceType: ServiceConnectionTypeInput) {
           : "apiKey";
 }
 
+function renderedFieldForService(
+    serviceType: ServiceConnectionTypeInput,
+    field: "apiKey" | "baseUrl",
+) {
+    return field === "baseUrl"
+        ? serviceType === "usenet-server"
+            ? "usenetHost"
+            : "baseUrl"
+        : credentialFieldForService(serviceType);
+}
+
 export async function submitConnectionAction(
     _previousState: ConnectionActionState,
     formData: FormData,
@@ -85,7 +96,7 @@ export async function submitConnectionAction(
             fieldErrors:
                 !result.ok && result.field
                     ? {
-                          [credentialFieldForService(serviceType)]: result.message,
+                          [renderedFieldForService(serviceType, result.field)]: result.message,
                       }
                     : undefined,
         };
@@ -198,11 +209,12 @@ export async function submitConnectionAction(
 
     revalidatePath("/settings/connections");
 
-    const credentialField = credentialFieldForService(serviceType);
-
     return {
         status: result.ok ? "success" : "error",
         message: result.message,
-        fieldErrors: !result.ok && result.field ? { [credentialField]: result.message } : undefined,
+        fieldErrors:
+            !result.ok && result.field
+                ? { [renderedFieldForService(serviceType, result.field)]: result.message }
+                : undefined,
     };
 }

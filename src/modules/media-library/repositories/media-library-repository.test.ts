@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
@@ -9,6 +9,7 @@ import {
     mediaFiles,
     mediaRequestAttempts,
     mediaTitleExternalIds,
+    mediaTitles,
     tvEpisodes,
     users,
 } from "@/lib/database/schema";
@@ -34,6 +35,7 @@ import {
     updateMediaLibraryPath,
     upsertMediaFile,
     upsertMediaTitle,
+    upsertMediaTitleWithExternalIds,
     upsertTvEpisode,
     upsertTvSeason,
 } from "./media-library-repository";
@@ -207,6 +209,49 @@ describe("media-library-repository", () => {
         expect(storedEpisode?.airDate).toBe("2022-02-18");
         expect(storedFile?.relativePath).toBe("Severance/Season 01/Severance S01E01.mkv");
         expect(storedFile?.sizeBytes).toBe(1_600_000_000);
+    });
+
+    it("rolls back the title when external ID persistence fails", async () => {
+        const userId = await seedUser();
+        const database = ensureDatabaseReady();
+
+        database.run(sql`
+            create trigger media_title_external_id_failure
+            before insert on media_title_external_ids
+            when new.value = 'synthetic-external-id'
+            begin
+                select raise(abort, 'synthetic external ID failure');
+            end
+        `);
+
+        try {
+            await expect(
+                upsertMediaTitleWithExternalIds({
+                    userId,
+                    libraryId: null,
+                    mediaType: "movie",
+                    title: "Atomic title",
+                    sortTitle: "atomic title",
+                    year: 2026,
+                    normalizedKey: "atomic title::2026",
+                    status: "requested",
+                    externalIds: [{ source: "tmdb", value: "synthetic-external-id" }],
+                }),
+            ).rejects.toThrow("synthetic external ID failure");
+        } finally {
+            database.run(sql`drop trigger media_title_external_id_failure`);
+        }
+
+        expect(
+            database.select().from(mediaTitles).where(eq(mediaTitles.userId, userId)).all(),
+        ).toEqual([]);
+        expect(
+            database
+                .select()
+                .from(mediaTitleExternalIds)
+                .where(eq(mediaTitleExternalIds.value, "synthetic-external-id"))
+                .all(),
+        ).toEqual([]);
     });
 
     it("lists monitored missing movie titles without active downloads", async () => {

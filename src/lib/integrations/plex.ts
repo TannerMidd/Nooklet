@@ -3,6 +3,7 @@ import {
     fetchWithRetry,
     trimTrailingSlash,
 } from "@/lib/integrations/http-helpers";
+import { assertCredentialFreeUrl } from "@/lib/security/credential-url";
 
 type PlexCredentials = {
     baseUrl: string;
@@ -66,11 +67,14 @@ export type PlexHistoryEntry = {
 };
 
 function buildPlexUrl(baseUrl: string, path: string, params: Record<string, string> = {}) {
+    assertCredentialFreeUrl(baseUrl);
     const url = new URL(`${trimTrailingSlash(baseUrl)}${path.startsWith("/") ? path : `/${path}`}`);
 
     for (const [key, value] of Object.entries(params)) {
         url.searchParams.set(key, value);
     }
+
+    assertCredentialFreeUrl(url.toString());
 
     return url;
 }

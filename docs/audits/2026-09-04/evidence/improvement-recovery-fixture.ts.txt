@@ -1,0 +1,72 @@
+import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { ensureDatabaseReady } from "@/lib/database/client";
+import { engineDownloads, users } from "@/lib/database/schema";
+import { env } from "@/lib/env";
+import { finalizeDownload } from "@/modules/download-engine/finalize/finalize-download";
+import { recoverInterruptedEngineDownloads } from "@/modules/download-engine/runtime/engine-runner";
+
+async function main() {
+    const proofParent = path.resolve(".codex-tmp/improvement-2026-09-04");
+    const allowedRoot = path.resolve(process.env.NOOKLET_RECOVERY_PROOF_ROOT ?? "");
+    assert(path.dirname(allowedRoot) === proofParent && /^recovery-proof-data-[a-f0-9]{32}$/.test(path.basename(allowedRoot)), "Fresh disposable recovery root required");
+    for (const target of [env.DOWNLOAD_ENGINE_DIR, env.DOWNLOAD_ENGINE_WORK_DIR, env.DATABASE_URL.slice(5)]) {
+        assert(path.resolve(target).startsWith(allowedRoot + path.sep), "Every proof target must be in the disposable proof directory");
+    }
+    assert(!existsSync(env.DATABASE_URL.slice(5)), "Proof requires a fresh database");
+    const database = ensureDatabaseReady();
+    const userId = "55555555-5555-4555-8555-555555555556";
+    database.insert(users).values({id:userId,email:"improvement-recovery@nooklet.test",displayName:"Synthetic recovery proof",passwordHash:"not-a-real-login-hash"}).run();
+    const cases = [
+        {id:"66666666-6666-4666-8666-666666666661", kind:"complete"},
+        {id:"66666666-6666-4666-8666-666666666662", kind:"incomplete"},
+        {id:"66666666-6666-4666-8666-666666666663", kind:"legacy"},
+    ];
+    const payload = Buffer.from([0x1a,0x45,0xdf,0xa3,0x42,0x86,0x81,0x01]);
+    for (const entry of cases) {
+        database.insert(engineDownloads).values({id:entry.id,userId,name:"Synthetic finalized output",category:"movies",state:"extracting",controlIntent:null,nzbXml:"<nzb/>",outputPath:null}).run();
+        const workDir = path.join(env.DOWNLOAD_ENGINE_WORK_DIR,"incomplete",entry.id);
+        const outputDir = path.join(env.DOWNLOAD_ENGINE_DIR,"complete",entry.id);
+        if (entry.kind === "legacy") {
+            await mkdir(outputDir,{recursive:true});
+            await writeFile(path.join(outputDir,"fixture.mkv"),payload);
+        } else {
+            await mkdir(workDir,{recursive:true});
+            await writeFile(path.join(workDir,"fixture.mkv"),payload);
+            await finalizeDownload({workDir,outputDir,downloadId:entry.id,downloadName:"Synthetic finalized output",password:null,
+                files:[{fileIndex:0,subject:"fixture.mkv",fileName:"fixture.mkv",filePath:path.join(workDir,"fixture.mkv"),totalSegments:1,completedSegments:1,failedSegments:0,bytesWritten:payload.length,ok:true}]});
+            assert(existsSync(path.join(outputDir,".nooklet-finalized.json")));
+            if (entry.kind === "incomplete") {
+                // Recreate the durable post-finalization/pre-publish location with
+                // exactly the tree produced by the real finalizer.
+                await rename(outputDir,workDir);
+            }
+        }
+    }
+    await recoverInterruptedEngineDownloads();
+    const rows = database.select().from(engineDownloads).all();
+    const proof = [];
+    for (const entry of cases) {
+        const row = rows.find(row=>row.id===entry.id)!;
+        const outputDir = path.join(env.DOWNLOAD_ENGINE_DIR,"complete",entry.id);
+        if (entry.kind === "legacy") {
+            assert.equal(row.state,"paused");
+            assert.equal(row.outputPath,null);
+            const quarantine = path.join(env.DOWNLOAD_ENGINE_DIR,"quarantine",entry.id);
+            const candidates = await readdir(quarantine);
+            assert.equal(candidates.length,1);
+            assert.deepEqual(await readFile(path.join(quarantine,candidates[0],"fixture.mkv")),payload);
+            proof.push({kind:entry.kind,state:row.state,outputPath:row.outputPath,preservedInQuarantine:true});
+        } else {
+            assert.equal(row.state,"completed");
+            assert.equal(path.resolve(row.outputPath!),path.resolve(outputDir));
+            assert.deepEqual(await readFile(path.join(outputDir,"fixture.mkv")),payload);
+            assert.equal(row.importedAt,null);
+            proof.push({kind:entry.kind,state:row.state,outputPathPersisted:true,artifactIntact:true,awaitingImport:true});
+        }
+    }
+    console.log(JSON.stringify({result:"passed",cases:proof},null,2));
+}
+main().catch(error=>{console.error(error);process.exitCode=1;});

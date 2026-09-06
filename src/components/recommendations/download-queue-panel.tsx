@@ -87,6 +87,15 @@ function canPauseItem(status: string) {
     return ["queued", "downloading", "paused"].includes(status.trim().toLowerCase());
 }
 
+export function buildUsenetConnectionsHref(returnTo = "/in-progress") {
+    const params = new URLSearchParams({
+        configure: "usenet-server",
+        returnTo,
+    });
+
+    return `/settings/connections?${params.toString()}`;
+}
+
 export function DownloadQueuePanel({ initialState, className }: DownloadQueuePanelProps) {
     const queueContext = useDownloadQueue();
     const queueState = queueContext.queueState ?? initialState;
@@ -251,7 +260,9 @@ export function DownloadQueuePanel({ initialState, className }: DownloadQueuePan
                             ? "Refreshing download queue…"
                             : isMutating
                               ? "Updating download queue…"
-                              : queueState.statusMessage}
+                              : queueState.connectionStatus === "verified" && snapshot
+                                ? queueState.statusMessage
+                                : "Queue status is unavailable."}
                     </p>
                 </div>
                 <Button
@@ -271,7 +282,7 @@ export function DownloadQueuePanel({ initialState, className }: DownloadQueuePan
                 >
                     <p>{queueState.statusMessage}</p>
                     <Link
-                        href="/settings/connections"
+                        href={buildUsenetConnectionsHref()}
                         className="relative mt-1.5 inline-flex font-semibold text-accent transition hover:brightness-110"
                     >
                         <LinkPendingOverlay />

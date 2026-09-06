@@ -1,5 +1,5 @@
 import { decryptSecret } from "@/lib/security/secret-box";
-import { createImmediateJob } from "@/modules/jobs/public";
+import { logger } from "@/lib/observability/logger";
 import { getPreferencesByUserId } from "@/modules/preferences/public";
 import {
     generateOpenAiCompatibleRecommendations,
@@ -10,6 +10,7 @@ import { getRecommendationTasteProfile } from "@/modules/recommendations/queries
 import { formatRecommendationGenres } from "@/modules/recommendations/recommendation-genres";
 import {
     completeRecommendationRun,
+    createQueuedRecommendationRun,
     createRecommendationRun,
     findRecommendationRunForUser,
     listRecommendationExclusionItems,
@@ -40,6 +41,17 @@ type CreateRecommendationRunResult = { ok: true; runId: string } | { ok: false; 
 type AiUsageAccumulator = AiUsageMetrics & {
     durationMs: number;
 };
+
+function describeWorkflowError(error: unknown) {
+    if (!(error instanceof Error)) {
+        return { name: "UnknownError" };
+    }
+
+    const code =
+        "code" in error && typeof error.code === "string" ? error.code.slice(0, 64) : undefined;
+
+    return code ? { name: error.name, code } : { name: error.name };
+}
 
 function createEmptyAiUsageAccumulator(): AiUsageAccumulator {
     return {
@@ -96,28 +108,54 @@ async function recordRunMetrics(input: {
     });
 }
 
+async function recordRecommendationRunAudit(input: Parameters<typeof createAuditEvent>[0]) {
+    try {
+        await createAuditEvent(input);
+    } catch (error) {
+        logger.warn("recommendation_run_audit_failed", {
+            eventType: input.eventType,
+            subjectId: input.subjectId,
+            error: describeWorkflowError(error),
+        });
+    }
+}
+
 async function failRun(input: {
     userId: string;
     runId: string;
     mediaType: RecommendationRequestInput["mediaType"];
     selectedGenreLabels: string[];
     message: string;
+    error: unknown;
     usage: AiUsageAccumulator;
     generationAttemptCount: number;
     excludedExistingItemCount: number;
     excludedLanguageItemCount: number;
-}) {
-    await markRecommendationRunFailed(input.runId, input.message);
-    await recordRunMetrics({
-        runId: input.runId,
-        userId: input.userId,
-        usage: input.usage,
-        generationAttemptCount: input.generationAttemptCount,
-        excludedExistingItemCount: input.excludedExistingItemCount,
-        excludedLanguageItemCount: input.excludedLanguageItemCount,
-        generatedItemCount: 0,
-    });
-    await createAuditEvent({
+}): Promise<boolean> {
+    const changed = await markRecommendationRunFailed(input.runId, input.message);
+
+    if (!changed) {
+        return false;
+    }
+
+    try {
+        await recordRunMetrics({
+            runId: input.runId,
+            userId: input.userId,
+            usage: input.usage,
+            generationAttemptCount: input.generationAttemptCount,
+            excludedExistingItemCount: input.excludedExistingItemCount,
+            excludedLanguageItemCount: input.excludedLanguageItemCount,
+            generatedItemCount: 0,
+        });
+    } catch (error) {
+        logger.warn("recommendation_run_metrics_failed", {
+            runId: input.runId,
+            error: describeWorkflowError(error),
+        });
+    }
+
+    await recordRecommendationRunAudit({
         actorUserId: input.userId,
         eventType: "recommendations.run.failed",
         subjectType: "recommendation-run",
@@ -125,7 +163,7 @@ async function failRun(input: {
         payloadJson: JSON.stringify({
             mediaType: input.mediaType,
             selectedGenres: input.selectedGenreLabels,
-            error: input.message,
+            error: describeWorkflowError(input.error),
             excludedExistingItemCount: input.excludedExistingItemCount,
             excludedLanguageItemCount: input.excludedLanguageItemCount,
             generationAttemptCount: input.generationAttemptCount,
@@ -133,14 +171,16 @@ async function failRun(input: {
             durationMs: input.usage.durationMs,
         }),
     });
+
+    return true;
 }
 
-async function createRunRecord(userId: string, input: RecommendationRequestInput) {
+async function buildRecommendationRunInput(userId: string, input: RecommendationRequestInput) {
     const preferences = await getPreferencesByUserId(userId);
     const trimmedRequestPrompt = input.requestPrompt.trim();
     const aiModel = input.aiModel.trim();
 
-    return createRecommendationRun({
+    return {
         userId,
         mediaType: input.mediaType,
         requestPrompt: trimmedRequestPrompt,
@@ -149,7 +189,7 @@ async function createRunRecord(userId: string, input: RecommendationRequestInput
         aiModel,
         aiTemperature: input.temperature,
         watchHistoryOnly: preferences.watchHistoryOnly,
-    });
+    };
 }
 
 async function emitRunCreatedAudit(input: {
@@ -158,7 +198,7 @@ async function emitRunCreatedAudit(input: {
     request: RecommendationRequestInput;
     eventType: "recommendations.run.created" | "recommendations.run.queued";
 }) {
-    await createAuditEvent({
+    await recordRecommendationRunAudit({
         actorUserId: input.userId,
         eventType: input.eventType,
         subjectType: "recommendation-run",
@@ -178,7 +218,6 @@ async function executeRecommendationRunGeneration(
     runId: string,
     input: RecommendationRequestInput,
 ): Promise<CreateRecommendationRunResult> {
-    const preferences = await getPreferencesByUserId(userId);
     const aiUsage = createEmptyAiUsageAccumulator();
     const trimmedRequestPrompt = input.requestPrompt.trim();
     const aiModel = input.aiModel.trim();
@@ -189,6 +228,7 @@ async function executeRecommendationRunGeneration(
     let generationAttemptCount = 0;
 
     try {
+        const preferences = await getPreferencesByUserId(userId);
         const aiProvider = await ensureVerifiedAiProviderConnection(userId);
 
         if (!aiProvider.ok) {
@@ -314,17 +354,33 @@ async function executeRecommendationRunGeneration(
             );
         }
 
-        await completeRecommendationRun(runId, normalizedItems);
-        await recordRunMetrics({
-            runId,
-            userId,
-            usage: aiUsage,
-            generationAttemptCount,
-            excludedExistingItemCount,
-            excludedLanguageItemCount,
-            generatedItemCount: normalizedItems.length,
-        });
-        await createAuditEvent({
+        const completionApplied = await completeRecommendationRun(runId, normalizedItems);
+
+        if (!completionApplied) {
+            return {
+                ok: true,
+                runId,
+            };
+        }
+
+        try {
+            await recordRunMetrics({
+                runId,
+                userId,
+                usage: aiUsage,
+                generationAttemptCount,
+                excludedExistingItemCount,
+                excludedLanguageItemCount,
+                generatedItemCount: normalizedItems.length,
+            });
+        } catch (error) {
+            logger.warn("recommendation_run_metrics_failed", {
+                runId,
+                error: describeWorkflowError(error),
+            });
+        }
+
+        await recordRecommendationRunAudit({
             actorUserId: userId,
             eventType: "recommendations.run.succeeded",
             subjectType: "recommendation-run",
@@ -368,27 +424,30 @@ async function executeRecommendationRunGeneration(
         const message =
             error instanceof Error ? error.message : "Recommendation generation failed.";
 
-        await failRun({
+        const failureApplied = await failRun({
             userId,
             runId,
             mediaType: input.mediaType,
             selectedGenreLabels,
             message,
+            error,
             usage: aiUsage,
             generationAttemptCount,
             excludedExistingItemCount,
             excludedLanguageItemCount,
         });
 
-        await safeDispatchNotificationWorkflow({
-            userId,
-            payload: {
-                eventType: "recommendation_run_failed",
-                runId,
-                mediaType: input.mediaType,
-                message,
-            },
-        });
+        if (failureApplied) {
+            await safeDispatchNotificationWorkflow({
+                userId,
+                payload: {
+                    eventType: "recommendation_run_failed",
+                    runId,
+                    mediaType: input.mediaType,
+                    message,
+                },
+            });
+        }
 
         return {
             ok: false,
@@ -401,7 +460,8 @@ export async function createRecommendationRunWorkflow(
     userId: string,
     input: RecommendationRequestInput,
 ): Promise<CreateRecommendationRunResult> {
-    const run = await createRunRecord(userId, input);
+    const runInput = await buildRecommendationRunInput(userId, input);
+    const run = await createRecommendationRun(runInput);
 
     if (!run) {
         return {
@@ -424,12 +484,21 @@ export async function enqueueRecommendationRunWorkflow(
     userId: string,
     input: RecommendationRequestInput,
 ): Promise<CreateRecommendationRunResult> {
-    const run = await createRunRecord(userId, input);
+    const runInput = await buildRecommendationRunInput(userId, input);
+    let run: Awaited<ReturnType<typeof createQueuedRecommendationRun>>;
 
-    if (!run) {
+    try {
+        run = await createQueuedRecommendationRun(runInput);
+    } catch (error) {
+        const message = "Unable to queue the recommendation run. Try again.";
+
+        logger.warn("recommendation_run_enqueue_failed", {
+            error: describeWorkflowError(error),
+        });
+
         return {
             ok: false,
-            message: "Unable to create a recommendation run.",
+            message,
         };
     }
 
@@ -438,12 +507,6 @@ export async function enqueueRecommendationRunWorkflow(
         runId: run.id,
         request: input,
         eventType: "recommendations.run.queued",
-    });
-    await createImmediateJob({
-        userId,
-        jobType: "recommendation-run",
-        targetType: "recommendation-run",
-        targetKey: run.id,
     });
 
     return {

@@ -83,7 +83,7 @@ export function LibraryTitleDialog(props: LibraryTitleDialogProps) {
                   { label: "Episodes", value: String(props.title.totals.episodes) },
                   { label: "Available", value: String(props.title.totals.availableEpisodes) },
                   {
-                      label: "Missing",
+                      label: "Without files",
                       value: String(
                           Math.max(
                               0,

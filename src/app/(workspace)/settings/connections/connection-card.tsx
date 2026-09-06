@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useId, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -25,6 +25,7 @@ type ConnectionCardProps = {
     summary: ServiceConnectionSummary;
     canManage?: boolean;
     requirement: string;
+    initiallyExpanded?: boolean;
 };
 
 function statusChip(status: ServiceConnectionSummary["status"]) {
@@ -42,6 +43,10 @@ function statusChip(status: ServiceConnectionSummary["status"]) {
 }
 
 function formatStatusLabel(status: ServiceConnectionSummary["status"]) {
+    if (status === "configured") {
+        return "Saved · not verified";
+    }
+
     return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
@@ -143,6 +148,8 @@ function ModelField({
     availableModels: string[];
     error?: string;
 }) {
+    const fieldId = useId();
+
     if (!definition.modelLabel) {
         return null;
     }
@@ -153,6 +160,7 @@ function ModelField({
                 {definition.modelLabel}
             </span>
             <SearchableSelect
+                id={fieldId}
                 name="model"
                 ariaLabel={definition.modelLabel}
                 defaultValue={defaultValue}
@@ -165,13 +173,19 @@ function ModelField({
                 searchPlaceholder="Search models…"
                 emptyLabel="Run verify to load available models from the configured provider."
                 ariaInvalid={Boolean(error)}
+                ariaDescribedBy={error ? `${fieldId}-error` : undefined}
+                ariaErrormessage={error ? `${fieldId}-error` : undefined}
             />
             <p className="text-[12.5px] text-muted">
                 {availableModels.length > 0
                     ? `${availableModels.length} models available from the last verify.`
                     : "Verify to refresh the model list."}
             </p>
-            {error ? <p className="text-sm text-accent-wine">{error}</p> : null}
+            {error ? (
+                <p id={`${fieldId}-error`} className="text-sm text-accent-wine">
+                    {error}
+                </p>
+            ) : null}
         </label>
     );
 }
@@ -201,7 +215,8 @@ function BaseUrlField({
             <Input
                 name="baseUrl"
                 type="url"
-                defaultValue={summary.baseUrl}
+                defaultValue={summary.hasEmbeddedCredentials ? "" : summary.baseUrl}
+                required={summary.hasEmbeddedCredentials}
                 placeholder={definition.defaultBaseUrl}
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? `${summary.serviceType}-base-url-error` : undefined}
@@ -260,7 +275,8 @@ function UsenetFields({
                     </span>
                     <Input
                         name="usenetHost"
-                        defaultValue={defaults.host}
+                        defaultValue={summary.hasEmbeddedCredentials ? "" : defaults.host}
+                        required={summary.hasEmbeddedCredentials}
                         placeholder="news.provider.com"
                         aria-invalid={Boolean(errors?.usenetHost)}
                         aria-describedby={errors?.usenetHost ? "usenet-host-error" : undefined}
@@ -434,17 +450,42 @@ function PrivateNetworkHelp({
     );
 }
 
-export function ConnectionCard({ summary, canManage = true, requirement }: ConnectionCardProps) {
+export function ConnectionCard({
+    summary,
+    canManage = true,
+    requirement,
+    initiallyExpanded = false,
+}: ConnectionCardProps) {
     const definition = getServiceConnectionDefinition(summary.serviceType);
     const showsModel = Boolean(definition.modelLabel);
     const showsAvailableUsers =
         summary.serviceType === "tautulli" || summary.serviceType === "plex";
     const availableModels = summary.availableModels ?? [];
+    const [configOpen, setConfigOpen] = useState(
+        initiallyExpanded || Boolean(summary.hasEmbeddedCredentials),
+    );
     const [state, formAction, pending] = useActionState(
-        submitConnectionAction,
+        async (
+            previous: ConnectionActionState,
+            formData: FormData,
+        ): Promise<ConnectionActionState> => {
+            try {
+                const result = await submitConnectionAction(previous, formData);
+
+                if (result.status === "error" && result.fieldErrors) {
+                    setConfigOpen(true);
+                }
+
+                return result;
+            } catch {
+                return {
+                    status: "error",
+                    message: "The connection could not be updated. Try again.",
+                };
+            }
+        },
         initialConnectionActionState,
     );
-    const [configOpen, setConfigOpen] = useState(false);
     const [disconnectOpen, setDisconnectOpen] = useState(false);
     const disconnectSubmitRef = useRef<HTMLButtonElement | null>(null);
     const chip = statusChip(summary.status);
@@ -452,6 +493,7 @@ export function ConnectionCard({ summary, canManage = true, requirement }: Conne
     return (
         <>
             <form
+                id={`connection-${summary.serviceType}`}
                 action={formAction}
                 className="flex min-w-0 flex-col gap-4 rounded-2xl border border-cream/[0.08] bg-cream/[0.03] p-5 transition hover:border-cream/[0.14] sm:p-6"
             >
@@ -466,8 +508,8 @@ export function ConnectionCard({ summary, canManage = true, requirement }: Conne
                     aria-hidden="true"
                 />
 
-                <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1 basis-48">
                         <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-accent">
                             {requirement}
                         </p>
@@ -478,15 +520,27 @@ export function ConnectionCard({ summary, canManage = true, requirement }: Conne
                             {summary.description}
                         </p>
                     </div>
-                    <span
-                        className={`inline-flex h-[26px] shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold ${chip.pill}`}
-                    >
+                    <div className="flex shrink-0 flex-col items-end gap-2">
                         <span
-                            aria-hidden="true"
-                            className={`h-1.5 w-1.5 rounded-full ${chip.dot}`}
-                        />
-                        {formatStatusLabel(summary.status)}
-                    </span>
+                            className={`inline-flex h-[26px] shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold ${chip.pill}`}
+                        >
+                            <span
+                                aria-hidden="true"
+                                className={`h-1.5 w-1.5 rounded-full ${chip.dot}`}
+                            />
+                            {formatStatusLabel(summary.status)}
+                        </span>
+                        {canManage && configOpen ? (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setConfigOpen(false)}
+                                aria-label={`Close ${summary.displayName} configuration`}
+                            >
+                                Close
+                            </Button>
+                        ) : null}
+                    </div>
                 </div>
 
                 {summary.status !== "disconnected" ? (
@@ -530,10 +584,41 @@ export function ConnectionCard({ summary, canManage = true, requirement }: Conne
 
                 <p className="text-[12.5px] leading-5 text-muted">{summary.statusMessage}</p>
 
+                {summary.hasEmbeddedCredentials ? (
+                    <p
+                        role="alert"
+                        className="rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2 text-sm text-foreground"
+                    >
+                        This saved URL needs repair and cannot be used. An administrator must enter
+                        a clean server address and move credentials into the protected credential
+                        fields, then test and save the connection.
+                    </p>
+                ) : null}
+
                 {canManage && configOpen ? (
                     <div className="flex flex-col gap-3.5 border-t border-cream/[0.07] pt-4">
+                        <p className="text-xs leading-5 text-muted">
+                            Test &amp; save verifies this draft before activating it. Save without
+                            testing keeps it unverified until a test succeeds.
+                        </p>
                         {summary.serviceType === "usenet-server" ? (
                             <UsenetFields summary={summary} errors={state.fieldErrors} />
+                        ) : ["tmdb", "tvdb", "trakt"].includes(summary.serviceType) ? (
+                            <details
+                                open={
+                                    summary.hasEmbeddedCredentials ||
+                                    Boolean(state.fieldErrors?.baseUrl)
+                                }
+                            >
+                                <summary className="min-h-11 cursor-pointer text-sm font-semibold text-muted">
+                                    Advanced service address
+                                </summary>
+                                <BaseUrlField
+                                    summary={summary}
+                                    definition={definition}
+                                    error={state.fieldErrors?.baseUrl}
+                                />
+                            </details>
                         ) : (
                             <BaseUrlField
                                 summary={summary}
@@ -561,25 +646,25 @@ export function ConnectionCard({ summary, canManage = true, requirement }: Conne
 
                         <PrivateNetworkHelp serviceType={summary.serviceType} />
 
-                        {state.message ? (
-                            <p
-                                role={state.status === "success" ? "status" : "alert"}
-                                className={
-                                    state.status === "success"
-                                        ? "rounded-lg border border-accent-cool/30 bg-accent-cool/10 px-3.5 py-2 text-sm text-foreground"
-                                        : "rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2 text-sm text-foreground"
-                                }
-                            >
-                                {state.message}
-                            </p>
-                        ) : null}
-
                         <ConnectionActionButtons
                             displayName={definition.displayName}
                             disconnected={summary.status === "disconnected"}
                             onDisconnect={() => setDisconnectOpen(true)}
                         />
                     </div>
+                ) : null}
+
+                {canManage && state.message ? (
+                    <p
+                        role={state.status === "success" ? "status" : "alert"}
+                        className={
+                            state.status === "success"
+                                ? "rounded-lg border border-accent-cool/30 bg-accent-cool/10 px-3.5 py-2 text-sm text-foreground"
+                                : "rounded-lg border border-accent-wine/30 bg-accent-wine/10 px-3.5 py-2 text-sm text-foreground"
+                        }
+                    >
+                        {state.message}
+                    </p>
                 ) : null}
 
                 {canManage ? (
@@ -601,9 +686,9 @@ export function ConnectionCard({ summary, canManage = true, requirement }: Conne
                                 variant="ghost"
                                 size="sm"
                                 className="px-4"
-                                disabled={summary.status === "disconnected"}
+                                disabled={pending || summary.status === "disconnected"}
                             >
-                                Test again
+                                {pending ? "Testing…" : "Test again"}
                             </Button>
                         ) : null}
                     </div>

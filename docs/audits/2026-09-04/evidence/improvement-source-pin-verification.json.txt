@@ -1,0 +1,36 @@
+{
+  "baseline": "bdbe90bbdcd739cc72113bbedc0e8c5da307b2ca",
+  "engineVersion": "v5",
+  "manifests": [
+    {
+      "name": "security-review-manifest-v2.json",
+      "sha256": "25B105A3640ED215F9DC4E753B6FB90D03992BFB8E4D8F1ACE5C73975EA68405",
+      "files": 43
+    },
+    {
+      "name": "youtube-review-manifest-v3.json",
+      "sha256": "48B5FABF0F327B5DE4ED89CFF4BAF51B2B4E39CEA0BF31C895C4BB18E6D967AB",
+      "files": 14
+    },
+    {
+      "name": "integration-review-manifest-v4.json",
+      "sha256": "1613C6AFD5347C60E993B1F1913FFE4341D95AD1F57465701E52B7D7E19849A1",
+      "files": 27
+    },
+    {
+      "name": "ui-review-manifest-v5.json",
+      "sha256": "096E0EC890657906DBC3D59D88596015F79F6BF01849B7561DC16ABED30F9114",
+      "files": 61
+    },
+    {
+      "name": "engine-review-manifest-v5.json",
+      "sha256": "F1BEEF34512EBE7E41CDCAD6133BABED8F55E21C5017B44615FF950BDCA89D6B",
+      "files": 27
+    }
+  ],
+  "sourceFilesPinned": 175,
+  "changedSourceFiles": 175,
+  "allChangedSourceCovered": true,
+  "allHashesMatch": true,
+  "libraryCountFiles": 3
+}

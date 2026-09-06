@@ -1,0 +1,185 @@
+
+  .codex-tmp\improvement-2026-09-04\journal-sync-proof.cjs      2.4mb
+  .codex-tmp\improvement-2026-09-04\journal-sync-proof.cjs.map  4.9mb
+
+Done in 142ms
+{
+  "phase": "plan-write-failure",
+  "result": "passed",
+  "proofRoot": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3",
+  "freshProcess": true,
+  "syncEvents": [
+    {
+      "path": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3\\output\\import-journals\\96969696-9696-4696-8696-000000000011\\96969696-9696-4696-8696-000000000016\\plan.json",
+      "family": "plan",
+      "validJsonPresent": true,
+      "byteLength": 1064,
+      "sha256": "094adb10ec80b3708452f2a7bc54c0ce4bae4dba11d458146d56dbaa23fba5aa",
+      "outcome": "injected-eio"
+    }
+  ]
+}
+{
+  "phase": "plan-reload-blocked",
+  "result": "passed",
+  "proofRoot": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3",
+  "freshProcess": true,
+  "syncEvents": [
+    {
+      "path": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3\\output\\import-journals\\96969696-9696-4696-8696-000000000011\\96969696-9696-4696-8696-000000000016\\plan.json",
+      "family": "plan",
+      "validJsonPresent": true,
+      "byteLength": 1064,
+      "sha256": "094adb10ec80b3708452f2a7bc54c0ce4bae4dba11d458146d56dbaa23fba5aa",
+      "outcome": "injected-eio"
+    }
+  ]
+}
+{
+  "phase": "plan-reload-recovered",
+  "result": "passed",
+  "proofRoot": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3",
+  "freshProcess": true,
+  "syncEvents": [
+    {
+      "path": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3\\output\\import-journals\\96969696-9696-4696-8696-000000000011\\96969696-9696-4696-8696-000000000016\\plan.json",
+      "family": "plan",
+      "validJsonPresent": true,
+      "byteLength": 1064,
+      "sha256": "094adb10ec80b3708452f2a7bc54c0ce4bae4dba11d458146d56dbaa23fba5aa",
+      "outcome": "synced"
+    },
+    {
+      "path": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3\\output\\import-journals\\96969696-9696-4696-8696-000000000011\\96969696-9696-4696-8696-000000000016\\plan.json",
+      "family": "plan",
+      "validJsonPresent": true,
+      "byteLength": 1064,
+      "sha256": "094adb10ec80b3708452f2a7bc54c0ce4bae4dba11d458146d56dbaa23fba5aa",
+      "outcome": "synced"
+    }
+  ]
+}
+{
+  "phase": "receipt-write-failure",
+  "result": "passed",
+  "proofRoot": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3",
+  "freshProcess": true,
+  "syncEvents": [
+    {
+      "path": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3\\output\\import-journals\\96969696-9696-4696-8696-000000000021\\96969696-9696-4696-8696-000000000026\\receipts\\000000.json",
+      "family": "receipt",
+      "validJsonPresent": true,
+      "byteLength": 548,
+      "sha256": "d33b65166c87f9a850c6b2becf26d8de259669b626bbfeb99d585a374f99b4fe",
+      "outcome": "injected-eio"
+    }
+  ]
+}
+{
+  "phase": "receipt-reload-blocked",
+  "result": "passed",
+  "proofRoot": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3",
+  "freshProcess": true,
+  "syncEvents": [
+    {
+      "path": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3\\output\\import-journals\\96969696-9696-4696-8696-000000000021\\96969696-9696-4696-8696-000000000026\\receipts\\000000.json",
+      "family": "receipt",
+      "validJsonPresent": true,
+      "byteLength": 548,
+      "sha256": "d33b65166c87f9a850c6b2becf26d8de259669b626bbfeb99d585a374f99b4fe",
+      "outcome": "injected-eio"
+    }
+  ]
+}
+{
+  "phase": "receipt-reload-recovered",
+  "result": "passed",
+  "proofRoot": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3",
+  "freshProcess": true,
+  "syncEvents": [
+    {
+      "path": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3\\output\\import-journals\\96969696-9696-4696-8696-000000000021\\96969696-9696-4696-8696-000000000026\\receipts\\000000.json",
+      "family": "receipt",
+      "validJsonPresent": true,
+      "byteLength": 548,
+      "sha256": "d33b65166c87f9a850c6b2becf26d8de259669b626bbfeb99d585a374f99b4fe",
+      "outcome": "synced"
+    }
+  ]
+}
+{
+  "phase": "commit-write-failure",
+  "result": "passed",
+  "proofRoot": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3",
+  "freshProcess": true,
+  "workflowOutcome": "returned:1",
+  "syncEvents": [
+    {
+      "path": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3\\output\\import-journals\\96969696-9696-4696-8696-000000000031\\6fb5faca-a71d-4ee0-a616-f18826c02fdd\\db-committed.json",
+      "family": "committed",
+      "validJsonPresent": true,
+      "byteLength": 83,
+      "sha256": "ace5d38e099577f814b7a61b17d547d72a0d310dfb1b83ef95b1081a99693857",
+      "outcome": "injected-eio"
+    },
+    {
+      "path": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3\\output\\import-journals\\96969696-9696-4696-8696-000000000031\\6fb5faca-a71d-4ee0-a616-f18826c02fdd\\db-committed.json",
+      "family": "committed",
+      "validJsonPresent": true,
+      "byteLength": 83,
+      "sha256": "ace5d38e099577f814b7a61b17d547d72a0d310dfb1b83ef95b1081a99693857",
+      "outcome": "injected-eio"
+    }
+  ]
+}
+{
+  "phase": "commit-reload-blocked",
+  "result": "passed",
+  "proofRoot": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3",
+  "freshProcess": true,
+  "workflowOutcome": "returned:0",
+  "syncEvents": [
+    {
+      "path": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3\\output\\import-journals\\96969696-9696-4696-8696-000000000031\\6fb5faca-a71d-4ee0-a616-f18826c02fdd\\db-committed.json",
+      "family": "committed",
+      "validJsonPresent": true,
+      "byteLength": 83,
+      "sha256": "ace5d38e099577f814b7a61b17d547d72a0d310dfb1b83ef95b1081a99693857",
+      "outcome": "injected-eio"
+    },
+    {
+      "path": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3\\output\\import-journals\\96969696-9696-4696-8696-000000000031\\6fb5faca-a71d-4ee0-a616-f18826c02fdd\\db-committed.json",
+      "family": "committed",
+      "validJsonPresent": true,
+      "byteLength": 83,
+      "sha256": "ace5d38e099577f814b7a61b17d547d72a0d310dfb1b83ef95b1081a99693857",
+      "outcome": "injected-eio"
+    }
+  ]
+}
+{
+  "phase": "commit-reload-recovered",
+  "result": "passed",
+  "proofRoot": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3",
+  "freshProcess": true,
+  "workflowOutcome": "returned:0",
+  "syncEvents": [
+    {
+      "path": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3\\output\\import-journals\\96969696-9696-4696-8696-000000000031\\6fb5faca-a71d-4ee0-a616-f18826c02fdd\\db-committed.json",
+      "family": "committed",
+      "validJsonPresent": true,
+      "byteLength": 83,
+      "sha256": "ace5d38e099577f814b7a61b17d547d72a0d310dfb1b83ef95b1081a99693857",
+      "outcome": "synced"
+    },
+    {
+      "path": "F:\\Development\\Nooklet\\Nooklet\\.codex-tmp\\improvement-2026-09-04\\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3\\output\\import-journals\\96969696-9696-4696-8696-000000000031\\6fb5faca-a71d-4ee0-a616-f18826c02fdd\\db-committed.json",
+      "family": "committed",
+      "validJsonPresent": true,
+      "byteLength": 83,
+      "sha256": "ace5d38e099577f814b7a61b17d547d72a0d310dfb1b83ef95b1081a99693857",
+      "outcome": "synced"
+    }
+  ]
+}
+Journal required-file-sync proof passed. Retained disposable evidence: F:\Development\Nooklet\Nooklet\.codex-tmp\improvement-2026-09-04\journal-sync-proof-data-c1a0fcbc2a804de0b2cf9374115443f3

@@ -182,7 +182,7 @@ export default async function WorkspaceHomePage() {
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard label="Active downloads" value={activeCount} />
-                <StatCard label="Needs attention" value={needsAttention.length} />
+                <StatCard label="Requests needing attention" value={needsAttention.length} />
                 <StatCard label="Library titles" value={library.totals.titles} />
                 <StatCard label="Media files" value={library.totals.files} />
             </div>
@@ -221,7 +221,7 @@ export default async function WorkspaceHomePage() {
                                     {capability.status === "ready"
                                         ? "Ready"
                                         : capability.status === "needs-attention"
-                                          ? "Attention"
+                                          ? "Setup needed"
                                           : "Optional"}
                                 </Badge>
                             </div>
@@ -242,7 +242,7 @@ export default async function WorkspaceHomePage() {
             <div className="grid gap-6 xl:grid-cols-2">
                 <Panel
                     eyebrow="Action center"
-                    title="Needs attention"
+                    title="Requests needing attention"
                     description="Problems are summarized in plain language; Activity has the exact recovery action."
                     actions={
                         <Link
@@ -255,7 +255,7 @@ export default async function WorkspaceHomePage() {
                 >
                     {needsAttention.length === 0 ? (
                         <p className="rounded-xl border border-accent-cool/20 bg-accent-cool/10 px-4 py-3 text-sm text-foreground">
-                            Nothing needs attention right now.
+                            No requests need attention right now.
                         </p>
                     ) : (
                         <ul className="divide-y divide-cream/[0.05]">

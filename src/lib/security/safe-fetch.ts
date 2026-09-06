@@ -14,6 +14,21 @@ export class SsrfBlockedError extends Error {
 }
 
 /**
+ * Redirects are refused before a second host can be contacted. The response's
+ * Location header is intentionally never copied into this error because it
+ * may contain credentials or internal paths that later reach a status field.
+ */
+export class SsrfRedirectError extends SsrfBlockedError {
+    readonly status: number;
+
+    constructor(status: number) {
+        super("Outbound redirects are not permitted.");
+        this.name = "SsrfRedirectError";
+        this.status = status;
+    }
+}
+
+/**
  * Raised when a request is canceled before a response is received. Wraps the
  * runtime-level `AbortError` from fetch so callers see a stable, user-friendly
  * message rather than the host runtime's `DOMException.message` (which has
@@ -537,9 +552,7 @@ export async function safeFetch(
         } as FetchRequestInit);
 
         if (response.status >= 300 && response.status < 400) {
-            throw new SsrfBlockedError(
-                `Refusing to follow redirect to ${response.headers.get("location") ?? "unknown location"}.`,
-            );
+            throw new SsrfRedirectError(response.status);
         }
 
         return await enforceBodySizeLimit(response, maxBytes);

@@ -22,6 +22,7 @@ vi.mock("@/modules/watch-history/queries/list-watch-history-context", () => ({
 
 vi.mock("@/modules/recommendations/repositories/recommendation-repository", () => ({
     completeRecommendationRun: vi.fn(),
+    createQueuedRecommendationRun: vi.fn(),
     createRecommendationRun: vi.fn(),
     listRecommendationExclusionItems: vi.fn(),
     markRecommendationRunFailed: vi.fn(),
@@ -66,9 +67,11 @@ import { getPreferencesByUserId } from "@/modules/preferences/repositories/prefe
 import { generateOpenAiCompatibleRecommendations } from "@/modules/recommendations/adapters/openai-compatible-recommendations";
 import {
     completeRecommendationRun,
+    createQueuedRecommendationRun,
     createRecommendationRun,
     listRecommendationExclusionItems,
     markRecommendationRunFailed,
+    upsertRecommendationRunMetrics,
 } from "@/modules/recommendations/repositories/recommendation-repository";
 import { buildLibraryTasteItemKey } from "@/modules/recommendations/library-taste-key";
 import { sampleLibraryTasteFromTitles } from "@/modules/media-library/queries/sample-library-taste";
@@ -77,23 +80,30 @@ import { findServiceConnectionByType } from "@/modules/service-connections/repos
 import { verifyConfiguredServiceConnection } from "@/modules/service-connections/workflows/verify-configured-service-connection";
 import { createAuditEvent } from "@/modules/users/repositories/user-repository";
 import { listWatchHistoryContext } from "@/modules/watch-history/queries/list-watch-history-context";
+import { safeDispatchNotificationWorkflow } from "@/modules/notifications/workflows/dispatch-notification";
 
-import { createRecommendationRunWorkflow } from "./create-recommendation-run";
+import {
+    createRecommendationRunWorkflow,
+    enqueueRecommendationRunWorkflow,
+} from "./create-recommendation-run";
 
 const mockedGetPreferencesByUserId = vi.mocked(getPreferencesByUserId);
 const mockedGenerateOpenAiCompatibleRecommendations = vi.mocked(
     generateOpenAiCompatibleRecommendations,
 );
 const mockedCompleteRecommendationRun = vi.mocked(completeRecommendationRun);
+const mockedCreateQueuedRecommendationRun = vi.mocked(createQueuedRecommendationRun);
 const mockedCreateRecommendationRun = vi.mocked(createRecommendationRun);
 const mockedListRecommendationExclusionItems = vi.mocked(listRecommendationExclusionItems);
 const mockedMarkRecommendationRunFailed = vi.mocked(markRecommendationRunFailed);
+const mockedUpsertRecommendationRunMetrics = vi.mocked(upsertRecommendationRunMetrics);
 const mockedListSampledLibraryItems = vi.mocked(sampleLibraryTasteFromTitles);
 const mockedLookupTmdbTitleDetails = vi.mocked(lookupTmdbTitleDetails);
 const mockedFindServiceConnectionByType = vi.mocked(findServiceConnectionByType);
 const mockedVerifyConfiguredServiceConnection = vi.mocked(verifyConfiguredServiceConnection);
 const mockedCreateAuditEvent = vi.mocked(createAuditEvent);
 const mockedListWatchHistoryContext = vi.mocked(listWatchHistoryContext);
+const mockedSafeDispatchNotificationWorkflow = vi.mocked(safeDispatchNotificationWorkflow);
 
 function createConnectionRecord(serviceType: string, status: "configured" | "verified") {
     return {
@@ -143,8 +153,9 @@ describe("createRecommendationRunWorkflow", () => {
             updatedAt: new Date(),
         });
         mockedCreateRecommendationRun.mockResolvedValue({ id: "run-1" } as never);
-        mockedCompleteRecommendationRun.mockResolvedValue(undefined);
-        mockedMarkRecommendationRunFailed.mockResolvedValue(undefined);
+        mockedCreateQueuedRecommendationRun.mockResolvedValue({ id: "run-1" } as never);
+        mockedCompleteRecommendationRun.mockResolvedValue(true);
+        mockedMarkRecommendationRunFailed.mockResolvedValue(true);
         mockedListRecommendationExclusionItems.mockResolvedValue([]);
         mockedListWatchHistoryContext.mockResolvedValue([]);
         mockedListSampledLibraryItems.mockResolvedValue({
@@ -384,6 +395,14 @@ describe("createRecommendationRunWorkflow", () => {
         expect(mockedCreateRecommendationRun).toHaveBeenCalledTimes(1);
         expect(mockedMarkRecommendationRunFailed).toHaveBeenCalledWith("run-1", result.message);
         expect(mockedGenerateOpenAiCompatibleRecommendations).not.toHaveBeenCalled();
+
+        const failedAudit = mockedCreateAuditEvent.mock.calls.find(
+            ([input]) => input.eventType === "recommendations.run.failed",
+        );
+        const failedAuditPayload = JSON.parse(failedAudit?.[0]?.payloadJson ?? "{}");
+
+        expect(failedAuditPayload.error).toEqual({ name: "Error" });
+        expect(JSON.stringify(failedAuditPayload)).not.toContain(result.message);
     });
 
     it("filters generated items by TMDB original language before saving", async () => {
@@ -523,5 +542,155 @@ describe("createRecommendationRunWorkflow", () => {
         expect(JSON.stringify(mockedCompleteRecommendationRun.mock.calls[0]?.[1])).not.toContain(
             "Arrival",
         );
+    });
+
+    it("preserves success when post-commit metrics and audit recording fail", async () => {
+        const aiProviderConnection = createConnectionRecord("ai-provider", "verified");
+
+        mockedFindServiceConnectionByType.mockImplementation(async (_userId, serviceType) => {
+            if (serviceType === "ai-provider") {
+                return aiProviderConnection;
+            }
+
+            return null;
+        });
+        mockedGenerateOpenAiCompatibleRecommendations.mockResolvedValue([
+            {
+                title: "Moon",
+                year: 2009,
+                rationale: "Fresh pick.",
+                confidenceLabel: "high",
+                providerMetadata: {},
+            },
+        ]);
+        mockedUpsertRecommendationRunMetrics.mockRejectedValue(new Error("metrics unavailable"));
+        mockedCreateAuditEvent.mockRejectedValue(new Error("audit unavailable"));
+
+        const result = await createRecommendationRunWorkflow("user-1", {
+            mediaType: "movie",
+            requestPrompt: "Recommend a thoughtful science-fiction movie",
+            selectedGenres: [],
+            requestedCount: 1,
+            aiModel: "deepseek/deepseek-v4-pro",
+            temperature: 0.6,
+        });
+
+        expect(result).toEqual({ ok: true, runId: "run-1" });
+        expect(mockedCompleteRecommendationRun).toHaveBeenCalledTimes(1);
+        expect(mockedMarkRecommendationRunFailed).not.toHaveBeenCalled();
+    });
+
+    it("does not rewrite metrics or audit when completion loses its pending guard", async () => {
+        const aiProviderConnection = createConnectionRecord("ai-provider", "verified");
+
+        mockedFindServiceConnectionByType.mockImplementation(async (_userId, serviceType) => {
+            if (serviceType === "ai-provider") {
+                return aiProviderConnection;
+            }
+
+            return null;
+        });
+        mockedGenerateOpenAiCompatibleRecommendations.mockResolvedValue([
+            {
+                title: "Moon",
+                year: 2009,
+                rationale: "Fresh pick.",
+                confidenceLabel: "high",
+                providerMetadata: {},
+            },
+        ]);
+        mockedCompleteRecommendationRun.mockResolvedValue(false);
+
+        const result = await createRecommendationRunWorkflow("user-1", {
+            mediaType: "movie",
+            requestPrompt: "Recommend a thoughtful science-fiction movie",
+            selectedGenres: [],
+            requestedCount: 1,
+            aiModel: "deepseek/deepseek-v4-pro",
+            temperature: 0.6,
+        });
+
+        expect(result).toEqual({ ok: true, runId: "run-1" });
+        expect(mockedUpsertRecommendationRunMetrics).not.toHaveBeenCalled();
+        expect(
+            mockedCreateAuditEvent.mock.calls.filter(
+                ([audit]) => audit.eventType === "recommendations.run.succeeded",
+            ),
+        ).toHaveLength(0);
+    });
+
+    it("keeps the committed run and job result when queued audit recording fails", async () => {
+        mockedCreateAuditEvent.mockRejectedValue(new Error("audit unavailable"));
+
+        const result = await enqueueRecommendationRunWorkflow("user-1", {
+            mediaType: "movie",
+            requestPrompt: "Recommend a thoughtful science-fiction movie",
+            selectedGenres: [],
+            requestedCount: 1,
+            aiModel: "deepseek/deepseek-v4-pro",
+            temperature: 0.6,
+        });
+
+        expect(result).toEqual({ ok: true, runId: "run-1" });
+        expect(mockedCreateQueuedRecommendationRun).toHaveBeenCalledTimes(1);
+        expect(mockedMarkRecommendationRunFailed).not.toHaveBeenCalled();
+    });
+
+    it("returns a generic error when atomic run and job creation fails", async () => {
+        mockedCreateQueuedRecommendationRun.mockRejectedValue(new Error("job store unavailable"));
+
+        const result = await enqueueRecommendationRunWorkflow("user-1", {
+            mediaType: "movie",
+            requestPrompt: "Recommend a thoughtful science-fiction movie",
+            selectedGenres: [],
+            requestedCount: 1,
+            aiModel: "deepseek/deepseek-v4-pro",
+            temperature: 0.6,
+        });
+
+        expect(result).toEqual({
+            ok: false,
+            message: "Unable to queue the recommendation run. Try again.",
+        });
+        expect(mockedCreateQueuedRecommendationRun).toHaveBeenCalledWith({
+            userId: "user-1",
+            mediaType: "movie",
+            requestPrompt: "Recommend a thoughtful science-fiction movie",
+            selectedGenres: [],
+            requestedCount: 1,
+            aiModel: "deepseek/deepseek-v4-pro",
+            aiTemperature: 0.6,
+            watchHistoryOnly: false,
+        });
+        expect(mockedMarkRecommendationRunFailed).not.toHaveBeenCalled();
+    });
+
+    it("does not record failed metrics or audit after a lost pending guard race", async () => {
+        mockedMarkRecommendationRunFailed.mockResolvedValue(false);
+        mockedGenerateOpenAiCompatibleRecommendations.mockRejectedValue(
+            new Error("generation failed"),
+        );
+
+        const result = await createRecommendationRunWorkflow("user-1", {
+            mediaType: "movie",
+            requestPrompt: "Recommend a thoughtful science-fiction movie",
+            selectedGenres: [],
+            requestedCount: 1,
+            aiModel: "deepseek/deepseek-v4-pro",
+            temperature: 0.6,
+        });
+
+        expect(result.ok).toBe(false);
+        expect(mockedUpsertRecommendationRunMetrics).not.toHaveBeenCalled();
+        expect(
+            mockedCreateAuditEvent.mock.calls.filter(
+                ([audit]) => audit.eventType === "recommendations.run.failed",
+            ),
+        ).toHaveLength(0);
+        expect(
+            mockedSafeDispatchNotificationWorkflow.mock.calls.filter(
+                ([notification]) => notification.payload.eventType === "recommendation_run_failed",
+            ),
+        ).toHaveLength(0);
     });
 });

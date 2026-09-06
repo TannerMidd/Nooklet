@@ -506,6 +506,28 @@ export async function upsertMediaTitle(input: UpsertMediaTitleInput) {
     return upsertMediaTitleWithExecutor(ensureDatabaseReady(), input);
 }
 
+export async function upsertMediaTitleWithExternalIds(
+    input: UpsertMediaTitleInput & {
+        externalIds?: Array<{ source: MediaTitleExternalIdSource; value: string }>;
+    },
+) {
+    const database = ensureDatabaseReady();
+
+    return database.transaction((transaction) => {
+        const mediaTitle = upsertMediaTitleWithExecutor(transaction, input);
+
+        if (!mediaTitle) {
+            return null;
+        }
+
+        if (input.externalIds !== undefined) {
+            setMediaTitleExternalIdsWithExecutor(transaction, mediaTitle.id, input.externalIds);
+        }
+
+        return mediaTitle;
+    });
+}
+
 export async function findMediaTitleByNormalizedKey(
     userId: string,
     mediaType: RecommendationMediaType,
@@ -798,42 +820,48 @@ export async function updateMediaLibraryMonitoring(input: {
     return { titleCount: titleIds.length, seasonCount, episodeCount };
 }
 
-export async function setMediaTitleExternalIds(
+function setMediaTitleExternalIdsWithExecutor(
+    database: MediaLibraryExecutor,
     titleId: string,
     externalIds: Array<{ source: MediaTitleExternalIdSource; value: string }>,
 ) {
-    const database = ensureDatabaseReady();
     const uniqueExternalIds = Array.from(
         new Map(externalIds.map((entry) => [entry.source, entry])).values(),
     );
 
-    database.transaction((transaction) => {
-        transaction
-            .delete(mediaTitleExternalIds)
-            .where(eq(mediaTitleExternalIds.titleId, titleId))
-            .run();
+    database.delete(mediaTitleExternalIds).where(eq(mediaTitleExternalIds.titleId, titleId)).run();
 
-        if (uniqueExternalIds.length === 0) {
-            return;
-        }
+    if (uniqueExternalIds.length === 0) {
+        return [];
+    }
 
-        transaction
-            .insert(mediaTitleExternalIds)
-            .values(
-                uniqueExternalIds.map((entry) => ({
-                    titleId,
-                    source: entry.source,
-                    value: entry.value,
-                })),
-            )
-            .run();
-    });
+    database
+        .insert(mediaTitleExternalIds)
+        .values(
+            uniqueExternalIds.map((entry) => ({
+                titleId,
+                source: entry.source,
+                value: entry.value,
+            })),
+        )
+        .run();
 
     return database
         .select()
         .from(mediaTitleExternalIds)
         .where(eq(mediaTitleExternalIds.titleId, titleId))
         .all();
+}
+
+export async function setMediaTitleExternalIds(
+    titleId: string,
+    externalIds: Array<{ source: MediaTitleExternalIdSource; value: string }>,
+) {
+    const database = ensureDatabaseReady();
+
+    return database.transaction((transaction) =>
+        setMediaTitleExternalIdsWithExecutor(transaction, titleId, externalIds),
+    );
 }
 
 export async function createTvSeason(input: {

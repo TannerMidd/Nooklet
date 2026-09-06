@@ -41,6 +41,23 @@ describe("testAndSaveServiceConnection", () => {
         } as never);
     });
 
+    it("rejects credential-bearing draft URLs before loading secrets or contacting the service", async () => {
+        const result = await testAndSaveServiceConnection("user-1", {
+            serviceType: "tautulli",
+            baseUrl: "https://working.example.test/?access%2Dtoken=synthetic-secret",
+            apiKey: "new-secret",
+        });
+
+        expect(result).toEqual({
+            ok: false,
+            message: "Base URLs must not contain embedded credentials.",
+            field: "baseUrl",
+        });
+        expect(findMock).not.toHaveBeenCalled();
+        expect(verifyMock).not.toHaveBeenCalled();
+        expect(saveMock).not.toHaveBeenCalled();
+    });
+
     it("does not replace a working connection when draft verification fails", async () => {
         verifyMock.mockResolvedValue({ ok: false, message: "Connection refused." });
 

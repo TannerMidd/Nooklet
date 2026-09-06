@@ -14,9 +14,11 @@ import { cn } from "@/lib/utils";
 
 type SearchableSelectProps = {
     name: string;
+    id?: string;
     options: readonly string[];
     ariaLabel: string;
     ariaDescribedBy?: string;
+    ariaErrormessage?: string;
     defaultValue?: string;
     value?: string;
     onChange?: (value: string) => void;
@@ -32,9 +34,11 @@ type SearchableSelectProps = {
 
 export function SearchableSelect({
     name,
+    id,
     options,
     ariaLabel,
     ariaDescribedBy,
+    ariaErrormessage,
     defaultValue = "",
     value: controlledValue,
     onChange,
@@ -168,12 +172,17 @@ export function SearchableSelect({
     return (
         <div ref={containerRef} className={cn("relative", className)}>
             <input type="hidden" name={name} value={value} />
+            {/* The closed trigger is the control users perceive as invalid. */}
+            {/* eslint-disable-next-line jsx-a11y/role-supports-aria-props */}
             <button
                 ref={triggerRef}
+                id={id}
                 type="button"
                 disabled={disabled}
                 aria-label={ariaLabel}
                 aria-describedby={ariaDescribedBy}
+                aria-errormessage={ariaErrormessage}
+                aria-invalid={ariaInvalid || undefined}
                 data-invalid={ariaInvalid ? "true" : undefined}
                 aria-haspopup="listbox"
                 aria-expanded={open}
@@ -216,6 +225,8 @@ export function SearchableSelect({
                             aria-expanded="true"
                             aria-controls={listboxId}
                             aria-activedescendant={highlightedOptionId}
+                            aria-describedby={ariaDescribedBy}
+                            aria-errormessage={ariaErrormessage}
                             aria-invalid={ariaInvalid || undefined}
                             value={query}
                             onChange={(event) => {

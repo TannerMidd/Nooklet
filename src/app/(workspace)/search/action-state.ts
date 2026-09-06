@@ -28,6 +28,7 @@ export type TitleSearchActionState = {
     status: "idle" | "success" | "error";
     message: string | null;
     results: TitleSearchResultView[];
+    reason?: "tmdb-not-configured" | "tmdb-error";
 };
 
 export const initialTitleSearchActionState: TitleSearchActionState = {

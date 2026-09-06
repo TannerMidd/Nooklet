@@ -1,4 +1,5 @@
 import { decryptSecret } from "@/lib/security/secret-box";
+import { CredentialUrlError, assertCredentialFreeUrl } from "@/lib/security/credential-url";
 import { createAuditEvent } from "@/modules/users/public";
 import { verifyServiceConnection } from "@/modules/service-connections/adapters/verify-service-connection";
 import { getServiceConnectionDefinition } from "@/modules/service-connections/service-definitions";
@@ -9,7 +10,7 @@ import {
 import { type ServiceConnectionTypeInput } from "@/modules/service-connections/schemas/service-connection";
 
 export type VerifyConfiguredServiceConnectionResult =
-    { ok: true; message: string } | { ok: false; message: string; field?: "apiKey" };
+    { ok: true; message: string } | { ok: false; message: string; field?: "apiKey" | "baseUrl" };
 
 export async function verifyConfiguredServiceConnection(
     userId: string,
@@ -22,6 +23,31 @@ export async function verifyConfiguredServiceConnection(
             ok: false,
             message: "Save the connection before running verification.",
         };
+    }
+
+    try {
+        assertCredentialFreeUrl(record.connection.baseUrl ?? "");
+    } catch (error) {
+        const message =
+            error instanceof CredentialUrlError && error.code === "invalid"
+                ? "The saved base URL is invalid. Enter it again before verifying."
+                : "The saved base URL contains embedded credentials. Replace it before verifying.";
+
+        await updateServiceConnectionVerification(
+            record.connection.id,
+            "error",
+            message,
+            record.metadata,
+        );
+        await createAuditEvent({
+            actorUserId: userId,
+            eventType: "service-connections.verification-failed",
+            subjectType: "service-connection",
+            subjectId: serviceType,
+            payloadJson: JSON.stringify({ serviceType, ok: false }),
+        });
+
+        return { ok: false, message, field: "baseUrl" };
     }
 
     let secret: string;

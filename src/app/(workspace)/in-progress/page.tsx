@@ -105,7 +105,11 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
                 eyebrow={`Live · refreshes every ${refreshIntervalMs / 1_000} seconds`}
                 title="Activity"
                 description="Track active work, resolve problems with the right recovery action, and review completed imports."
-                actions={<ImportNowButton />}
+                actions={
+                    activity.counts.active + activity.counts.attention > 0 ? (
+                        <ImportNowButton />
+                    ) : undefined
+                }
             />
 
             <SegmentedLinks

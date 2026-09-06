@@ -80,6 +80,32 @@ export type YouTubeVideoPageItemDTO = YouTubeVideoDTO & {
     finalPath: string | null;
 };
 
+export type YouTubeVideoPage = {
+    videos: YouTubeVideoPageItemDTO[];
+    pagination: {
+        page: number;
+        pageSize: number;
+        pageCount: number;
+        hasNextPage: boolean;
+        hasPreviousPage: boolean;
+        firstItem: number;
+        lastItem: number;
+        total: number;
+    };
+};
+
+export type YouTubeQueueOutcome =
+    "queued" | "already_queued" | "completed" | "failed" | "cancelled";
+
+export type YouTubeQueueSummary = {
+    totalCount: number;
+    queuedCount: number;
+    alreadyQueuedCount: number;
+    completedCount: number;
+    failedCount: number;
+    cancelledCount: number;
+};
+
 export type YouTubeDownloadActivityDTO = {
     kind: "youtube";
     id: string;

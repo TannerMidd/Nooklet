@@ -1,4 +1,6 @@
-import { readdir, rm } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { recoverImportJournals } from "@/modules/downloads/workflows/import-completed-downloads/import-journal";
+import { lstat, mkdir, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { type EngineDownloadFailureKind, type EngineDownloadState } from "@/lib/database/schema";
@@ -13,19 +15,24 @@ import {
 import {
     finalizeDownload,
     FinalizeDownloadError,
+    moveDownloadToOutput,
+    validateFinalizedDownloadArtifact,
 } from "@/modules/download-engine/finalize/finalize-download";
 import { parseNzb } from "@/modules/download-engine/nzb/parse-nzb";
 import {
     claimQueuedEngineDownload,
     deleteCancelledEngineDownload,
+    listEngineDownloadsForFinalizationRecovery,
     listEngineDownloadsWithControlIntent,
     markEngineDownloadWaitingForCapacity,
     peekNextQueuedEngineDownload,
     readEngineDownloadRuntimeState,
+    recoverFinalizedEngineDownload,
     recoverStrandedEngineDownloads,
     resolveEngineDownloadPayload,
     setEngineDownloadState,
     transitionEngineDownloadState,
+    isEngineDownloadPostProcessing,
     type EngineDownloadRecord,
     updateEngineDownloadProgress,
 } from "@/modules/download-engine/queue/engine-repository";
@@ -134,11 +141,35 @@ export function classifyEngineRuntimeError(
 }
 
 export function engineIncompleteDir(downloadId: string) {
+    assertSafeEngineDownloadId(downloadId);
+
     return path.join(env.DOWNLOAD_ENGINE_WORK_DIR, "incomplete", downloadId);
 }
 
 export function engineCompleteDir(downloadId: string) {
+    assertSafeEngineDownloadId(downloadId);
+
     return path.join(env.DOWNLOAD_ENGINE_DIR, "complete", downloadId);
+}
+
+function assertSafeEngineDownloadId(downloadId: string): void {
+    if (!/^[A-Za-z0-9_-]+$/.test(downloadId)) {
+        throw new Error("The engine download id is not safe for a filesystem directory.");
+    }
+}
+
+function engineQuarantineDir(kind: "complete" | "incomplete", downloadId: string) {
+    assertSafeEngineDownloadId(downloadId);
+
+    const root = kind === "complete" ? env.DOWNLOAD_ENGINE_DIR : env.DOWNLOAD_ENGINE_WORK_DIR;
+
+    return path.join(root, "quarantine", downloadId);
+}
+
+function hasErrorCode(error: unknown, code: string) {
+    return (
+        error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === code
+    );
 }
 
 type SpeedSample = {
@@ -177,8 +208,11 @@ function trackSpeed(current: SpeedSample | null, downloadedBytes: number) {
 }
 
 async function cleanCancelledEngineDownload(download: Pick<EngineDownloadRecord, "id" | "userId">) {
+    await recoverImportJournals({ userId: download.userId, downloadId: download.id });
     await rm(engineIncompleteDir(download.id), { recursive: true, force: true });
     await rm(engineCompleteDir(download.id), { recursive: true, force: true });
+    await rm(engineQuarantineDir("incomplete", download.id), { recursive: true, force: true });
+    await rm(engineQuarantineDir("complete", download.id), { recursive: true, force: true });
 
     const deleted = await deleteCancelledEngineDownload(download.userId, download.id);
     const current = deleted ? null : readEngineDownloadRuntimeState(download.id);
@@ -352,6 +386,18 @@ async function processEngineDownload(download: EngineDownloadRecord): Promise<"c
         // Fresh-start semantics: a claimed download always begins from a clean
         // working directory (per-segment resume is future work per ADR-0002).
         await rm(workDir, { recursive: true, force: true });
+        // A prior recovery pass keeps invalid/legacy output in an id-scoped
+        // quarantine. A user retry owns that exact path and may discard it
+        // before starting a fresh transfer; arbitrary neighboring directories
+        // are never touched.
+        await rm(engineQuarantineDir("incomplete", download.id), {
+            recursive: true,
+            force: true,
+        });
+        await rm(engineQuarantineDir("complete", download.id), {
+            recursive: true,
+            force: true,
+        });
 
         let lastPersistAt = 0;
         let progressPersistence = Promise.resolve();
@@ -506,6 +552,7 @@ async function processEngineDownload(download: EngineDownloadRecord): Promise<"c
         const finalized = await finalizeDownload({
             workDir,
             outputDir: engineCompleteDir(download.id),
+            downloadId: download.id,
             downloadName: download.name,
             files: result.files,
             password: payload.password,
@@ -644,6 +691,242 @@ async function runEngineLoop() {
     }
 }
 
+type FinalizationRecoveryCandidate = {
+    exists: boolean;
+    valid: Awaited<ReturnType<typeof validateFinalizedDownloadArtifact>> | null;
+};
+
+async function inspectFinalizationCandidate(
+    rootPath: string,
+    downloadId: string,
+): Promise<FinalizationRecoveryCandidate> {
+    try {
+        await lstat(rootPath);
+    } catch (error) {
+        if (hasErrorCode(error, "ENOENT")) {
+            return { exists: false, valid: null };
+        }
+
+        throw error;
+    }
+
+    try {
+        return {
+            exists: true,
+            valid: await validateFinalizedDownloadArtifact(rootPath, downloadId, {
+                expectedDirectoryName: downloadId,
+            }),
+        };
+    } catch (error) {
+        // An existing directory without a marker, with a malformed marker, or
+        // with an incomplete tree is owned-but-invalid. Keep it distinct from
+        // ENOENT so recovery can quarantine it before the generic state park.
+        if (hasErrorCode(error, "ENOENT")) {
+            return { exists: true, valid: null };
+        }
+
+        logger.warn("download_engine_finalization_candidate_invalid", {
+            path: rootPath,
+            downloadId,
+            error,
+        });
+
+        return { exists: true, valid: null };
+    }
+}
+
+/** Moves an exact, id-derived engine directory aside without following it. */
+async function quarantineEngineArtifact(
+    kind: "complete" | "incomplete",
+    downloadId: string,
+): Promise<boolean> {
+    const sourcePath =
+        kind === "complete" ? engineCompleteDir(downloadId) : engineIncompleteDir(downloadId);
+
+    try {
+        await lstat(sourcePath);
+    } catch (error) {
+        if (hasErrorCode(error, "ENOENT")) {
+            return false;
+        }
+
+        throw error;
+    }
+
+    const quarantineDir = engineQuarantineDir(kind, downloadId);
+
+    await mkdir(quarantineDir, { recursive: true });
+    const targetPath = path.join(quarantineDir, randomUUID());
+
+    await rename(sourcePath, targetPath);
+    logger.warn("download_engine_finalization_candidate_quarantined", {
+        kind,
+        downloadId,
+        path: targetPath,
+    });
+
+    return true;
+}
+
+function isExpectedEngineOutputPath(outputPath: string | null, expectedPath: string) {
+    return outputPath === null || path.resolve(outputPath) === path.resolve(expectedPath);
+}
+
+async function reconcileFinalizationCasLoss(
+    download: EngineDownloadRecord,
+    blockedIds: Set<string>,
+) {
+    const current = readEngineDownloadRuntimeState(download.id);
+
+    if (!current || current.state === "completed") {
+        return;
+    }
+
+    if (current.controlIntent === "cancel") {
+        await cleanCancelledEngineDownload(download);
+
+        return;
+    }
+
+    if (!isEngineDownloadPostProcessing(current.state)) {
+        // Another owner moved the row out of post-processing while recovery was
+        // validating the marker. The output no longer has a completion fence;
+        // preserve it in quarantine so a paused/fetching row cannot have it
+        // swept as an anonymous directory.
+        try {
+            await quarantineEngineArtifact("complete", download.id);
+        } catch (error) {
+            blockedIds.add(download.id);
+            logger.error("download_engine_finalization_race_quarantine_failed", {
+                downloadId: download.id,
+                error,
+            });
+        }
+
+        return;
+    }
+
+    // Do not let generic restart recovery downgrade a row while a validated
+    // artifact is still waiting for its durable completion write. Keeping the
+    // id out of that update preserves the output for the next recovery tick.
+    // The recovery latch also stays clear while this id is blocked, so a
+    // transient compare-and-swap race is retried rather than parked forever.
+    blockedIds.add(download.id);
+    logger.error("download_engine_finalization_recovery_cas_lost", {
+        downloadId: download.id,
+        state: current.state,
+        controlIntent: current.controlIntent,
+    });
+}
+
+/**
+ * Reconciles the crash window between finalization and the completion CAS.
+ * Every candidate is bound to the row id and validated from a producer-written
+ * manifest before promotion. Invalid owned candidates are moved aside so the
+ * generic restart park cannot mistake them for disposable orphans.
+ */
+async function recoverFinalizedEngineDownloads() {
+    const downloads = await listEngineDownloadsForFinalizationRecovery();
+    const blockedIds = new Set<string>();
+
+    for (const download of downloads) {
+        const current = readEngineDownloadRuntimeState(download.id);
+
+        if (!current) {
+            continue;
+        }
+
+        if (current.controlIntent === "cancel") {
+            await cleanCancelledEngineDownload(download);
+
+            continue;
+        }
+
+        if (
+            !engineActiveArtifactStates.has(current.state) ||
+            !isEngineDownloadPostProcessing(current.state)
+        ) {
+            continue;
+        }
+
+        const outputPath = engineCompleteDir(download.id);
+        const declaredOutput = download.outputPath;
+        const complete = await inspectFinalizationCandidate(outputPath, download.id);
+        const incomplete = await inspectFinalizationCandidate(
+            engineIncompleteDir(download.id),
+            download.id,
+        );
+
+        if (!isExpectedEngineOutputPath(declaredOutput, outputPath)) {
+            if (complete.exists) {
+                await quarantineEngineArtifact("complete", download.id);
+            }
+
+            if (incomplete.exists) {
+                await quarantineEngineArtifact("incomplete", download.id);
+            }
+
+            logger.error("download_engine_finalization_output_binding_failed", {
+                downloadId: download.id,
+                outputPath: declaredOutput,
+                expectedPath: outputPath,
+            });
+
+            continue;
+        }
+
+        if (complete.valid) {
+            // A completed output is authoritative once its marker and complete
+            // tree validate. Any stale work copy is retained in quarantine and
+            // never competes with the output path.
+            if (incomplete.exists) {
+                await quarantineEngineArtifact("incomplete", download.id);
+            }
+
+            const recovered = await recoverFinalizedEngineDownload(
+                download.id,
+                outputPath,
+                download.completedAt ?? new Date(),
+            );
+
+            if (!recovered) {
+                await reconcileFinalizationCasLoss(download, blockedIds);
+            }
+
+            continue;
+        }
+
+        if (complete.exists) {
+            await quarantineEngineArtifact("complete", download.id);
+        }
+
+        if (incomplete.valid) {
+            // moveDownloadToOutput validates the source again and publishes by
+            // rename (or a private, validated EXDEV stage), so a tree changed
+            // after inspection cannot become an unverified completed output.
+            await moveDownloadToOutput(engineIncompleteDir(download.id), outputPath, download.id);
+
+            const recovered = await recoverFinalizedEngineDownload(
+                download.id,
+                outputPath,
+                download.completedAt ?? new Date(),
+            );
+
+            if (!recovered) {
+                await reconcileFinalizationCasLoss(download, blockedIds);
+            }
+
+            continue;
+        }
+
+        if (incomplete.exists) {
+            await quarantineEngineArtifact("incomplete", download.id);
+        }
+    }
+
+    return blockedIds;
+}
+
 /**
  * Parks interrupted work once per worker process. The worker entrypoint calls
  * this before accepting filesystem jobs so a slow scan cannot leave an old
@@ -651,7 +934,21 @@ async function runEngineLoop() {
  */
 export async function recoverInterruptedEngineDownloads() {
     if (!runtime.recovered) {
-        await recoverStrandedEngineDownloads();
+        await recoverImportJournals().catch(() =>
+            logger.warn("import_journal_catalogue_recovery_pending"),
+        );
+        // Cancellation owns the first decision. A late completion CAS must not
+        // publish or preserve output after a durable cancel request wins.
+        await reconcilePendingEngineCancellations();
+
+        const blockedIds = await recoverFinalizedEngineDownloads();
+
+        if (blockedIds.size > 0) {
+            await recoverStrandedEngineDownloads([...blockedIds]);
+        } else {
+            await recoverStrandedEngineDownloads();
+        }
+
         // Runs after the state recovery so rows this pass just parked are
         // already visible in their terminal-ish state when directories are
         // judged orphaned.
@@ -659,7 +956,7 @@ export async function recoverInterruptedEngineDownloads() {
 
         // Only latch recovery after every eligible artifact was removed. A
         // transient filesystem failure must be retried on the next worker tick.
-        if (sweepCompleted) {
+        if (sweepCompleted && blockedIds.size === 0) {
             runtime.recovered = true;
         }
     }
@@ -705,6 +1002,9 @@ async function safeReadDir(dir: string) {
  *   without output is swept.
  */
 export async function sweepOrphanedEngineArtifacts() {
+    await recoverImportJournals().catch(() =>
+        logger.warn("import_journal_catalogue_recovery_pending"),
+    );
     const rows = await listEngineDownloadArtifactStates();
     const rowById = new Map(rows.map((row) => [row.id, row]));
 
@@ -778,10 +1078,13 @@ export async function sweepOrphanedEngineArtifacts() {
     return failedRemovals === 0;
 }
 
-/** Reconciles cancellation intent and starts one drain loop per worker. */
+/** Reconciles startup state and starts one drain loop per worker. */
 export async function ensureEngineRunnerStarted() {
-    await reconcilePendingEngineCancellations();
     await recoverInterruptedEngineDownloads();
+    await recoverImportJournals().catch(() =>
+        logger.warn("import_journal_catalogue_recovery_pending"),
+    );
+    await reconcilePendingEngineCancellations();
 
     if (runtime.running) {
         return;

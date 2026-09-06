@@ -2,6 +2,12 @@ import { rm } from "node:fs/promises";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("./import-completed-downloads/import-journal", () => ({
+    recoverImportJournals: vi.fn(async () => undefined),
+    canConsumeImportJournalSources: vi.fn(async () => true),
+    markImportJournalCleanupPending: vi.fn(async () => undefined),
+}));
+
 vi.mock("node:fs/promises", async (importOriginal) => ({
     ...(await importOriginal<typeof import("node:fs/promises")>()),
     rm: vi.fn(),
@@ -38,6 +44,7 @@ vi.mock("./import-completed-downloads/file-inspection", () => ({
 }));
 vi.mock("./import-completed-downloads/file-organization", () => ({
     organizeCompletedDownloadFiles: vi.fn(),
+    rollbackOrganizedDownloadFiles: vi.fn(async () => ({ removedPaths: [], preservedPaths: [] })),
 }));
 vi.mock("./import-completed-downloads/notifications", () => ({
     dispatchCompletedDownloadNotifications: vi.fn(),
@@ -87,8 +94,12 @@ import { scheduleSeasonFulfillmentAfterRequest } from "@/modules/downloads/workf
 import { findServiceConnectionByType } from "@/modules/service-connections/queries/find-service-connection-by-type";
 
 import { resolveCompletedDownloadDestinations } from "./import-completed-downloads/destination-resolution";
+import { recordCompletedDownloadImportAudit } from "./import-completed-downloads/audit";
 import { inspectCompletedDownloadFiles } from "./import-completed-downloads/file-inspection";
-import { organizeCompletedDownloadFiles } from "./import-completed-downloads/file-organization";
+import {
+    organizeCompletedDownloadFiles,
+    rollbackOrganizedDownloadFiles,
+} from "./import-completed-downloads/file-organization";
 import { dispatchCompletedDownloadNotifications } from "./import-completed-downloads/notifications";
 import { persistCompletedDownloadImports } from "./import-completed-downloads/persistence";
 import { retryFailedCompletedDownloads } from "./import-completed-downloads/retry-handling";
@@ -146,6 +157,119 @@ beforeEach(() => {
 });
 
 describe("importCompletedEngineDownloadsWorkflow", () => {
+    it("does not compensate persisted work after an audit error", async () => {
+        finishedMock.mockResolvedValue([
+            {
+                id: "audit-download",
+                state: "completed",
+                name: "Movie",
+                outputPath: "/complete/audit-download",
+                totalBytes: 100,
+            },
+        ] as never);
+        requestsMock.mockResolvedValue([
+            {
+                request: { id: "audit-request" },
+                queueItem: { id: "audit-queue", externalQueueId: "audit-download" },
+            },
+        ] as never);
+        findRequestMock.mockResolvedValue({ id: "audit-request", status: "succeeded" } as never);
+        vi.mocked(persistCompletedDownloadImports).mockResolvedValue({
+            matchedCount: 1,
+            importedCount: 1,
+            importedFileCount: 1,
+            failedCount: 0,
+            affectedLibraryPathIds: [],
+        });
+        vi.mocked(recordCompletedDownloadImportAudit).mockRejectedValueOnce(
+            new Error("audit failed"),
+        );
+        await expect(importCompletedEngineDownloadsWorkflow("user-1")).rejects.toThrow(
+            "audit failed",
+        );
+        expect(rollbackOrganizedDownloadFiles).not.toHaveBeenCalled();
+        expect(updateRequestMock).not.toHaveBeenCalled();
+        expect(markImportedMock).toHaveBeenCalledWith("audit-download");
+    });
+
+    it("records retention before releasing the lease when the second fence renewal fails", async () => {
+        finishedMock.mockResolvedValue([
+            {
+                id: "fence-download",
+                state: "completed",
+                name: "Movie",
+                outputPath: "/complete/fence-download",
+                totalBytes: 100,
+            },
+        ] as never);
+        requestsMock.mockResolvedValue([
+            {
+                request: { id: "fence-request" },
+                queueItem: { id: "fence-queue", externalQueueId: "fence-download" },
+            },
+        ] as never);
+        const renew = vi
+            .fn()
+            .mockResolvedValueOnce(undefined)
+            .mockRejectedValueOnce(new Error("second renewal failed"));
+        const release = vi.fn();
+
+        fencesMock.mockImplementationOnce(async (_userId, matches) => ({
+            matches,
+            workLeases: new Map(),
+            requestWorkLeases: new Map(),
+            renew,
+            release,
+        }));
+        await expect(importCompletedEngineDownloadsWorkflow("user-1")).rejects.toThrow(
+            "second renewal failed",
+        );
+        expect(rollbackOrganizedDownloadFiles).toHaveBeenCalledOnce();
+        expect(vi.mocked(rollbackOrganizedDownloadFiles).mock.invocationCallOrder[0]).toBeLessThan(
+            release.mock.invocationCallOrder[0],
+        );
+        expect(persistCompletedDownloadImports).not.toHaveBeenCalled();
+        expect(markImportedMock).not.toHaveBeenCalled();
+    });
+
+    it("does not compensate or downgrade persisted work after lease release fails", async () => {
+        finishedMock.mockResolvedValue([
+            {
+                id: "lease-download",
+                state: "completed",
+                name: "Movie",
+                outputPath: "/complete/lease-download",
+                totalBytes: 100,
+            },
+        ] as never);
+        requestsMock.mockResolvedValue([
+            {
+                request: { id: "lease-request" },
+                queueItem: { id: "lease-queue", externalQueueId: "lease-download" },
+            },
+        ] as never);
+        findRequestMock.mockResolvedValue({ id: "lease-request", status: "succeeded" } as never);
+        vi.mocked(persistCompletedDownloadImports).mockResolvedValue({
+            matchedCount: 1,
+            importedCount: 1,
+            importedFileCount: 1,
+            failedCount: 0,
+            affectedLibraryPathIds: [],
+        });
+        fencesMock.mockImplementationOnce(async (_userId, matches) => ({
+            matches,
+            workLeases: new Map(),
+            requestWorkLeases: new Map(),
+            renew: vi.fn(),
+            release: vi.fn().mockRejectedValue(new Error("lease release failed")),
+        }));
+        await expect(importCompletedEngineDownloadsWorkflow("user-1")).resolves.toMatchObject({
+            importedCount: 1,
+        });
+        expect(rollbackOrganizedDownloadFiles).not.toHaveBeenCalled();
+        expect(updateRequestMock).not.toHaveBeenCalled();
+    });
+
     it("notifies when an active built-in download is irretrievably missing", async () => {
         vi.mocked(findServiceConnectionByType).mockResolvedValue({
             connection: { id: "connection-1" },

@@ -77,17 +77,32 @@ export function PreferencesForm({
                 <label className="space-y-1.5">
                     <span className="text-sm font-medium text-foreground">Default media mode</span>
                     <select
+                        id="preferences-default-media-mode"
                         name="defaultMediaMode"
                         defaultValue={preferences.defaultMediaMode}
                         className="min-h-11 w-full rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
                         aria-invalid={Boolean(state.fieldErrors?.defaultMediaMode)}
+                        aria-errormessage={
+                            state.fieldErrors?.defaultMediaMode
+                                ? "preferences-default-media-mode-error"
+                                : undefined
+                        }
+                        aria-describedby={
+                            state.fieldErrors?.defaultMediaMode
+                                ? "preferences-default-media-mode-error"
+                                : undefined
+                        }
                     >
                         <option value="tv">TV</option>
                         <option value="movies">Movies</option>
                         <option value="both">Both</option>
                     </select>
                     {state.fieldErrors?.defaultMediaMode ? (
-                        <p className="text-sm text-accent-wine">
+                        <p
+                            id="preferences-default-media-mode-error"
+                            role="alert"
+                            className="text-sm text-accent-wine"
+                        >
                             {state.fieldErrors.defaultMediaMode}
                         </p>
                     ) : null}
@@ -98,15 +113,30 @@ export function PreferencesForm({
                         Default result count
                     </span>
                     <Input
+                        id="preferences-default-result-count"
                         name="defaultResultCount"
                         type="number"
                         min={1}
                         max={50}
                         defaultValue={preferences.defaultResultCount}
                         aria-invalid={Boolean(state.fieldErrors?.defaultResultCount)}
+                        aria-errormessage={
+                            state.fieldErrors?.defaultResultCount
+                                ? "preferences-default-result-count-error"
+                                : undefined
+                        }
+                        aria-describedby={
+                            state.fieldErrors?.defaultResultCount
+                                ? "preferences-default-result-count-error"
+                                : undefined
+                        }
                     />
                     {state.fieldErrors?.defaultResultCount ? (
-                        <p className="text-sm text-accent-wine">
+                        <p
+                            id="preferences-default-result-count-error"
+                            role="alert"
+                            className="text-sm text-accent-wine"
+                        >
                             {state.fieldErrors.defaultResultCount}
                         </p>
                     ) : null}
@@ -115,18 +145,36 @@ export function PreferencesForm({
                 <label className="space-y-1.5">
                     <span className="text-sm font-medium text-foreground">Library sample size</span>
                     <Input
+                        id="preferences-library-taste-sample-size"
                         name="libraryTasteSampleSize"
                         type="number"
                         min={minimumLibraryTasteSampleSize}
                         max={maximumLibraryTasteSampleSize}
                         defaultValue={preferences.libraryTasteSampleSize}
                         aria-invalid={Boolean(state.fieldErrors?.libraryTasteSampleSize)}
+                        aria-errormessage={
+                            state.fieldErrors?.libraryTasteSampleSize
+                                ? "preferences-library-taste-sample-size-error"
+                                : undefined
+                        }
+                        aria-describedby={
+                            state.fieldErrors?.libraryTasteSampleSize
+                                ? "preferences-library-taste-sample-size-description preferences-library-taste-sample-size-error"
+                                : "preferences-library-taste-sample-size-description"
+                        }
                     />
-                    <p className="text-sm leading-6 text-muted">
+                    <p
+                        id="preferences-library-taste-sample-size-description"
+                        className="text-sm leading-6 text-muted"
+                    >
                         More titles give the AI a broader taste signal for large libraries.
                     </p>
                     {state.fieldErrors?.libraryTasteSampleSize ? (
-                        <p className="text-sm text-accent-wine">
+                        <p
+                            id="preferences-library-taste-sample-size-error"
+                            role="alert"
+                            className="text-sm text-accent-wine"
+                        >
                             {state.fieldErrors.libraryTasteSampleSize}
                         </p>
                     ) : null}
@@ -135,6 +183,7 @@ export function PreferencesForm({
                 <label className="space-y-1.5">
                     <span className="text-sm font-medium text-foreground">Default temperature</span>
                     <Input
+                        id="preferences-default-temperature"
                         name="defaultTemperature"
                         type="number"
                         min={0}
@@ -142,9 +191,23 @@ export function PreferencesForm({
                         step={0.1}
                         defaultValue={preferences.defaultTemperature.toFixed(1)}
                         aria-invalid={Boolean(state.fieldErrors?.defaultTemperature)}
+                        aria-errormessage={
+                            state.fieldErrors?.defaultTemperature
+                                ? "preferences-default-temperature-error"
+                                : undefined
+                        }
+                        aria-describedby={
+                            state.fieldErrors?.defaultTemperature
+                                ? "preferences-default-temperature-error"
+                                : undefined
+                        }
                     />
                     {state.fieldErrors?.defaultTemperature ? (
-                        <p className="text-sm text-accent-wine">
+                        <p
+                            id="preferences-default-temperature-error"
+                            role="alert"
+                            className="text-sm text-accent-wine"
+                        >
                             {state.fieldErrors.defaultTemperature}
                         </p>
                     ) : null}
@@ -153,10 +216,21 @@ export function PreferencesForm({
                 <label className="space-y-1.5">
                     <span className="text-sm font-medium text-foreground">Language preference</span>
                     <select
+                        id="preferences-language-preference"
                         name="languagePreference"
                         defaultValue={preferences.languagePreference}
                         className="min-h-11 w-full rounded-lg border border-cream/[0.10] bg-cream/[0.04] px-3 py-2 text-sm text-foreground outline-none transition focus:border-focus focus:ring-2 focus:ring-focus/25"
                         aria-invalid={Boolean(state.fieldErrors?.languagePreference)}
+                        aria-errormessage={
+                            state.fieldErrors?.languagePreference
+                                ? "preferences-language-preference-error"
+                                : undefined
+                        }
+                        aria-describedby={
+                            state.fieldErrors?.languagePreference
+                                ? "preferences-language-preference-error"
+                                : undefined
+                        }
                     >
                         {languagePreferenceOptions.map((option) => (
                             <option key={option.value} value={option.value}>
@@ -165,7 +239,11 @@ export function PreferencesForm({
                         ))}
                     </select>
                     {state.fieldErrors?.languagePreference ? (
-                        <p className="text-sm text-accent-wine">
+                        <p
+                            id="preferences-language-preference-error"
+                            role="alert"
+                            className="text-sm text-accent-wine"
+                        >
                             {state.fieldErrors.languagePreference}
                         </p>
                     ) : null}
@@ -182,49 +260,66 @@ export function PreferencesForm({
                     defaultChecked={preferences.watchHistoryOnly}
                 />
                 <div className="border-t border-cream/[0.05] py-3">
-                    <div className="space-y-1">
-                        <p className="text-sm font-semibold text-foreground">
-                            Watch-history sources
-                        </p>
-                        <p className="text-[13px] leading-5 text-muted">
-                            Choose which synced history sources are allowed to contribute taste
-                            context when watch-history-only mode is enabled.
-                        </p>
-                    </div>
-                    <div className="mt-3 grid gap-2.5 md:grid-cols-2">
-                        {availableWatchHistorySources.map((source) => (
-                            <label
-                                key={source.sourceType}
-                                className="flex items-start gap-2.5 rounded-md bg-cream/[0.03] px-3 py-2"
+                    <div
+                        role="group"
+                        aria-labelledby="preferences-watch-history-sources-label"
+                        aria-describedby={
+                            state.fieldErrors?.watchHistorySourceTypes
+                                ? "preferences-watch-history-source-types-error"
+                                : undefined
+                        }
+                    >
+                        <div className="space-y-1">
+                            <p
+                                id="preferences-watch-history-sources-label"
+                                className="text-sm font-semibold text-foreground"
                             >
-                                <input
-                                    name="watchHistorySourceTypes"
-                                    type="checkbox"
-                                    value={source.sourceType}
-                                    defaultChecked={preferences.watchHistorySourceTypes.includes(
-                                        source.sourceType,
-                                    )}
-                                    className="mt-0.5 h-5 w-5 rounded border-cream/[0.10] text-accent focus:ring-2 focus:ring-focus"
-                                />
-                                <span className="space-y-0.5">
-                                    <span className="block text-sm font-medium text-foreground">
-                                        {source.label}
+                                Watch-history sources
+                            </p>
+                            <p className="text-[13px] leading-5 text-muted">
+                                Choose which synced history sources are allowed to contribute taste
+                                context when watch-history-only mode is enabled.
+                            </p>
+                        </div>
+                        <div className="mt-3 grid gap-2.5 md:grid-cols-2">
+                            {availableWatchHistorySources.map((source) => (
+                                <label
+                                    key={source.sourceType}
+                                    className="flex items-start gap-2.5 rounded-md bg-cream/[0.03] px-3 py-2"
+                                >
+                                    <input
+                                        name="watchHistorySourceTypes"
+                                        type="checkbox"
+                                        value={source.sourceType}
+                                        defaultChecked={preferences.watchHistorySourceTypes.includes(
+                                            source.sourceType,
+                                        )}
+                                        className="mt-0.5 h-5 w-5 rounded border-cream/[0.10] text-accent focus:ring-2 focus:ring-focus"
+                                    />
+                                    <span className="space-y-0.5">
+                                        <span className="block text-sm font-medium text-foreground">
+                                            {source.label}
+                                        </span>
+                                        <span className="block text-xs leading-5 text-muted">
+                                            {source.description}
+                                        </span>
+                                        <span className="block text-[11px] leading-4 text-muted/85">
+                                            {source.statusMessage}
+                                        </span>
                                     </span>
-                                    <span className="block text-xs leading-5 text-muted">
-                                        {source.description}
-                                    </span>
-                                    <span className="block text-[11px] leading-4 text-muted/85">
-                                        {source.statusMessage}
-                                    </span>
-                                </span>
-                            </label>
-                        ))}
+                                </label>
+                            ))}
+                        </div>
+                        {state.fieldErrors?.watchHistorySourceTypes ? (
+                            <p
+                                id="preferences-watch-history-source-types-error"
+                                role="alert"
+                                className="mt-3 text-sm text-accent-wine"
+                            >
+                                {state.fieldErrors.watchHistorySourceTypes}
+                            </p>
+                        ) : null}
                     </div>
-                    {state.fieldErrors?.watchHistorySourceTypes ? (
-                        <p className="mt-3 text-sm text-accent-wine">
-                            {state.fieldErrors.watchHistorySourceTypes}
-                        </p>
-                    ) : null}
                 </div>
                 <CheckboxField
                     name="historyHideExisting"

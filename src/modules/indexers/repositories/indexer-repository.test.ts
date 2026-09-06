@@ -4,9 +4,12 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ensureDatabaseReady } from "@/lib/database/client";
+import { decryptSecret } from "@/lib/security/secret-box";
 import {
     indexerMediaCategories,
     indexerSearchResultSecrets,
+    indexerSearchResults,
+    indexerSearchRuns,
     indexerSecrets,
     users,
 } from "@/lib/database/schema";
@@ -23,6 +26,7 @@ import {
     listEnabledIndexersForMedia,
     listIndexerMediaCategories,
     listSearchResultsForRun,
+    persistIndexerSearchBatch,
     recordIndexerSearchResult,
     saveIndexerSecret,
     setIndexerMediaCategories,
@@ -106,6 +110,21 @@ describe("indexer-repository", () => {
         expect(enabledTvIndexers.map((entry) => entry.id)).toEqual([indexer.id]);
     });
 
+    it("sanitizes URL-bearing indexer status messages at the write boundary", async () => {
+        const userId = await seedUser();
+        const indexer = await createIndexer({
+            userId,
+            name: "Status test indexer",
+            protocol: "newznab",
+            baseUrl: "https://indexer.example",
+            status: "error",
+            statusMessage: "Redirected to https://indexer.example/?token=secret",
+        });
+
+        expect(indexer?.statusMessage).toBe("The service redirected; verify its base URL.");
+        expect(indexer?.statusMessage).not.toContain("token=secret");
+    });
+
     it("persists search runs, safe result metadata, and encrypted result links", async () => {
         const userId = await seedUser();
         const indexer = await createIndexer({
@@ -170,6 +189,203 @@ describe("indexer-repository", () => {
         expect(safeResults.map((entry) => entry.indexerGuid)).toEqual(["guid-arrival-2160p"]);
         expect(storedSecret?.encryptedDownloadUrl).toBe("encrypted-download-url");
         expect(storedSecret?.maskedDownloadUrl).toBe("https://indexer.example/...");
+    });
+
+    it("commits a completed search and all result secrets as one transaction", async () => {
+        const userId = await seedUser();
+        const result = await persistIndexerSearchBatch({
+            userId,
+            mediaType: "movie",
+            query: "Arrival 2016",
+            normalizedKey: "arrival::2016",
+            status: "succeeded",
+            expiresAt: new Date("2099-01-01T00:00:00Z"),
+            results: [
+                {
+                    mediaType: "movie",
+                    title: "Arrival 2016 2160p",
+                    normalizedTitle: "arrival 2016 2160p",
+                    indexerGuid: "arrival-2160p",
+                    downloadUrl: "https://indexer.example/a?guid=arrival-2160p",
+                },
+                {
+                    mediaType: "movie",
+                    title: "Arrival 2016 1080p",
+                    normalizedTitle: "arrival 2016 1080p",
+                    indexerGuid: "arrival-1080p",
+                    downloadUrl: "https://indexer.example/a?guid=arrival-1080p",
+                },
+            ],
+        });
+
+        const storedResults = ensureDatabaseReady()
+            .select()
+            .from(indexerSearchResults)
+            .where(eq(indexerSearchResults.searchRunId, result.searchRun.id))
+            .all();
+        const storedSecrets = ensureDatabaseReady()
+            .select()
+            .from(indexerSearchResultSecrets)
+            .where(eq(indexerSearchResultSecrets.resultId, storedResults[0]!.id))
+            .all();
+
+        expect(result.searchRun.status).toBe("succeeded");
+        expect(result.searchRun.resultCount).toBe(2);
+        expect(result.results).toHaveLength(2);
+        expect(storedSecrets).toHaveLength(1);
+        expect(storedSecrets[0]?.encryptedDownloadUrl).not.toContain(
+            "https://indexer.example/a?guid=arrival-2160p",
+        );
+    });
+
+    it.each([0, 2048, 8193])(
+        "persists all metadata and encrypted URLs for %i search results",
+        async (resultCount) => {
+            const userId = await seedUser();
+            // 2,048 rows exceed one metadata statement's variable limit; 8,193
+            // also exceed one secrets statement's limit. Neither may be truncated.
+            const results = Array.from({ length: resultCount }, (_, index) => ({
+                mediaType: "movie" as const,
+                title: `Release ${index}`,
+                normalizedTitle: `release ${index}`,
+                indexerGuid: `large-search-${index}`,
+                downloadUrl: `https://indexer.example/download/${index}?apikey=synthetic-secret`,
+            }));
+            const persisted = await persistIndexerSearchBatch({
+                userId,
+                mediaType: "movie",
+                query: "Large search",
+                status: "succeeded",
+                expiresAt: new Date("2099-01-01T00:00:00Z"),
+                results,
+            });
+            const stored = ensureDatabaseReady()
+                .select({
+                    guid: indexerSearchResults.indexerGuid,
+                    encryptedUrl: indexerSearchResultSecrets.encryptedDownloadUrl,
+                })
+                .from(indexerSearchResults)
+                .innerJoin(
+                    indexerSearchResultSecrets,
+                    eq(indexerSearchResultSecrets.resultId, indexerSearchResults.id),
+                )
+                .where(eq(indexerSearchResults.searchRunId, persisted.searchRun.id))
+                .all();
+            const expectedUrls = new Map(
+                results.map((result) => [result.indexerGuid, result.downloadUrl]),
+            );
+
+            expect(persisted.searchRun.status).toBe("succeeded");
+            expect(persisted.searchRun.resultCount).toBe(resultCount);
+            expect(persisted.results).toHaveLength(resultCount);
+            expect(stored).toHaveLength(resultCount);
+            expect(new Set(stored.map((row) => row.guid)).size).toBe(resultCount);
+            expect(stored.every((row) => !row.encryptedUrl.includes("synthetic-secret"))).toBe(
+                true,
+            );
+            expect(
+                new Map(stored.map((row) => [row.guid, decryptSecret(row.encryptedUrl)])),
+            ).toEqual(expectedUrls);
+        },
+        // This deliberately encrypts, writes and verifies thousands of rows.
+        15_000,
+    );
+
+    it("rolls back earlier chunks, their secrets, and expired-run deletion after a late insert failure", async () => {
+        const userId = await seedUser();
+        const expiredRun = await createIndexerSearchRun({
+            userId,
+            mediaType: "movie",
+            query: "Keep on rollback",
+            expiresAt: new Date("2000-01-01T00:00:00Z"),
+        });
+
+        await recordIndexerSearchResult({
+            searchRunId: expiredRun.id,
+            userId,
+            mediaType: "movie",
+            title: "Existing release",
+            normalizedTitle: "existing release",
+            indexerGuid: "existing-guid",
+            encryptedDownloadUrl: "existing-encrypted-url",
+            maskedDownloadUrl: "existing-mask",
+        });
+        const database = ensureDatabaseReady();
+        const before = {
+            runs: database.select().from(indexerSearchRuns).all(),
+            results: database.select().from(indexerSearchResults).all(),
+            secrets: database.select().from(indexerSearchResultSecrets).all(),
+        };
+        const results = Array.from({ length: 1001 }, (_, index) => ({
+            mediaType: "movie" as const,
+            title: `Release ${index}`,
+            normalizedTitle: `release ${index}`,
+            indexerGuid: `rollback-${index === 1000 ? 0 : index}`,
+            downloadUrl: `https://indexer.example/download/${index}`,
+        }));
+
+        await expect(
+            persistIndexerSearchBatch({
+                userId,
+                mediaType: "movie",
+                query: "Late duplicate",
+                status: "succeeded",
+                expiresAt: new Date("2099-01-01T00:00:00Z"),
+                results,
+            }),
+        ).rejects.toThrow();
+
+        expect(database.select().from(indexerSearchRuns).all()).toEqual(before.runs);
+        expect(database.select().from(indexerSearchResults).all()).toEqual(before.results);
+        expect(database.select().from(indexerSearchResultSecrets).all()).toEqual(before.secrets);
+    });
+
+    it("rolls back the run and earlier result rows when a later result insert fails", async () => {
+        const userId = await seedUser();
+        const query = `rollback-${randomUUID()}`;
+
+        await expect(
+            persistIndexerSearchBatch({
+                userId,
+                mediaType: "movie",
+                query,
+                status: "succeeded",
+                expiresAt: new Date("2099-01-01T00:00:00Z"),
+                results: [
+                    {
+                        mediaType: "movie",
+                        title: "Duplicate one",
+                        normalizedTitle: "duplicate one",
+                        indexerGuid: "duplicate-guid",
+                        downloadUrl: "https://indexer.example/one",
+                    },
+                    {
+                        mediaType: "movie",
+                        title: "Duplicate two",
+                        normalizedTitle: "duplicate two",
+                        indexerGuid: "duplicate-guid",
+                        downloadUrl: "https://indexer.example/two",
+                    },
+                ],
+            }),
+        ).rejects.toThrow();
+
+        const database = ensureDatabaseReady();
+
+        expect(
+            database
+                .select()
+                .from(indexerSearchRuns)
+                .where(eq(indexerSearchRuns.userId, userId))
+                .all(),
+        ).toEqual([]);
+        expect(
+            database
+                .select()
+                .from(indexerSearchResults)
+                .where(eq(indexerSearchResults.userId, userId))
+                .all(),
+        ).toEqual([]);
     });
 
     it("rejects expired download results and removes their cascaded secrets on the next search", async () => {

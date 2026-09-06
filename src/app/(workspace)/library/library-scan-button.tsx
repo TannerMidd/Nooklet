@@ -10,6 +10,7 @@ import {
     type ScanLibraryActionState,
 } from "@/app/(workspace)/library/action-state";
 import { Button } from "@/components/ui/button";
+import { InlineAlert } from "@/components/ui/inline-alert";
 
 function ScanStatus({ state }: { state: ScanLibraryActionState }) {
     if (state.status === "idle" || !state.message) {
@@ -17,13 +18,12 @@ function ScanStatus({ state }: { state: ScanLibraryActionState }) {
     }
 
     return (
-        <p
-            className={
-                state.status === "success" ? "text-xs text-foreground" : "text-xs text-accent-wine"
-            }
+        <InlineAlert
+            variant={state.status === "success" ? "success" : "error"}
+            className="px-3 py-1.5 text-xs"
         >
             {state.message}
-        </p>
+        </InlineAlert>
     );
 }
 

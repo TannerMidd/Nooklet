@@ -1,4 +1,5 @@
 import { trimTrailingSlash } from "@/lib/integrations/http-helpers";
+import { assertCredentialFreeUrl } from "@/lib/security/credential-url";
 
 export type AiProviderFlavor = "openai-compatible" | "lm-studio-native";
 
@@ -66,15 +67,24 @@ export function detectAiProviderFlavor(payload: unknown): AiProviderFlavor {
  * making them re-enter a second URL.
  */
 export function resolveChatCompletionsUrl(baseUrl: string, flavor: AiProviderFlavor): string {
+    assertCredentialFreeUrl(baseUrl);
     const trimmed = trimTrailingSlash(baseUrl);
 
     if (flavor === "lm-studio-native") {
         const rewritten = trimmed.replace(/\/api\/v1$/, "/v1");
 
-        return `${rewritten}/chat/completions`;
+        const endpoint = `${rewritten}/chat/completions`;
+
+        assertCredentialFreeUrl(endpoint);
+
+        return endpoint;
     }
 
-    return `${trimmed}/chat/completions`;
+    const endpoint = `${trimmed}/chat/completions`;
+
+    assertCredentialFreeUrl(endpoint);
+
+    return endpoint;
 }
 
 /**
@@ -84,5 +94,10 @@ export function resolveChatCompletionsUrl(baseUrl: string, flavor: AiProviderFla
  * so verification can use the same path for both flavors.
  */
 export function resolveListModelsUrl(baseUrl: string): string {
-    return `${trimTrailingSlash(baseUrl)}/models`;
+    assertCredentialFreeUrl(baseUrl);
+    const endpoint = `${trimTrailingSlash(baseUrl)}/models`;
+
+    assertCredentialFreeUrl(endpoint);
+
+    return endpoint;
 }

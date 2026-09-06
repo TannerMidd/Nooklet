@@ -17,6 +17,7 @@ export type DiscoverOverview =
     | {
           ok: true;
           rails: DiscoverRail[];
+          unavailableRailCount: number;
       }
     | {
           ok: false;
@@ -85,7 +86,7 @@ export async function getDiscoverOverview(userId: string): Promise<DiscoverOverv
                 ...tmdbConnection,
                 category: rail.category,
                 mediaType: rail.mediaType,
-            });
+            }).catch(() => ({ ok: false as const }));
 
             if (!response.ok) {
                 return null;
@@ -107,12 +108,13 @@ export async function getDiscoverOverview(userId: string): Promise<DiscoverOverv
             ok: false,
             reason: "tmdb-error",
             message:
-                "TMDB returned no discover results. Check the TMDB connection status and try again.",
+                "The metadata service could not load Discover. Check the connection status and try again.",
         };
     }
 
     return {
         ok: true,
         rails,
+        unavailableRailCount: results.length - rails.length,
     };
 }

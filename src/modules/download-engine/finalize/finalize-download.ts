@@ -1,4 +1,5 @@
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import {
@@ -7,6 +8,7 @@ import {
     mkdir,
     mkdtemp,
     open,
+    readFile,
     readdir,
     realpath,
     rename,
@@ -59,6 +61,463 @@ export class FinalizeDownloadError extends Error {
         super(message);
         this.name = "FinalizeDownloadError";
         this.kind = kind;
+    }
+}
+
+export const finalizedDownloadManifestFileName = ".nooklet-finalized.json";
+
+const finalizedDownloadManifestTemporaryPrefix = `${finalizedDownloadManifestFileName}.tmp-`;
+const finalizedDownloadManifestMaxBytes = 1024 * 1024;
+
+export const finalizedDownloadArtifactMaxFiles = 100_000;
+export const finalizedDownloadArtifactMaxBytes = 250 * 1024 ** 3;
+
+export type FinalizedDownloadManifestEntry = {
+    relativePath: string;
+    sizeBytes: number;
+};
+
+export type FinalizedDownloadManifest = {
+    version: 1;
+    downloadId: string;
+    files: FinalizedDownloadManifestEntry[];
+    totalBytes: number;
+    totalFiles: number;
+};
+
+export type ValidatedFinalizedDownload = {
+    rootPath: string;
+    manifest: FinalizedDownloadManifest;
+};
+
+function hasErrorCode(error: unknown, code: string) {
+    return (
+        error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === code
+    );
+}
+
+function pathKey(value: string) {
+    return value.toLowerCase();
+}
+
+function isSafeManifestRelativePath(value: unknown): value is string {
+    if (typeof value !== "string" || value.length === 0 || value.length > 4096) {
+        return false;
+    }
+
+    if (
+        value.includes("\0") ||
+        value.includes("\\") ||
+        value.includes(":") ||
+        path.posix.isAbsolute(value) ||
+        value.startsWith("/")
+    ) {
+        return false;
+    }
+
+    const segments = value.split("/");
+
+    if (
+        segments.some(
+            (segment) =>
+                segment.length === 0 ||
+                segment === "." ||
+                segment === ".." ||
+                segment.endsWith(".") ||
+                segment.endsWith(" "),
+        )
+    ) {
+        return false;
+    }
+
+    return path.posix.normalize(value) === value;
+}
+
+function compareManifestEntries(
+    left: FinalizedDownloadManifestEntry,
+    right: FinalizedDownloadManifestEntry,
+) {
+    const leftKey = pathKey(left.relativePath);
+    const rightKey = pathKey(right.relativePath);
+
+    return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+}
+
+function isStrictManifestObject(value: unknown): value is Record<string, unknown> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return false;
+    }
+
+    return (
+        Object.keys(value).sort().join("\0") ===
+        ["downloadId", "files", "totalBytes", "totalFiles", "version"].join("\0")
+    );
+}
+
+function parseFinalizedDownloadManifest(value: unknown, expectedDownloadId: string) {
+    if (!isStrictManifestObject(value)) {
+        throw new FinalizeDownloadError("Finalized download manifest has an invalid shape.");
+    }
+
+    if (value.version !== 1 || value.downloadId !== expectedDownloadId) {
+        throw new FinalizeDownloadError(
+            "Finalized download manifest is not owned by this download.",
+        );
+    }
+
+    const totalBytesValue = value.totalBytes;
+    const totalFilesValue = value.totalFiles;
+
+    if (
+        !Array.isArray(value.files) ||
+        typeof totalBytesValue !== "number" ||
+        !Number.isSafeInteger(totalBytesValue) ||
+        totalBytesValue < 0 ||
+        typeof totalFilesValue !== "number" ||
+        !Number.isSafeInteger(totalFilesValue) ||
+        totalFilesValue < 0 ||
+        totalFilesValue !== value.files.length
+    ) {
+        throw new FinalizeDownloadError("Finalized download manifest has invalid totals.");
+    }
+
+    const files: FinalizedDownloadManifestEntry[] = [];
+    let totalBytes = 0;
+    let previousKey: string | null = null;
+
+    for (const entry of value.files) {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+            throw new FinalizeDownloadError(
+                "Finalized download manifest contains an invalid file.",
+            );
+        }
+
+        const candidate = entry as Record<string, unknown>;
+
+        const relativePath = candidate.relativePath;
+        const sizeBytes = candidate.sizeBytes;
+
+        if (
+            Object.keys(candidate).sort().join("\0") !== "relativePath\0sizeBytes" ||
+            !isSafeManifestRelativePath(relativePath) ||
+            typeof sizeBytes !== "number" ||
+            !Number.isSafeInteger(sizeBytes) ||
+            sizeBytes < 0
+        ) {
+            throw new FinalizeDownloadError(
+                "Finalized download manifest contains an invalid file.",
+            );
+        }
+
+        const manifestEntry = {
+            relativePath,
+            sizeBytes,
+        } satisfies FinalizedDownloadManifestEntry;
+        const currentKey = pathKey(manifestEntry.relativePath);
+
+        if (previousKey !== null && currentKey <= previousKey) {
+            throw new FinalizeDownloadError(
+                "Finalized download manifest file paths must be unique and deterministic.",
+            );
+        }
+
+        previousKey = currentKey;
+        totalBytes += manifestEntry.sizeBytes;
+
+        if (!Number.isSafeInteger(totalBytes) || totalBytes > finalizedDownloadArtifactMaxBytes) {
+            throw new FinalizeDownloadError(
+                "Finalized download exceeds the configured safety quota.",
+            );
+        }
+
+        files.push(manifestEntry);
+    }
+
+    if (totalBytes !== totalBytesValue || totalBytes > finalizedDownloadArtifactMaxBytes) {
+        throw new FinalizeDownloadError(
+            "Finalized download manifest total does not match its files.",
+        );
+    }
+
+    if (files.length > finalizedDownloadArtifactMaxFiles) {
+        throw new FinalizeDownloadError("Finalized download contains too many files.");
+    }
+
+    return {
+        version: 1 as const,
+        downloadId: expectedDownloadId,
+        files,
+        totalBytes,
+        totalFiles: files.length,
+    } satisfies FinalizedDownloadManifest;
+}
+
+function isContainedPath(rootPath: string, candidatePath: string) {
+    const relative = path.relative(rootPath, candidatePath);
+
+    return (
+        relative === "" ||
+        (!path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(`..${path.sep}`))
+    );
+}
+
+async function syncFile(filePath: string) {
+    const handle = await open(filePath, "r+");
+
+    try {
+        await handle.sync();
+    } finally {
+        await handle.close();
+    }
+}
+
+/**
+ * Directory fsync is supported by the Linux worker filesystem. Windows can
+ * reject opening a directory as a file, so the fallback is explicit and the
+ * manifest file itself is still fsynced before its atomic rename.
+ */
+async function syncDirectory(directoryPath: string) {
+    let handle: Awaited<ReturnType<typeof open>> | null = null;
+
+    try {
+        handle = await open(directoryPath, "r");
+        await handle.sync();
+
+        return true;
+    } catch (error) {
+        if (
+            process.platform === "win32" &&
+            (hasErrorCode(error, "EINVAL") ||
+                hasErrorCode(error, "EPERM") ||
+                hasErrorCode(error, "EISDIR") ||
+                hasErrorCode(error, "ENOTSUP"))
+        ) {
+            return false;
+        }
+
+        throw error;
+    } finally {
+        await handle?.close();
+    }
+}
+
+async function collectFinalizedDownloadFiles(rootPath: string) {
+    const rootStats = await lstat(rootPath);
+
+    if (!rootStats.isDirectory() || rootStats.isSymbolicLink()) {
+        throw new FinalizeDownloadError("Finalized download root is not a regular directory.");
+    }
+
+    const resolvedRoot = await realpath(rootPath);
+    const files: FinalizedDownloadManifestEntry[] = [];
+    const seenPaths = new Set<string>();
+    let totalBytes = 0;
+
+    async function visit(currentPath: string): Promise<void> {
+        const entries = await readdir(currentPath, { withFileTypes: true });
+
+        for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+            const entryPath = path.join(currentPath, entry.name);
+            const relativePath = path.relative(rootPath, entryPath).replaceAll(path.sep, "/");
+
+            if (relativePath === finalizedDownloadManifestFileName) {
+                continue;
+            }
+
+            if (entry.name === finalizedDownloadManifestFileName) {
+                throw new FinalizeDownloadError(
+                    "Finalized download contains an unexpected nested manifest.",
+                );
+            }
+
+            if (entry.name.startsWith(finalizedDownloadManifestTemporaryPrefix)) {
+                throw new FinalizeDownloadError(
+                    "Finalized download contains a temporary manifest.",
+                );
+            }
+
+            if (!isSafeManifestRelativePath(relativePath)) {
+                throw new FinalizeDownloadError(
+                    `Finalized download contains an unsafe path: ${entry.name.slice(0, 160)}`,
+                );
+            }
+
+            const key = pathKey(relativePath);
+
+            if (seenPaths.has(key)) {
+                throw new FinalizeDownloadError(
+                    "Finalized download contains colliding file paths.",
+                );
+            }
+
+            seenPaths.add(key);
+
+            const entryStats = await lstat(entryPath);
+
+            if (entryStats.isSymbolicLink()) {
+                throw new FinalizeDownloadError(
+                    `Finalized download contains a link or reparse entry: ${entry.name.slice(0, 160)}`,
+                );
+            }
+
+            const resolvedEntry = await realpath(entryPath);
+
+            if (!isContainedPath(resolvedRoot, resolvedEntry)) {
+                throw new FinalizeDownloadError(
+                    `Finalized download escaped its root: ${entry.name.slice(0, 160)}`,
+                );
+            }
+
+            if (entryStats.isDirectory()) {
+                await visit(entryPath);
+                continue;
+            }
+
+            if (!entryStats.isFile() || entryStats.nlink > 1) {
+                throw new FinalizeDownloadError(
+                    `Finalized download contains a non-regular or hard-linked file: ${entry.name.slice(0, 160)}`,
+                );
+            }
+
+            totalBytes += entryStats.size;
+
+            if (
+                !Number.isSafeInteger(totalBytes) ||
+                totalBytes > finalizedDownloadArtifactMaxBytes ||
+                files.length + 1 > finalizedDownloadArtifactMaxFiles
+            ) {
+                throw new FinalizeDownloadError(
+                    "Finalized download exceeds the configured safety quota.",
+                );
+            }
+
+            files.push({ relativePath, sizeBytes: entryStats.size });
+        }
+    }
+
+    await visit(rootPath);
+
+    files.sort(compareManifestEntries);
+
+    return { files, totalBytes };
+}
+
+async function readFinalizedDownloadManifest(rootPath: string, expectedDownloadId: string) {
+    const markerPath = path.join(rootPath, finalizedDownloadManifestFileName);
+    let markerStats: Awaited<ReturnType<typeof lstat>>;
+
+    try {
+        markerStats = await lstat(markerPath);
+    } catch (error) {
+        if (hasErrorCode(error, "ENOENT")) {
+            throw new FinalizeDownloadError("Finalized download manifest is missing.");
+        }
+
+        throw error;
+    }
+
+    if (
+        !markerStats.isFile() ||
+        markerStats.isSymbolicLink() ||
+        markerStats.nlink > 1 ||
+        markerStats.size > finalizedDownloadManifestMaxBytes
+    ) {
+        throw new FinalizeDownloadError("Finalized download manifest is not a safe regular file.");
+    }
+
+    let parsed: unknown;
+
+    try {
+        parsed = JSON.parse(await readFile(markerPath, "utf8"));
+    } catch {
+        throw new FinalizeDownloadError("Finalized download manifest is malformed.");
+    }
+
+    return parseFinalizedDownloadManifest(parsed, expectedDownloadId);
+}
+
+export async function validateFinalizedDownloadArtifact(
+    rootPath: string,
+    expectedDownloadId: string,
+    options: { expectedDirectoryName?: string } = {},
+): Promise<ValidatedFinalizedDownload> {
+    const resolvedRootPath = path.resolve(/* turbopackIgnore: true */ rootPath);
+
+    if (
+        options.expectedDirectoryName !== undefined &&
+        path.basename(resolvedRootPath) !== options.expectedDirectoryName
+    ) {
+        throw new FinalizeDownloadError(
+            "Finalized download directory is not bound to its queue id.",
+        );
+    }
+
+    const manifest = await readFinalizedDownloadManifest(resolvedRootPath, expectedDownloadId);
+    const actual = await collectFinalizedDownloadFiles(resolvedRootPath);
+
+    if (
+        actual.totalBytes !== manifest.totalBytes ||
+        actual.files.length !== manifest.files.length ||
+        actual.files.some(
+            (entry, index) =>
+                entry.relativePath !== manifest.files[index]?.relativePath ||
+                entry.sizeBytes !== manifest.files[index]?.sizeBytes,
+        )
+    ) {
+        throw new FinalizeDownloadError(
+            "Finalized download manifest does not match its file tree.",
+        );
+    }
+
+    return { rootPath: resolvedRootPath, manifest };
+}
+
+export async function writeFinalizedDownloadManifest(
+    rootPath: string,
+    downloadId: string,
+): Promise<{ manifest: FinalizedDownloadManifest; directorySynced: boolean }> {
+    const markerPath = path.join(rootPath, finalizedDownloadManifestFileName);
+
+    try {
+        await lstat(markerPath);
+
+        throw new FinalizeDownloadError("Finalized download already has a manifest.");
+    } catch (error) {
+        if (!hasErrorCode(error, "ENOENT")) {
+            throw error;
+        }
+    }
+
+    const inventory = await collectFinalizedDownloadFiles(rootPath);
+    const manifest: FinalizedDownloadManifest = {
+        version: 1,
+        downloadId,
+        files: inventory.files,
+        totalBytes: inventory.totalBytes,
+        totalFiles: inventory.files.length,
+    };
+    const temporaryPath = path.join(
+        rootPath,
+        `${finalizedDownloadManifestTemporaryPrefix}${randomUUID()}`,
+    );
+
+    try {
+        const handle = await open(temporaryPath, "wx", 0o600);
+
+        try {
+            await handle.writeFile(`${JSON.stringify(manifest)}\n`, "utf8");
+            await handle.sync();
+        } finally {
+            await handle.close();
+        }
+
+        await rename(temporaryPath, markerPath);
+
+        return { manifest, directorySynced: await syncDirectory(rootPath) };
+    } catch (error) {
+        await rm(temporaryPath, { force: true }).catch(() => undefined);
+
+        throw error;
     }
 }
 
@@ -436,15 +895,6 @@ export function assertArchiveListingQuota(
     return { totalBytes, totalEntries };
 }
 
-function isContainedPath(rootPath: string, candidatePath: string) {
-    const relative = path.relative(rootPath, candidatePath);
-
-    return (
-        relative === "" ||
-        (!path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(`..${path.sep}`))
-    );
-}
-
 /**
  * Validates the filesystem tree emitted by an archive tool. Links, special
  * files, hard links and anything resolving outside the staging root fail
@@ -541,12 +991,6 @@ export async function withArchiveStaging<T>(
     }
 }
 
-function hasErrorCode(error: unknown, code: string) {
-    return (
-        error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === code
-    );
-}
-
 async function pathStatsOrNull(filePath: string) {
     try {
         return await lstat(filePath);
@@ -562,15 +1006,51 @@ async function pathStatsOrNull(filePath: string) {
 async function copyDirectoryTree(sourceDir: string, targetDir: string): Promise<void> {
     await mkdir(targetDir, { recursive: true });
 
-    for (const entry of await readdir(sourceDir, { withFileTypes: true })) {
+    for (const entry of (await readdir(sourceDir, { withFileTypes: true })).sort((left, right) =>
+        left.name.localeCompare(right.name),
+    )) {
         const sourcePath = path.join(sourceDir, entry.name);
         const targetPath = path.join(targetDir, entry.name);
+        const sourceStats = await lstat(sourcePath);
 
-        if (entry.isDirectory()) {
-            await copyDirectoryTree(sourcePath, targetPath);
-        } else {
-            await copyFile(sourcePath, targetPath);
+        if (sourceStats.isSymbolicLink()) {
+            throw new FinalizeDownloadError(
+                `Finalized download changed into a link while publishing: ${entry.name.slice(0, 160)}`,
+            );
         }
+
+        if (sourceStats.isDirectory()) {
+            await copyDirectoryTree(sourcePath, targetPath);
+        } else if (sourceStats.isFile() && sourceStats.nlink === 1) {
+            await copyFile(sourcePath, targetPath);
+        } else {
+            throw new FinalizeDownloadError(
+                `Finalized download changed into a non-regular file while publishing: ${entry.name.slice(0, 160)}`,
+            );
+        }
+    }
+}
+
+function manifestsMatch(left: FinalizedDownloadManifest, right: FinalizedDownloadManifest) {
+    return (
+        left.version === right.version &&
+        left.downloadId === right.downloadId &&
+        left.totalBytes === right.totalBytes &&
+        left.totalFiles === right.totalFiles &&
+        left.files.length === right.files.length &&
+        left.files.every(
+            (entry, index) =>
+                entry.relativePath === right.files[index]?.relativePath &&
+                entry.sizeBytes === right.files[index]?.sizeBytes,
+        )
+    );
+}
+
+async function assertOutputIsAbsent(outputDir: string) {
+    if (await pathStatsOrNull(outputDir)) {
+        throw new FinalizeDownloadError(
+            "Finalized download output already exists and cannot be overwritten safely.",
+        );
     }
 }
 
@@ -579,30 +1059,86 @@ async function copyDirectoryTree(sourceDir: string, targetDir: string): Promise<
  * lives on a Linux-native filesystem while the output directory may sit on a
  * host bind mount (a different filesystem), so a cross-device rename falls
  * back to copying the tree one file at a time — sequential streaming is the
- * one access pattern Docker Desktop file shares handle reliably.
+ * one access pattern Docker Desktop file shares handle reliably. The copied
+ * tree is published through a private sibling stage only after its manifest
+ * has been checked again.
  */
-export async function moveDownloadToOutput(workDir: string, outputDir: string): Promise<void> {
+export async function moveDownloadToOutput(
+    workDir: string,
+    outputDir: string,
+    downloadId: string,
+): Promise<void> {
+    if (
+        path.resolve(/* turbopackIgnore: true */ workDir) ===
+        path.resolve(/* turbopackIgnore: true */ outputDir)
+    ) {
+        throw new FinalizeDownloadError(
+            "Finalized download source and output must be different paths.",
+        );
+    }
+
+    if (path.basename(path.resolve(/* turbopackIgnore: true */ outputDir)) !== downloadId) {
+        throw new FinalizeDownloadError("Finalized download output is not bound to its queue id.");
+    }
+
+    const source = await validateFinalizedDownloadArtifact(workDir, downloadId);
+
     await mkdir(path.dirname(outputDir), { recursive: true });
-    await rm(outputDir, { recursive: true, force: true });
+
+    const existing = await pathStatsOrNull(outputDir);
+
+    if (existing) {
+        const validatedExisting = await validateFinalizedDownloadArtifact(outputDir, downloadId, {
+            expectedDirectoryName: downloadId,
+        });
+
+        if (!manifestsMatch(source.manifest, validatedExisting.manifest)) {
+            throw new FinalizeDownloadError(
+                "Finalized download output belongs to the same id but contains different files.",
+            );
+        }
+
+        await rm(workDir, { recursive: true, force: true });
+
+        return;
+    }
 
     try {
+        await assertOutputIsAbsent(outputDir);
         await rename(workDir, outputDir);
     } catch (error) {
         if (!hasErrorCode(error, "EXDEV")) {
             throw error;
         }
 
-        try {
-            await copyDirectoryTree(workDir, outputDir);
-        } catch (copyError) {
-            // Never leave a half-copied output tree for the import pass to find.
-            await rm(outputDir, { recursive: true, force: true }).catch(() => undefined);
+        const stageDir = await mkdtemp(
+            path.join(path.dirname(outputDir), `.${path.basename(outputDir)}.nooklet-stage-`),
+        );
 
+        try {
+            await copyDirectoryTree(workDir, stageDir);
+            await validateFinalizedDownloadArtifact(stageDir, downloadId);
+            await syncFile(path.join(stageDir, finalizedDownloadManifestFileName));
+            await syncDirectory(stageDir);
+            await assertOutputIsAbsent(outputDir);
+            await rename(stageDir, outputDir);
+            await validateFinalizedDownloadArtifact(outputDir, downloadId, {
+                expectedDirectoryName: downloadId,
+            });
+            await syncDirectory(path.dirname(outputDir));
+        } catch (copyError) {
             throw copyError;
+        } finally {
+            await rm(stageDir, { recursive: true, force: true }).catch(() => undefined);
         }
 
         await rm(workDir, { recursive: true, force: true });
     }
+
+    await validateFinalizedDownloadArtifact(outputDir, downloadId, {
+        expectedDirectoryName: downloadId,
+    });
+    await syncDirectory(path.dirname(outputDir));
 }
 
 async function assertMergeHasNoCollisions(sourceDir: string, targetDir: string): Promise<void> {
@@ -1023,6 +1559,7 @@ async function rescueUnnamedMedia(workDir: string, downloadName: string): Promis
 export async function finalizeDownload(input: {
     workDir: string;
     outputDir: string;
+    downloadId: string;
     /** Human-readable release name, used to name rescued media files. */
     downloadName: string;
     files: DownloadedNzbFile[];
@@ -1131,7 +1668,13 @@ export async function finalizeDownload(input: {
     // PAR2 volumes have served their purpose once media is secured.
     await removeArtifacts(input.workDir, { archives: false, par2: true });
 
-    await moveDownloadToOutput(input.workDir, input.outputDir);
+    const manifest = await writeFinalizedDownloadManifest(input.workDir, input.downloadId);
+
+    if (!manifest.directorySynced) {
+        warnings.push("The finalized manifest was synced; Windows could not fsync its directory.");
+    }
+
+    await moveDownloadToOutput(input.workDir, input.outputDir, input.downloadId);
 
     return {
         outputPath: input.outputDir,

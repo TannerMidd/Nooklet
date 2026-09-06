@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
     createYouTubeSourceWorkflow: vi.fn(),
+    retryYouTubeSourceInitializationWorkflow: vi.fn(),
     retryAllYouTubeDownloads: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/modules/youtube/workflows/source-sync", () => ({
     createYouTubeSourceWorkflow: mocks.createYouTubeSourceWorkflow,
+    retryYouTubeSourceInitializationWorkflow: mocks.retryYouTubeSourceInitializationWorkflow,
     syncAllActiveYouTubeSourcesWorkflow: vi.fn(),
     syncYouTubeSourceWorkflow: vi.fn(),
 }));
@@ -29,6 +31,7 @@ import {
     probePublicYouTubeVideo,
     queueYouTubeVideoUrl,
     retryAllYouTubeDownloads,
+    retryYouTubeSourceInitialization,
     searchPublicYouTube,
     YouTubeDomainError,
 } from "./public";
@@ -256,6 +259,21 @@ describe("public YouTube monitor creation", () => {
 });
 
 describe("public YouTube retry controls", () => {
+    it("routes source initialization retry through the bootstrap-aware workflow", async () => {
+        mocks.retryYouTubeSourceInitializationWorkflow.mockResolvedValue({
+            discoveredCount: 1,
+            queuedCount: 0,
+        });
+
+        await expect(retryYouTubeSourceInitialization("user-1", "source-1")).resolves.toMatchObject(
+            { discoveredCount: 1 },
+        );
+        expect(mocks.retryYouTubeSourceInitializationWorkflow).toHaveBeenCalledWith(
+            "user-1",
+            "source-1",
+        );
+    });
+
     it("requeues failed rows without starting a downloader in the web process", async () => {
         mocks.retryAllYouTubeDownloads.mockResolvedValue(4);
 

@@ -1,4 +1,6 @@
 import os from "node:os";
+import { randomUUID } from "node:crypto";
+import { env } from "@/lib/env";
 import path from "node:path";
 import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 
@@ -7,7 +9,11 @@ import { describe, expect, it } from "vitest";
 import { organizeCompletedDownloadFiles } from "./file-organization";
 
 async function tempRoot(label: string) {
-    return mkdtemp(path.join(os.tmpdir(), `nooklet-${label}-`));
+    const root = await mkdtemp(path.join(os.tmpdir(), `nooklet-${label}-`));
+
+    env.DOWNLOAD_ENGINE_DIR = root;
+
+    return root;
 }
 
 describe("organizeCompletedDownloadFiles", () => {
@@ -35,7 +41,14 @@ describe("organizeCompletedDownloadFiles", () => {
                         path: { path: targetRoot },
                     },
                     match: {
-                        request: { mediaType: "movie", requestedTitle: "Arrival", episodeId: null },
+                        historyItem: { id: randomUUID() },
+                        request: {
+                            id: randomUUID(),
+                            userId: "test-user",
+                            mediaType: "movie",
+                            requestedTitle: "Arrival",
+                            episodeId: null,
+                        },
                     },
                 },
                 files: [
@@ -97,7 +110,14 @@ describe("organizeCompletedDownloadFiles", () => {
                         path: { path: targetRoot },
                     },
                     match: {
-                        request: { mediaType: "movie", requestedTitle: "Arrival", episodeId: null },
+                        historyItem: { id: randomUUID() },
+                        request: {
+                            id: randomUUID(),
+                            userId: "test-user",
+                            mediaType: "movie",
+                            requestedTitle: "Arrival",
+                            episodeId: null,
+                        },
                     },
                 },
                 files: [
@@ -147,7 +167,14 @@ describe("organizeCompletedDownloadFiles", () => {
                         path: { path: targetRoot },
                     },
                     match: {
-                        request: { mediaType: "movie", requestedTitle: "Arrival", episodeId: null },
+                        historyItem: { id: randomUUID() },
+                        request: {
+                            id: randomUUID(),
+                            userId: "test-user",
+                            mediaType: "movie",
+                            requestedTitle: "Arrival",
+                            episodeId: null,
+                        },
                     },
                 },
                 files: [
@@ -197,7 +224,10 @@ describe("organizeCompletedDownloadFiles", () => {
                         path: { path: targetRoot },
                     },
                     match: {
+                        historyItem: { id: randomUUID() },
                         request: {
+                            id: randomUUID(),
+                            userId: "test-user",
                             mediaType: "tv",
                             requestedTitle: "Slow Horses",
                             episodeId: "episode1",
@@ -269,7 +299,10 @@ describe("organizeCompletedDownloadFiles", () => {
                         path: { path: targetRoot },
                     },
                     match: {
+                        historyItem: { id: randomUUID() },
                         request: {
+                            id: randomUUID(),
+                            userId: "test-user",
                             mediaType: "tv",
                             requestedTitle: "Severance S01",
                             episodeId: null,
@@ -384,7 +417,10 @@ describe("organizeCompletedDownloadFiles", () => {
                         path: { path: targetRoot },
                     },
                     match: {
+                        historyItem: { id: randomUUID() },
                         request: {
+                            id: randomUUID(),
+                            userId: "test-user",
                             mediaType: "tv",
                             requestedTitle: "Severance S02",
                             episodeId: null,
@@ -442,7 +478,14 @@ describe("organizeCompletedDownloadFiles", () => {
                         path: { path: targetRoot },
                     },
                     match: {
-                        request: { mediaType: "tv", requestedTitle: "Severance", episodeId: null },
+                        historyItem: { id: randomUUID() },
+                        request: {
+                            id: randomUUID(),
+                            userId: "test-user",
+                            mediaType: "tv",
+                            requestedTitle: "Severance",
+                            episodeId: null,
+                        },
                     },
                 },
                 files: [

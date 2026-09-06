@@ -3,16 +3,18 @@ import Link from "next/link";
 import { LibraryDrivesPanel } from "@/app/(workspace)/library/library-drives-panel";
 import { LibraryPathForm } from "@/app/(workspace)/library/library-path-form";
 import { LibraryPathManager } from "@/app/(workspace)/library/library-path-manager";
+import { connectionReturnTarget } from "@/app/(workspace)/settings/connections/connection-navigation";
 import { auth } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { StorageOverviewView } from "@/components/storage/storage-overview";
+import { buildStorageHealthHref, StorageOverviewView } from "@/components/storage/storage-overview";
 import { LinkPendingOverlay } from "@/components/ui/link-pending-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import type { LibraryMediaType } from "@/lib/database/schema";
 import { listLibraryOverview } from "@/modules/media-library/queries/list-library-overview";
 import { getStorageOverview } from "@/modules/storage/queries/get-storage-overview";
+import { getBackgroundWorkerReadiness } from "@/lib/jobs/worker-readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +69,7 @@ function requestedMediaType(value: string | string[] | undefined): LibraryMediaT
 export default async function StorageSettingsPage({
     searchParams,
 }: {
-    searchParams: Promise<{ mediaType?: string | string[] }>;
+    searchParams: Promise<{ mediaType?: string | string[]; returnTo?: string }>;
 }) {
     const session = await auth();
 
@@ -75,11 +77,13 @@ export default async function StorageSettingsPage({
         return null;
     }
 
-    const [{ mediaType }, overview, libraryOverview] = await Promise.all([
+    const [{ mediaType, returnTo }, overview, libraryOverview] = await Promise.all([
         searchParams,
         getStorageOverview(session.user.id),
         session.user.role === "admin" ? listLibraryOverview(session.user.id) : null,
     ]);
+    const returnTarget = connectionReturnTarget(returnTo);
+    const healthHref = buildStorageHealthHref(returnTo);
 
     return (
         <div className="nk-enter space-y-7">
@@ -89,20 +93,24 @@ export default async function StorageSettingsPage({
                 description="See the exact filesystem Nooklet checks before a download and the separate destinations used after import."
                 actions={
                     <Link
-                        href="/setup"
+                        href={returnTarget.href}
                         className="relative inline-flex min-h-11 items-center rounded-lg border border-cream/[0.12] bg-cream/[0.04] px-4 py-2 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-cream/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                     >
                         <LinkPendingOverlay />
-                        Setup Center
+                        {returnTarget.label}
                     </Link>
                 }
             />
 
             <Panel
                 title="Storage preflight"
-                description="Live reachability, write access, capacity, reservations, and runtime path mapping."
+                description="Recent checks of folder access, available space, and download reservations."
             >
-                <StorageOverviewView overview={overview} />
+                <StorageOverviewView
+                    overview={overview}
+                    workerResponsive={getBackgroundWorkerReadiness().responsive}
+                    healthHref={healthHref}
+                />
             </Panel>
 
             {session.user.role === "admin" ? (
@@ -133,7 +141,7 @@ export default async function StorageSettingsPage({
                         description="The download workspace is configured with DOWNLOAD_ENGINE_DIR because its Docker volume binding must exist before Nooklet starts."
                     >
                         <Link
-                            href="/health"
+                            href={healthHref}
                             className="relative inline-flex min-h-11 items-center rounded-lg border border-cream/[0.12] bg-cream/[0.04] px-4 py-2 text-sm font-semibold text-foreground transition hover:border-accent/35 hover:bg-cream/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                         >
                             <LinkPendingOverlay />

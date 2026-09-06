@@ -115,16 +115,17 @@ function TestButton({ disabled = false }: { disabled?: boolean }) {
 
 export function IndexerSettingsForm({ indexer }: { indexer?: IndexerSettingsView }) {
     const isEditing = Boolean(indexer);
+    const legacyCredentialUrl = Boolean(indexer?.hasEmbeddedCredentials);
     const inferredPreset =
         indexerProviderPresets.find(
             (preset) => preset.baseUrl && preset.baseUrl === indexer?.baseUrl,
         )?.id ?? "generic";
     const [providerPreset, setProviderPreset] = useState(inferredPreset);
     const [name, setName] = useState(indexer?.name ?? "");
-    const [baseUrl, setBaseUrl] = useState(indexer?.baseUrl ?? "");
+    const [baseUrl, setBaseUrl] = useState(legacyCredentialUrl ? "" : (indexer?.baseUrl ?? ""));
     const [apiPath, setApiPath] = useState(indexer?.apiPath ?? "/api");
     const [protocol, setProtocol] = useState<"newznab" | "torznab">(indexer?.protocol ?? "newznab");
-    const [editOpen, setEditOpen] = useState(!indexer);
+    const [editOpen, setEditOpen] = useState(!indexer || legacyCredentialUrl);
     const [removeOpen, setRemoveOpen] = useState(false);
     const removeSubmitRef = useRef<HTMLButtonElement | null>(null);
     const legacyTorznab = protocol === "torznab";
@@ -170,6 +171,12 @@ export function IndexerSettingsForm({ indexer }: { indexer?: IndexerSettingsView
                             <p className="mt-1 truncate text-sm text-muted" title={indexer.baseUrl}>
                                 {indexer.baseUrl}
                             </p>
+                            {legacyCredentialUrl ? (
+                                <InlineAlert variant="warning" className="mt-2">
+                                    This saved URL contains embedded credentials. Enter a clean URL
+                                    before saving or testing.
+                                </InlineAlert>
+                            ) : null}
                             <p className="mt-1 text-xs leading-5 text-muted">
                                 Search order {indexer.priority} ·{" "}
                                 {indexer.categories.length > 0
@@ -280,9 +287,13 @@ export function IndexerSettingsForm({ indexer }: { indexer?: IndexerSettingsView
                         </label>
                     </div>
 
-                    <label className="block space-y-1.5 text-sm">
+                    <label
+                        className="block space-y-1.5 text-sm"
+                        htmlFor={`indexer-base-url-${indexer?.id ?? "new"}`}
+                    >
                         <span className="font-medium text-foreground">Indexer URL</span>
                         <Input
+                            id={`indexer-base-url-${indexer?.id ?? "new"}`}
                             name="baseUrl"
                             type="url"
                             placeholder="https://indexer.example.com"
@@ -290,6 +301,12 @@ export function IndexerSettingsForm({ indexer }: { indexer?: IndexerSettingsView
                             onChange={(event) => setBaseUrl(event.target.value)}
                             required
                         />
+                        {legacyCredentialUrl ? (
+                            <p className="text-[13px] leading-5 text-muted">
+                                For security, the previous URL is hidden. Enter the provider URL
+                                again; the redacted value cannot be reused.
+                            </p>
+                        ) : null}
                         <p className="text-[13px] leading-5 text-muted">
                             Use the HTTPS Newznab host from your provider. Nooklet adds the API path
                             below.
@@ -411,7 +428,12 @@ export function IndexerSettingsForm({ indexer }: { indexer?: IndexerSettingsView
                             />
                             <span>Use this indexer in searches</span>
                         </label>
-                        <SaveButtons isEditing={isEditing} disabled={legacyTorznab} />
+                        <SaveButtons
+                            isEditing={isEditing}
+                            disabled={
+                                legacyTorznab || (legacyCredentialUrl && baseUrl.trim() === "")
+                            }
+                        />
                     </div>
                     <p className="text-[13px] leading-5 text-muted">
                         Test & save checks these draft values first. If the test fails, the

@@ -14,10 +14,12 @@ import {
     deleteEngineDownload,
     findEngineDownloadById,
     listActiveEngineDownloads,
+    listEngineDownloadsForFinalizationRecovery,
     listEngineDownloadsWithControlIntent,
     listUnimportedFinishedEngineDownloads,
     markEngineDownloadImported,
     recoverStrandedEngineDownloads,
+    recoverFinalizedEngineDownload,
     requestEngineDownloadControl,
     resumePausedEngineDownload,
     resolveEngineDownloadPayload,
@@ -276,6 +278,46 @@ describe("engine repository", () => {
             ),
         ).toBe(false);
         expect(await findEngineDownloadById(userId, record.id)).toMatchObject({
+            state: "extracting",
+            controlIntent: "cancel",
+        });
+    });
+
+    it("recovers only an unconsumed post-processing row through its completion fence", async () => {
+        const record = await createEngineDownload(baseInput());
+
+        await setEngineDownloadState(record.id, "extracting");
+
+        expect((await listEngineDownloadsForFinalizationRecovery()).map((row) => row.id)).toEqual([
+            record.id,
+        ]);
+
+        const completedAt = new Date("2026-09-04T12:00:00Z");
+
+        expect(
+            await recoverFinalizedEngineDownload(
+                record.id,
+                `/data/downloads/complete/${record.id}`,
+                completedAt,
+            ),
+        ).toBe(true);
+        expect(await findEngineDownloadById(userId, record.id)).toMatchObject({
+            state: "completed",
+            outputPath: `/data/downloads/complete/${record.id}`,
+            completedAt,
+            nzbXml: expect.stringMatching(/^v1:/),
+            password: null,
+        });
+
+        const cancelled = await createEngineDownload(baseInput({ name: "cancelled" }));
+
+        await setEngineDownloadState(cancelled.id, "extracting");
+        await requestEngineDownloadControl(userId, cancelled.id, "cancel");
+
+        expect(await recoverFinalizedEngineDownload(cancelled.id, "/should/not/publish")).toBe(
+            false,
+        );
+        expect(await findEngineDownloadById(userId, cancelled.id)).toMatchObject({
             state: "extracting",
             controlIntent: "cancel",
         });

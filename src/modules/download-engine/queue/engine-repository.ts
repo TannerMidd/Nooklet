@@ -632,6 +632,64 @@ export async function listUnimportedFinishedEngineDownloads(userId: string) {
         .all();
 }
 
+/**
+ * Post-processing rows whose filesystem output may have been finalized before
+ * the process stopped.  Keep this query narrow: a queued/paused row must not
+ * cause an arbitrary directory under the engine roots to be promoted.
+ */
+export async function listEngineDownloadsForFinalizationRecovery() {
+    return ensureDatabaseReady()
+        .select()
+        .from(engineDownloads)
+        .where(
+            and(
+                inArray(engineDownloads.state, [...enginePostProcessingStates]),
+                isNull(engineDownloads.controlIntent),
+                isNull(engineDownloads.importedAt),
+            ),
+        )
+        .orderBy(asc(engineDownloads.updatedAt))
+        .all();
+}
+
+/**
+ * Publishes a validated finalization result through the same durable fence as
+ * the normal runner completion write.  Cancellation, another owner, or an
+ * already-consumed row wins the compare-and-swap and leaves the artifact for
+ * the caller to reconcile instead of overwriting a newer state.
+ */
+export async function recoverFinalizedEngineDownload(
+    id: string,
+    outputPath: string,
+    completedAt: Date = new Date(),
+) {
+    const database = ensureDatabaseReady();
+    const result = database
+        .update(engineDownloads)
+        .set({
+            state: "completed",
+            bytesPerSecond: null,
+            failureKind: null,
+            errorMessage: null,
+            outputPath,
+            completedAt,
+            updatedAt: new Date(),
+            nzbXml: encryptSecret(""),
+            password: null,
+        })
+        .where(
+            and(
+                eq(engineDownloads.id, id),
+                inArray(engineDownloads.state, [...enginePostProcessingStates]),
+                isNull(engineDownloads.controlIntent),
+                isNull(engineDownloads.importedAt),
+            ),
+        )
+        .run();
+
+    return result.changes > 0;
+}
+
 export async function markEngineDownloadImported(id: string) {
     const database = ensureDatabaseReady();
 
@@ -734,8 +792,10 @@ export async function hasQueuedEngineDownloads() {
 }
 
 /** Parks downloads stranded mid-flight by a process restart for explicit recovery. */
-export async function recoverStrandedEngineDownloads() {
+export async function recoverStrandedEngineDownloads(excludeIds: readonly string[] = []) {
     const database = ensureDatabaseReady();
+    const excluded =
+        excludeIds.length > 0 ? notInArray(engineDownloads.id, [...excludeIds]) : undefined;
 
     database
         .update(engineDownloads)
@@ -749,6 +809,7 @@ export async function recoverStrandedEngineDownloads() {
             and(
                 inArray(engineDownloads.state, ["fetching", "repairing", "extracting"]),
                 eq(engineDownloads.controlIntent, "pause"),
+                excluded,
             ),
         )
         .run();
@@ -768,6 +829,7 @@ export async function recoverStrandedEngineDownloads() {
             and(
                 inArray(engineDownloads.state, ["fetching", "repairing", "extracting"]),
                 isNull(engineDownloads.controlIntent),
+                excluded,
             ),
         )
         .run();

@@ -8,6 +8,7 @@ import {
     mediaLibraryPaths,
     mediaTitles,
     type LibraryMediaType,
+    type RecommendationMediaType,
 } from "@/lib/database/schema";
 
 export type LibraryPathSummary = {
@@ -32,6 +33,7 @@ export type LibrarySummary = {
 
 export type LibraryOverview = {
     libraries: LibrarySummary[];
+    mediaTotals: Record<RecommendationMediaType, { titles: number; files: number }>;
     totals: {
         libraries: number;
         paths: number;
@@ -58,8 +60,15 @@ export async function listLibraryOverview(userId: string): Promise<LibraryOvervi
     const files = database.select().from(mediaFiles).where(eq(mediaFiles.userId, userId)).all();
     const titleCountByLibrary = new Map<string, number>();
     const fileCountByLibraryPath = new Map<string, number>();
+    const titleMediaTypes = new Map(titles.map((title) => [title.id, title.mediaType]));
+    const mediaTotals: LibraryOverview["mediaTotals"] = {
+        movie: { titles: 0, files: 0 },
+        tv: { titles: 0, files: 0 },
+    };
 
     for (const title of titles) {
+        mediaTotals[title.mediaType].titles += 1;
+
         if (title.libraryId) {
             titleCountByLibrary.set(
                 title.libraryId,
@@ -69,6 +78,10 @@ export async function listLibraryOverview(userId: string): Promise<LibraryOvervi
     }
 
     for (const file of files) {
+        if (titleMediaTypes.get(file.titleId) === file.mediaType) {
+            mediaTotals[file.mediaType].files += 1;
+        }
+
         if (file.libraryPathId) {
             fileCountByLibraryPath.set(
                 file.libraryPathId,
@@ -106,6 +119,7 @@ export async function listLibraryOverview(userId: string): Promise<LibraryOvervi
 
     return {
         libraries: summaries,
+        mediaTotals,
         totals: {
             libraries: summaries.length,
             paths: paths.length,
