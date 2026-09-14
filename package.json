@@ -34,18 +34,18 @@
         "db:generate": "drizzle-kit generate"
     },
     "dependencies": {
-        "better-sqlite3": "^13.0.2",
+        "better-sqlite3": "^13.0.3",
         "clsx": "^2.1.1",
         "drizzle-orm": "^0.45.2",
-        "fast-xml-parser": "^5.10.1",
-        "lucide-react": "^1.28.0",
-        "next": "^16.2.11",
+        "fast-xml-parser": "^5.11.1",
+        "lucide-react": "^1.45.0",
+        "next": "^16.3.5",
         "next-auth": "5.0.0-beta.32",
-        "react": "^19.2.8",
-        "react-dom": "^19.2.8",
+        "react": "^19.3.0",
+        "react-dom": "^19.3.0",
         "tailwind-merge": "^3.6.0",
-        "undici": "^7.29.0",
-        "zod": "^4.4.3"
+        "undici": "^8.10.2",
+        "zod": "^4.6.2"
     },
     "devDependencies": {
         "@playwright/test": "^1.62.1",
@@ -55,8 +55,8 @@
         "@testing-library/react": "^16.3.2",
         "@types/better-sqlite3": "^7.6.13",
         "@types/node": "^24.13.3",
-        "@types/react": "^19.2.18",
-        "@types/react-dom": "^19.2.4",
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0",
         "autoprefixer": "^10.5.3",
         "axe-core": "^4.13.0",
         "drizzle-kit": "^0.31.10",
