@@ -3,7 +3,7 @@
 # ---------- build base ----------
 # Pin npm separately because the Node image's bundled npm can lag the project
 # package-manager contract and silently ignore strict install-script policy.
-FROM node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d AS build-base
+FROM node:26.10.0-bookworm-slim@sha256:662933cf47f013bc8e4beb31a6116448427a82057ba7c42c97e4c5ba766504c2 AS build-base
 ARG NPM_VERSION=11.16.0
 RUN npm install --global "npm@${NPM_VERSION}" \
   && test "$(npm --version)" = "${NPM_VERSION}"
@@ -40,7 +40,7 @@ COPY . .
 RUN npm run build
 
 # ---------- runner ----------
-FROM node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d AS runner
+FROM node:26.10.0-bookworm-slim@sha256:662933cf47f013bc8e4beb31a6116448427a82057ba7c42c97e4c5ba766504c2 AS runner
 WORKDIR /app
 
 # yt-dlp's official Unix zipimport executable is architecture-independent. Pin
